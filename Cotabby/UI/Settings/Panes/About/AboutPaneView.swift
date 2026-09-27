@@ -32,7 +32,7 @@ struct AboutPaneView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cotabby")
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                 Text("Local macOS AI Autocomplete")
@@ -113,10 +113,8 @@ struct AboutPaneView: View {
 
     @ViewBuilder
     private var uninstallText: some View {
-        Text(
-            "Remove Cotabby from Applications. To fully clean up app data, "
-            + "delete ~/Library/Application Support/Cotabby."
-        )
+        let dataDirectory = BundledRuntimeLocator.userRuntimeDirectoryURL().deletingLastPathComponent().path
+        Text("Remove Cotabby from Applications. To fully clean up model data, delete \(dataDirectory).")
         .font(.caption)
         .foregroundStyle(.secondary)
     }

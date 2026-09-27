@@ -6,58 +6,29 @@ import XCTest
 /// parsing are pure; URLProtocol stubs exercise the real URLSession request paths and headers.
 @MainActor
 final class OpenAICompatibleAPIClientTests: XCTestCase {
-    func test_modelSelectionResolver_choosesFirstDiscoveredModelForEmptySelection() {
+    func test_modelSelectionResolver_reconcilesSavedSelectionWithDiscoveredCatalog() {
         let models = [
             OpenAICompatibleModelOption(id: "alpha"),
             OpenAICompatibleModelOption(id: "beta")
         ]
-
-        XCTAssertEqual(
-            OpenAICompatibleModelSelectionResolver.preferredSelection(
-                currentSelection: "",
-                discoveredModels: models
-            ),
-            "alpha"
-        )
-    }
-
-    func test_modelSelectionResolver_preservesAvailableSelection() {
-        let models = [
-            OpenAICompatibleModelOption(id: "alpha"),
-            OpenAICompatibleModelOption(id: "beta")
+        let cases: [(current: String, catalog: [OpenAICompatibleModelOption], expected: String?, label: String)] = [
+            ("", models, "alpha", "empty selection adopts the first discovered model"),
+            ("beta", models, "beta", "an available selection is preserved"),
+            ("  beta\n", models, "beta", "surrounding whitespace does not hide an available selection"),
+            ("removed-model", models, "alpha", "a stale selection is replaced by the first model"),
+            ("manual-model", [], nil, "an empty catalog leaves a manual identifier untouched")
         ]
 
-        XCTAssertEqual(
-            OpenAICompatibleModelSelectionResolver.preferredSelection(
-                currentSelection: "beta",
-                discoveredModels: models
-            ),
-            "beta"
-        )
-    }
-
-    func test_modelSelectionResolver_replacesStaleSelectionWithFirstDiscoveredModel() {
-        let models = [
-            OpenAICompatibleModelOption(id: "alpha"),
-            OpenAICompatibleModelOption(id: "beta")
-        ]
-
-        XCTAssertEqual(
-            OpenAICompatibleModelSelectionResolver.preferredSelection(
-                currentSelection: "removed-model",
-                discoveredModels: models
-            ),
-            "alpha"
-        )
-    }
-
-    func test_modelSelectionResolver_preservesManualSelectionForEmptyCatalog() {
-        XCTAssertNil(
-            OpenAICompatibleModelSelectionResolver.preferredSelection(
-                currentSelection: "manual-model",
-                discoveredModels: []
+        for testCase in cases {
+            XCTAssertEqual(
+                OpenAICompatibleModelSelectionResolver.preferredSelection(
+                    currentSelection: testCase.current,
+                    discoveredModels: testCase.catalog
+                ),
+                testCase.expected,
+                testCase.label
             )
-        )
+        }
     }
 
     override func tearDown() {
@@ -68,7 +39,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_configuration_normalizesRootURLAndClassifiesHosts() throws {
+    func test_configuration_normalizesBaseURLAndModelName() throws {
         let loopback = try configuration(baseURL: " http://127.0.0.1:11434/ ")
         XCTAssertEqual(loopback.baseURL.absoluteString, "http://127.0.0.1:11434/v1")
         XCTAssertEqual(loopback.apiURL(path: "models").absoluteString, "http://127.0.0.1:11434/v1/models")
@@ -76,21 +47,77 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertEqual(loopback.hostScope, .loopback)
         XCTAssertNil(loopback.privacyWarning)
 
+        // Every spelling of the default Ollama root must normalize to the exact default string,
+        // because the native preload route is gated on that string match.
+        for spelling in ["http://127.0.0.1:11434", "HTTP://127.0.0.1:11434/v1", "http://127.0.0.1:11434/v1///"] {
+            let normalized = try configuration(baseURL: spelling)
+            XCTAssertEqual(normalized.baseURL.absoluteString, "http://127.0.0.1:11434/v1", spelling)
+            XCTAssertNotNil(normalized.defaultOllamaGenerateURL, spelling)
+        }
+
         let lan = try configuration(baseURL: "http://192.168.1.50:8000/v1/")
         XCTAssertEqual(lan.baseURL.absoluteString, "http://192.168.1.50:8000/v1")
-        XCTAssertNil(lan.defaultOllamaGenerateURL)
+        XCTAssertNil(lan.defaultOllamaGenerateURL, "Only the default Ollama root may receive /api/generate")
         XCTAssertEqual(lan.hostScope, .localNetwork)
-        XCTAssertNotNil(lan.privacyWarning)
-
-        let mdns = try configuration(baseURL: "http://ollama.local:11434/v1")
-        XCTAssertEqual(mdns.hostScope, .localNetwork)
+        XCTAssertEqual(
+            lan.privacyWarning,
+            "Cotabby will send typed text and any enabled context to this server on your local network."
+        )
 
         let publicHTTPS = try configuration(baseURL: "https://models.example.com/custom/v1")
+        XCTAssertEqual(publicHTTPS.baseURL.absoluteString, "https://models.example.com/custom/v1")
         XCTAssertEqual(publicHTTPS.hostScope, .publicInternet)
-        XCTAssertNotNil(publicHTTPS.privacyWarning)
+        XCTAssertEqual(
+            publicHTTPS.privacyWarning,
+            "This server is outside your Mac. Typed text and any enabled context will leave your device."
+        )
 
-        let singleLabelHTTPS = try configuration(baseURL: "https://internal-llm:11434/v1")
-        XCTAssertEqual(singleLabelHTTPS.hostScope, .publicInternet)
+        let padded = try OpenAICompatibleEndpointConfiguration(
+            baseURLString: OpenAICompatibleEndpointConfiguration.defaultBaseURLString,
+            modelName: "  llama3:8b \n",
+            apiMode: .completions
+        )
+        XCTAssertEqual(padded.modelName, "llama3:8b")
+    }
+
+    /// The host scope decides both the privacy warning and whether plain HTTP is allowed, so each
+    /// private-range boundary is pinned on both sides.
+    func test_hostScope_classifiesLoopbackPrivateRangesAndPublicHosts() {
+        let cases: [(host: String, expected: OpenAICompatibleHostScope)] = [
+            ("localhost", .loopback),
+            ("LOCALHOST", .loopback),
+            ("ollama.localhost", .loopback),
+            ("::1", .loopback),
+            ("[::1]", .loopback),
+            ("127.0.0.1", .loopback),
+            ("127.20.30.40", .loopback),
+            ("10.0.0.5", .localNetwork),
+            ("172.16.0.1", .localNetwork),
+            ("172.31.255.255", .localNetwork),
+            ("172.15.0.1", .publicInternet),
+            ("172.32.0.1", .publicInternet),
+            ("192.168.1.50", .localNetwork),
+            ("192.169.1.50", .publicInternet),
+            ("169.254.10.20", .localNetwork),
+            ("8.8.8.8", .publicInternet),
+            ("256.1.1.1", .publicInternet),
+            ("ollama.local", .localNetwork),
+            ("fd00::1", .localNetwork),
+            ("fc00::1", .localNetwork),
+            ("fe80::1", .localNetwork),
+            ("fec0::1", .publicInternet),
+            ("2001:4860:4860::8888", .publicInternet),
+            ("internal-llm", .publicInternet),
+            ("models.example.com", .publicInternet)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                OpenAICompatibleEndpointConfiguration.hostScope(for: testCase.host),
+                testCase.expected,
+                testCase.host
+            )
+        }
     }
 
     func test_configuration_rejectsInsecurePublicHTTPAndInvalidComponents() {
@@ -103,35 +130,72 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
                 XCTAssertEqual(error as? OpenAICompatibleEndpointError, .insecurePublicHTTP)
             }
         }
-        for invalid in ["localhost:11434", "file:///tmp/model", "https://host/v1?token=secret"] {
-            XCTAssertThrowsError(try configuration(baseURL: invalid), invalid)
+        for invalid in [
+            "",
+            "localhost:11434",
+            "file:///tmp/model",
+            "ftp://127.0.0.1/v1",
+            "https://host/v1?token=secret",
+            "http://127.0.0.1:11434/v1#fragment",
+            "http://user:password@127.0.0.1:11434/v1"
+        ] {
+            XCTAssertThrowsError(try configuration(baseURL: invalid), invalid) { error in
+                XCTAssertEqual(error as? OpenAICompatibleEndpointError, .invalidBaseURL, invalid)
+            }
         }
     }
 
-    func test_sseDecoder_handlesCompletionChatCommentsErrorsAndDone() throws {
-        XCTAssertEqual(
-            try OpenAICompatibleSSEDecoder.decode(
-                #"data: {"choices":[{"text":" hel"}]}"#,
-                mode: .completions
+    func test_sseDecoder_mapsEachLineShapeToOneEvent() throws {
+        let cases: [(line: String, mode: OpenAICompatibleAPIMode, expected: OpenAICompatibleSSEEvent)] = [
+            (#"data: {"choices":[{"text":" hel"}]}"#, .completions, .text(" hel")),
+            (#"{"choices":[{"text":"bare"}]}"#, .completions, .text("bare")),
+            (#"data: {"choices":[{"delta":{"content":"lo"}}]}"#, .chatCompletions, .text("lo")),
+            (#"data: {"choices":[{"message":{"content":"whole"}}]}"#, .chatCompletions, .text("whole")),
+            (
+                #"data: {"choices":[{"delta":{"content":"d"},"message":{"content":"m"}}]}"#,
+                .chatCompletions,
+                .text("d")
             ),
-            .text(" hel")
-        )
-        XCTAssertEqual(
-            try OpenAICompatibleSSEDecoder.decode(
-                #"data: {"choices":[{"delta":{"content":"lo"}}]}"#,
-                mode: .chatCompletions
-            ),
-            .text("lo")
-        )
-        XCTAssertEqual(try OpenAICompatibleSSEDecoder.decode(": keep-alive", mode: .completions), .ignore)
-        XCTAssertEqual(try OpenAICompatibleSSEDecoder.decode("data: [DONE]", mode: .completions), .done)
-        XCTAssertEqual(
-            try OpenAICompatibleSSEDecoder.decode(
-                #"data: {"error":{"message":"model missing"}}"#,
-                mode: .completions
-            ),
-            .error("model missing")
-        )
+            // Field/mode mismatches and empty payloads carry no visible text.
+            (#"data: {"choices":[{"delta":{"content":"chat"}}]}"#, .completions, .ignore),
+            (#"data: {"choices":[{"text":"legacy"}]}"#, .chatCompletions, .ignore),
+            (#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#, .chatCompletions, .ignore),
+            (#"data: {"choices":[{"text":""}]}"#, .completions, .ignore),
+            (#"data: {"choices":[]}"#, .completions, .ignore),
+            (#"data: {}"#, .completions, .ignore),
+            // SSE framing: blank lines, comments, and metadata fields are never payloads.
+            ("", .completions, .ignore),
+            ("   ", .completions, .ignore),
+            (": keep-alive", .completions, .ignore),
+            ("event: completion", .completions, .ignore),
+            ("id: 42", .completions, .ignore),
+            ("retry: 1000", .completions, .ignore),
+            // The terminator is recognized with or without the space, prefix, or a CRLF remnant.
+            ("data: [DONE]", .completions, .done),
+            ("data:[DONE]", .chatCompletions, .done),
+            ("[DONE]", .completions, .done),
+            ("data: [DONE]\r", .completions, .done),
+            // A non-empty error wins over any choices; an empty message is not an error.
+            (#"data: {"error":{"message":"model missing"}}"#, .completions, .error("model missing")),
+            (#"data: {"error":{"message":"boom"},"choices":[{"text":"x"}]}"#, .completions, .error("boom")),
+            (#"data: {"error":{"message":""}}"#, .completions, .ignore)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                try OpenAICompatibleSSEDecoder.decode(testCase.line, mode: testCase.mode),
+                testCase.expected,
+                testCase.line
+            )
+        }
+    }
+
+    func test_sseDecoder_throwsMalformedResponseForNonJSONPayloads() {
+        for line in ["data: {not json", "data: plain text", #"data: {"choices":"nope"}"#] {
+            XCTAssertThrowsError(try OpenAICompatibleSSEDecoder.decode(line, mode: .completions), line) { error in
+                XCTAssertEqual(error as? OpenAICompatibleClientError, .malformedResponse, line)
+            }
+        }
     }
 
     func test_fetchModels_usesModelsRouteAndBearerAuthorization() async throws {
@@ -159,12 +223,19 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         EndpointStubURLProtocol.handler = { request in
             XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/completions")
             XCTAssertEqual(request.timeoutInterval, 120)
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/event-stream")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let json = try Self.jsonBody(request)
             XCTAssertEqual(json["model"] as? String, "gemma4:12b-mlx")
             XCTAssertEqual(json["prompt"] as? String, "Complete this")
+            XCTAssertEqual(json["stream"] as? Bool, true)
             XCTAssertEqual(json["max_tokens"] as? Int, 12)
+            XCTAssertEqual(json["temperature"] as? Double, 0.2)
+            XCTAssertEqual(json["top_p"] as? Double, 0.8)
             XCTAssertNil(json["messages"])
+            XCTAssertNil(json["reasoning_effort"], "reasoning_effort belongs to the chat surface only")
             return Self.response(
                 request: request,
                 contentType: "text/event-stream",
@@ -232,9 +303,13 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
             let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.count, 1)
             XCTAssertEqual(messages.first?["role"] as? String, "user")
-            let content = try XCTUnwrap(messages.first?["content"] as? String)
-            XCTAssertTrue(content.hasPrefix("Continue the text at the end of the context."))
-            XCTAssertTrue(content.hasSuffix("\n\nContinue me"))
+            XCTAssertEqual(
+                messages.first?["content"] as? String,
+                "Continue the text at the end of the context. Reply with only new continuation " +
+                    "text; do not repeat or quote existing text.\n\nContinue me"
+            )
+            XCTAssertEqual(json["stream"] as? Bool, true)
+            XCTAssertEqual(json["max_tokens"] as? Int, 8)
             XCTAssertEqual(json["reasoning_effort"] as? String, "none")
             XCTAssertNil(json["prompt"])
             return Self.response(
@@ -249,7 +324,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
             configuration: configuration(mode: .chatCompletions),
             apiKey: nil,
             prompt: "Continue me",
-            options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+            options: Self.options,
             onPartialRawText: nil
         )
 
@@ -267,7 +342,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
                 configuration: configuration(),
                 apiKey: nil,
                 prompt: "text",
-                options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+                options: Self.options,
                 onPartialRawText: nil
             )
             XCTFail("Expected the HTTP error")
@@ -291,7 +366,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
                 configuration: configuration(),
                 apiKey: nil,
                 prompt: "text",
-                options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+                options: Self.options,
                 onPartialRawText: nil
             )
         }
@@ -311,11 +386,180 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         await fulfillment(of: [stopped], timeout: 1)
     }
 
+    func test_generation_trimsAPIKeyAndOmitsAuthorizationForBlankKeys() async throws {
+        let client = makeClient()
+        var authorizationHeaders: [String?] = []
+        EndpointStubURLProtocol.handler = { request in
+            authorizationHeaders.append(request.value(forHTTPHeaderField: "Authorization"))
+            return Self.response(request: request, contentType: "text/event-stream", body: "data: [DONE]\n\n")
+        }
+
+        for apiKey in ["  secret\n", "   ", nil] as [String?] {
+            _ = try await client.generate(
+                configuration: configuration(),
+                apiKey: apiKey,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+        }
+
+        XCTAssertEqual(authorizationHeaders, ["Bearer secret", nil, nil])
+    }
+
+    func test_generation_blankModelNameFailsBeforeAnyRequest() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { _ in
+            XCTFail("A missing model must be rejected before any request is sent")
+            throw URLError(.badServerResponse)
+        }
+        let blankModel = try OpenAICompatibleEndpointConfiguration(
+            baseURLString: OpenAICompatibleEndpointConfiguration.defaultBaseURLString,
+            modelName: "   ",
+            apiMode: .chatCompletions
+        )
+
+        do {
+            _ = try await client.generate(
+                configuration: blankModel,
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+            XCTFail("Expected emptyModelName from generate")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .emptyModelName)
+        }
+
+        do {
+            _ = try await client.preloadDefaultOllamaModel(configuration: blankModel, apiKey: nil)
+            XCTFail("Expected emptyModelName from preload")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .emptyModelName)
+        }
+    }
+
+    func test_generation_streamErrorEventThrowsAfterEarlierPartials() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(
+                request: request,
+                contentType: "text/event-stream",
+                body: "data: {\"choices\":[{\"text\":\" par\"}]}\n\n" +
+                    "data: {\"error\":{\"message\":\"model unloaded\"}}\n\n" +
+                    "data: {\"choices\":[{\"text\":\"never\"}]}\n\n"
+            )
+        }
+        var partials: [String] = []
+
+        do {
+            _ = try await client.generate(
+                configuration: configuration(mode: .completions),
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: { partials.append($0) }
+            )
+            XCTFail("Expected the in-stream error to surface")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleClientError, .streamError("model unloaded"))
+        }
+        XCTAssertEqual(partials, [" par"], "Events after the error must not be delivered")
+    }
+
+    /// A server that closes the stream without `[DONE]` still produced a usable answer, but a body
+    /// with no events at all is not an OpenAI-compatible stream.
+    func test_generation_streamEndWithoutDoneReturnsTextButEmptyStreamIsMalformed() async throws {
+        let client = makeClient()
+        var body = "data: {\"choices\":[{\"text\":\" tail\"}]}\n\n"
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, contentType: "text/event-stream", body: body)
+        }
+
+        let output = try await client.generate(
+            configuration: configuration(mode: .completions),
+            apiKey: nil,
+            prompt: "text",
+            options: Self.options,
+            onPartialRawText: nil
+        )
+        XCTAssertEqual(output, " tail")
+
+        body = ": keep-alive\n\n\n"
+        do {
+            _ = try await client.generate(
+                configuration: configuration(mode: .completions),
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+            XCTFail("Expected a stream with no events to be malformed")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleClientError, .malformedResponse)
+        }
+    }
+
+    func test_fetchModels_mapsNonSuccessStatus() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, statusCode: 429, body: "{}")
+        }
+
+        do {
+            _ = try await client.fetchModels(configuration: configuration(), apiKey: nil)
+            XCTFail("Expected the HTTP error")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleClientError, .server(statusCode: 429))
+        }
+    }
+
+    func test_connectionModel_publishesReadyFailedAndIdleStates() async throws {
+        let client = makeClient()
+        let connection = OpenAICompatibleConnectionModel(client: client)
+        Self.retained.append(connection)
+        let endpoint = try configuration()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, body: #"{"data":[{"id":"b"},{"id":"a"}]}"#)
+        }
+
+        await connection.refresh(configuration: endpoint, apiKey: nil)
+        XCTAssertEqual(connection.models.map(\.id), ["a", "b"])
+        XCTAssertEqual(connection.state, .ready(modelCount: 2))
+        XCTAssertEqual(connection.state.summary, "Connected · 2 models")
+
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, statusCode: 503, body: "{}")
+        }
+        await connection.refresh(configuration: endpoint, apiKey: nil)
+        XCTAssertTrue(connection.models.isEmpty, "A failed refresh must not keep the previous catalog")
+        XCTAssertEqual(connection.state, .failed("The endpoint returned HTTP 503."))
+
+        connection.invalidate()
+        XCTAssertEqual(connection.state, .idle)
+
+        connection.setFailure("Keychain unavailable")
+        XCTAssertEqual(connection.state.failureDetail, "Keychain unavailable")
+    }
+
     private func makeClient() -> OpenAICompatibleAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [EndpointStubURLProtocol.self]
-        return OpenAICompatibleAPIClient(session: URLSession(configuration: sessionConfiguration))
+        let client = OpenAICompatibleAPIClient(session: URLSession(configuration: sessionConfiguration))
+        Self.retained.append(client)
+        return client
     }
+
+    /// Production @MainActor classes can crash the app-hosted runner when deallocated (back-deploy
+    /// executor shim); quarantine them for the process lifetime.
+    private static var retained: [AnyObject] = []
+
+    private static let options = OpenAICompatibleGenerationOptions(
+        maxPredictionTokens: 8,
+        temperature: 0.1,
+        topP: 0.7
+    )
 
     private func configuration(
         baseURL: String = OpenAICompatibleEndpointConfiguration.defaultBaseURLString,

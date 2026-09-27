@@ -1,0 +1,903 @@
+{
+  "crossSeedOnCommonHeldout": {
+    "none": {
+      "baselineAndWinnerMissBothSeeds": 4324,
+      "checkpoints": 6667,
+      "pairedGainsBothSeeds": 304,
+      "pairedLossesBothSeeds": 160,
+      "sameScorablePredictedFirstWordAcrossSeeds": 6213,
+      "sameWrongLexicalFirstWordBothSeeds": 4202,
+      "winnerCorrectBothSeeds": 2011,
+      "winnerCorrectnessChangesAcrossSeeds": 127,
+      "winnerMissesBothSeeds": 4529
+    },
+    "screen": {
+      "baselineAndWinnerMissBothSeeds": 3900,
+      "checkpoints": 6667,
+      "pairedGainsBothSeeds": 310,
+      "pairedLossesBothSeeds": 118,
+      "sameScorablePredictedFirstWordAcrossSeeds": 6229,
+      "sameWrongLexicalFirstWordBothSeeds": 3791,
+      "winnerCorrectBothSeeds": 2438,
+      "winnerCorrectnessChangesAcrossSeeds": 149,
+      "winnerMissesBothSeeds": 4080
+    }
+  },
+  "generatedUTC": "2026-09-17T07:51:50.058867+00:00",
+  "limitations": [
+    "Swift observation.correct and report metrics remain authoritative.",
+    "Raw first-word and screen-excerpt word matching use the existing approximate Python lexical helper.",
+    "Multiword matching is lexical, censored at the reference end, and is not semantic quality or accepted-keystroke utility.",
+    "Heldout seed42 and full production-seed suites have different denominators; cross-seed stability uses only their 1197 common phrases.",
+    "The production-seed repeat uses the same synthetic corpus, so it is not independent evidence on new writing.",
+    "The reports use the frozen baseline snapshot and display policy, not concurrent main-worktree word-completion changes.",
+    "No fixture-specific production changes or further tuning are inferred."
+  ],
+  "purpose": "Post-freeze aggregate diagnostics for future rounds; no scoring changes or candidate tuning.",
+  "runs": {
+    "heldout42": {
+      "analysis": "heldout42-analysis.json",
+      "baselineReport": "heldout42-baseline/report.json",
+      "conditions": {
+        "none": {
+          "authoritativeAfter": {
+            "accuracy": 0.3106344682765862,
+            "checkpoints": 6667,
+            "correct": 2071,
+            "coverage": 0.999850007499625,
+            "errors": 0,
+            "latencyP50Milliseconds": 161.87975,
+            "latencyP95Milliseconds": 453.840875,
+            "precisionWhenShown": 0.3106810681068107,
+            "shown": 6666
+          },
+          "authoritativeBefore": {
+            "accuracy": 0.2863356832158392,
+            "checkpoints": 6667,
+            "correct": 1909,
+            "coverage": 0.999850007499625,
+            "errors": 0,
+            "latencyP50Milliseconds": 176.784042,
+            "latencyP95Milliseconds": 518.171458,
+            "precisionWhenShown": 0.28637863786378637,
+            "shown": 6666
+          },
+          "bootstrap95AccuracyDelta": [
+            0.017153174842010233,
+            0.031306441902468396
+          ],
+          "categories": {
+            "conversation": {
+              "accuracy": 0.3412604042806183,
+              "accuracyDelta": 0.04875148632580262,
+              "checkpoints": 841,
+              "correct": 287,
+              "misses": 554,
+              "transitions": {
+                "improved": 58,
+                "pairedObservationsAvailable": 841,
+                "regressed": 17
+              }
+            },
+            "entertainment": {
+              "accuracy": 0.27358490566037735,
+              "accuracyDelta": 0.04612159329140461,
+              "checkpoints": 954,
+              "correct": 261,
+              "misses": 693,
+              "transitions": {
+                "improved": 64,
+                "pairedObservationsAvailable": 954,
+                "regressed": 20
+              }
+            },
+            "everyday": {
+              "accuracy": 0.2738990332975295,
+              "accuracyDelta": 0.010741138560687424,
+              "checkpoints": 931,
+              "correct": 255,
+              "misses": 676,
+              "transitions": {
+                "improved": 52,
+                "pairedObservationsAvailable": 931,
+                "regressed": 42
+              }
+            },
+            "science": {
+              "accuracy": 0.4491525423728814,
+              "accuracyDelta": 0.024364406779661063,
+              "checkpoints": 944,
+              "correct": 424,
+              "misses": 520,
+              "transitions": {
+                "improved": 43,
+                "pairedObservationsAvailable": 944,
+                "regressed": 20
+              }
+            },
+            "technology": {
+              "accuracy": 0.26403940886699506,
+              "accuracyDelta": 0.006896551724137945,
+              "checkpoints": 1015,
+              "correct": 268,
+              "misses": 747,
+              "transitions": {
+                "improved": 49,
+                "pairedObservationsAvailable": 1015,
+                "regressed": 42
+              }
+            },
+            "travel": {
+              "accuracy": 0.29298067141403866,
+              "accuracyDelta": 0.03458799593082401,
+              "checkpoints": 983,
+              "correct": 288,
+              "misses": 695,
+              "transitions": {
+                "improved": 62,
+                "pairedObservationsAvailable": 983,
+                "regressed": 28
+              }
+            },
+            "work": {
+              "accuracy": 0.2882882882882883,
+              "accuracyDelta": 0.003003003003002991,
+              "checkpoints": 999,
+              "correct": 288,
+              "misses": 711,
+              "transitions": {
+                "improved": 41,
+                "pairedObservationsAvailable": 999,
+                "regressed": 38
+              }
+            }
+          },
+          "classification": {
+            "checkpoints": 6667,
+            "correct": 2071,
+            "leadingPunctuationApproximate": 15,
+            "misses": 4596,
+            "notShown": 1,
+            "shownNoScorableFirstWord": 15,
+            "shownWrongLexicalFirstWord": 4580
+          },
+          "conditionalLexicalTails": {
+            "correctFirstWithSecondReferenceWordAvailable": 1586,
+            "correctTwoWithThirdReferenceWordAvailable": 346,
+            "matchedSecondWord": 550,
+            "matchedThirdWord": 142,
+            "secondWordMatchGivenCorrectFirst": 0.3467843631778058,
+            "secondWordNotMatchedOrAbsent": 1036,
+            "thirdWordMatchGivenCorrectTwo": 0.41040462427745666,
+            "thirdWordNotMatchedOrAbsent": 204
+          },
+          "displayDiagnostics": {
+            "emptyRaw": 0,
+            "notShown": 1,
+            "observationsAvailable": 6667,
+            "rawCorrectDisplayIncorrectApproximate": 0,
+            "rawDisplayChanged": 1,
+            "rawIncorrectDisplayCorrectApproximate": 0
+          },
+          "prefixes": {
+            "after": {
+              "checkpoints": 6667,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.4222288885555722,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 6667,
+                  "probability": 0.3106344682765862,
+                  "successes": 2071
+                },
+                "2": {
+                  "eligibleCheckpoints": 5470,
+                  "probability": 0.10054844606946983,
+                  "successes": 550
+                },
+                "3": {
+                  "eligibleCheckpoints": 4273,
+                  "probability": 0.033231921366721276,
+                  "successes": 142
+                }
+              }
+            },
+            "before": {
+              "checkpoints": 6667,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.37693115344232786,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 6667,
+                  "probability": 0.2863356832158392,
+                  "successes": 1909
+                },
+                "2": {
+                  "eligibleCheckpoints": 5470,
+                  "probability": 0.08244972577696527,
+                  "successes": 451
+                },
+                "3": {
+                  "eligibleCheckpoints": 4273,
+                  "probability": 0.025743037678446056,
+                  "successes": 110
+                }
+              }
+            },
+            "deltaMeanCorrectPrefixWords": 0.045297735113244364,
+            "deltaProbabilityPrefixAtLeast": {
+              "1": 0.024298785060747008,
+              "2": 0.01809872029250456,
+              "3": 0.00748888368827522
+            }
+          },
+          "suppressions": {
+            "normalizer": 1
+          },
+          "transitions": {
+            "improved": 369,
+            "pairedObservationsAvailable": 6667,
+            "regressed": 207
+          }
+        },
+        "screen": {
+          "authoritativeAfter": {
+            "accuracy": 0.3751312434378281,
+            "checkpoints": 6667,
+            "correct": 2501,
+            "coverage": 0.999850007499625,
+            "errors": 0,
+            "latencyP50Milliseconds": 130.393167,
+            "latencyP95Milliseconds": 328.617708,
+            "precisionWhenShown": 0.37518751875187517,
+            "shown": 6666
+          },
+          "authoritativeBefore": {
+            "accuracy": 0.34423278836058196,
+            "checkpoints": 6667,
+            "correct": 2295,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 148.085458,
+            "latencyP95Milliseconds": 372.880709,
+            "precisionWhenShown": 0.34423278836058196,
+            "shown": 6667
+          },
+          "bootstrap95AccuracyDelta": [
+            0.0240442054958184,
+            0.03777844671884407
+          ],
+          "categories": {
+            "conversation": {
+              "accuracy": 0.4351961950059453,
+              "accuracyDelta": 0.0356718192627824,
+              "checkpoints": 841,
+              "correct": 366,
+              "misses": 475,
+              "transitions": {
+                "improved": 50,
+                "pairedObservationsAvailable": 841,
+                "regressed": 20
+              }
+            },
+            "entertainment": {
+              "accuracy": 0.33438155136268344,
+              "accuracyDelta": 0.042976939203354325,
+              "checkpoints": 954,
+              "correct": 319,
+              "misses": 635,
+              "transitions": {
+                "improved": 70,
+                "pairedObservationsAvailable": 954,
+                "regressed": 29
+              }
+            },
+            "everyday": {
+              "accuracy": 0.3716433941997852,
+              "accuracyDelta": 0.06229860365198714,
+              "checkpoints": 931,
+              "correct": 346,
+              "misses": 585,
+              "transitions": {
+                "improved": 80,
+                "pairedObservationsAvailable": 931,
+                "regressed": 22
+              }
+            },
+            "science": {
+              "accuracy": 0.4586864406779661,
+              "accuracyDelta": 0.00953389830508472,
+              "checkpoints": 944,
+              "correct": 433,
+              "misses": 511,
+              "transitions": {
+                "improved": 30,
+                "pairedObservationsAvailable": 944,
+                "regressed": 21
+              }
+            },
+            "technology": {
+              "accuracy": 0.3142857142857143,
+              "accuracyDelta": 0.016748768472906406,
+              "checkpoints": 1015,
+              "correct": 319,
+              "misses": 696,
+              "transitions": {
+                "improved": 52,
+                "pairedObservationsAvailable": 1015,
+                "regressed": 35
+              }
+            },
+            "travel": {
+              "accuracy": 0.3550356052899288,
+              "accuracyDelta": 0.033570701932858604,
+              "checkpoints": 983,
+              "correct": 349,
+              "misses": 634,
+              "transitions": {
+                "improved": 62,
+                "pairedObservationsAvailable": 983,
+                "regressed": 29
+              }
+            },
+            "work": {
+              "accuracy": 0.36936936936936937,
+              "accuracyDelta": 0.018018018018018,
+              "checkpoints": 999,
+              "correct": 369,
+              "misses": 630,
+              "transitions": {
+                "improved": 38,
+                "pairedObservationsAvailable": 999,
+                "regressed": 20
+              }
+            }
+          },
+          "classification": {
+            "checkpoints": 6667,
+            "correct": 2501,
+            "expectedWordInExcerptApproximate": 1246,
+            "leadingPunctuationApproximate": 7,
+            "misses": 4166,
+            "notShown": 1,
+            "shownNoScorableFirstWord": 7,
+            "shownWrongLexicalFirstWord": 4158,
+            "wrongWhenExpectedWordInExcerptApproximate": 493
+          },
+          "conditionalLexicalTails": {
+            "correctFirstWithSecondReferenceWordAvailable": 1894,
+            "correctTwoWithThirdReferenceWordAvailable": 508,
+            "matchedSecondWord": 783,
+            "matchedThirdWord": 226,
+            "secondWordMatchGivenCorrectFirst": 0.4134107708553326,
+            "secondWordNotMatchedOrAbsent": 1111,
+            "thirdWordMatchGivenCorrectTwo": 0.4448818897637795,
+            "thirdWordNotMatchedOrAbsent": 282
+          },
+          "displayDiagnostics": {
+            "emptyRaw": 0,
+            "notShown": 1,
+            "observationsAvailable": 6667,
+            "rawCorrectDisplayIncorrectApproximate": 0,
+            "rawDisplayChanged": 1,
+            "rawIncorrectDisplayCorrectApproximate": 0
+          },
+          "prefixes": {
+            "after": {
+              "checkpoints": 6667,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.5413229338533073,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 6667,
+                  "probability": 0.3751312434378281,
+                  "successes": 2501
+                },
+                "2": {
+                  "eligibleCheckpoints": 5470,
+                  "probability": 0.14314442413162706,
+                  "successes": 783
+                },
+                "3": {
+                  "eligibleCheckpoints": 4273,
+                  "probability": 0.05289024104844372,
+                  "successes": 226
+                }
+              }
+            },
+            "before": {
+              "checkpoints": 6667,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.48522573871306435,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 6667,
+                  "probability": 0.34423278836058196,
+                  "successes": 2295
+                },
+                "2": {
+                  "eligibleCheckpoints": 5470,
+                  "probability": 0.12212065813528336,
+                  "successes": 668
+                },
+                "3": {
+                  "eligibleCheckpoints": 4273,
+                  "probability": 0.0446992745143927,
+                  "successes": 191
+                }
+              }
+            },
+            "deltaMeanCorrectPrefixWords": 0.05609719514024297,
+            "deltaProbabilityPrefixAtLeast": {
+              "1": 0.030898455077246145,
+              "2": 0.021023765996343702,
+              "3": 0.00819096653405102
+            }
+          },
+          "suppressions": {
+            "normalizer": 1
+          },
+          "transitions": {
+            "improved": 382,
+            "pairedObservationsAvailable": 6667,
+            "regressed": 176
+          }
+        }
+      },
+      "finalistReport": "heldout42-local-finalist/report.json",
+      "prefixAnalysis": "heldout42-prefixes.json",
+      "samplingSeed": 42,
+      "winnerContextLift": {
+        "byCategory": {
+          "conversation": 0.09393579072532698,
+          "entertainment": 0.060796645702306085,
+          "everyday": 0.09774436090225569,
+          "science": 0.00953389830508472,
+          "technology": 0.05024630541871922,
+          "travel": 0.06205493387589012,
+          "work": 0.08108108108108109
+        },
+        "improvedCheckpoints": 726,
+        "regressedCheckpoints": 296,
+        "suiteAccuracyDelta": 0.06449677516124191
+      }
+    },
+    "productionSeed": {
+      "analysis": "productionseed-analysis.json",
+      "baselineReport": "productionseed-baseline/report.json",
+      "conditions": {
+        "none": {
+          "authoritativeAfter": {
+            "accuracy": 0.31222267043162566,
+            "checkpoints": 7437,
+            "correct": 2322,
+            "coverage": 0.99986553717897,
+            "errors": 0,
+            "latencyP50Milliseconds": 167.704958,
+            "latencyP95Milliseconds": 469.813125,
+            "precisionWhenShown": 0.3122646584185046,
+            "shown": 7436
+          },
+          "authoritativeBefore": {
+            "accuracy": 0.28506118058356866,
+            "checkpoints": 7437,
+            "correct": 2120,
+            "coverage": 0.99986553717897,
+            "errors": 0,
+            "latencyP50Milliseconds": 169.26675,
+            "latencyP95Milliseconds": 474.076583,
+            "precisionWhenShown": 0.28509951586874666,
+            "shown": 7436
+          },
+          "bootstrap95AccuracyDelta": [
+            0.020514883346741754,
+            0.03381577167590964
+          ],
+          "categories": {
+            "conversation": {
+              "accuracy": 0.33084311632870866,
+              "accuracyDelta": 0.043756670224119554,
+              "checkpoints": 937,
+              "correct": 310,
+              "misses": 627,
+              "transitions": {
+                "improved": 62,
+                "pairedObservationsAvailable": 937,
+                "regressed": 21
+              }
+            },
+            "entertainment": {
+              "accuracy": 0.26009389671361505,
+              "accuracyDelta": 0.03661971830985919,
+              "checkpoints": 1065,
+              "correct": 277,
+              "misses": 788,
+              "transitions": {
+                "improved": 68,
+                "pairedObservationsAvailable": 1065,
+                "regressed": 29
+              }
+            },
+            "everyday": {
+              "accuracy": 0.28474903474903474,
+              "accuracyDelta": 0.028957528957528955,
+              "checkpoints": 1036,
+              "correct": 295,
+              "misses": 741,
+              "transitions": {
+                "improved": 64,
+                "pairedObservationsAvailable": 1036,
+                "regressed": 34
+              }
+            },
+            "science": {
+              "accuracy": 0.4543726235741445,
+              "accuracyDelta": 0.020912547528517123,
+              "checkpoints": 1052,
+              "correct": 478,
+              "misses": 574,
+              "transitions": {
+                "improved": 46,
+                "pairedObservationsAvailable": 1052,
+                "regressed": 24
+              }
+            },
+            "technology": {
+              "accuracy": 0.26436781609195403,
+              "accuracyDelta": 0.0053050397877983935,
+              "checkpoints": 1131,
+              "correct": 299,
+              "misses": 832,
+              "transitions": {
+                "improved": 50,
+                "pairedObservationsAvailable": 1131,
+                "regressed": 44
+              }
+            },
+            "travel": {
+              "accuracy": 0.300090661831369,
+              "accuracyDelta": 0.04442429737080689,
+              "checkpoints": 1103,
+              "correct": 331,
+              "misses": 772,
+              "transitions": {
+                "improved": 78,
+                "pairedObservationsAvailable": 1103,
+                "regressed": 29
+              }
+            },
+            "work": {
+              "accuracy": 0.29829290206648695,
+              "accuracyDelta": 0.01347708894878702,
+              "checkpoints": 1113,
+              "correct": 332,
+              "misses": 781,
+              "transitions": {
+                "improved": 52,
+                "pairedObservationsAvailable": 1113,
+                "regressed": 37
+              }
+            }
+          },
+          "classification": {
+            "checkpoints": 7437,
+            "correct": 2322,
+            "leadingPunctuationApproximate": 16,
+            "misses": 5115,
+            "notShown": 1,
+            "shownNoScorableFirstWord": 16,
+            "shownWrongLexicalFirstWord": 5098
+          },
+          "conditionalLexicalTails": {
+            "correctFirstWithSecondReferenceWordAvailable": 1769,
+            "correctTwoWithThirdReferenceWordAvailable": 387,
+            "matchedSecondWord": 622,
+            "matchedThirdWord": 168,
+            "secondWordMatchGivenCorrectFirst": 0.3516110797060486,
+            "secondWordNotMatchedOrAbsent": 1147,
+            "thirdWordMatchGivenCorrectTwo": 0.43410852713178294,
+            "thirdWordNotMatchedOrAbsent": 219
+          },
+          "displayDiagnostics": {
+            "emptyRaw": 0,
+            "notShown": 1,
+            "observationsAvailable": 7437,
+            "rawCorrectDisplayIncorrectApproximate": 0,
+            "rawDisplayChanged": 1,
+            "rawIncorrectDisplayCorrectApproximate": 0
+          },
+          "prefixes": {
+            "after": {
+              "checkpoints": 7437,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.42718838241226303,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 7437,
+                  "probability": 0.31222267043162566,
+                  "successes": 2322
+                },
+                "2": {
+                  "eligibleCheckpoints": 6100,
+                  "probability": 0.1019672131147541,
+                  "successes": 622
+                },
+                "3": {
+                  "eligibleCheckpoints": 4763,
+                  "probability": 0.03527188746588285,
+                  "successes": 168
+                }
+              }
+            },
+            "before": {
+              "checkpoints": 7437,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.3746134193895388,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 7437,
+                  "probability": 0.28506118058356866,
+                  "successes": 2120
+                },
+                "2": {
+                  "eligibleCheckpoints": 6100,
+                  "probability": 0.08114754098360656,
+                  "successes": 495
+                },
+                "3": {
+                  "eligibleCheckpoints": 4763,
+                  "probability": 0.02666386731051858,
+                  "successes": 127
+                }
+              }
+            },
+            "deltaMeanCorrectPrefixWords": 0.05257496302272424,
+            "deltaProbabilityPrefixAtLeast": {
+              "1": 0.027161489848056997,
+              "2": 0.020819672131147535,
+              "3": 0.008608020155364268
+            }
+          },
+          "suppressions": {
+            "normalizer": 1
+          },
+          "transitions": {
+            "improved": 420,
+            "pairedObservationsAvailable": 7437,
+            "regressed": 218
+          }
+        },
+        "screen": {
+          "authoritativeAfter": {
+            "accuracy": 0.3782439155573484,
+            "checkpoints": 7437,
+            "correct": 2813,
+            "coverage": 0.99986553717897,
+            "errors": 0,
+            "latencyP50Milliseconds": 132.175084,
+            "latencyP95Milliseconds": 331.492292,
+            "precisionWhenShown": 0.378294782140936,
+            "shown": 7436
+          },
+          "authoritativeBefore": {
+            "accuracy": 0.34772085518354173,
+            "checkpoints": 7437,
+            "correct": 2586,
+            "coverage": 0.99986553717897,
+            "errors": 0,
+            "latencyP50Milliseconds": 142.914167,
+            "latencyP95Milliseconds": 350.48325,
+            "precisionWhenShown": 0.3477676169983862,
+            "shown": 7436
+          },
+          "bootstrap95AccuracyDelta": [
+            0.024088278831920332,
+            0.03693333333333333
+          ],
+          "categories": {
+            "conversation": {
+              "accuracy": 0.4311632870864461,
+              "accuracyDelta": 0.0384204909284952,
+              "checkpoints": 937,
+              "correct": 404,
+              "misses": 533,
+              "transitions": {
+                "improved": 55,
+                "pairedObservationsAvailable": 937,
+                "regressed": 19
+              }
+            },
+            "entertainment": {
+              "accuracy": 0.336150234741784,
+              "accuracyDelta": 0.04037558685446008,
+              "checkpoints": 1065,
+              "correct": 358,
+              "misses": 707,
+              "transitions": {
+                "improved": 69,
+                "pairedObservationsAvailable": 1065,
+                "regressed": 26
+              }
+            },
+            "everyday": {
+              "accuracy": 0.3696911196911197,
+              "accuracyDelta": 0.05115830115830117,
+              "checkpoints": 1036,
+              "correct": 383,
+              "misses": 653,
+              "transitions": {
+                "improved": 82,
+                "pairedObservationsAvailable": 1036,
+                "regressed": 29
+              }
+            },
+            "science": {
+              "accuracy": 0.46387832699619774,
+              "accuracyDelta": 0.0066539923954372915,
+              "checkpoints": 1052,
+              "correct": 488,
+              "misses": 564,
+              "transitions": {
+                "improved": 35,
+                "pairedObservationsAvailable": 1052,
+                "regressed": 28
+              }
+            },
+            "technology": {
+              "accuracy": 0.3147656940760389,
+              "accuracyDelta": 0.01591511936339518,
+              "checkpoints": 1131,
+              "correct": 356,
+              "misses": 775,
+              "transitions": {
+                "improved": 60,
+                "pairedObservationsAvailable": 1131,
+                "regressed": 42
+              }
+            },
+            "travel": {
+              "accuracy": 0.371713508612874,
+              "accuracyDelta": 0.050770625566636474,
+              "checkpoints": 1103,
+              "correct": 410,
+              "misses": 693,
+              "transitions": {
+                "improved": 84,
+                "pairedObservationsAvailable": 1103,
+                "regressed": 28
+              }
+            },
+            "work": {
+              "accuracy": 0.3719676549865229,
+              "accuracyDelta": 0.012578616352201255,
+              "checkpoints": 1113,
+              "correct": 414,
+              "misses": 699,
+              "transitions": {
+                "improved": 44,
+                "pairedObservationsAvailable": 1113,
+                "regressed": 30
+              }
+            }
+          },
+          "classification": {
+            "checkpoints": 7437,
+            "correct": 2813,
+            "expectedWordInExcerptApproximate": 1385,
+            "leadingPunctuationApproximate": 9,
+            "misses": 4624,
+            "notShown": 1,
+            "shownNoScorableFirstWord": 9,
+            "shownWrongLexicalFirstWord": 4614,
+            "wrongWhenExpectedWordInExcerptApproximate": 536
+          },
+          "conditionalLexicalTails": {
+            "correctFirstWithSecondReferenceWordAvailable": 2122,
+            "correctTwoWithThirdReferenceWordAvailable": 575,
+            "matchedSecondWord": 883,
+            "matchedThirdWord": 271,
+            "secondWordMatchGivenCorrectFirst": 0.4161168708765316,
+            "secondWordNotMatchedOrAbsent": 1239,
+            "thirdWordMatchGivenCorrectTwo": 0.47130434782608693,
+            "thirdWordNotMatchedOrAbsent": 304
+          },
+          "displayDiagnostics": {
+            "emptyRaw": 0,
+            "notShown": 1,
+            "observationsAvailable": 7437,
+            "rawCorrectDisplayIncorrectApproximate": 0,
+            "rawDisplayChanged": 1,
+            "rawIncorrectDisplayCorrectApproximate": 0
+          },
+          "prefixes": {
+            "after": {
+              "checkpoints": 7437,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.5494150867285196,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 7437,
+                  "probability": 0.3782439155573484,
+                  "successes": 2813
+                },
+                "2": {
+                  "eligibleCheckpoints": 6100,
+                  "probability": 0.14475409836065573,
+                  "successes": 883
+                },
+                "3": {
+                  "eligibleCheckpoints": 4763,
+                  "probability": 0.05689691370984674,
+                  "successes": 271
+                }
+              }
+            },
+            "before": {
+              "checkpoints": 7437,
+              "firstWordParserDisagreements": 0,
+              "meanCorrectPrefixWords": 0.4886378916229662,
+              "probabilityPrefixAtLeast": {
+                "1": {
+                  "eligibleCheckpoints": 7437,
+                  "probability": 0.34772085518354173,
+                  "successes": 2586
+                },
+                "2": {
+                  "eligibleCheckpoints": 6100,
+                  "probability": 0.12393442622950819,
+                  "successes": 756
+                },
+                "3": {
+                  "eligibleCheckpoints": 4763,
+                  "probability": 0.04429981104346,
+                  "successes": 211
+                }
+              }
+            },
+            "deltaMeanCorrectPrefixWords": 0.06077719510555335,
+            "deltaProbabilityPrefixAtLeast": {
+              "1": 0.030523060373806643,
+              "2": 0.020819672131147535,
+              "3": 0.012597102666386736
+            }
+          },
+          "suppressions": {
+            "normalizer": 1
+          },
+          "transitions": {
+            "improved": 429,
+            "pairedObservationsAvailable": 7437,
+            "regressed": 202
+          }
+        }
+      },
+      "finalistReport": "productionseed-finalist/report.json",
+      "prefixAnalysis": "productionseed-prefixes.json",
+      "samplingSeed": 12648430,
+      "winnerContextLift": {
+        "byCategory": {
+          "conversation": 0.10032017075773741,
+          "entertainment": 0.07605633802816897,
+          "everyday": 0.08494208494208494,
+          "science": 0.009505703422053258,
+          "technology": 0.05039787798408485,
+          "travel": 0.07162284678150499,
+          "work": 0.07367475292003595
+        },
+        "improvedCheckpoints": 815,
+        "regressedCheckpoints": 324,
+        "suiteAccuracyDelta": 0.06602124512572272
+      }
+    }
+  },
+  "sources": {
+    "heldout42-analysis.json": "c3fdc15aba745c01e9144d7ac25c4350d8641cfd902d57f396964c0edba76757",
+    "heldout42-baseline/report.json": "e4741f48ce3884b686c16253b847505977aaddfe8512e4a1fec28239459f4e80",
+    "heldout42-local-finalist/report.json": "cf8ca2c4ccf7714784609888ea31931090ed8ac09b8a7d6786200802c419fd8a",
+    "heldout42-prefixes.json": "21ab58ba4a90b1c59d47afb936997c72baef179a1729d1adb295f59745fb5ce9",
+    "productionseed-analysis.json": "a81df9f15f5f3c4b34e294817298d82fa23f2e83e248b54d8d41cf4a500a8f7d",
+    "productionseed-baseline/report.json": "441b2c994f208e933ad8de1cf4de1152a8add90af0f0b7b2978121464d17dee6",
+    "productionseed-finalist/report.json": "fa1860448c800b59f9283d59a56f4de004c8af8b6f00bbe680b0b597a71b2094",
+    "productionseed-prefixes.json": "fd072e83bcdb5da0b794ee683bbe45aa0dedf760038e51f29441aec2fa1f6562"
+  }
+}

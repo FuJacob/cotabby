@@ -1,6 +1,9 @@
 import XCTest
 @testable import Cotabby
 
+/// Locks how Cotabby finds local GGUF models: explicit-directory overrides, preferred-then-
+/// alphabetical ordering, recursive discovery with sidecar filtering, and the error surfaced for
+/// each missing-asset shape. Every fixture lives in a temp directory removed in `tearDown`.
 final class BundledRuntimeLocatorTests: XCTestCase {
     private var temporaryDirectories: [URL] = []
 
@@ -80,29 +83,26 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         }
     }
 
-    func test_resolve_throwsModelMissingWhenDirectoryIsEmpty() throws {
-        let dir = try makeTemporaryRuntimeDirectory(ggufFilenames: [])
-        let config = makeConfig(runtimePath: dir.path, preferred: [])
-        let locator = BundledRuntimeLocator()
+    func test_resolve_throwsModelMissingWhenNoLoadableModelExists() throws {
+        // An empty directory and one holding only a projector sidecar both have nothing loadable.
+        for sidecars in [[], ["mmproj-model-F16.gguf"]] {
+            let dir = try makeTemporaryRuntimeDirectory(ggufFilenames: sidecars)
+            let config = makeConfig(runtimePath: dir.path, preferred: [])
+            let locator = BundledRuntimeLocator()
 
-        XCTAssertThrowsError(try locator.resolve(configuration: config, selectedModelFilename: nil)) { error in
-            guard case BundledRuntimeLocatorError.modelMissing = error else {
-                XCTFail("Expected modelMissing, got \(error)")
-                return
+            XCTAssertThrowsError(try locator.resolve(configuration: config, selectedModelFilename: nil)) { error in
+                guard case BundledRuntimeLocatorError.modelMissing(let path) = error else {
+                    XCTFail("Expected modelMissing for \(sidecars), got \(error)")
+                    return
+                }
+                XCTAssertEqual(path, dir.path, "files: \(sidecars)")
             }
         }
     }
 
     func test_resolve_ignoresNonGGUFFiles() throws {
-        let dir = try makeTemporaryRuntimeDirectory(ggufFilenames: ["model.gguf"])
-        // Add non-GGUF files
-        FileManager.default.createFile(
-            atPath: dir.appendingPathComponent("readme.txt").path,
-            contents: nil
-        )
-        FileManager.default.createFile(
-            atPath: dir.appendingPathComponent("weights.bin").path,
-            contents: nil
+        let dir = try makeTemporaryRuntimeDirectory(
+            ggufFilenames: ["model.gguf", "readme.txt", "weights.bin"]
         )
         let config = makeConfig(runtimePath: dir.path, preferred: [])
         let locator = BundledRuntimeLocator()
@@ -126,17 +126,33 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertEqual(filenames, ["bravo.gguf", "alpha.gguf", "charlie.gguf"])
     }
 
-    func test_availableModels_deduplicatesPreferredAndDiscovered() throws {
+    func test_availableModels_ignoresRepeatedAndMissingPreferredNames() throws {
         let dir = try makeTemporaryRuntimeDirectory(
             ggufFilenames: ["alpha.gguf", "bravo.gguf"]
         )
-        // alpha.gguf appears in both preferred list and directory
-        let config = makeConfig(runtimePath: dir.path, preferred: ["alpha.gguf"])
+        // A preferred name listed twice must appear once; a preferred name not on disk is skipped.
+        let config = makeConfig(
+            runtimePath: dir.path,
+            preferred: ["missing.gguf", "bravo.gguf", "bravo.gguf"]
+        )
         let locator = BundledRuntimeLocator()
 
-        let models = locator.availableModels(configuration: config)
-        let alphaCount = models.filter { $0.filename == "alpha.gguf" }.count
-        XCTAssertEqual(alphaCount, 1, "Preferred model should not appear twice")
+        XCTAssertEqual(
+            locator.availableModels(configuration: config).map(\.filename),
+            ["bravo.gguf", "alpha.gguf"]
+        )
+    }
+
+    func test_availableModels_sortsCaseInsensitively() throws {
+        let dir = try makeTemporaryRuntimeDirectory(
+            ggufFilenames: ["beta.gguf", "Alpha.gguf", "charlie.gguf"]
+        )
+        let config = makeConfig(runtimePath: dir.path, preferred: [])
+
+        XCTAssertEqual(
+            BundledRuntimeLocator().availableModels(configuration: config).map(\.filename),
+            ["Alpha.gguf", "beta.gguf", "charlie.gguf"]
+        )
     }
 
     func test_availableModels_returnsEmptyArrayWhenDirectoryMissing() {
@@ -149,29 +165,52 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertEqual(locator.availableModels(configuration: config), [])
     }
 
-    func test_resolve_usesExplicitRuntimeDirectoryPathFromConfiguration() throws {
-        let dir = try makeTemporaryRuntimeDirectory(ggufFilenames: ["custom.gguf"])
+    func test_resolve_usesExplicitRuntimeDirectoryPathAndCatalogDisplayName() throws {
+        let dir = try makeTemporaryRuntimeDirectory(ggufFilenames: ["gemma-4-E2B.i1-Q6_K.gguf"])
         let config = makeConfig(runtimePath: dir.path, preferred: [])
         let locator = BundledRuntimeLocator()
 
         let resolved = try locator.resolve(configuration: config, selectedModelFilename: nil)
-        XCTAssertTrue(
-            resolved.runtimeDirectoryURL.path.hasPrefix(dir.path),
-            "Should resolve from the explicit runtime directory"
+        XCTAssertEqual(resolved.runtimeDirectoryURL.path, dir.path)
+        XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "gemma-4-E2B.i1-Q6_K.gguf")
+        // Known catalog files resolve to their product name rather than the raw filename.
+        XCTAssertEqual(resolved.modelDisplayName, "Cotabby Base")
+    }
+
+    func test_emptyRuntimeDirectoryPathFallsBackToDefaultCandidates() {
+        // An empty override is treated like nil, not as "the current directory". Both configurations
+        // read the same real default directories (read-only), so their listings must match exactly.
+        let emptyPath = makeConfig(runtimePath: "", preferred: [])
+        let noPath = LlamaRuntimeConfiguration(
+            runtimeDirectoryPath: nil,
+            preferredModelNames: [],
+            contextWindowTokens: 2048,
+            batchSize: 512,
+            gpuLayerCount: -1
+        )
+        let locator = BundledRuntimeLocator()
+
+        XCTAssertEqual(
+            locator.availableModels(configuration: emptyPath),
+            locator.availableModels(configuration: noPath)
         )
     }
 
     // MARK: - Error descriptions
 
     func test_errorDescriptions_areHumanReadable() {
-        let dirError = BundledRuntimeLocatorError.runtimeDirectoryMissing("/some/path")
-        XCTAssertTrue(dirError.errorDescription?.contains("/some/path") ?? false)
-
-        let modelError = BundledRuntimeLocatorError.modelMissing("/models")
-        XCTAssertTrue(modelError.errorDescription?.contains("/models") ?? false)
-
-        let namedError = BundledRuntimeLocatorError.namedModelMissing("test.gguf")
-        XCTAssertTrue(namedError.errorDescription?.contains("test.gguf") ?? false)
+        XCTAssertEqual(
+            BundledRuntimeLocatorError.runtimeDirectoryMissing("/some/path").errorDescription,
+            "Runtime directory is missing at /some/path."
+        )
+        XCTAssertEqual(
+            BundledRuntimeLocatorError.modelMissing("/models").errorDescription,
+            "No GGUF model was found at /models."
+        )
+        XCTAssertEqual(
+            BundledRuntimeLocatorError.namedModelMissing("test.gguf").errorDescription,
+            "The local model test.gguf was not found."
+        )
     }
 
     // MARK: - Recursive discovery (LM Studio nested layout)
@@ -198,6 +237,33 @@ final class BundledRuntimeLocatorTests: XCTestCase {
             .map(\.lastPathComponent)
 
         XCTAssertEqual(discovered, ["model.gguf"], "mmproj projector sidecars are not loadable models")
+    }
+
+    func test_discoverGGUFModelURLs_filtersByExtensionVisibilityAndSidecarPrefix() throws {
+        let root = try makeTemporaryDirectory()
+        // Kept: the extension match is case-insensitive, and only the dashed `mmproj-` prefix marks
+        // a projector sidecar.
+        try writeFile(at: root, relativePath: "UPPER.GGUF")
+        try writeFile(at: root, relativePath: "mmprojector.gguf")
+        // Skipped: hidden files (and hidden directories' contents), a case-variant sidecar, and
+        // files whose name merely contains "gguf".
+        try writeFile(at: root, relativePath: ".hidden.gguf")
+        try writeFile(at: root, relativePath: ".cache/model.gguf")
+        try writeFile(at: root, relativePath: "MMPROJ-vision.gguf")
+        try writeFile(at: root, relativePath: "model.gguf.part")
+
+        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: root)
+            .map(\.lastPathComponent)
+            .sorted()
+
+        XCTAssertEqual(discovered, ["UPPER.GGUF", "mmprojector.gguf"])
+    }
+
+    func test_discoverGGUFModelURLs_returnsEmptyForMissingDirectory() {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Cotabby-locator-missing-\(UUID().uuidString)", isDirectory: true)
+
+        XCTAssertEqual(BundledRuntimeLocator.discoverGGUFModelURLs(in: missing), [])
     }
 
     func test_discoverGGUFModelURLs_skipsDirectoriesWithGGUFExtension() throws {
@@ -277,6 +343,13 @@ final class BundledRuntimeLocatorTests: XCTestCase {
             url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent,
             "Application Support"
         )
+    }
+
+    func test_userRuntimeDirectoryURL_keepsDevelopmentModelsSeparate() throws {
+        let bundle = try makeBundle(withInfo: ["CFBundleName": "Cotabby Dev"])
+        let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby Dev")
+        XCTAssertEqual(url.lastPathComponent, "LlamaRuntime")
     }
 
     func test_userRuntimeDirectoryURL_fallsBackToCotabbyFolderWhenBundleNameMissing() throws {
@@ -375,16 +448,9 @@ final class BundledRuntimeLocatorTests: XCTestCase {
     }
 
     private func makeTemporaryRuntimeDirectory(ggufFilenames: [String]) throws -> URL {
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Cotabby-locator-test-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        temporaryDirectories.append(dir)
-
+        let dir = try makeTemporaryDirectory()
         for filename in ggufFilenames {
-            FileManager.default.createFile(
-                atPath: dir.appendingPathComponent(filename).path,
-                contents: nil
-            )
+            try writeFile(at: dir, relativePath: filename)
         }
         return dir
     }

@@ -1,220 +1,173 @@
 import XCTest
 @testable import Cotabby
 
+/// Pure-function tests for the clipboard/OCR prompt-context sanitizer. `sanitize` reduces text to
+/// letters, digits, whitespace, `@`, and `.`; `sanitizeOCR` additionally scores each token and drops
+/// lines that are mostly OCR noise. Outputs are asserted exactly because whatever survives is
+/// copied verbatim into the prompt.
 final class PromptContextSanitizerTests: XCTestCase {
+
+    private func assertSanitizedOCR(
+        _ cases: [(input: String, expected: String)],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for testCase in cases {
+            XCTAssertEqual(
+                PromptContextSanitizer.sanitizeOCR(testCase.input),
+                testCase.expected,
+                "input \(testCase.input.debugDescription)",
+                file: file,
+                line: line
+            )
+        }
+    }
 
     // MARK: - sanitize
 
-    func test_sanitize_stripsANSIEscapeSequences() {
-        let input = "\u{001B}[31mERROR\u{001B}[0m something broke"
-        let result = PromptContextSanitizer.sanitize(input)
-        XCTAssertFalse(result.contains("\u{001B}"))
-        XCTAssertTrue(result.contains("ERROR"))
-        XCTAssertTrue(result.contains("something broke"))
+    /// Disallowed scalars become spaces (preserving word boundaries: `raw-output` -> `raw output`),
+    /// ANSI escapes are removed whole, whitespace runs collapse, and blank lines disappear.
+    func test_sanitize_normalizesToPromptSafeText() {
+        let cases: [(input: String, expected: String)] = [
+            ("raw-output", "raw output"),
+            ("hello    world", "hello world"),
+            ("a\t\tb", "a b"),
+            ("first\n   \n\nsecond", "first\nsecond"),
+            ("one\r\ntwo", "one\ntwo"),
+            ("Hello world 123 user@host.com", "Hello world 123 user@host.com"),
+            ("\u{001B}[31mERROR\u{001B}[0m something broke", "ERROR something broke"),
+            ("\u{001B}[32mHello\u{001B}[0m world", "Hello world"),
+            ("   \n  \n  ", ""),
+            ("", "")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                PromptContextSanitizer.sanitize(testCase.input),
+                testCase.expected,
+                "input \(testCase.input.debugDescription)"
+            )
+        }
     }
 
-    func test_sanitize_replacesDisallowedUnicodeWithSpacesPreservingWordBoundaries() {
-        let result = PromptContextSanitizer.sanitize("raw-output")
-        XCTAssertEqual(result, "raw output")
+    /// The bound applies after normalization, and a cut that lands on a space is trimmed.
+    func test_sanitize_boundsToMaxCharacters() {
+        XCTAssertEqual(PromptContextSanitizer.sanitize("abcdefghij", maxCharacters: 5), "abcde")
+        XCTAssertEqual(PromptContextSanitizer.sanitize("hello", maxCharacters: 5), "hello")
+        XCTAssertEqual(PromptContextSanitizer.sanitize("hello   world", maxCharacters: 6), "hello")
     }
 
-    func test_sanitize_collapsesRepeatedWhitespaceIntoSingleSpaces() {
-        let result = PromptContextSanitizer.sanitize("hello    world")
-        XCTAssertEqual(result, "hello world")
+    // MARK: - sanitizeOCR token scoring
+
+    /// Standalone numbers, unlisted 1-2 letter tokens, repeated glyphs, letterless dotted numbers,
+    /// and lowercase-led mixed-case blobs are noise; the rest of the line survives when at least
+    /// half its tokens do.
+    func test_sanitizeOCR_dropsNoiseTokensFromOtherwiseRealLines() {
+        assertSanitizedOCR([
+            ("hello 50 world 424", "hello world"),        // exactly half survive: kept
+            ("I like if x", "I like if"),                 // "I"/"if" are preserved short words
+            ("meeting notes aaaa", "meeting notes"),
+            ("meeting notes 12.34", "meeting notes"),
+            ("meeting notes abeW", "meeting notes"),
+            ("meeting notes swift5 abc123", "meeting notes swift5") // letters+digits need a known word
+        ])
     }
 
-    func test_sanitize_filtersEmptyAndWhitespaceOnlyLines() {
-        let input = "first\n   \n\nsecond"
-        let result = PromptContextSanitizer.sanitize(input)
-        XCTAssertEqual(result, "first\nsecond")
+    /// Short technical words and uppercase acronyms are strong signal even without vowels.
+    func test_sanitizeOCR_keepsTechnicalTokensAcronymsFilesAndEmails() {
+        let technical = "Cotabby CoHamster PR API context needs GeneralPaneView.swift "
+            + "normalizedBundleIdentifier jane@example.com"
+        assertSanitizedOCR([
+            (technical, technical),
+            ("CPU ui ok", "CPU ui")
+        ])
     }
 
-    func test_sanitize_respectsMaxCharactersLimit() {
-        let input = "abcdefghij"
-        let result = PromptContextSanitizer.sanitize(input, maxCharacters: 5)
-        XCTAssertEqual(result, "abcde")
+    // MARK: - sanitizeOCR line filtering
+
+    /// A line is dropped whole when more than half its tokens are noise, or when every survivor is
+    /// a weak short word (UI chrome like "we go to it").
+    func test_sanitizeOCR_dropsNoiseDominatedAndWeakOnlyLines() {
+        assertSanitizedOCR([
+            ("50 x 99 hello", ""),
+            ("50 424 102 99", ""),
+            ("gLVWrt 54tbdbDX bDokE User", ""),
+            ("we go to it", ""),
+            ("*** ---", ""),   // sanitizes to one empty line: no tokens, no crash
+            ("", "")
+        ])
     }
 
-    func test_sanitize_returnsFullInputWhenMaxCharactersEqualsLength() {
-        let input = "hello"
-        let result = PromptContextSanitizer.sanitize(input, maxCharacters: 5)
-        XCTAssertEqual(result, "hello")
-    }
-
-    func test_sanitize_returnsEmptyStringForWhitespaceOnlyInput() {
-        XCTAssertEqual(PromptContextSanitizer.sanitize("   \n  \n  "), "")
-    }
-
-    func test_sanitize_returnsEmptyStringForEmptyInput() {
-        XCTAssertEqual(PromptContextSanitizer.sanitize(""), "")
-    }
-
-    func test_sanitize_preservesAllowedCharacters() {
-        let input = "Hello world 123 user@host.com"
-        let result = PromptContextSanitizer.sanitize(input)
-        XCTAssertEqual(result, input)
-    }
-
-    func test_sanitize_handlesANSIMixedWithRealText() {
-        let input = "\u{001B}[32mHello\u{001B}[0m world"
-        let result = PromptContextSanitizer.sanitize(input)
-        XCTAssertEqual(result, "Hello world")
-    }
-
-    // MARK: - sanitizeOCR
-
-    func test_sanitizeOCR_dropsStandaloneNumbers() {
-        let input = "hello 50 world 424"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertFalse(result.contains("50"))
-        XCTAssertFalse(result.contains("424"))
-        XCTAssertTrue(result.contains("hello"))
-        XCTAssertTrue(result.contains("world"))
-    }
-
-    func test_sanitizeOCR_dropsShortNoiseTokensButKeepsPreservedWords() {
-        // "I" and "if" are in the preserved set; "x" is not
-        let input = "I like if x"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertTrue(result.contains("I"))
-        XCTAssertTrue(result.contains("if"))
-        XCTAssertTrue(result.contains("like"))
-        XCTAssertFalse(result.contains(" x"))
-    }
-
-    func test_sanitizeOCR_dropsLineWhenMajorityTokensAreNoise() {
-        // 3 of 4 tokens are noise (>50%): "50", "x", "99" — only "hello" survives
-        let input = "50 x 99 hello"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertEqual(result, "")
-    }
-
-    func test_sanitizeOCR_keepsLineWhenHalfOrMoreTokensSurvive() {
-        // 2 of 4 tokens survive (exactly 50%): kept.count * 2 >= tokens.count
-        let input = "hello world 50 99"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertTrue(result.contains("hello"))
-        XCTAssertTrue(result.contains("world"))
-    }
-
-    func test_sanitizeOCR_respectsMaxCharacters() {
-        let input = "alpha beta gamma delta epsilon"
-        let result = PromptContextSanitizer.sanitizeOCR(input, maxCharacters: 10)
-        XCTAssertLessThanOrEqual(result.count, 10)
-    }
-
-    func test_sanitizeOCR_returnsEmptyForAllNoiseInput() {
-        let input = "50 424 102 99"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertEqual(result, "")
-    }
-
-    func test_sanitizeOCR_dropsRandomMixedCaseAndAlphanumericGarbage() {
+    func test_sanitizeOCR_dropsGarbageLineButKeepsRealLine() {
         let input = """
         gLVWrt bDokE 54tbdbDX
         Visible task update Screen Recording copy for Cotabby
         """
-
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-
-        XCTAssertFalse(result.contains("gLVWrt"))
-        XCTAssertFalse(result.contains("bDokE"))
-        XCTAssertFalse(result.contains("54tbdbDX"))
-        XCTAssertTrue(result.contains("Visible task update Screen Recording copy for Cotabby"))
+        XCTAssertEqual(
+            PromptContextSanitizer.sanitizeOCR(input),
+            "Visible task update Screen Recording copy for Cotabby"
+        )
     }
 
-    func test_sanitizeOCR_preservesUsefulTechnicalAndUserContext() {
-        let input = """
-        Cotabby PR API context needs GeneralPaneView.swift normalizedBundleIdentifier jane@example.com
-        """
-
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-
-        XCTAssertTrue(result.contains("Cotabby"))
-        XCTAssertTrue(result.contains("PR"))
-        XCTAssertTrue(result.contains("API"))
-        XCTAssertTrue(result.contains("GeneralPaneView.swift"))
-        XCTAssertTrue(result.contains("normalizedBundleIdentifier"))
-        XCTAssertTrue(result.contains("jane@example.com"))
-    }
-
-    func test_sanitizeOCR_dropsLineWhereMostTokensAreOCRNoise() {
-        let input = "gLVWrt 54tbdbDX bDokE User"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-        XCTAssertEqual(result, "")
-    }
-
-    func test_sanitizeOCR_preservesNonLatinScripts() {
-        // CJK, Cyrillic, and accented Latin carry real context but have no ASCII vowel and never
-        // match the English word lists. They must survive OCR filtering so non-English users are
-        // not left with empty visual context.
+    /// CJK, Cyrillic, and accented Latin carry real context but have no ASCII vowel and never match
+    /// the English word lists; they must survive so non-English users keep visual context. The
+    /// allowance must not become a backdoor for ASCII garbage (or unlisted short Latin words like
+    /// "la") on the same line.
+    func test_sanitizeOCR_preservesNonLatinScriptsWithoutAdmittingAsciiNoise() {
         let input = """
         会議の議題を確認してください
         Привет команда смотрите задачу
         Préparez la réunion à Zürich
         """
-
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-
-        XCTAssertTrue(result.contains("会議の議題を確認してください"))
-        XCTAssertTrue(result.contains("Привет"))
-        XCTAssertTrue(result.contains("задачу"))
-        XCTAssertTrue(result.contains("réunion"))
-        XCTAssertTrue(result.contains("Zürich"))
+        XCTAssertEqual(
+            PromptContextSanitizer.sanitizeOCR(input),
+            "会議の議題を確認してください\nПривет команда смотрите задачу\nPréparez réunion à Zürich"
+        )
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("東京 gLVWrt オフィス 54tbdbDX"), "東京 オフィス")
     }
 
-    func test_sanitizeOCR_keepsNonLatinButStillDropsAsciiNoiseOnSameLine() {
-        // The non-Latin allowance must not become a backdoor for ASCII OCR garbage on the same line.
-        let input = "東京 gLVWrt オフィス 54tbdbDX"
-        let result = PromptContextSanitizer.sanitizeOCR(input)
-
-        XCTAssertTrue(result.contains("東京"))
-        XCTAssertTrue(result.contains("オフィス"))
-        XCTAssertFalse(result.contains("gLVWrt"))
-        XCTAssertFalse(result.contains("54tbdbDX"))
+    /// The OCR bound applies to the filtered, joined text, then trims a trailing cut space.
+    func test_sanitizeOCR_boundsToMaxCharacters() {
+        XCTAssertEqual(
+            PromptContextSanitizer.sanitizeOCR("alpha beta gamma delta epsilon", maxCharacters: 10),
+            "alpha beta"
+        )
+        XCTAssertEqual(
+            PromptContextSanitizer.sanitizeOCR("50 424\nalpha beta gamma", maxCharacters: 11),
+            "alpha beta"
+        )
     }
 
-    func test_sanitizeOCR_dropsLineOfOnlyWeakShortWords() {
-        // Preserved short words survive token scoring but are never strong signal on their own, so
-        // a line made entirely of them is UI chrome ("we", "go", "to") and must be dropped whole.
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("we go to it"), "")
-    }
+    // MARK: - significantTokens
 
-    func test_sanitizeOCR_dropsRepeatedGlyphRuns() {
-        // "aaaa" is the repeated-glyph hallucination shape; the real words around it must survive.
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes aaaa"), "meeting notes")
-    }
-
-    func test_sanitizeOCR_returnsEmptyWhenBaseSanitizationLeavesNothing() {
-        // Symbols-only input sanitizes to an empty base string, which becomes one empty line; the
-        // OCR line filter must treat that as no tokens, not crash or emit whitespace.
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("*** ---"), "")
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR(""), "")
-    }
-
-    func test_sanitizeOCR_dropsLetterlessDottedToken() {
-        // "12.34" splits like a domain but carries no letters, is not all-digits (the dot), and has
-        // no word signal, so it scores as numeric UI chrome and is dropped.
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes 12.34"), "meeting notes")
-    }
-
-    func test_sanitizeOCR_dropsLowercaseLedTokenWithInteriorCapital() {
-        // "abeW" has vowels, so only the mixed-case rule can reject it: a non-leading capital in a
-        // short token without a known technical word is OCR garbage, unlike "Safari"-style prose.
-        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes abeW"), "meeting notes")
+    /// Lowercased tokens split on any non-alphanumeric boundary, deduplicated, and length-filtered.
+    func test_significantTokens_splitsLowercasesAndFiltersByLength() {
+        XCTAssertEqual(
+            PromptContextSanitizer.significantTokens(from: "Hello, hello WORLD! swift-ui an"),
+            ["hello", "world", "swift"]
+        )
+        XCTAssertEqual(
+            PromptContextSanitizer.significantTokens(from: "an ox ran far", minimumLength: 2),
+            ["an", "ox", "ran", "far"]
+        )
+        XCTAssertEqual(PromptContextSanitizer.significantTokens(from: "--- ,,,"), [])
     }
 
     // MARK: - containsAlphanumericSignal
 
-    func test_containsAlphanumericSignal_returnsTrueForMixedInput() {
-        XCTAssertTrue(PromptContextSanitizer.containsAlphanumericSignal("---a---"))
-    }
-
-    func test_containsAlphanumericSignal_returnsFalseForPureSymbols() {
-        XCTAssertFalse(PromptContextSanitizer.containsAlphanumericSignal("--- ---"))
-    }
-
-    func test_containsAlphanumericSignal_returnsFalseForEmptyString() {
-        XCTAssertFalse(PromptContextSanitizer.containsAlphanumericSignal(""))
+    func test_containsAlphanumericSignal() {
+        let cases: [(text: String, expected: Bool)] = [
+            ("---a---", true),
+            ("--- 7", true),
+            ("東", true),
+            ("--- ---", false),
+            ("", false)
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                PromptContextSanitizer.containsAlphanumericSignal(testCase.text),
+                testCase.expected,
+                "text \(testCase.text.debugDescription)"
+            )
+        }
     }
 }

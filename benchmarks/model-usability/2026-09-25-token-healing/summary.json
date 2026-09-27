@@ -1,0 +1,533 @@
+{
+  "status": "complete",
+  "baselineCommit": "f780483a4b6bea3ec56b22715fb88b0566b5e326",
+  "models": {
+    "nano": {
+      "before": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.2804232804232804,
+          "partialWordAccuracy": 0.5919165580182529,
+          "coverage": 0.9571129707112971,
+          "precisionWhenShown": 0.5540983606557377,
+          "errors": 0,
+          "p50ms": 53.805625,
+          "p95ms": 96.540667,
+          "suppressions": {
+            "seam-guard": 40,
+            "normalizer": 1
+          }
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.3544973544973545,
+          "partialWordAccuracy": 0.6531942633637549,
+          "coverage": 0.9633891213389121,
+          "precisionWhenShown": 0.6167209554831705,
+          "errors": 0,
+          "p50ms": 53.379083,
+          "p95ms": 100.162208,
+          "suppressions": {
+            "seam-guard": 33,
+            "normalizer": 2
+          }
+        }
+      },
+      "after": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.2804232804232804,
+          "partialWordAccuracy": 0.7848761408083442,
+          "coverage": 1.0,
+          "precisionWhenShown": 0.6851464435146444,
+          "errors": 0,
+          "p50ms": 67.928958,
+          "p95ms": 136.822792,
+          "suppressions": {}
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.3544973544973545,
+          "partialWordAccuracy": 0.8265971316818774,
+          "coverage": 0.997907949790795,
+          "precisionWhenShown": 0.7348008385744235,
+          "errors": 0,
+          "p50ms": 67.289084,
+          "p95ms": 135.133625,
+          "suppressions": {
+            "normalizer": 2
+          }
+        }
+      },
+      "metadata": {
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "fourToSeven",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "profile": "personalized",
+          "promptVariant": "production",
+          "randomSeed": "Optional(42)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "heldout",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/custom rules; profile=personalized; prompt=production",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordCountPreset": "4-7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "contextMode": "paired",
+        "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+        "corpusVersion": 2,
+        "mode": "character",
+        "model": "/Users/jmcasler/Library/Application Support/Cotabby McHamster/LlamaRuntime/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+        "runLabel": "validate-cohamster-nano-production-character",
+        "seed": 42,
+        "workerCount": 1
+      },
+      "nextWordRawChanged": 0,
+      "nextWordCheckpoints": 378,
+      "partialWordGains": 291,
+      "partialWordLosses": 10
+    },
+    "mini": {
+      "before": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.30158730158730157,
+          "partialWordAccuracy": 0.5645371577574967,
+          "coverage": 0.952928870292887,
+          "precisionWhenShown": 0.5378704720087816,
+          "errors": 0,
+          "p50ms": 81.420917,
+          "p95ms": 156.960458,
+          "suppressions": {
+            "seam-guard": 45
+          }
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.37566137566137564,
+          "partialWordAccuracy": 0.6975228161668839,
+          "coverage": 0.9654811715481172,
+          "precisionWhenShown": 0.656554712892741,
+          "errors": 0,
+          "p50ms": 80.769375,
+          "p95ms": 192.212708,
+          "suppressions": {
+            "seam-guard": 32,
+            "normalizer": 1
+          }
+        }
+      },
+      "after": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.30158730158730157,
+          "partialWordAccuracy": 0.8083441981747066,
+          "coverage": 0.9989539748953975,
+          "precisionWhenShown": 0.7089005235602094,
+          "errors": 0,
+          "p50ms": 118.91625,
+          "p95ms": 257.550083,
+          "suppressions": {
+            "seam-guard": 1
+          }
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.37566137566137564,
+          "partialWordAccuracy": 0.8748370273794003,
+          "coverage": 0.9989539748953975,
+          "precisionWhenShown": 0.7769633507853403,
+          "errors": 0,
+          "p50ms": 123.506416,
+          "p95ms": 279.162333,
+          "suppressions": {
+            "normalizer": 1
+          }
+        }
+      },
+      "metadata": {
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "fourToSeven",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "e3daa3f6e5ed8de264fc6e4128713ae1eb0c2649ad69b83f97bfc6a6ddca3da8",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "profile": "personalized",
+          "promptVariant": "production",
+          "randomSeed": "Optional(42)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "heldout",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/custom rules; profile=personalized; prompt=production",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordCountPreset": "4-7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "contextMode": "paired",
+        "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+        "corpusVersion": 2,
+        "mode": "character",
+        "model": "/Users/jmcasler/Library/Application Support/Cotabby McHamster/LlamaRuntime/Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
+        "runLabel": "validate-cohamster-mini-production-character",
+        "seed": 42,
+        "workerCount": 1
+      },
+      "nextWordRawChanged": 3,
+      "nextWordCheckpoints": 378,
+      "partialWordGains": 332,
+      "partialWordLosses": 9
+    },
+    "base": {
+      "before": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.30158730158730157,
+          "partialWordAccuracy": 0.5319426336375489,
+          "coverage": 0.9184100418410042,
+          "precisionWhenShown": 0.5296127562642369,
+          "errors": 0,
+          "p50ms": 115.36,
+          "p95ms": 203.11625,
+          "suppressions": {
+            "seam-guard": 78
+          }
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.37566137566137564,
+          "partialWordAccuracy": 0.6479791395045632,
+          "coverage": 0.9163179916317992,
+          "precisionWhenShown": 0.6484018264840182,
+          "errors": 0,
+          "p50ms": 90.081791,
+          "p95ms": 236.009292,
+          "suppressions": {
+            "seam-guard": 69,
+            "normalizer": 11
+          }
+        }
+      },
+      "after": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.30158730158730157,
+          "partialWordAccuracy": 0.7692307692307693,
+          "coverage": 1.0,
+          "precisionWhenShown": 0.6767782426778243,
+          "errors": 0,
+          "p50ms": 134.372583,
+          "p95ms": 268.504,
+          "suppressions": {}
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.37566137566137564,
+          "partialWordAccuracy": 0.8500651890482399,
+          "coverage": 0.9937238493723849,
+          "precisionWhenShown": 0.7610526315789473,
+          "errors": 0,
+          "p50ms": 117.588584,
+          "p95ms": 293.623833,
+          "suppressions": {
+            "seam-guard": 5,
+            "normalizer": 1
+          }
+        }
+      },
+      "metadata": {
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "fourToSeven",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "20f49b221691c71d955e1d5a840b6e26329db4a5e1626f702fa4226e80a9c629",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "profile": "personalized",
+          "promptVariant": "production",
+          "randomSeed": "Optional(42)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "heldout",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/custom rules; profile=personalized; prompt=production",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordCountPreset": "4-7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "contextMode": "paired",
+        "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+        "corpusVersion": 2,
+        "mode": "character",
+        "model": "/Users/jmcasler/Library/Application Support/Cotabby McHamster/LlamaRuntime/gemma-4-E2B.i1-Q6_K.gguf",
+        "runLabel": "validate-cohamster-base-production-character",
+        "seed": 42,
+        "workerCount": 1
+      },
+      "nextWordRawChanged": 0,
+      "nextWordCheckpoints": 378,
+      "partialWordGains": 344,
+      "partialWordLosses": 7
+    },
+    "pro": {
+      "before": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.31216931216931215,
+          "partialWordAccuracy": 0.5319426336375489,
+          "coverage": 0.9121338912133892,
+          "precisionWhenShown": 0.5355504587155964,
+          "errors": 0,
+          "p50ms": 170.703542,
+          "p95ms": 380.885334,
+          "suppressions": {
+            "seam-guard": 83,
+            "normalizer": 1
+          }
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.3915343915343915,
+          "partialWordAccuracy": 0.6597131681877445,
+          "coverage": 0.9414225941422594,
+          "precisionWhenShown": 0.6444444444444445,
+          "errors": 0,
+          "p50ms": 131.76125,
+          "p95ms": 452.153959,
+          "suppressions": {
+            "seam-guard": 55,
+            "normalizer": 1
+          }
+        }
+      },
+      "after": {
+        "none": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.31216931216931215,
+          "partialWordAccuracy": 0.7757496740547588,
+          "coverage": 1.0,
+          "precisionWhenShown": 0.6841004184100419,
+          "errors": 0,
+          "p50ms": 152.23425,
+          "p95ms": 359.238083,
+          "suppressions": {}
+        },
+        "screen": {
+          "checkpoints": 956,
+          "nextWordAccuracy": 0.3915343915343915,
+          "partialWordAccuracy": 0.8748370273794003,
+          "coverage": 0.9989539748953975,
+          "precisionWhenShown": 0.7801047120418848,
+          "errors": 0,
+          "p50ms": 137.999542,
+          "p95ms": 374.40025,
+          "suppressions": {
+            "normalizer": 1
+          }
+        }
+      },
+      "metadata": {
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "fourToSeven",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "687f4cce47eac6ccfc595fd9517215fb964e5e5be17d4774b25b8add401d6d3c",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "profile": "personalized",
+          "promptVariant": "production",
+          "randomSeed": "Optional(42)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "heldout",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/custom rules; profile=personalized; prompt=production",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordCountPreset": "4-7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "contextMode": "paired",
+        "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+        "corpusVersion": 2,
+        "mode": "character",
+        "model": "/Users/jmcasler/Library/Application Support/Cotabby McHamster/LlamaRuntime/gemma-4-E4B.i1-Q4_K_M.gguf",
+        "runLabel": "validate-cohamster-pro-production-character",
+        "seed": 42,
+        "workerCount": 1
+      },
+      "nextWordRawChanged": 6,
+      "nextWordCheckpoints": 378,
+      "partialWordGains": 357,
+      "partialWordLosses": 5
+    }
+  },
+  "typing": {
+    "nano": {
+      "before": {
+        "cold": {
+          "expected": 20,
+          "useful": 8,
+          "firstUsefulP95ms": 97.32050000000004
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 10,
+          "firstUsefulP95ms": 124.150083
+        }
+      },
+      "after": {
+        "cold": {
+          "expected": 20,
+          "useful": 12,
+          "firstUsefulP95ms": 88.203083
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 12,
+          "firstUsefulP95ms": 99.51529099999993
+        }
+      }
+    },
+    "mini": {
+      "before": {
+        "cold": {
+          "expected": 20,
+          "useful": 6,
+          "firstUsefulP95ms": 120.029709
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 7,
+          "firstUsefulP95ms": 108.37354099999993
+        }
+      },
+      "after": {
+        "cold": {
+          "expected": 20,
+          "useful": 12,
+          "firstUsefulP95ms": 140.307167
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 14,
+          "firstUsefulP95ms": 129.185791
+        }
+      }
+    },
+    "base": {
+      "before": {
+        "cold": {
+          "expected": 20,
+          "useful": 7,
+          "firstUsefulP95ms": 153.47504099999998
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 7,
+          "firstUsefulP95ms": 120.99729100000002
+        }
+      },
+      "after": {
+        "cold": {
+          "expected": 20,
+          "useful": 11,
+          "firstUsefulP95ms": 159.258958
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 13,
+          "firstUsefulP95ms": 130.31329200000005
+        }
+      }
+    },
+    "pro": {
+      "before": {
+        "cold": {
+          "expected": 20,
+          "useful": 5,
+          "firstUsefulP95ms": 179.23887499999995
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 5,
+          "firstUsefulP95ms": 166.76700000000005
+        }
+      },
+      "after": {
+        "cold": {
+          "expected": 20,
+          "useful": 9,
+          "firstUsefulP95ms": 230.14520900000002
+        },
+        "prewarmed": {
+          "expected": 20,
+          "useful": 10,
+          "firstUsefulP95ms": 154.397417
+        }
+      }
+    }
+  }
+}

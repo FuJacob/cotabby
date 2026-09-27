@@ -3,12 +3,22 @@ import XCTest
 
 /// Tests for the curated popularity prior used as a ranking tiebreak and the bare-`:` starter set.
 final class EmojiPopularityTests: XCTestCase {
-    func test_rankIsAscendingByListPosition() {
-        // "joy" leads the curated list, so it must rank ahead of a later entry like "heart".
-        XCTAssertLessThan(
-            EmojiPopularity.rank(forAlias: "joy"),
-            EmojiPopularity.rank(forAlias: "heart")
-        )
+    func test_rankIsTheListIndex() {
+        XCTAssertEqual(EmojiPopularity.rank(forAlias: "joy"), 0)
+        XCTAssertEqual(EmojiPopularity.rank(forAlias: "heart"), 1)
+        for (index, alias) in EmojiPopularity.ordered.enumerated() {
+            XCTAssertEqual(EmojiPopularity.rank(forAlias: alias), index, alias)
+        }
+    }
+
+    func test_orderedListHasNoDuplicatesAndIsLowercase() {
+        // A duplicate would be silently shadowed by its first occurrence, and a mixed-case entry
+        // would never match the lowercased aliases the matcher ranks with.
+        let ordered = EmojiPopularity.ordered
+        XCTAssertEqual(Set(ordered).count, ordered.count)
+        for alias in ordered {
+            XCTAssertEqual(alias, alias.lowercased(), alias)
+        }
     }
 
     func test_absentAliasIsNotRanked() {
@@ -24,6 +34,10 @@ final class EmojiPopularityTests: XCTestCase {
 
     func test_starterAliasesReturnsPrefixInOrder() {
         XCTAssertEqual(EmojiPopularity.starterAliases(limit: 3), Array(EmojiPopularity.ordered.prefix(3)))
+    }
+
+    func test_starterAliasesLimitBeyondListReturnsWholeList() {
+        XCTAssertEqual(EmojiPopularity.starterAliases(limit: EmojiPopularity.ordered.count + 10), EmojiPopularity.ordered)
     }
 
     func test_starterAliasesClampsToZero() {

@@ -1,6 +1,8 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for the pure suppress / offer / apply decision the typo gate makes before each prediction.
+/// Spell-check behavior is stubbed, so each case pins one branch of the decision order.
 final class TypoGateTests: XCTestCase {
     private func resolve(
         precedingText: String,
@@ -22,28 +24,14 @@ final class TypoGateTests: XCTestCase {
         )
     }
 
-    func test_wordStillBeingTypedProceedsWhenItStartsRealWords() {
-        // "apprec" is flagged by the checker like a typo, but it is the beginning of "appreciate":
-        // the continuation completes it instead of the gate suppressing or correcting mid-keystroke.
-        let decision = TypoGate.resolve(
-            precedingText: "I really apprec",
-            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
-            isTypo: { _ in true },
-            bestCorrection: { _ in "appreciate" },
-            isWordInProgress: { $0 == "apprec" }
-        )
-        XCTAssertEqual(decision, .proceed)
-    }
-
-    func test_finishedWordIsNeverTreatedAsInProgress() {
-        let decision = TypoGate.resolve(
-            precedingText: "I really apprec ",
-            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
-            isTypo: { _ in true },
-            bestCorrection: { _ in "appreciate" },
-            isWordInProgress: { _ in true }
-        )
-        XCTAssertEqual(decision, .offerCorrection(word: "apprec", correctedWord: "appreciate"))
+    func test_pausedPrefixNeverCallsSpellingOrCorrection() {
+        for prefix in ["wri", "becau", "recomm", "car"] {
+            let decision = TypoGate.resolve(precedingText: "I typed " + prefix,
+                settings: .init(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true),
+                isTypo: { _ in XCTFail("Unfinished words must not be spell-checked"); return true },
+                bestCorrection: { _ in XCTFail("Unfinished words must not be corrected"); return "wrong" })
+            XCTAssertEqual(decision, .proceed)
+        }
     }
 
     func test_proceedsWhenSuppressionDisabled() {
@@ -53,37 +41,59 @@ final class TypoGateTests: XCTestCase {
 
     func test_proceedsWhenTrailingTokenIsNotAWord() {
         // A non-natural trailing token (digits/code) yields no actionable word even with a space, so
-        // the gate proceeds regardless of the typo set. (A single trailing space alone no longer
-        // suppresses the word — that is the point of Part A; see test_correctsWhenTypoFollowedByOneSpace.)
+        // the gate proceeds regardless of the typo set.
         let decision = resolve(precedingText: "ping 99 ", suppress: true, offer: true, typos: ["99"])
         XCTAssertEqual(decision, .proceed)
     }
 
-    func test_proceedsWhenWordIsNotATypo() {
-        let decision = resolve(precedingText: "hi name", suppress: true, offer: true, typos: ["nmae"])
+    func test_proceedsWhenCommittedWordIsNotATypo() {
+        // The trailing space commits "name", so the gate does consult the checker; it just says no.
+        var checkedWords: [String] = []
+        let decision = TypoGate.resolve(
+            precedingText: "hi name ",
+            settings: .init(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
+            isTypo: { checkedWords.append($0); return false },
+            bestCorrection: { _ in XCTFail("A correctly spelled word must not be corrected"); return nil }
+        )
         XCTAssertEqual(decision, .proceed)
+        XCTAssertEqual(checkedWords, ["name"])
     }
 
     func test_suppressesWhenTypoAndCorrectionsOff() {
-        let decision = resolve(precedingText: "hi nmae", suppress: true, offer: false, typos: ["nmae"])
+        let decision = resolve(precedingText: "hi nmae ", suppress: true, offer: false, typos: ["nmae"])
         XCTAssertEqual(decision, .suppress)
     }
 
     func test_suppressesWhenTypoButNoCorrectionAvailable() {
         // Corrections enabled, but the checker offered nothing usable: fall back to suppression.
-        let decision = resolve(precedingText: "hi nmae", suppress: true, offer: true, typos: ["nmae"])
+        let decision = resolve(precedingText: "hi nmae ", suppress: true, offer: true, typos: ["nmae"])
         XCTAssertEqual(decision, .suppress)
     }
 
-    func test_correctsWhenTypoAndCorrectionAvailable() {
+    func test_punctuationDelimiterOffersButNeverAutoApplies() {
+        // A comma commits the word, but automatic fixing is reserved for a bare trailing space, so
+        // the correction is offered instead of applied.
         let decision = resolve(
-            precedingText: "hi my nmae",
+            precedingText: "hi my nmae,",
             suppress: true,
             offer: true,
+            automatic: true,
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
         XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
+    }
+
+    func test_automaticOnlyWithNonSpaceDelimiterSuppresses() {
+        let decision = resolve(
+            precedingText: "hi my nmae,",
+            suppress: true,
+            offer: false,
+            automatic: true,
+            typos: ["nmae"],
+            corrections: ["nmae": "name"]
+        )
+        XCTAssertEqual(decision, .suppress)
     }
 
     func test_correctsWhenTypoFollowedByOneSpace() {
@@ -131,6 +141,6 @@ final class TypoGateTests: XCTestCase {
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
-        XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
+        XCTAssertEqual(decision, .proceed)
     }
 }

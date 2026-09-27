@@ -1,6 +1,9 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for clipboard relevance gating: the first observation only records a change-count
+/// baseline, injection requires a copy observed while Cotabby runs, content expires after the
+/// staleness window, and it must share a 3+ character token with the caret prefix.
 @MainActor
 final class ClipboardRelevanceFilterTests: XCTestCase {
 
@@ -9,150 +12,128 @@ final class ClipboardRelevanceFilterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        now = Date()
+        // A whole-second reference date keeps the threshold arithmetic below exact in floating point.
+        now = Date(timeIntervalSinceReferenceDate: 1_000_000)
         filter = ClipboardRelevanceFilter(dateProvider: { [unowned self] in self.now })
     }
 
-    // MARK: - Nil input
-
-    func test_nilClipboard_returnsNil() {
-        let result = filter.filter(
-            clipboard: nil,
-            pasteboardChangeCount: 1,
-            precedingText: "hello world"
-        )
-        XCTAssertNil(result)
+    /// Records the change-count baseline; the returned value is always nil and not interesting.
+    private func establishBaseline(changeCount: Int = 1) {
+        XCTAssertNil(filter.filter(clipboard: "baseline", pasteboardChangeCount: changeCount, precedingText: ""))
     }
 
-    // MARK: - Baseline gating
+    // MARK: - Nil input and baseline gating
+
+    func test_nilClipboard_returnsNil() {
+        establishBaseline()
+        XCTAssertNil(filter.filter(clipboard: nil, pasteboardChangeCount: 2, precedingText: "hello world"))
+    }
 
     /// `NSPasteboard.changeCount` is a non-zero cumulative counter on a real system, so the
     /// first observation can't tell us how old the clipboard content actually is. The filter
     /// records the baseline silently and refuses injection until a *new* copy is detected.
     func test_firstObservation_returnsNilEvenWithOverlap() {
-        let result = filter.filter(
+        XCTAssertNil(filter.filter(
             clipboard: "meeting agenda",
             pasteboardChangeCount: 42,
             precedingText: "the meeting starts soon"
-        )
-        XCTAssertNil(result)
+        ))
+    }
+
+    /// A nil (non-text) clipboard returns before the baseline is recorded, so the first text
+    /// observation after it is still treated as the baseline rather than as a fresh copy.
+    func test_nilClipboardDoesNotRecordTheBaseline() {
+        XCTAssertNil(filter.filter(clipboard: nil, pasteboardChangeCount: 1, precedingText: ""))
+        XCTAssertNil(filter.filter(
+            clipboard: "meeting agenda",
+            pasteboardChangeCount: 2,
+            precedingText: "the meeting starts soon"
+        ))
+    }
+
+    /// Without a change after the baseline there is no known copy time, so even overlapping
+    /// content stays out of the prompt.
+    func test_unchangedCountAfterBaseline_returnsNil() {
+        establishBaseline(changeCount: 42)
+        XCTAssertNil(filter.filter(
+            clipboard: "meeting agenda",
+            pasteboardChangeCount: 42,
+            precedingText: "the meeting starts soon"
+        ))
     }
 
     func test_firstChangeAfterBaseline_returnsContentWhenOverlapMatches() {
-        // Baseline observation — counts as "we know nothing about how old this is".
-        _ = filter.filter(
-            clipboard: "irrelevant baseline content",
-            pasteboardChangeCount: 42,
-            precedingText: ""
+        establishBaseline(changeCount: 42)
+        XCTAssertEqual(
+            filter.filter(
+                clipboard: "meeting agenda for Thursday",
+                pasteboardChangeCount: 43,
+                precedingText: "Let's discuss the meeting"
+            ),
+            "meeting agenda for Thursday"
         )
-
-        // User performs a fresh copy while Cotabby is running.
-        let result = filter.filter(
-            clipboard: "meeting agenda for Thursday",
-            pasteboardChangeCount: 43,
-            precedingText: "Let's discuss the meeting"
-        )
-        XCTAssertEqual(result, "meeting agenda for Thursday")
     }
 
     // MARK: - Token overlap
 
-    func test_freshClipboard_noOverlap_returnsNil() {
-        _ = filter.filter(
-            clipboard: "irrelevant baseline content",
-            pasteboardChangeCount: 1,
-            precedingText: ""
-        )
-
-        let result = filter.filter(
-            clipboard: "SELECT * FROM users",
-            pasteboardChangeCount: 2,
-            precedingText: "Dear hiring manager"
-        )
-        XCTAssertNil(result)
-    }
-
-    func test_shortTokensIgnored_inOverlapCheck() {
-        _ = filter.filter(
-            clipboard: "irrelevant baseline content",
-            pasteboardChangeCount: 1,
-            precedingText: ""
-        )
-
-        // Prefix and clipboard share only sub-3-char tokens, which the tokenizer ignores.
-        let result = filter.filter(
-            clipboard: "a b c",
-            pasteboardChangeCount: 2,
-            precedingText: "a b c d e"
-        )
-        XCTAssertNil(result)
-    }
-
-    func test_tokenOverlap_isCaseInsensitive() {
-        _ = filter.filter(
-            clipboard: "irrelevant baseline content",
-            pasteboardChangeCount: 1,
-            precedingText: ""
-        )
-
-        let result = filter.filter(
-            clipboard: "Deployment Pipeline",
-            pasteboardChangeCount: 2,
-            precedingText: "the deployment is running"
-        )
-        XCTAssertEqual(result, "Deployment Pipeline")
+    /// Overlap is case-insensitive and ignores tokens shorter than three characters.
+    func test_tokenOverlapRules() {
+        let cases: [(clipboard: String, prefix: String, expected: String?)] = [
+            ("Deployment Pipeline", "the deployment is running", "Deployment Pipeline"),
+            ("SELECT * FROM users", "Dear hiring manager", nil),
+            ("a b c", "a b c d e", nil)
+        ]
+        // One filter for every case: each new change count is a fresh copy that restarts the clock,
+        // so the overlap rule is all that differs. Reassigning `filter` here instead would free a
+        // `@MainActor` object inside the test body, which crashes the CI host (macOS 15 runtime).
+        establishBaseline()
+        for (offset, testCase) in cases.enumerated() {
+            XCTAssertEqual(
+                filter.filter(
+                    clipboard: testCase.clipboard,
+                    pasteboardChangeCount: offset + 2,
+                    precedingText: testCase.prefix
+                ),
+                testCase.expected,
+                "case \(offset): \(testCase.clipboard)"
+            )
+        }
     }
 
     // MARK: - Staleness
 
-    func test_staleClipboard_returnsNil() {
-        // Establish baseline.
-        _ = filter.filter(
-            clipboard: "old baseline",
-            pasteboardChangeCount: 1,
-            precedingText: ""
+    /// Repeated reads of the same copy stay eligible just under the threshold and expire exactly
+    /// at it (the comparison is strict), because only a change-count bump restarts the clock.
+    func test_staleness_expiresAtThresholdFromTheCopy() {
+        establishBaseline()
+        XCTAssertEqual(
+            filter.filter(clipboard: "fresh content", pasteboardChangeCount: 2, precedingText: "fresh content"),
+            "fresh content"
         )
 
-        // A fresh copy happens — staleness clock starts here.
-        _ = filter.filter(
-            clipboard: "fresh content here",
-            pasteboardChangeCount: 2,
-            precedingText: "fresh content here"
+        now = now.addingTimeInterval(ClipboardRelevanceFilter.staleThresholdSeconds - 1)
+        XCTAssertEqual(
+            filter.filter(clipboard: "fresh content", pasteboardChangeCount: 2, precedingText: "fresh content"),
+            "fresh content"
         )
 
-        now = now.addingTimeInterval(ClipboardRelevanceFilter.staleThresholdSeconds + 1)
-
-        let result = filter.filter(
-            clipboard: "fresh content here",
-            pasteboardChangeCount: 2,
-            precedingText: "fresh content here"
-        )
-        XCTAssertNil(result)
+        now = now.addingTimeInterval(1)
+        XCTAssertNil(filter.filter(clipboard: "fresh content", pasteboardChangeCount: 2, precedingText: "fresh content"))
     }
 
     func test_newCopyResetsStalenessClock() {
-        _ = filter.filter(
-            clipboard: "baseline",
-            pasteboardChangeCount: 1,
-            precedingText: ""
-        )
+        establishBaseline()
+        _ = filter.filter(clipboard: "first content", pasteboardChangeCount: 2, precedingText: "first content")
 
-        // First real copy.
-        _ = filter.filter(
-            clipboard: "first content",
-            pasteboardChangeCount: 2,
-            precedingText: "first content"
-        )
-
-        // Time passes past the staleness threshold.
         now = now.addingTimeInterval(ClipboardRelevanceFilter.staleThresholdSeconds + 1)
 
-        // A new copy resets the clock.
-        let result = filter.filter(
-            clipboard: "second content matching prefix",
-            pasteboardChangeCount: 3,
-            precedingText: "second content"
+        XCTAssertEqual(
+            filter.filter(
+                clipboard: "second content matching prefix",
+                pasteboardChangeCount: 3,
+                precedingText: "second content"
+            ),
+            "second content matching prefix"
         )
-        XCTAssertEqual(result, "second content matching prefix")
     }
 }

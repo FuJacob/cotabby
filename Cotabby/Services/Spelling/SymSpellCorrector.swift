@@ -14,6 +14,7 @@ import Logging
 nonisolated final class SymSpellCorrector: @unchecked Sendable {
     private struct CacheEntry {
         let symSpell: SymSpell
+        let prefixes: WordPrefixIndex
         var lastAccessSequence: UInt64
     }
 
@@ -68,6 +69,16 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         return TypoCaseTransfer.applying(caseOf: word, to: suggestion.term)
     }
 
+    /// Returns no candidates while the language is cold. Index construction shares the existing
+    /// background load, and the immutable value is retained outside the lock for fast lookups.
+    func completionCandidates(for prefix: String, language: SpellingDictionaryLanguage) -> [WordPrefixIndex.Candidate] {
+        _ = cachedIndexOrRequestLoad(for: language)
+        lock.lock()
+        let index = cache[language]?.prefixes
+        lock.unlock()
+        return index?.candidates(for: prefix) ?? []
+    }
+
     /// Test seam: synchronously publishes a small in-memory dictionary without touching the bundle.
     func loadForTesting(
         contents: String,
@@ -75,9 +86,10 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     ) {
         let symSpell = makeEmptyIndex()
         symSpell.loadDictionary(contents: contents)
+        let prefixes = WordPrefixIndex(contents: contents)
 
         lock.lock()
-        publish(symSpell, for: language)
+        publish(symSpell, prefixes: prefixes, for: language)
         loadingLanguages.remove(language)
         lock.unlock()
     }
@@ -132,9 +144,10 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
 
             let symSpell = makeEmptyIndex()
             symSpell.loadDictionary(contents: contents)
+            let prefixes = WordPrefixIndex(contents: contents)
 
             lock.lock()
-            publish(symSpell, for: language)
+            publish(symSpell, prefixes: prefixes, for: language)
             loadingLanguages.remove(language)
             lock.unlock()
             CotabbyLogger.app.info(
@@ -145,10 +158,11 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
 
     /// Must be called with `lock` held. The newly loaded index is newest, so eviction removes the
     /// least recently used older language and keeps memory bounded even for multilingual users.
-    private func publish(_ symSpell: SymSpell, for language: SpellingDictionaryLanguage) {
+    private func publish(_ symSpell: SymSpell, prefixes: WordPrefixIndex, for language: SpellingDictionaryLanguage) {
         accessSequence &+= 1
         cache[language] = CacheEntry(
             symSpell: symSpell,
+            prefixes: prefixes,
             lastAccessSequence: accessSequence
         )
 

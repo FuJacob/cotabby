@@ -14,7 +14,7 @@ enum ShortcutAction: CaseIterable {
         switch self {
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle Tabby"
+        case .toggleTabby: return "Toggle Cotabby"
         }
     }
 }
@@ -40,6 +40,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var showIndicator: Bool
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
+    /// AppDelegate observes this presentation-only preference to enable the debug panels live.
+    /// Kept outside SuggestionSettingsSnapshot so changing it cannot restart generation.
+    @Published private(set) var showDevelopmentDebugOverlays: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     /// Whether Cotabby should suggest inside integrated terminals (VS Code / Cursor xterm.js
     /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
@@ -51,6 +54,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `OverlayController` at present time (like `ghostTextOpacity`), so it is intentionally not part
     /// of the generation-facing `SuggestionSettingsSnapshot` — it changes presentation, not requests.
     @Published private(set) var ghostTextSizeMultiplier: Double
+    /// Point-size floor and ceiling for ghost text, applied after `ghostTextSizeMultiplier` so they
+    /// are absolute. Read live by `OverlayController` for the same reason the multiplier is: they
+    /// change presentation, not the generation request.
+    @Published private(set) var ghostFontSizeFloor: Double
+    @Published private(set) var ghostFontSizeCeiling: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var openAICompatibleBaseURL: String
     @Published private(set) var openAICompatibleModelName: String
@@ -70,9 +78,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// typing in. See `SurfaceContextComposer` for what is actually rendered.
     @Published private(set) var isSurfaceContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
-    /// When on, a misspelled current word hides the normal continuation (see the typo gate).
+    /// When on, a misspelled committed word hides the normal continuation (see the typo gate).
     @Published private(set) var suppressCompletionsOnTypo: Bool
-    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled current word is offered a
+    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled committed word is offered a
     /// green spell-checker correction the user can accept to replace the typo.
     @Published private(set) var offerTypoCorrections: Bool
     /// Bundled SymSpell languages eligible for frequency-ranked corrections. This remains separate
@@ -106,6 +114,12 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
+    /// The UI controls request timing here; the immutable snapshot carries this choice to the
+    /// coordinator so generation never needs to observe a SwiftUI-facing model directly.
+    @Published private(set) var suggestWithinWords: Bool
+    /// A presentation choice, separate from request timing and prediction length. Keeping the
+    /// full prediction lets the session reveal its next word without waiting for another model run.
+    @Published private(set) var showFollowingWords: Bool
     /// Whether the inline `:emoji:` picker is active. Read live by `EmojiPickerController` at event
     /// time, so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isEmojiPickerEnabled: Bool
@@ -118,6 +132,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
+    /// The store owns durability; snapshots carry this live choice to the coordinator.
+    @Published private(set) var predictAheadWhileTyping: Bool
     /// Whether a newly shown suggestion fades in. Read live by `OverlayController` at present time, so
     /// toggling it takes effect on the very next suggestion without any subscription bookkeeping. Not
     /// part of `snapshot`: it never reaches generation, only the overlay renderer.
@@ -173,6 +189,13 @@ final class SuggestionSettingsModel: ObservableObject {
     static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
+    static let defaultGhostFontSizeFloor = SuggestionSettingsStore.defaultGhostFontSizeFloor
+    static let minimumGhostFontSizeFloor = SuggestionSettingsStore.minimumGhostFontSizeFloor
+    static let maximumGhostFontSizeFloor = SuggestionSettingsStore.maximumGhostFontSizeFloor
+    static let defaultGhostFontSizeCeiling = SuggestionSettingsStore.defaultGhostFontSizeCeiling
+    static let minimumGhostFontSizeCeiling = SuggestionSettingsStore.minimumGhostFontSizeCeiling
+    static let maximumGhostFontSizeCeiling = SuggestionSettingsStore.maximumGhostFontSizeCeiling
+    static let ghostFontSizeStep = SuggestionSettingsStore.ghostFontSizeStep
     static let minimumFadeInDuration = SuggestionSettingsStore.minimumFadeInDuration
     static let maximumFadeInDuration = SuggestionSettingsStore.maximumFadeInDuration
     static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
@@ -204,11 +227,14 @@ final class SuggestionSettingsModel: ObservableObject {
         pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
+        showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
+        ghostFontSizeFloor = data.ghostFontSizeFloor
+        ghostFontSizeCeiling = data.ghostFontSizeCeiling
         selectedEngine = data.selectedEngine
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
@@ -236,6 +262,8 @@ final class SuggestionSettingsModel: ObservableObject {
         debounceMilliseconds = data.debounceMilliseconds
         focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
         isMultiLineEnabled = data.isMultiLineEnabled
+        suggestWithinWords = data.suggestWithinWords
+        showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
@@ -243,6 +271,7 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
@@ -281,11 +310,14 @@ final class SuggestionSettingsModel: ObservableObject {
         pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
+        showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
+        ghostFontSizeFloor = data.ghostFontSizeFloor
+        ghostFontSizeCeiling = data.ghostFontSizeCeiling
         selectedEngine = data.selectedEngine
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
@@ -313,6 +345,8 @@ final class SuggestionSettingsModel: ObservableObject {
         debounceMilliseconds = data.debounceMilliseconds
         focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
         isMultiLineEnabled = data.isMultiLineEnabled
+        suggestWithinWords = data.suggestWithinWords
+        showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
@@ -320,6 +354,7 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
@@ -385,9 +420,12 @@ final class SuggestionSettingsModel: ObservableObject {
                 debounceMilliseconds: debounceMilliseconds,
                 focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
                 isMultiLineEnabled: isMultiLineEnabled,
+                suggestWithinWords: suggestWithinWords,
+                showFollowingWords: showFollowingWords,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: addSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
+                predictAheadWhileTyping: predictAheadWhileTyping,
                 acceptanceGranularity: acceptanceGranularity
             ),
             context: SuggestionContextSettings(
@@ -411,11 +449,14 @@ final class SuggestionSettingsModel: ObservableObject {
                 customSuggestionTextColorHex: customSuggestionTextColorHex,
                 ghostTextOpacity: ghostTextOpacity,
                 ghostTextSizeMultiplier: ghostTextSizeMultiplier,
+                ghostFontSizeFloor: ghostFontSizeFloor,
+                ghostFontSizeCeiling: ghostFontSizeCeiling,
                 isMenuBarIconVisible: isMenuBarIconVisible,
                 isMenuBarWordCountVisible: isMenuBarWordCountVisible,
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
-                fadeInDurationSeconds: fadeInDurationSeconds
+                fadeInDurationSeconds: fadeInDurationSeconds,
+                showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: isEmojiPickerEnabled,
@@ -468,9 +509,12 @@ final class SuggestionSettingsModel: ObservableObject {
             debounceMilliseconds: settings.completion.debounceMilliseconds,
             focusPollIntervalMilliseconds: settings.completion.focusPollIntervalMilliseconds,
             isMultiLineEnabled: settings.completion.isMultiLineEnabled,
+            suggestWithinWords: settings.completion.suggestWithinWords,
+            showFollowingWords: settings.completion.showFollowingWords,
             autoAcceptTrailingPunctuation: settings.completion.autoAcceptTrailingPunctuation,
             addSpaceAfterAccept: settings.completion.addSpaceAfterAccept,
             streamSuggestionsWhileGenerating: settings.completion.streamSuggestionsWhileGenerating,
+            predictAheadWhileTyping: settings.completion.predictAheadWhileTyping,
             isFastModeEnabled: settings.context.isFastModeEnabled,
             mirrorPreference: settings.presentation.mirrorPreference,
             acceptanceGranularity: settings.completion.acceptanceGranularity,
@@ -811,6 +855,18 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveMultiLineEnabled(enabled)
     }
 
+    func setSuggestWithinWords(_ enabled: Bool) {
+        guard suggestWithinWords != enabled else { return }
+        suggestWithinWords = enabled
+        store.saveSuggestWithinWords(enabled)
+    }
+
+    func setShowFollowingWords(_ enabled: Bool) {
+        guard showFollowingWords != enabled else { return }
+        showFollowingWords = enabled
+        store.saveShowFollowingWords(enabled)
+    }
+
     func setEmojiPickerEnabled(_ enabled: Bool) {
         guard isEmojiPickerEnabled != enabled else {
             return
@@ -861,6 +917,12 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         addSpaceAfterAccept = enabled
         store.saveAddSpaceAfterAccept(enabled)
+    }
+
+    func setPredictAheadWhileTyping(_ enabled: Bool) {
+        guard predictAheadWhileTyping != enabled else { return }
+        predictAheadWhileTyping = enabled
+        store.savePredictAheadWhileTyping(enabled)
     }
 
     func setStreamSuggestionsWhileGenerating(_ enabled: Bool) {
@@ -1058,6 +1120,12 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveShowIndicator(show)
     }
 
+    func setShowDevelopmentDebugOverlays(_ show: Bool) {
+        guard showDevelopmentDebugOverlays != show else { return }
+        showDevelopmentDebugOverlays = show
+        store.saveShowDevelopmentDebugOverlays(show)
+    }
+
     func setShowAcceptanceHint(_ show: Bool) {
         guard showAcceptanceHint != show else {
             return
@@ -1126,6 +1194,38 @@ final class SuggestionSettingsModel: ObservableObject {
 
         ghostTextSizeMultiplier = clamped
         store.saveGhostTextSizeMultiplier(clamped)
+    }
+
+    /// Raising the floor past the ceiling (or lowering the ceiling past the floor) would describe an
+    /// empty range, which `GhostFontSizeLimits` would resolve by letting the ceiling win — silently
+    /// ignoring the control the user just moved. Pushing the other value along keeps both controls
+    /// honest and the range non-empty, and it matches how paired min/max controls behave elsewhere.
+    func setGhostFontSizeFloor(_ points: Double) {
+        let clamped = SuggestionSettingsStore.clampedGhostFontSizeFloor(points)
+        guard ghostFontSizeFloor != clamped else {
+            return
+        }
+
+        ghostFontSizeFloor = clamped
+        store.saveGhostFontSizeFloor(clamped)
+
+        if ghostFontSizeCeiling < clamped {
+            setGhostFontSizeCeiling(clamped)
+        }
+    }
+
+    func setGhostFontSizeCeiling(_ points: Double) {
+        let clamped = SuggestionSettingsStore.clampedGhostFontSizeCeiling(points)
+        guard ghostFontSizeCeiling != clamped else {
+            return
+        }
+
+        ghostFontSizeCeiling = clamped
+        store.saveGhostFontSizeCeiling(clamped)
+
+        if ghostFontSizeFloor > clamped {
+            setGhostFontSizeFloor(clamped)
+        }
     }
 
     func setUserName(_ name: String) {
@@ -1528,17 +1628,18 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $responseLanguages,
                 $enabledSpellingDictionaryCodes
             ),
-            // The acceptance toggles and the streaming-reveal toggle share this slot via a grouped
-            // `CombineLatest3` so new settings cost no extra upstream in a tuple already at Combine's
-            // four-input cap.
+            // Acceptance and prediction toggles share one slot within Combine's four-input cap.
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
                 $focusPollIntervalMilliseconds,
-                $isMultiLineEnabled,
-                Publishers.CombineLatest3(
+                // Typing choices travel together so the subscriber receives the incoming
+                // @Published value, rather than re-reading the model before its setter completes.
+                Publishers.CombineLatest3($isMultiLineEnabled, $suggestWithinWords, $showFollowingWords),
+                Publishers.CombineLatest4(
                     $autoAcceptTrailingPunctuation,
                     $addSpaceAfterAccept,
-                    $streamSuggestionsWhileGenerating
+                    $streamSuggestionsWhileGenerating,
+                    $predictAheadWhileTyping
                 )
             )
         )
@@ -1570,8 +1671,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
-                let (debounce, focusPoll, multiLine, acceptToggles) = timing
-                let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating) = acceptToggles
+                let (debounce, focusPoll, generationToggles, acceptToggles) = timing
+                let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
+                let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
@@ -1594,9 +1696,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     debounceMilliseconds: debounce,
                     focusPollIntervalMilliseconds: focusPoll,
                     isMultiLineEnabled: multiLine,
+                    suggestWithinWords: suggestWithinWords,
+                    showFollowingWords: showFollowingWords,
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     addSpaceAfterAccept: addSpaceAfterAccept,
                     streamSuggestionsWhileGenerating: streamWhileGenerating,
+                    predictAheadWhileTyping: predictAhead,
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,

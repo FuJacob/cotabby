@@ -68,7 +68,10 @@ struct WelcomePermissionStepView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 10, weight: .medium))
 
-                Text("Everything Cotabby reads stays on your Mac. Nothing is ever uploaded.")
+                Text(
+                    "Apple Intelligence and Open Source run on your Mac. " +
+                        "If you choose an endpoint, enabled text context is sent to that server."
+                )
                     .font(.system(size: 12, design: .rounded))
             }
             .foregroundStyle(.tertiary)

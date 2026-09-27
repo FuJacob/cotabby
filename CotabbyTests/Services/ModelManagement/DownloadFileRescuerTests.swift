@@ -29,34 +29,16 @@ final class DownloadFileRescuerTests: XCTestCase {
 
     // MARK: - rescue happy path
 
-    func test_rescue_movesFileFromSourceToHoldingURL() throws {
-        let sourceURL = try makeTemporarySourceFile(contents: "hello")
-
-        let holdingURL = try DownloadFileRescuer.rescue(temporaryFileAt: sourceURL)
-        cleanupURLs.append(holdingURL)
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: holdingURL.path),
-                      "rescue should produce a holding file at the returned URL")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path),
-                       "rescue moves (not copies) — source should be gone afterwards")
-    }
-
-    func test_rescue_preservesFileContents() throws {
+    func test_rescue_movesFileWithContentsIntoAnOwnedTemporaryHoldingURL() throws {
         let sourceURL = try makeTemporarySourceFile(contents: "content-marker-XYZ")
 
         let holdingURL = try DownloadFileRescuer.rescue(temporaryFileAt: sourceURL)
         cleanupURLs.append(holdingURL)
 
-        let contents = try String(contentsOf: holdingURL, encoding: .utf8)
-        XCTAssertEqual(contents, "content-marker-XYZ")
-    }
-
-    func test_rescue_producesHoldingURLInTemporaryDirectory() throws {
-        let sourceURL = try makeTemporarySourceFile(contents: "x")
-
-        let holdingURL = try DownloadFileRescuer.rescue(temporaryFileAt: sourceURL)
-        cleanupURLs.append(holdingURL)
-
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path),
+                       "rescue moves (not copies) — source should be gone afterwards")
+        XCTAssertEqual(try String(contentsOf: holdingURL, encoding: .utf8), "content-marker-XYZ")
+        XCTAssertTrue(holdingURL.lastPathComponent.hasPrefix("Cotabby-download-"))
         let tempDir = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
         XCTAssertTrue(holdingURL.resolvingSymlinksInPath().path.hasPrefix(tempDir),
                       "holding file should live under temporaryDirectory")

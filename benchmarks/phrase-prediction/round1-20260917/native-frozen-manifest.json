@@ -1,0 +1,20 @@
+{
+  "files": {
+    ".claude/rules/rocketride.md": "d61ec7bd7670bffc391a11507322169ae77f2630fdfeba68b53a83dad881ef24",
+    ".github/copilot-instructions.md": "554e9df6cadf40eacc764996cb8772195dfd0a8e28bcf4e79d40bd17a0cb2947",
+    ".github/workflows/ci.yml": "3ebd964fe9765bcdf2fca7ca43dbf1223626a0316fea48e48b0b8c7121242fff",
+    ".github/workflows/release.yml": "7aec866fab8cde6564eab894aa89341035ac91ef0d3da54cbcd04622a04823b0",
+    ".gitignore": "1a69e881fa5834b6f8d73311de9c6bfb123d7422e017ada4731c236eee130823",
+    "LICENSE": "7a4a333f771d0a55b3ca31a13d2438d6110b9112b203787dc7dd93dcc600bda8",
+    "Package.swift": "30fea5880787e9131cb2a3dccf0c41c1fc7bdf6d10f545bbf6066f2ad88db453",
+    "README.md": "c3f219d0ff928e31ad82e245c8eff260a515592b08cfcab15371252c2d948512",
+    "Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp": "2591a59c5e8ecff90aad87880018d5bf49f3245f097d2bcc19e10c9ffeaf7615",
+    "Sources/CotabbyInferenceEngine/TokenHealing.cpp": "a50d3fb842230df502ab367caa7a6a5b61f697f97b81c174079a43efd1c312b5",
+    "Sources/CotabbyInferenceEngine/TokenHealing.h": "f88bf71aa9f905e01f0b9c334fbf1a0a3b3bf8d2b7cf1191d80cc6777c1c0d94",
+    "Sources/CotabbyInferenceEngine/include/CotabbyInferenceEngine.h": "71a46cd1aff6013c2228794ffaf09295f47a1c4a4bdd412d46c3f5d9441eec5e",
+    "Sources/CotabbyInferenceEngine/include/module.modulemap": "b806543e73125e15eb287565148c4964fca385725880cb5413cdac31a64ca546",
+    "Tests/CotabbyInferenceTests/LlamaMiddlewareTests.swift": "572d4f7d4b1f35d61434817c8d6de30f6b91a9b4d705fbeca22ee6b900daa0f1",
+    "Tests/TokenHealingTests.cpp": "741b7d796cec597dec143143f5befdf5b31c703fd6f2af6db791808d045c6356"
+  },
+  "root": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/phrase-round1-native/cotabbyinference"
+}

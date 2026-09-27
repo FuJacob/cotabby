@@ -28,4 +28,19 @@ final class ConfidenceSuppressionPolicyTests: XCTestCase {
             ConfidenceSuppressionPolicy.shouldSuppress(averageLogprob: -2.0, floor: -2.0)
         )
     }
+
+    func test_nonFiniteLogprobs() {
+        // A runtime reporting negative infinity (a zero-probability token) is maximally unsure.
+        XCTAssertTrue(
+            ConfidenceSuppressionPolicy.shouldSuppress(averageLogprob: -.infinity, floor: -2.0)
+        )
+        // NaN compares false against everything, so a NaN average never suppresses; a NaN floor
+        // fails the "enabled" guard and disables suppression the same way.
+        XCTAssertFalse(
+            ConfidenceSuppressionPolicy.shouldSuppress(averageLogprob: .nan, floor: -2.0)
+        )
+        XCTAssertFalse(
+            ConfidenceSuppressionPolicy.shouldSuppress(averageLogprob: -50.0, floor: .nan)
+        )
+    }
 }

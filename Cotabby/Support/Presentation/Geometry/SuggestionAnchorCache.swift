@@ -2,7 +2,7 @@ import Foundation
 
 /// One remembered suggestion, anchored to the text that preceded it.
 nonisolated struct SuggestionAnchor: Equatable {
-    /// `FocusedInputContext.focusedInputIdentityKey` of the field the suggestion belonged to.
+    /// `FocusedInputContext.suggestionSessionIdentityKey` of the field the suggestion belonged to.
     let identityKey: UInt64
     /// The tail of `precedingText` at generation time (bounded; see `prefixTailLength`).
     let prefixTail: String
@@ -17,7 +17,7 @@ nonisolated struct SuggestionAnchor: Equatable {
 ///   already covered.
 /// - **Type-through re-entry**: typing exactly the suggested characters after the session was
 ///   invalidated for an unrelated reason (focus bounce, shortcut) lands back inside it.
-/// - **Field return**: coming back to a field whose text has not moved.
+/// Navigation invalidates entries through the session key even if the new draft is identical.
 ///
 /// One match rule covers all three: the live preceding-text tail must equal a cached anchor's
 /// tail plus the first `k` characters of its suggestion, for any `k` short of the whole

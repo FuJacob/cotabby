@@ -253,15 +253,6 @@ final class AXHelperTests: XCTestCase {
     // MARK: - Editability heuristics (pure)
 
     func test_editabilityHeuristics_scoreRolesAndExplicitFlags() {
-        XCTAssertTrue(AXHelper.isKnownEditableRole(kAXTextFieldRole as String))
-        XCTAssertTrue(AXHelper.isKnownEditableRole(kAXTextAreaRole as String))
-        XCTAssertTrue(AXHelper.isKnownEditableRole("AXSearchField"))
-        XCTAssertFalse(AXHelper.isKnownEditableRole(kAXStaticTextRole as String))
-
-        XCTAssertTrue(AXHelper.isKnownReadOnlyRole(kAXStaticTextRole as String))
-        XCTAssertTrue(AXHelper.isKnownReadOnlyRole(kAXButtonRole as String))
-        XCTAssertFalse(AXHelper.isKnownReadOnlyRole(kAXTextFieldRole as String))
-
         XCTAssertEqual(AXHelper.editabilityHintScore(role: kAXTextFieldRole as String, explicitEditableFlag: true), 11)
         XCTAssertEqual(AXHelper.editabilityHintScore(role: kAXTextFieldRole as String, explicitEditableFlag: nil), 1)
         XCTAssertEqual(AXHelper.editabilityHintScore(role: "AXGroup", explicitEditableFlag: false), 0)
@@ -269,6 +260,72 @@ final class AXHelperTests: XCTestCase {
         XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(role: "AXGroup", explicitEditableFlag: true))
         XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(role: kAXComboBoxRole as String, explicitEditableFlag: nil))
         XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(role: "AXGroup", explicitEditableFlag: nil))
+    }
+
+    func test_roleTables_coverEveryListedRole() {
+        let editable = [kAXTextFieldRole as String, kAXTextAreaRole as String, "AXSearchField", kAXComboBoxRole as String]
+        let readOnly = [
+            kAXStaticTextRole as String, kAXImageRole as String, kAXButtonRole as String, "AXLink",
+            kAXMenuItemRole as String
+        ]
+        for role in editable {
+            XCTAssertTrue(AXHelper.isKnownEditableRole(role), role)
+            XCTAssertFalse(AXHelper.isKnownReadOnlyRole(role), role)
+        }
+        for role in readOnly {
+            XCTAssertTrue(AXHelper.isKnownReadOnlyRole(role), role)
+            XCTAssertFalse(AXHelper.isKnownEditableRole(role), role)
+        }
+        // Container roles are neither: they need an explicit flag or a writable value to qualify.
+        XCTAssertFalse(AXHelper.isKnownEditableRole("AXGroup"))
+        XCTAssertFalse(AXHelper.isKnownReadOnlyRole("AXGroup"))
+    }
+
+    func test_webAreaEditability_requiresWritableValueWhenEditableFlagIsAbsent() {
+        XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: nil, isValueSettable: true
+        ))
+        // Received mail and ordinary web pages must remain ineligible, even if they expose
+        // selectable text and caret geometry through WebKit's text-marker APIs.
+        XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: nil, isValueSettable: false
+        ))
+        XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: false, isValueSettable: true
+        ))
+        for role in ["AXGroup", "AXStaticText", "AXButton"] {
+            XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+                role: role, explicitEditableFlag: nil, isValueSettable: true
+            ))
+        }
+    }
+
+    func test_textMarkerEndpoints_readsCFRangeWithoutChromiumHostQueries() throws {
+        // Arbitrary bytes are valid for testing the CF container. Only the host interprets marker
+        // payloads; extraction must preserve them, including a collapsed selection's equal ends.
+        let startBytes: [UInt8] = [1, 2, 3]
+        let endBytes: [UInt8] = [4, 5, 6]
+        let start = startBytes.withUnsafeBufferPointer {
+            AXTextMarkerCreate(nil, $0.baseAddress!, $0.count)
+        }
+        let end = endBytes.withUnsafeBufferPointer {
+            AXTextMarkerCreate(nil, $0.baseAddress!, $0.count)
+        }
+        for last in [start, end] {
+            let range = AXTextMarkerRangeCreate(nil, start, last)
+            let endpoints = try XCTUnwrap(AXHelper.textMarkerEndpoints(from: range))
+            XCTAssertEqual(AXTextMarkerGetLength(endpoints.start), 3)
+            XCTAssertEqual(AXTextMarkerGetBytePtr(endpoints.start).pointee, 1)
+            XCTAssertEqual(AXTextMarkerGetLength(endpoints.end), 3)
+            XCTAssertEqual(
+                AXTextMarkerGetBytePtr(endpoints.end).pointee,
+                AXTextMarkerGetBytePtr(last).pointee
+            )
+        }
+    }
+
+    func test_textMarkerEndpoints_rejectsUnexpectedHostValueType() {
+        XCTAssertNil(AXHelper.textMarkerEndpoints(from: "not a marker range" as CFString))
     }
 
     // MARK: - Coordinate conversion (pure over live screen geometry)
@@ -346,5 +403,60 @@ final class AXHelperTests: XCTestCase {
         // The timeout itself is not readable back, but creation must succeed and be callable.
         let element = AXHelper.systemWideElement()
         XCTAssertEqual(CFGetTypeID(element), AXUIElementGetTypeID())
+    }
+
+    // MARK: - AXFont dictionary face selection
+
+    /// Microsoft Word publishes a fixed `AXFontName: Helvetica` placeholder while reporting the
+    /// document's real typeface beside it, verified from a live dump of a Word text area:
+    ///
+    ///     AXFont = {AXFontFamily: Aptos, AXFontName: Helvetica, AXFontSize: 12, AXVisibleName: Aptos}
+    ///
+    /// Reading `AXFontName` alone therefore drew ghost text in Helvetica over an Aptos document.
+    func testPrefersReportedFamilyWhenFaceNameContradictsIt() {
+        let fontInfo: [String: Any] = [
+            "AXFontFamily": "Aptos",
+            "AXFontName": "Helvetica",
+            "AXFontSize": 12,
+            "AXVisibleName": "Aptos"
+        ]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
+    }
+
+    func testFallsBackToVisibleNameWhenFamilyMissing() {
+        let fontInfo: [String: Any] = ["AXFontName": "Helvetica", "AXVisibleName": "Aptos"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
+    }
+
+    func testKeepsSpecificFaceWhenItBelongsToTheReportedFamily() {
+        // An honest host's PostScript name encodes weight and slant, which the family name loses,
+        // so the specific face must win whenever the two agree.
+        let fontInfo: [String: Any] = ["AXFontName": "Helvetica-Bold", "AXFontFamily": "Helvetica"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Helvetica-Bold")
+    }
+
+    func testKeepsFamilyPrefixedFaceThatIsNotInstalledYet() {
+        // A host's privately bundled face cannot be instantiated until `HostFontRegistry` loads it,
+        // so the name test has to stand in for the family check at this point.
+        let fontInfo: [String: Any] = ["AXFontName": "Aptos-Bold", "AXFontFamily": "Aptos"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos-Bold")
+    }
+
+    func testUsesFaceNameWhenNoFamilyIsReported() {
+        // Legacy shape: nothing to cross-check against, so behavior is unchanged.
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: ["AXFontName": "Helvetica"]), "Helvetica")
+    }
+
+    func testFontFamilyTakesPrecedenceOverVisibleName() {
+        let fontInfo: [String: Any] = ["AXFontFamily": "Aptos", "AXVisibleName": "Aptos Display"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
+    }
+
+    func testIgnoresEmptyNamesAndReturnsNilWhenNothingUsable() {
+        XCTAssertEqual(
+            AXHelper.faceName(fromAXFontDictionary: ["AXFontName": "", "AXFontFamily": "Aptos"]),
+            "Aptos"
+        )
+        XCTAssertNil(AXHelper.faceName(fromAXFontDictionary: ["AXFontSize": 12]))
     }
 }

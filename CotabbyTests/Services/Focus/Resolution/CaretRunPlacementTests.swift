@@ -192,6 +192,24 @@ final class CaretRunPlacementTests: XCTestCase {
         )
     }
 
+    /// Degenerate runs never qualify: there is nothing to place proportionally, and a NaN or empty
+    /// frame would feed garbage coordinates into the overlay.
+    func test_proportionalPlacement_rejectsDegenerateRuns() {
+        let cases: [(text: String, frame: CGRect, label: String)] = [
+            ("", CGRect(x: 0, y: 0, width: 240, height: 20), "empty text"),
+            ("hello", .zero, "empty frame"),
+            ("hello", CGRect(x: 0, y: 0, width: 240, height: 0), "zero-height frame"),
+            ("hello", CGRect(x: CGFloat.nan, y: 0, width: 240, height: 20), "non-finite frame")
+        ]
+
+        for testCase in cases {
+            XCTAssertFalse(
+                AXTextGeometryResolver.canUseProportionalCaretPlacement(text: testCase.text, frame: testCase.frame),
+                testCase.label
+            )
+        }
+    }
+
     func test_wrappedRunCharacterBoundsAnchorAtTheTrailingEdge() {
         let characterFrame = CGRect(x: 610, y: 490, width: 7, height: 21)
 

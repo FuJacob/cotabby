@@ -241,21 +241,22 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(outcome, .rejected(.containsTab))
     }
 
-    func test_estimate_rejectsMissingEmptyOrTinyFieldFrame() {
-        XCTAssertEqual(
-            TextLayoutCaretEstimator.estimate(for: makeInput(prefix: "hello", frame: nil)),
-            .rejected(.fieldFrameUnusable)
-        )
-        XCTAssertEqual(
-            TextLayoutCaretEstimator.estimate(for: makeInput(prefix: "hello", frame: .zero)),
-            .rejected(.fieldFrameUnusable)
-        )
-        XCTAssertEqual(
-            TextLayoutCaretEstimator.estimate(
-                for: makeInput(prefix: "hello", frame: CGRect(x: 0, y: 0, width: 30, height: 24))
-            ),
-            .rejected(.fieldFrameUnusable)
-        )
+    func test_estimate_rejectsMissingEmptyTinyOrNonFiniteFieldFrame() {
+        let unusable: [CGRect?] = [
+            nil,
+            .zero,
+            CGRect(x: 0, y: 0, width: 30, height: 24),
+            CGRect(x: CGFloat.nan, y: 0, width: 300, height: 24),
+            CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 24)
+        ]
+
+        for frame in unusable {
+            XCTAssertEqual(
+                TextLayoutCaretEstimator.estimate(for: makeInput(prefix: "hello", frame: frame)),
+                .rejected(.fieldFrameUnusable),
+                "frame: \(String(describing: frame))"
+            )
+        }
     }
 
     // MARK: - Host-measured calibrations
@@ -277,21 +278,51 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset - observed, accuracy: 0.6)
     }
 
-    func test_estimate_junkObservedLineHeightFallsBackToFontMetrics() throws {
-        // A whole-field rect height (the `.estimated` AXFrame shape) must not be mistaken for a
-        // line box.
-        let frame = CGRect(x: 0, y: 0, width: 300, height: 200)
-        let estimate = try XCTUnwrap(
-            acceptedEstimate(for: makeInput(prefix: "hello", frame: frame, observedLineHeight: 200))
-        )
+    func test_estimate_observedLineHeightOutsideTheLineRangeFallsBackToFontMetrics() throws {
+        // Heights under 8pt, over 60pt, or taller than the field itself are not line boxes (a
+        // whole-field rect is the `.estimated` AXFrame shape) and must not drive per-line spacing.
+        let tall = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let short = CGRect(x: 0, y: 0, width: 300, height: 24)
+        let rejected: [(height: CGFloat, frame: CGRect)] = [(7, tall), (61, tall), (200, tall), (30, short)]
 
-        XCTAssertFalse(estimate.usedObservedLineHeight)
-        XCTAssertEqual(estimate.lineHeight, systemLineHeight, accuracy: 0.01)
+        for (height, frame) in rejected {
+            let estimate = try XCTUnwrap(
+                acceptedEstimate(for: makeInput(prefix: "hello", frame: frame, observedLineHeight: height)),
+                "height \(height)"
+            )
+            XCTAssertFalse(estimate.usedObservedLineHeight, "height \(height)")
+            XCTAssertEqual(estimate.lineHeight, systemLineHeight, accuracy: 0.01, "height \(height)")
+        }
+
+        // Both range bounds are inclusive.
+        for height: CGFloat in [8, 60] {
+            let estimate = try XCTUnwrap(
+                acceptedEstimate(for: makeInput(prefix: "hello", frame: tall, observedLineHeight: height))
+            )
+            XCTAssertTrue(estimate.usedObservedLineHeight, "height \(height)")
+            XCTAssertEqual(estimate.lineHeight, height, "height \(height)")
+        }
     }
 
-    func test_estimate_observedCharWidthRescalesLayoutFont() throws {
+    func test_estimate_trailingNewlinePinsTheExtraLineToTheObservedLineHeight() throws {
+        // TextKit lays the empty final line out without the paragraph style; the estimator pins its
+        // height to the observed line box so the caret sits one full host line below the text.
+        let frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(prefix: "hello\n", frame: frame, observedLineHeight: 24))
+        )
+
+        XCTAssertEqual(estimate.lineIndex, 1)
+        XCTAssertEqual(estimate.caretRect.height, 24, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.minX, frame.minX + horizontalInset, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset - 24, accuracy: 1.0)
+    }
+
+    func test_estimate_observedCharWidthRescalesLayoutFontWithinTheScaleBounds() throws {
         // The host's measured average character width calibrates wrap fidelity: a wider host font
-        // must widen the layout font (larger x for the same prefix), a narrower one must shrink it.
+        // widens the layout font (larger x for the same prefix), a narrower one shrinks it. One
+        // noisy run must not drag the font to an absurd size, so the rescale is clamped to
+        // 0.65x...1.6x; 20pt and 1pt averages sit far outside that band for the system font.
         let frame = CGRect(x: 0, y: 0, width: 400, height: 24)
         let baseline = try XCTUnwrap(acceptedEstimate(for: makeInput(prefix: "Hello", frame: frame)))
         let wide = try XCTUnwrap(
@@ -301,10 +332,51 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
             acceptedEstimate(for: makeInput(prefix: "Hello", frame: frame, observedCharWidth: 1))
         )
 
-        XCTAssertGreaterThan(wide.layoutFontPointSize, baseline.layoutFontPointSize)
+        XCTAssertEqual(baseline.layoutFontPointSize, NSFont.systemFontSize, accuracy: 0.01)
+        XCTAssertEqual(wide.layoutFontPointSize, NSFont.systemFontSize * 1.6, accuracy: 0.01)
+        XCTAssertEqual(narrow.layoutFontPointSize, NSFont.systemFontSize * 0.65, accuracy: 0.01)
         XCTAssertGreaterThan(wide.caretRect.minX, baseline.caretRect.minX)
-        XCTAssertLessThan(narrow.layoutFontPointSize, baseline.layoutFontPointSize)
         XCTAssertLessThan(narrow.caretRect.minX, baseline.caretRect.minX)
+    }
+
+    func test_estimate_rescaledFontStillRespectsThePointSizeFloor() throws {
+        // 8pt * 0.65 = 5.2pt would be illegible layout; the size clamp holds it at 8pt.
+        let estimate = try XCTUnwrap(acceptedEstimate(for: makeInput(
+            prefix: "Hello",
+            frame: CGRect(x: 0, y: 0, width: 400, height: 24),
+            style: ResolvedFieldStyle(fontName: nil, fontPointSize: 8, colorHex: nil),
+            observedCharWidth: 0.01
+        )))
+
+        XCTAssertEqual(estimate.layoutFontPointSize, 8, accuracy: 0.01)
+    }
+
+    func test_estimate_nonPositiveObservedCharWidthIsIgnored() {
+        let frame = CGRect(x: 0, y: 0, width: 400, height: 24)
+        let plain = TextLayoutCaretEstimator.estimate(for: makeInput(prefix: "Hello", frame: frame))
+
+        for width: CGFloat in [0, -3] {
+            XCTAssertEqual(
+                TextLayoutCaretEstimator.estimate(for: makeInput(prefix: "Hello", frame: frame, observedCharWidth: width)),
+                plain,
+                "width \(width)"
+            )
+        }
+    }
+
+    func test_estimate_hostReportedFontSizeIsClampedToTheTextFieldRange() throws {
+        // AX font sizes are host-supplied and occasionally garbage; layout clamps them to 8...72pt.
+        let frame = CGRect(x: 0, y: 0, width: 400, height: 24)
+        let cases: [(reported: CGFloat, expected: CGFloat)] = [(200, 72), (2, 8), (16, 16)]
+
+        for (reported, expected) in cases {
+            let estimate = try XCTUnwrap(acceptedEstimate(for: makeInput(
+                prefix: "",
+                frame: frame,
+                style: ResolvedFieldStyle(fontName: nil, fontPointSize: reported, colorHex: nil)
+            )), "reported \(reported)")
+            XCTAssertEqual(estimate.layoutFontPointSize, expected, accuracy: 0.01, "reported \(reported)")
+        }
     }
 
     func test_estimate_observedContentEdgesReplaceGuessedInsets() throws {
@@ -320,6 +392,21 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.caretRect.maxY, 190, accuracy: 0.01)
     }
 
+    func test_estimate_lineQueryMarginCalibratesTheLeftInsetButNotTheTop() throws {
+        // A line-query margin knows where the host's text column starts, not where its text block
+        // starts vertically, so only the left inset is measured; the top keeps the default.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(
+                for: makeInput(prefix: "", frame: frame, observedContentEdges: .lineQueryMargin(leftX: 112))
+            )
+        )
+
+        XCTAssertTrue(estimate.usedObservedContentEdges)
+        XCTAssertEqual(estimate.caretRect.minX, 112, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset, accuracy: 0.01)
+    }
+
     func test_estimate_absurdContentEdgesFallBackToDefaultInsets() throws {
         // A heavily indented first run (quote, list) or an offscreen top edge is not padding.
         let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
@@ -331,6 +418,33 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertFalse(estimate.usedObservedContentEdges)
         XCTAssertEqual(estimate.caretRect.minX, frame.minX + horizontalInset, accuracy: 0.01)
         XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset, accuracy: 0.01)
+    }
+
+    func test_estimate_contentEdgesOutsideTheFieldFallBackToDefaultInsets() throws {
+        // A left edge before the frame (negative inset) and a top edge above it are both rejected.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let edges = ObservedContentEdges(leftX: 90, topY: 210)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(prefix: "", frame: frame, observedContentEdges: edges))
+        )
+
+        XCTAssertFalse(estimate.usedObservedContentEdges)
+        XCTAssertEqual(estimate.caretRect.minX, frame.minX + horizontalInset, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset, accuracy: 0.01)
+    }
+
+    func test_estimate_contentEdgeAxesAreGatedIndependently() throws {
+        // A distrusted left edge (200pt, beyond 40% of the width) does not discard a plausible top
+        // edge: the top is still calibrated and the estimate reports a measured calibration.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let edges = ObservedContentEdges(leftX: 300, topY: 190)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(prefix: "", frame: frame, observedContentEdges: edges))
+        )
+
+        XCTAssertTrue(estimate.usedObservedContentEdges)
+        XCTAssertEqual(estimate.caretRect.minX, frame.minX + horizontalInset, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.maxY, 190, accuracy: 0.01)
     }
 
     func test_estimate_observedCharWidthWithinTwoPercentDoesNotRescaleFont() throws {
@@ -370,22 +484,22 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
 
     // MARK: - Memoization
 
-    func test_estimate_repeatedIdenticalInputReturnsIdenticalOutcome() {
-        // Reconcile ticks re-present byte-identical inputs several times per second; the memo must
-        // return the exact same outcome for them (and the second call exercises the cached path).
-        let input = makeInput(
+    func test_estimate_memoKeysOnTheWholeInput() throws {
+        // Reconcile ticks re-present byte-identical inputs several times per second and hit the
+        // single-entry memo; any field of the input changing must miss it and recompute, and the
+        // original input must still produce its original outcome afterwards.
+        let input = makeInput(prefix: "memo probe text", frame: CGRect(x: 0, y: 0, width: 300, height: 24))
+        let truncated = makeInput(
             prefix: "memo probe text",
-            frame: CGRect(x: 0, y: 0, width: 300, height: 24)
+            frame: CGRect(x: 0, y: 0, width: 300, height: 24),
+            prefixMayBeTruncated: true
         )
 
         let first = TextLayoutCaretEstimator.estimate(for: input)
-        let second = TextLayoutCaretEstimator.estimate(for: input)
-
-        XCTAssertEqual(first, second)
-        guard case .estimate = first else {
-            XCTFail("Expected the probe input to produce an accepted estimate")
-            return
-        }
+        _ = try XCTUnwrap(acceptedEstimate(for: input), "the probe input must produce an estimate")
+        XCTAssertEqual(TextLayoutCaretEstimator.estimate(for: input), first)
+        XCTAssertEqual(TextLayoutCaretEstimator.estimate(for: truncated), .rejected(.prefixTruncated))
+        XCTAssertEqual(TextLayoutCaretEstimator.estimate(for: input), first)
     }
 
     func test_estimate_measuredTopIgnoredWhenPrefixStartsWithLineBreak() throws {

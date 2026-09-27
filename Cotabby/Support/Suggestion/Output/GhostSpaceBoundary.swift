@@ -87,6 +87,22 @@ nonisolated enum GhostSpaceBoundary {
         return needsLeadingSpace(stripped, precedingText: precedingText, boundary: boundary) ? " " + stripped : stripped
     }
 
+    /// The completion re-spaced against the live text at presentation time. The full rule applies
+    /// when the engine vouches for its spacing (`requestPrecedingText` given: a base model's
+    /// completion is exact text following it). For every other engine only the one correction that
+    /// is always safe is made: a leading space the field now supplies itself is dropped, and the
+    /// completion's own spacing otherwise stands, because a mid-word continuation ("flux" + "beam")
+    /// and a new word ("hearing" + " from you") are told apart only by the engine that produced them.
+    static func liveAdjusted(_ completion: String, precedingText: String, requestPrecedingText: String?) -> String {
+        if let requestPrecedingText {
+            return adjusted(
+                completion, precedingText: precedingText, requestPrecedingText: requestPrecedingText, continuesPartialWord: false
+            )
+        }
+        guard let last = precedingText.last, last.isWhitespace else { return completion }
+        return String(completion.drop(while: isSpace))
+    }
+
     /// Punctuation that can only attach to the word before it.
     private static let attachingPunctuation: Set<Character> = [",", ".", ";", ":", "!", "?", "…", ")", "]", "}", "%"]
 

@@ -1,0 +1,71 @@
+{
+  "analysisHelpers": {
+    "scripts/analyze_completion_prefixes.py": "74dfa7cd68afa91d502704637ecd2baa25a36de3a71d893e4339e4e5df9c46b5",
+    "scripts/analyze_phrase_experiments.py": "f1e1154dd457919bc80acdaed423c35f51fc61bd44f0e1536ee5633adec7049d"
+  },
+  "appBaseRevision": "342a76d002b534d13d3a9689768d13fda12f8609",
+  "appPatchedFileSHA256": {
+    "Cotabby/Support/Context/SurfaceContextComposer.swift": "66f3c9027f5d2c3cc0a71ae0ae1be03cf4924cc5b34b0a609c0e557a462de0a7",
+    "CotabbyTests/Evals/PhrasePredictionEvalTests.swift": "be6d856fc893836abb7bccac58578837081706e925c26285e7a8488ad987a123",
+    "CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift": "70312794ab575e9ca6bb18371c15a39acfe4691237d0c9062082540117db457e",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift": "4534302b6568a4cb314e620fb875cdeaabbeb2f0863d59fad20f6295353601a1",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift": "0f847a52419cadd7331851944c4acd271835955522b5b9408605c7931c6fadea",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift": "e9b82f5af4e19283baf19e92eb74d36aa4797f9c5942ee7262d6fdf4789b7da3",
+    "scripts/phrase_eval.py": "e5a800e63a9cec30a9f9fdc39eba3ad096a887c8daad0fbde50869842b9348f7",
+    "scripts/tests/test_phrase_eval.py": "c56901c55461765c7ea9bce57df803a6dae13cd6667bd473fe7288380b97a854"
+  },
+  "artifacts": {
+    "Package.resolved": {
+      "bytes": 939,
+      "sha256": "50b7bba3dd55c15bee85eb0a38d6970428107361095b7ee2e2a465ce9584a3a7"
+    },
+    "frozen-app-finalist.patch": {
+      "bytes": 63581,
+      "sha256": "61371e63a1fd466a84f2543a480c8cb9d81fd154eb79d2814dc256a8d786ef72"
+    },
+    "native-start.patch": {
+      "bytes": 52654,
+      "sha256": "814a139320af2bcbfb57751508511c4a2f0e62ef8e4f56fbb951fedbf74d4bd5"
+    },
+    "surface-p2.patch": {
+      "bytes": 6567,
+      "sha256": "77f86fdc49202887c39fb14ccb727b833a6088d23ee57a75c43055bf01d11f4c"
+    }
+  },
+  "baselineComposerSHA256": "2abe7cf154f61371c3bc87eb20fec813f993048b04799bffe3593a687bd7ab25",
+  "candidateComposerSHA256": "66f3c9027f5d2c3cc0a71ae0ae1be03cf4924cc5b34b0a609c0e557a462de0a7",
+  "candidateSampling": {
+    "min_p": 0.08,
+    "repetition_penalty": 1.025,
+    "seed": 42,
+    "temperature": 0.1,
+    "top_k": 20,
+    "top_p": 0.7
+  },
+  "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+  "limitations": [
+    "No build or inference was performed for this documentation audit.",
+    "Frozen source build fingerprints contain absolute paths; a new root produces a new fingerprint even with identical source bytes.",
+    "The app patch records tracked changes only; standalone offline analyzers are separate repository deliverables listed by hash."
+  ],
+  "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+  "nativeBaseRevision": "7574a21516c65fc31f5cf8ef7380a03412eed480",
+  "nativePatchedFileSHA256": {
+    "README.md": "c3f219d0ff928e31ad82e245c8eff260a515592b08cfcab15371252c2d948512",
+    "Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp": "2591a59c5e8ecff90aad87880018d5bf49f3245f097d2bcc19e10c9ffeaf7615",
+    "Sources/CotabbyInferenceEngine/TokenHealing.cpp": "a50d3fb842230df502ab367caa7a6a5b61f697f97b81c174079a43efd1c312b5",
+    "Sources/CotabbyInferenceEngine/TokenHealing.h": "f88bf71aa9f905e01f0b9c334fbf1a0a3b3bf8d2b7cf1191d80cc6777c1c0d94",
+    "Sources/CotabbyInferenceEngine/include/CotabbyInferenceEngine.h": "71a46cd1aff6013c2228794ffaf09295f47a1c4a4bdd412d46c3f5d9441eec5e",
+    "Tests/CotabbyInferenceTests/LlamaMiddlewareTests.swift": "572d4f7d4b1f35d61434817c8d6de30f6b91a9b4d705fbeca22ee6b900daa0f1",
+    "Tests/TokenHealingTests.cpp": "741b7d796cec597dec143143f5befdf5b31c703fd6f2af6db791808d045c6356"
+  },
+  "nativePrerequisiteMeaning": "Pre-existing dirty native source; required to reproduce, not an improvement attributed to this round.",
+  "sourceCompletedRun": "heldout42-local-finalist",
+  "verification": [
+    "Native patch is byte-identical to native-start.patch and matches round.json hash.",
+    "App patch is byte-identical to the completed heldout42-local-finalist working-tree.patch.",
+    "Both patches applied successfully to files materialized from their recorded base Git objects in temporary directories.",
+    "Reconstructed patched files match frozen execution source; native files also match native-frozen-manifest.json.",
+    "Composer reversal restores original Git bytes and changes no other file; reapplication restores candidate bytes."
+  ]
+}

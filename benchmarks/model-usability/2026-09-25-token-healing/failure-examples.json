@@ -1,0 +1,140 @@
+[
+  {
+    "model": "nano",
+    "before": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": false,
+      "latencyMilliseconds": 68.969625,
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "erop is not working.",
+      "shown": " erop is not working.",
+      "wasShown": true
+    },
+    "after": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": false,
+      "latencyMilliseconds": 49.169959,
+      "predictedWord": "internal",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "ernal model is not working.",
+      "shown": "ernal model is not working.",
+      "wasShown": true
+    }
+  },
+  {
+    "model": "mini",
+    "before": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": false,
+      "latencyMilliseconds": 63.615458,
+      "predictedWord": "interpreter",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "erpreter is not working.",
+      "shown": "erpreter is not working.",
+      "wasShown": true
+    },
+    "after": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": true,
+      "latencyMilliseconds": 116.957,
+      "predictedWord": "intelligence",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "elligence has a new model called gpt-4",
+      "shown": "elligence has a new model called gpt-4",
+      "wasShown": true
+    }
+  },
+  {
+    "model": "base",
+    "before": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": false,
+      "latencyMilliseconds": 80.102916,
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "ellij idea.",
+      "suppression": "seam-guard",
+      "wasShown": false
+    },
+    "after": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": true,
+      "latencyMilliseconds": 69.548292,
+      "predictedWord": "intelligence",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "elligence is not working.",
+      "shown": "elligence is not working.",
+      "wasShown": true
+    }
+  },
+  {
+    "model": "pro",
+    "before": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": false,
+      "latencyMilliseconds": 107.116458,
+      "predictedWord": "intel",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "el nvidia amd",
+      "shown": "el nvidia amd",
+      "wasShown": true
+    },
+    "after": {
+      "checkpoint": {
+        "expectedWord": "intelligence",
+        "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+        "typedCharacters": 3,
+        "typedWordPrefix": "int",
+        "wordIndex": 1
+      },
+      "correct": true,
+      "latencyMilliseconds": 103.854291,
+      "predictedWord": "intelligence",
+      "prompt": "Format: text; App: ChatGPT; Title: ChatGPT; Field: Message.\nWritten by Alex.\nThe user usually writes in English. Match the language of the text before the caret. If that text is too short or ambiguous to tell, write in English.\n\ni'm using gguf models and the predictions are not correct. apple int",
+      "raw": "elligence is not working.",
+      "shown": "elligence is not working.",
+      "wasShown": true
+    }
+  }
+]

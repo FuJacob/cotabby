@@ -74,10 +74,6 @@ struct SuggestionRequest: Equatable, Sendable {
     let surfaceContext: SurfaceContext?
     /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
     let isMultiLineEnabled: Bool
-    /// The partial word removed from the end of the prompt so the model completes it from its word
-    /// boundary (see `WordBoundaryAnchorPolicy`); the normalizer strips it back off the output.
-    /// Set only on the mid-word retry the coordinator issues after a seam misspelling.
-    let wordBoundaryAnchor: String?
     /// The user's word-count preset, so decoding does not stop at a sentence end before the minimum
     /// and the normalizer trims past the maximum (see `SuggestionLengthPolicy`).
     let wordRange: SuggestionWordRange?
@@ -110,7 +106,6 @@ struct SuggestionRequest: Equatable, Sendable {
         surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool,
         requestID: String = "req_unknown",
-        wordBoundaryAnchor: String? = nil,
         wordRange: SuggestionWordRange? = nil
     ) {
         self.context = context
@@ -135,7 +130,6 @@ struct SuggestionRequest: Equatable, Sendable {
         self.surfaceContext = surfaceContext
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
-        self.wordBoundaryAnchor = wordBoundaryAnchor
         self.wordRange = wordRange
     }
 }

@@ -29,17 +29,37 @@ final class FocusSessionScopedCache<Value> {
         focusChangeSequence: UInt64,
         compute: () -> Value
     ) -> Value {
-        if sequence != focusChangeSequence {
-            sequence = focusChangeSequence
-            values.removeAll(keepingCapacity: true)
-        }
-
-        if let cached = values[key] {
+        if let cached = cachedValue(forKey: key, focusChangeSequence: focusChangeSequence) {
             return cached
         }
 
         let value = compute()
-        values[key] = value
+        store(value, forKey: key, focusChangeSequence: focusChangeSequence)
         return value
+    }
+
+    /// The entry stored for `key` in the current focus session, or nil when there is none.
+    ///
+    /// For callers whose entries can go stale *within* a session and must decide for themselves
+    /// whether to reuse one or replace it with `store` (the line-margin cache re-measures a
+    /// provisional first-line margin once the caret leaves that line). With an optional `Value`
+    /// the result is doubly optional on purpose: `.some(nil)` is a cached "nothing found", which is
+    /// different from never having looked.
+    func cachedValue(forKey key: String, focusChangeSequence: UInt64) -> Value? {
+        resetIfSessionChanged(focusChangeSequence)
+        return values[key]
+    }
+
+    /// Stores `value` for `key` in the current focus session, replacing any earlier entry.
+    func store(_ value: Value, forKey key: String, focusChangeSequence: UInt64) {
+        resetIfSessionChanged(focusChangeSequence)
+        values[key] = value
+    }
+
+    /// A changed sequence is a real field switch: drop every entry from the previous session.
+    private func resetIfSessionChanged(_ focusChangeSequence: UInt64) {
+        guard sequence != focusChangeSequence else { return }
+        sequence = focusChangeSequence
+        values.removeAll(keepingCapacity: true)
     }
 }

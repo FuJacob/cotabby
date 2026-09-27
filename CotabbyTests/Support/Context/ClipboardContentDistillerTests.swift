@@ -1,6 +1,8 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for clipboard distillation: compact clipboards pass through, longer ones keep only lines
+/// sharing a 3+ character token with the caret prefix, with a bounded head fallback.
 final class ClipboardContentDistillerTests: XCTestCase {
 
     // MARK: - Short clipboard passes through
@@ -37,13 +39,11 @@ final class ClipboardContentDistillerTests: XCTestCase {
 
     // MARK: - No per-line overlap falls back to head
 
-    func test_longClipboard_noPerLineOverlap_returnsHead() {
-        let clipboard = [
-            "alpha bravo charlie",
-            "delta echo foxtrot",
-            "golf hotel india",
-            "juliet kilo lima"
-        ].joined(separator: "\n")
+    /// With no overlapping line the distiller falls back to the first 300 characters, so a large
+    /// unrelated clipboard is bounded rather than dropped or passed through whole.
+    func test_longClipboard_noPerLineOverlap_returnsFirst300Characters() {
+        let clipboard = (0..<40).map { "alpha bravo charlie line \($0)" }.joined(separator: "\n")
+        XCTAssertGreaterThan(clipboard.count, 300)
 
         let result = ClipboardContentDistiller.distill(
             clipboard: clipboard,
@@ -72,38 +72,20 @@ final class ClipboardContentDistillerTests: XCTestCase {
         ].joined(separator: "\n"))
     }
 
-    // MARK: - Short tokens ignored
+    // MARK: - Prefix without significant tokens
 
-    func test_shortTokensIgnored() {
-        let clipboard = [
-            "a b c d e",
-            "x y z w v",
-            "real content here",
-            "more filler words"
-        ].joined(separator: "\n")
+    /// An empty prefix, or one made only of sub-3-character tokens, gives nothing to match against,
+    /// so the clipboard passes through whole (not the 300-character head fallback).
+    func test_prefixWithoutSignificantTokens_returnsClipboardAsIs() {
+        let clipboard = (0..<40).map { "line \($0) content" }.joined(separator: "\n")
+        XCTAssertGreaterThan(clipboard.count, 300)
 
-        let result = ClipboardContentDistiller.distill(
-            clipboard: clipboard,
-            prefixText: "a b c x y z"
-        )
-        // No tokens >= 3 chars overlap, so head fallback.
-        XCTAssertEqual(result, String(clipboard.prefix(300)))
-    }
-
-    // MARK: - Empty prefix returns clipboard as-is
-
-    func test_emptyPrefixText_returnsClipboardAsIs() {
-        let clipboard = [
-            "line one content",
-            "line two content",
-            "line three content",
-            "line four content"
-        ].joined(separator: "\n")
-
-        let result = ClipboardContentDistiller.distill(
-            clipboard: clipboard,
-            prefixText: ""
-        )
-        XCTAssertEqual(result, clipboard)
+        for prefix in ["", "a b c x y z", "  \n "] {
+            XCTAssertEqual(
+                ClipboardContentDistiller.distill(clipboard: clipboard, prefixText: prefix),
+                clipboard,
+                "prefix \(prefix.debugDescription)"
+            )
+        }
     }
 }

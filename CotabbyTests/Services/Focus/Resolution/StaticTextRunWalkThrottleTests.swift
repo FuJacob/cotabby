@@ -66,6 +66,28 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
         XCTAssertEqual(second.map(\.text), ["beta"])
     }
 
+    func test_windowIsHalfOpenSoExactlyOneIntervalLaterWalksAgain() {
+        let throttle = StaticTextRunWalkThrottle()
+        let start = Date(timeIntervalSinceReferenceDate: 100)
+        var walkCount = 0
+
+        _ = throttle.runs(focusChangeSequence: 1, interval: 0.5, now: start) {
+            walkCount += 1
+            return runA
+        }
+        let atBoundary = throttle.runs(
+            focusChangeSequence: 1,
+            interval: 0.5,
+            now: start.addingTimeInterval(0.5)
+        ) {
+            walkCount += 1
+            return runB
+        }
+
+        XCTAssertEqual(walkCount, 2)
+        XCTAssertEqual(atBoundary.map(\.text), ["beta"])
+    }
+
     func test_fieldSwitchForcesImmediateFreshWalk() {
         let throttle = StaticTextRunWalkThrottle()
         let start = Date(timeIntervalSinceReferenceDate: 100)

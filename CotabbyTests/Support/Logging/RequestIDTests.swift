@@ -9,24 +9,18 @@ final class RequestIDTests: XCTestCase {
     /// so IDs stay unambiguous when read back from a log line.
     private static let crockfordAlphabet = Set("0123456789abcdefghjkmnpqrstvwxyz")
 
-    func test_generate_producesPrefixedTwelveCharacterID() {
-        let id = RequestID.generate()
-
-        XCTAssertTrue(id.hasPrefix("req_"), "Expected req_ prefix, got \(id)")
-        XCTAssertEqual(id.count, 12, "Expected req_ plus exactly 8 base32 characters, got \(id)")
-    }
-
-    func test_generate_usesOnlyCrockfordBase32Characters() {
+    func test_generate_producesReqPrefixPlusEightCrockfordCharacters() {
+        // Several draws so the alphabet check sees many random 5-bit groups, not just one ID.
         for _ in 0..<64 {
-            let suffix = RequestID.generate().dropFirst(4)
+            let id = RequestID.generate()
 
-            XCTAssertEqual(suffix.count, 8)
-            for character in suffix {
-                XCTAssertTrue(
-                    Self.crockfordAlphabet.contains(character),
-                    "Character \(character) is outside the Crockford base32 alphabet"
-                )
-            }
+            XCTAssertTrue(id.hasPrefix("req_"), "Expected req_ prefix, got \(id)")
+            let suffix = id.dropFirst(4)
+            XCTAssertEqual(suffix.count, 8, "5 random bytes encode to exactly 8 characters, got \(id)")
+            XCTAssertTrue(
+                suffix.allSatisfy { Self.crockfordAlphabet.contains($0) },
+                "\(id) contains a character outside the Crockford base32 alphabet"
+            )
         }
     }
 
@@ -37,5 +31,4 @@ final class RequestIDTests: XCTestCase {
 
         XCTAssertEqual(ids.count, 1_000)
     }
-
 }

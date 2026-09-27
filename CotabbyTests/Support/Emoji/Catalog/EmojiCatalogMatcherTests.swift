@@ -74,7 +74,92 @@ final class EmojiCatalogMatcherTests: XCTestCase {
         XCTAssertEqual(results.first?.glyph, "🎉")
     }
 
+    func test_aliasSubstringBeatsKeywordSubstring() {
+        // Neither entry has a prefix hit for "art"; alias substrings (tier 3) outrank keyword
+        // substrings (tier 4) regardless of token length.
+        let sut = matcher([
+            entry("🎨", "palette", aliases: ["palette"], keywords: ["smart"]),
+            entry("💓", "beating heart", aliases: ["heartbeat"])
+        ])
+
+        XCTAssertEqual(sut.matches(for: "art").map(\.glyph), ["💓", "🎨"])
+    }
+
+    func test_nameMatchesWhenAliasAndKeywordsDoNot() {
+        let sut = matcher([entry("🧭", "compass rose", aliases: ["compass"])])
+
+        XCTAssertEqual(sut.matches(for: "rose").first?.glyph, "🧭")
+    }
+
+    func test_queryIsTrimmedAndCaseFolded() {
+        let sut = matcher([entry("🙂", "slight smile", aliases: ["smile"])])
+
+        XCTAssertEqual(sut.matches(for: "  SMILE ").map(\.glyph), ["🙂"])
+    }
+
     // MARK: - Synonyms, fuzzy, and personalization
+
+    func test_exactSynonymLeadsLiteralAliasPrefixInTheSameTier() {
+        // "lol" is an alias prefix of "lollipop" and an exact synonym for "joy". Both land in tier 1,
+        // and the synonym's zero token length puts the intended emoji first.
+        let sut = matcher([
+            entry("🍭", "lollipop", aliases: ["lollipop"]),
+            entry("😂", "face with tears of joy", aliases: ["joy"])
+        ])
+
+        XCTAssertEqual(sut.matches(for: "lol").map(\.glyph), ["😂", "🍭"])
+    }
+
+    func test_fuzzyFallbackOnlyRunsWhenLexicalResultsAreSparse() {
+        let sut = matcher([
+            entry("🥳", "hapyness", aliases: ["hapyness"]),   // alias prefix of "hapy"
+            entry("😀", "happy face", aliases: ["happy"])      // only a fuzzy candidate
+        ])
+
+        XCTAssertEqual(sut.matches(for: "hapy", limit: 1).map(\.glyph), ["🥳"])
+        XCTAssertEqual(sut.matches(for: "hapy", limit: 5).map(\.glyph), ["🥳", "😀"])
+    }
+
+    func test_fuzzyNeedsAtLeastThreeCharacters() {
+        let sut = matcher([entry("😀", "happy face", aliases: ["happy"])])
+
+        XCTAssertTrue(sut.matches(for: "hp").isEmpty)
+        // At three characters the subsequence rule kicks in (h-p-y appear in order in "happy").
+        XCTAssertEqual(sut.matches(for: "hpy").first?.glyph, "😀")
+    }
+
+    func test_frequentUseAloneMarksAFavorite() {
+        let sut = matcher([
+            entry("🅰️", "alpha", aliases: ["alpha"]),
+            entry("🅱️", "alphabet", aliases: ["alphabet"])
+        ])
+
+        let once = EmojiUsageSnapshot(recentAliases: [], frequency: ["alphabet": 1])
+        XCTAssertEqual(sut.matches(for: "alph", usage: once).first?.glyph, "🅰️")
+
+        let often = EmojiUsageSnapshot(recentAliases: [], frequency: ["alphabet": EmojiUsageSnapshot.frequentThreshold])
+        XCTAssertEqual(sut.matches(for: "alph", usage: often).first?.glyph, "🅱️")
+    }
+
+    func test_favoriteNeverJumpsAStrongerTier() {
+        let sut = matcher([
+            entry("🅰️", "alpha", aliases: ["alpha"]),        // exact alias
+            entry("🅱️", "alphabet", aliases: ["alphabet"])   // prefix only
+        ])
+        let usage = EmojiUsageSnapshot(recentAliases: ["alphabet"], frequency: [:])
+
+        XCTAssertEqual(sut.matches(for: "alpha", usage: usage).first?.glyph, "🅰️")
+    }
+
+    func test_catalogOrderIsTheFinalTiebreak() {
+        // Same tier, same token length, neither popular nor favorite: input order decides.
+        let sut = matcher([
+            entry("1️⃣", "zork one", aliases: ["zorka"]),
+            entry("2️⃣", "zork two", aliases: ["zorkb"])
+        ])
+
+        XCTAssertEqual(sut.matches(for: "zork").map(\.glyph), ["1️⃣", "2️⃣"])
+    }
 
     func test_synonymSurfacesIntentWordWithNoLexicalMatch() {
         // "lol" is not an alias, keyword, or name of 😂, but the synonym overlay maps it to "joy".
@@ -156,6 +241,7 @@ final class EmojiCatalogMatcherTests: XCTestCase {
         let sut = matcher(entries)
 
         XCTAssertEqual(sut.matches(for: "alpha", limit: 5).count, 5)
+        XCTAssertTrue(sut.matches(for: "alpha", limit: 0).isEmpty)
     }
 
     func test_noMatchReturnsEmpty() {

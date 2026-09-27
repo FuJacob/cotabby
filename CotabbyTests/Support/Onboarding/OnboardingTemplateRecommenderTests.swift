@@ -13,6 +13,21 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         )
     }
 
+    /// The catalog's size label for a template's GGUF, so the expected warning copy tracks the real
+    /// model size instead of a number duplicated into the test.
+    private func sizeLabel(_ template: OnboardingTemplate) -> String {
+        let model = RuntimeModelCatalog.downloadableModels.first { $0.filename == template.openSourceModelFilename }
+        return model?.approximateSizeLabel ?? "local"
+    }
+
+    private func openSourceAvailability(_ template: OnboardingTemplate, gigabytes: Double) -> OnboardingTemplateAvailability {
+        OnboardingTemplateRecommender.availability(
+            for: template,
+            hardware: hardware(gigabytes: gigabytes),
+            engine: .llamaOpenSource
+        )
+    }
+
     // MARK: - resolvePlan: Apple Intelligence engine (no downloads, tier tunes behavior)
 
     func testAppleIntelligenceTiersDownloadNothing() {
@@ -26,7 +41,7 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
     func testAppleIntelligenceStillCarriesTierBehaviorFlags() {
         let quick = OnboardingTemplateRecommender.resolvePlan(for: .quick, engine: .appleIntelligence)
         XCTAssertEqual(quick.wordCountPreset, .fourToSeven)
-        XCTAssertTrue(quick.enablesFastMode)
+        XCTAssertFalse(quick.enablesFastMode)
         XCTAssertFalse(quick.enablesMultiLine)
         XCTAssertFalse(quick.enablesClipboardContext)
 
@@ -62,50 +77,47 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
     func testPowerfulDisabledOnLowMemoryMacOpenSource() {
         // Sub-8 GB Macs (effectively pre-Apple-Silicon) cannot comfortably hold the model, so Powerful
         // is excluded there.
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .powerful,
-            hardware: hardware(gigabytes: 6),
-            engine: .llamaOpenSource
-        )
+        let availability = openSourceAvailability(.powerful, gigabytes: 6)
 
         XCTAssertTrue(availability.isDisabled)
-        XCTAssertNotNil(availability.warning)
+        XCTAssertEqual(
+            availability.warning,
+            "Needs more memory than this Mac has (uses a \(sizeLabel(.powerful)) model)."
+        )
     }
 
     func testPowerfulWarnsBetweenDisableFloorAndComfortCeiling() {
         // 8 GB is the disable floor: allowed, not excluded, but still flagged below the 16 GB comfort
         // ceiling. This pins that a stock 8 GB Mac can run the Powerful base model (the smaller
         // base-model tiers no longer need the old 10 GB floor).
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .powerful,
-            hardware: hardware(gigabytes: 8),
-            engine: .llamaOpenSource
-        )
+        let availability = openSourceAvailability(.powerful, gigabytes: 8)
 
         XCTAssertFalse(availability.isDisabled)
-        XCTAssertNotNil(availability.warning)
+        XCTAssertEqual(
+            availability.warning,
+            "Uses a \(sizeLabel(.powerful)) model; may run slowly with less than 16 GB of memory."
+        )
     }
 
-    func testPowerfulCleanOnHighMemoryMac() {
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .powerful,
-            hardware: hardware(gigabytes: 32),
-            engine: .llamaOpenSource
-        )
-
-        XCTAssertFalse(availability.isDisabled)
-        XCTAssertNil(availability.warning)
+    func testPowerfulCleanFromTheComfortCeilingUp() {
+        for gigabytes in [16.0, 32.0] {
+            let availability = openSourceAvailability(.powerful, gigabytes: gigabytes)
+            XCTAssertFalse(availability.isDisabled, "\(gigabytes) GB")
+            XCTAssertNil(availability.warning, "\(gigabytes) GB")
+        }
     }
 
-    func testEverydayWarnsOnLowMemoryUnderOpenSource() {
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .everyday,
-            hardware: hardware(gigabytes: 6),
-            engine: .llamaOpenSource
-        )
-
-        XCTAssertFalse(availability.isDisabled)
-        XCTAssertNotNil(availability.warning)
+    func testEverydayAndCustomWarnOnlyBelowEightGigabytes() {
+        for template in [OnboardingTemplate.everyday, .custom] {
+            let low = openSourceAvailability(template, gigabytes: 6)
+            XCTAssertFalse(low.isDisabled, "\(template)")
+            XCTAssertEqual(
+                low.warning,
+                "Uses a \(sizeLabel(template)) model, which may run slowly on this Mac.",
+                "\(template)"
+            )
+            XCTAssertNil(openSourceAvailability(template, gigabytes: 8).warning, "\(template) at 8 GB")
+        }
     }
 
     // MARK: - availability gating (Apple Intelligence engine: never blocked)
@@ -123,14 +135,12 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
     }
 
     func testQuickIsNeverDisabledOrWarned() {
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .quick,
-            hardware: hardware(gigabytes: 4),
-            engine: .llamaOpenSource
-        )
+        let availability = openSourceAvailability(.quick, gigabytes: 4)
 
         XCTAssertFalse(availability.isDisabled)
         XCTAssertNil(availability.warning)
+        // On a low-memory Mac Quick is also the recommended tier.
+        XCTAssertTrue(availability.isRecommended)
     }
 
     // MARK: - recommendation
@@ -153,13 +163,24 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         XCTAssertEqual(recommended, .quick)
     }
 
-    func testRecommendsEverydayOnCapableMemoryOpenSource() {
-        let recommended = OnboardingTemplateRecommender.recommendedTemplate(
-            hardware: hardware(gigabytes: 16),
-            engine: .llamaOpenSource
-        )
+    func testRecommendsEverydayFromEightGigabytesOpenSource() {
+        // 8 GB is inclusive: the Quick fallback applies strictly below it.
+        for gigabytes in [8.0, 16.0] {
+            let recommended = OnboardingTemplateRecommender.recommendedTemplate(
+                hardware: hardware(gigabytes: gigabytes),
+                engine: .llamaOpenSource
+            )
+            XCTAssertEqual(recommended, .everyday, "\(gigabytes) GB")
+        }
+    }
 
-        XCTAssertEqual(recommended, .everyday)
+    func testAppleIntelligenceRecommendsEverydayEvenOnLowMemory() {
+        let availability = OnboardingTemplateRecommender.availability(
+            for: .everyday,
+            hardware: hardware(gigabytes: 4),
+            engine: .appleIntelligence
+        )
+        XCTAssertTrue(availability.isRecommended)
     }
 
     func testRecommendedFlagMatchesRecommendedTemplate() {

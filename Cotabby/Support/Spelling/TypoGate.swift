@@ -32,40 +32,33 @@ enum TypoGate {
     ///
     /// `isTypo` and `bestCorrection` are injected so this stays pure: in production they wrap
     /// `CurrentWordSpellChecker`; in tests they are stubs. Automatic fixing takes precedence only
-    /// after a literal trailing Space. Before that boundary the gate may offer a correction, but never
-    /// mutates an unfinished word merely because the user paused.
+    /// after a literal trailing Space. Before a delimiter, neither correction nor typo suppression
+    /// is eligible: a partial word must reach the completion engine unchanged.
     static func resolve(
         precedingText: String,
         settings: Settings,
         isTypo: (String) -> Bool,
-        bestCorrection: (String) -> String?,
-        isWordInProgress: (String) -> Bool = { _ in false }
+        bestCorrection: (String) -> String?
     ) -> TypoGateDecision {
         guard settings.suppressCompletionsOnTypo else {
             return .proceed
         }
         // Tolerate one trailing space so a just-finished word remains actionable: automatic mode can
         // apply it, while offer mode can keep the green correction alive after Space.
-        guard let current = CurrentWordExtractor.extractTrailingWord(from: precedingText) else {
+        guard let current = CaretWordContext.committedWord(in: precedingText) else {
             return .proceed
         }
-        guard isTypo(current.result.word) else {
+        guard isTypo(current.word) else {
             return .proceed
         }
-        // A word still being typed ("apprec", "Unfortun") is flagged by the checker like a typo but
-        // is merely unfinished when it is the start of real words. Let the continuation complete it
-        // (see `WordBoundaryAnchorPolicy`) instead of suppressing or "correcting" mid-keystroke.
-        if current.trailingSpaceCount == 0, isWordInProgress(current.result.word) {
-            return .proceed
-        }
-        guard let corrected = bestCorrection(current.result.word) else {
+        guard let corrected = bestCorrection(current.word) else {
             return .suppress
         }
-        if settings.automaticallyFixTypos, current.trailingSpaceCount == 1 {
-            return .applyCorrection(word: current.result.word, correctedWord: corrected)
+        if settings.automaticallyFixTypos, current.delimiter == " " {
+            return .applyCorrection(word: current.word, correctedWord: corrected)
         }
         if settings.offerTypoCorrections {
-            return .offerCorrection(word: current.result.word, correctedWord: corrected)
+            return .offerCorrection(word: current.word, correctedWord: corrected)
         }
         return .suppress
     }

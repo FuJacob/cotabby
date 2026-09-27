@@ -1,0 +1,76 @@
+{
+  "acceptance": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/acceptance-final.json",
+    "sha256": "b5108d862fb1c0bb31af889bd77064d17ecb59f340b9a82dfc9eabc1689324ce"
+  },
+  "candidateHashes": {
+    "Cotabby/Models/Suggestion/Request/SuggestionConfiguration.swift": "7dbdc1bf0fb6c39729e2b0551b4b653630b780f48a6a1ec25bd2ea29cda8d490",
+    "Cotabby/Support/Context/SurfaceContextComposer.swift": "66f3c9027f5d2c3cc0a71ae0ae1be03cf4924cc5b34b0a609c0e557a462de0a7",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift": "4534302b6568a4cb314e620fb875cdeaabbeb2f0863d59fad20f6295353601a1",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift": "0f847a52419cadd7331851944c4acd271835955522b5b9408605c7931c6fadea",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift": "e9b82f5af4e19283baf19e92eb74d36aa4797f9c5942ee7262d6fdf4789b7da3"
+  },
+  "checks": [
+    {
+      "gate": "prepared_inputs",
+      "status": "pass"
+    },
+    {
+      "gate": "current_main_capture",
+      "status": "pass"
+    },
+    {
+      "gate": "main_original_sources",
+      "status": "pass"
+    },
+    {
+      "gate": "complete_integration_pair",
+      "status": "pass"
+    },
+    {
+      "gate": "candidate_unit_validation",
+      "status": "pass"
+    },
+    {
+      "gate": "final_acceptance",
+      "status": "pass"
+    },
+    {
+      "gate": "unused_adoption_journal",
+      "status": "pass"
+    }
+  ],
+  "finishedUTC": "2026-09-17T10:24:36.096133+00:00",
+  "journal": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/main-adoption.json",
+    "sha256": "6f9910cf1c47fee783983ebcacf386e5b4b17723d24beea3b476cbbbbfedec6a"
+  },
+  "meaning": "Historical evidence of the guarded five-file application, not a claim that later working-tree edits are absent. Full source inventories remain local.",
+  "originalHashes": {
+    "Cotabby/Models/Suggestion/Request/SuggestionConfiguration.swift": "398e3193165ffd5cc3d9d61ad374c501977c93ca2c2ed8a251d0998f7690243a",
+    "Cotabby/Support/Context/SurfaceContextComposer.swift": "2abe7cf154f61371c3bc87eb20fec813f993048b04799bffe3593a687bd7ab25",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift": "3a6c2ffa8200fdc05b5a77c554184060962b5ad68c520357685e5b5f5ce4cfd8",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift": "4106db6a10155a592725dffc311d9596a830275b9fff44aaf8632589da922a2a",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift": "c81355eea8362b9ffd4daeb118fabaf3ca22ec8c62ed7142d722effd243e4e02"
+  },
+  "passingAcceptanceGateCount": 13,
+  "sourceAfter": {
+    "fileCount": 553,
+    "head": "342a76d002b534d13d3a9689768d13fda12f8609",
+    "sourceSHA256": "d4f3b371d9bb799042af4c6fab4a05be262c35a1d3402da0d580dffeff0bb856"
+  },
+  "sourceBefore": {
+    "fileCount": 553,
+    "head": "342a76d002b534d13d3a9689768d13fda12f8609",
+    "sourceSHA256": "dfb6cebe16c3963d8377722759f07289f3e61eab2ee7f39e0516d269b665638e"
+  },
+  "sourceDrift": [],
+  "status": "applied",
+  "writtenFiles": [
+    "Cotabby/Models/Suggestion/Request/SuggestionConfiguration.swift",
+    "Cotabby/Support/Context/SurfaceContextComposer.swift",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift"
+  ]
+}

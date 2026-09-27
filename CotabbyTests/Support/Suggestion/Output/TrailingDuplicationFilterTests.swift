@@ -64,4 +64,38 @@ final class TrailingDuplicationFilterTests: XCTestCase {
             TrailingDuplicationFilter.duplicatesTrailingText("the dog barks loudly", trailingText: "the cat")
         )
     }
+
+    func test_justBelowHalfOfCompletion_isNotDuplicate() {
+        // Same six-character shared run as above, but "theywenthomely" folds to 14 characters, so
+        // Shape 3 needs 7. This pins the half-length threshold from the other side.
+        XCTAssertFalse(
+            TrailingDuplicationFilter.duplicatesTrailingText("they went homely", trailingText: "they were here")
+        )
+    }
+
+    func test_completionContainingAShortSuffix_isNotDuplicate() {
+        // Shape 2 needs the folded suffix itself to reach the overlap floor: a two-character
+        // trailing "ab" is too common a stem to prove the completion re-emits it.
+        XCTAssertFalse(
+            TrailingDuplicationFilter.duplicatesTrailingText("abcdef", trailingText: "ab")
+        )
+    }
+
+    func test_floorAppliesToFoldedLength_notRawLength() {
+        // The raw completion is long, but only one alphanumeric survives folding.
+        XCTAssertFalse(
+            TrailingDuplicationFilter.duplicatesTrailingText("** - a!", trailingText: "a b c d")
+        )
+        // A punctuation-only suffix folds to nothing, so there is nothing to duplicate.
+        XCTAssertFalse(
+            TrailingDuplicationFilter.duplicatesTrailingText("hello world", trailingText: "... !!")
+        )
+    }
+
+    func test_cjkDuplication_isDetected() {
+        // Ideographs and kana are alphanumerics, so scripts without spaces fold and compare too.
+        XCTAssertTrue(
+            TrailingDuplicationFilter.duplicatesTrailingText("良い天気", trailingText: "良い天気ですね")
+        )
+    }
 }

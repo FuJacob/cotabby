@@ -2,8 +2,9 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Tests for the engine-choice domain models: the product-facing engine labels, the power-profile
-/// bridge back to an engine kind, and the persisted app-blocklist entry.
+/// Tests for the engine-choice domain models: the product-facing engine labels and persisted raw
+/// values, the power-profile bridge back to an engine kind, the persisted app-blocklist entry shape,
+/// and the snapshot's single word-range chokepoint.
 final class SuggestionEngineModelsTests: XCTestCase {
     func test_suggestionEngineKind_displayLabelsArePinnedProductCopy() {
         XCTAssertEqual(SuggestionEngineKind.appleIntelligence.displayLabel, "Apple Intelligence")
@@ -19,11 +20,13 @@ final class SuggestionEngineModelsTests: XCTestCase {
         XCTAssertEqual(SuggestionEngineKind.openAICompatible.systemImageName, "network")
     }
 
-    func test_suggestionEngineKind_idMatchesRawValueForEveryCase() {
-        XCTAssertEqual(SuggestionEngineKind.allCases.count, 3)
-        for kind in SuggestionEngineKind.allCases {
-            XCTAssertEqual(kind.id, kind.rawValue)
-        }
+    func test_suggestionEngineKind_rawValuesArePersistedIdentifiers() {
+        // Stored under `cotabbySelectedEngine` and the battery/plugged-in engine keys; a rename
+        // would silently reset every saved engine choice.
+        XCTAssertEqual(
+            SuggestionEngineKind.allCases.map(\.rawValue),
+            ["appleIntelligence", "llamaOpenSource", "openAICompatible"]
+        )
     }
 
     func test_suggestionEngineKind_onlyOpenSourceManagesLocalModels() {
@@ -39,15 +42,38 @@ final class SuggestionEngineModelsTests: XCTestCase {
         XCTAssertEqual(PowerProfile.openAICompatible(modelName: "gemma4").engine, .openAICompatible)
     }
 
-    func test_disabledApplicationRule_identityIsBundleIdentifierAndSurvivesCodableRoundTrip() throws {
-        let rule = DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")
+    func test_acceptanceGranularity_rawValuesArePersistedIdentifiers() {
+        XCTAssertEqual(AcceptanceGranularity.allCases.map(\.rawValue), ["word", "phrase"])
+    }
 
-        XCTAssertEqual(rule.id, "com.example.app")
+    func test_disabledApplicationRule_decodesThePersistedKeyShapeAndUsesBundleAsIdentity() throws {
+        // `cotabbyDisabledAppRules` stores a JSON array of these rows. Decoding a literal pins the
+        // key names, so renaming a property cannot silently drop every user's blocklist.
+        let json = Data(#"[{"bundleIdentifier":"com.example.app","displayName":"Example"}]"#.utf8)
 
-        let decoded = try JSONDecoder().decode(
-            DisabledApplicationRule.self,
-            from: JSONEncoder().encode(rule)
+        let rules = try JSONDecoder().decode([DisabledApplicationRule].self, from: json)
+
+        XCTAssertEqual(rules, [DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")])
+        XCTAssertEqual(rules.first?.id, "com.example.app")
+    }
+
+    // MARK: - SuggestionSettingsSnapshot
+
+    func test_effectiveWordRange_usesPresetUnlessCustomRangeIsActive() {
+        let custom = SuggestionWordRange(lowWords: 3, highWords: 9)
+
+        let presetSnapshot = CotabbyTestFixtures.settingsSnapshot(
+            selectedWordCountPreset: .fourToSeven,
+            isUsingCustomWordCountRange: false,
+            customWordCountRange: custom
         )
-        XCTAssertEqual(decoded, rule)
+        XCTAssertEqual(presetSnapshot.effectiveWordRange, SuggestionWordCountPreset.fourToSeven.range)
+
+        let customSnapshot = CotabbyTestFixtures.settingsSnapshot(
+            selectedWordCountPreset: .fourToSeven,
+            isUsingCustomWordCountRange: true,
+            customWordCountRange: custom
+        )
+        XCTAssertEqual(customSnapshot.effectiveWordRange, custom)
     }
 }

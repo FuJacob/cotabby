@@ -12,8 +12,8 @@ packages:
     url: https://github.com/sparkle-project/Sparkle
     exactVersion: 2.9.1
   CotabbyInference:
-    url: https://github.com/Mason363/cotabbyinference.git
-    branch: feat/required-prefix
+    url: https://github.com/FuJacob/cotabbyinference.git
+    branch: main
   swift-log:
     url: https://github.com/apple/swift-log.git
     from: 1.12.1
@@ -104,6 +104,10 @@ targetTemplates:
     deploymentTarget: "14.0"
     sources:
       - path: Cotabby
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_LICENSES.md
+        buildPhase: resources
     dependencies:
       - package: Sparkle
         product: Sparkle

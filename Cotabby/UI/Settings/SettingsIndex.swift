@@ -14,14 +14,20 @@ import Foundation
 enum SettingsItem: String, CaseIterable, Identifiable {
     // General
     case enableGlobally
-    case fastMode
+    case useScreenContext
     case openAtLogin
     case includeClipboardContext
     case includeAppContext
     case allowMultiLine
+    case suggestWithinWords
+    case predictAheadWhileTyping
+    case showFollowingWords
     case inlineMacros
     case onboarding
     case resetAllSettings
+    #if DEBUG
+    case developmentDebugOverlays
+    #endif
     // Appearance
     case suggestionDisplay
     case streamWhileGenerating
@@ -33,6 +39,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case ghostTextColor
     case ghostTextOpacity
     case ghostTextSize
+    case ghostTextSizeFloor
+    case ghostTextSizeCeiling
     // Emoji
     case emojiPicker
     case emojiSkinTone
@@ -100,16 +108,22 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .enableGlobally: return "Enable Globally"
-        case .fastMode: return "Fast Mode"
+        case .useScreenContext: return "Use screen context"
         case .openAtLogin: return "Open at Login"
         case .includeClipboardContext: return "Include Clipboard Context"
         case .includeAppContext: return "Include App Context"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
+        case .predictAheadWhileTyping: return "Predict Ahead While Typing"
+        case .suggestWithinWords: return "Suggest while typing a word"
+        case .showFollowingWords: return "Show following words"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
         case .resetAllSettings: return "Reset All Settings"
+        #if DEBUG
+        case .developmentDebugOverlays: return "Show Development Debug Overlays"
+        #endif
         case .suggestionDisplay: return "Suggestion Display"
         case .streamWhileGenerating: return "Stream Suggestions While Generating"
         case .fadeInSuggestions: return "Fade In Suggestions"
@@ -120,6 +134,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "Ghost Text Color"
         case .ghostTextOpacity: return "Ghost Text Opacity"
         case .ghostTextSize: return "Ghost Text Size"
+        case .ghostTextSizeFloor: return "Smallest Ghost Text"
+        case .ghostTextSizeCeiling: return "Largest Ghost Text"
         case .emojiPicker: return "Inline Emoji Picker"
         case .emojiSkinTone: return "Skin Tone"
         case .emojiPeopleStyle: return "People Emoji Style"
@@ -165,9 +181,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
         case .checkForUpdates: return "Check for Updates"
-        case .support: return "Support Cotabby"
+        case .support: return "Contribute to Cotabby"
         case .githubRepository: return "GitHub Repository"
-        case .wiki: return "Wiki & Contributor Guide"
+        case .wiki: return "Contributor Guide"
         case .acknowledgements: return "Acknowledgements"
         case .uninstall: return "Uninstall"
         }
@@ -176,16 +192,22 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .enableGlobally: return "power"
-        case .fastMode: return "bolt.fill"
+        case .useScreenContext: return "text.viewfinder"
         case .openAtLogin: return "arrow.right.circle"
         case .includeClipboardContext: return "doc.on.clipboard"
         case .includeAppContext: return "macwindow"
         case .allowMultiLine: return "text.alignleft"
+        case .predictAheadWhileTyping: return "bolt.horizontal.circle"
+        case .suggestWithinWords: return "text.cursor"
+        case .showFollowingWords: return "text.word.spacing"
         case .acceptPunctuation: return "textformat.abc"
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
         case .resetAllSettings: return "arrow.counterclockwise"
+        #if DEBUG
+        case .developmentDebugOverlays: return "ladybug"
+        #endif
         case .suggestionDisplay: return "text.cursor"
         case .streamWhileGenerating: return "text.append"
         case .fadeInSuggestions: return "sparkles"
@@ -196,6 +218,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "paintpalette"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
         case .ghostTextSize: return "textformat.size"
+        case .ghostTextSizeFloor: return "arrow.down.to.line"
+        case .ghostTextSizeCeiling: return "arrow.up.to.line"
         case .emojiPicker: return "face.smiling"
         case .emojiSkinTone: return "hand.raised.fingers.spread"
         case .emojiPeopleStyle: return "person.2"
@@ -251,12 +275,16 @@ enum SettingsItem: String, CaseIterable, Identifiable {
 
     var category: SettingsCategory {
         switch self {
-        case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
-             .allowMultiLine, .inlineMacros, .onboarding, .resetAllSettings:
+        #if DEBUG
+        case .developmentDebugOverlays: return .general
+        #endif
+        case .enableGlobally, .useScreenContext, .openAtLogin, .includeClipboardContext, .includeAppContext,
+             .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
+             .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
-             .ghostTextOpacity, .ghostTextSize:
+             .ghostTextOpacity, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -289,16 +317,22 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .enableGlobally: return "Turn Cotabby on or off everywhere without quitting."
-        case .fastMode: return "Skip screenshot context for faster suggestions."
+        case .useScreenContext: return "Help suggestions understand surrounding text using screenshots of the focused window."
         case .openAtLogin: return "Start Cotabby automatically when you log in."
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
         case .allowMultiLine: return "Allow continuations that span more than one line."
+        case .predictAheadWhileTyping: return "Keep on-device predictions ready through matching typing for a faster pause."
+        case .suggestWithinWords: return "Show new suggestions inside a word, or wait for a space or punctuation."
+        case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
         case .resetAllSettings: return "Restore every Cotabby setting to its original default."
+        #if DEBUG
+        case .developmentDebugOverlays: return "Show caret, field, focus polling, and screen-context debug panels."
+        #endif
         case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
         case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
         case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
@@ -309,6 +343,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "Pick the color of the inline suggestion."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
         case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
+        case .ghostTextSizeFloor:
+            return "The smallest point size ghost text may render at."
+        case .ghostTextSizeCeiling:
+            return "The largest point size ghost text may render at."
         case .emojiPicker: return "Type :name to search and insert emoji inline."
         case .emojiSkinTone: return "Prefer a skin tone in emoji suggestions."
         case .emojiPeopleStyle: return "Person, man, or woman variants when available."
@@ -354,7 +392,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .resourceUsage: return "Live CPU and memory graphs for the app."
         case .recentRequests: return "Latency log of the most recent generations."
         case .checkForUpdates: return "See if a newer Cotabby is available."
-        case .support: return "Tip the two students who build Cotabby."
+        case .support: return "Report bugs, suggest features, or contribute code."
         case .githubRepository: return "Browse the source code and issues."
         case .wiki: return "Documentation and the contributor guide."
         case .acknowledgements: return "Third-party packages Cotabby ships with."
@@ -367,10 +405,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     /// search behaves more like "find anything that mentions this" than strict label matching.
     var keywords: [String] {
         switch self {
+        #if DEBUG
+        case .developmentDebugOverlays:
+            return ["development", "developer", "debug", "overlays", "caret", "outline", "focus", "ocr", "diagnostics"]
+        #endif
         case .enableGlobally:
             return ["on", "off", "disable", "toggle", "global", "pause", "resume",
                     "active", "status", "stop", "start", "turn off", "turn on"]
-        case .fastMode:
+        case .useScreenContext:
             return ["speed", "fast", "screenshot", "ocr", "context", "vision",
                     "quick", "performance", "screen", "image"]
         case .openAtLogin:
@@ -387,6 +429,15 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptPunctuation:
             return ["punctuation", "comma", "period", "accept", "trailing", "auto accept",
                     "auto-accept", "space"]
+        case .predictAheadWhileTyping:
+            return ["predict", "predictive", "ahead", "background", "typing", "latency", "faster", "pause",
+                    "speculative", "reuse", "local", "on device", "power"]
+        case .suggestWithinWords:
+            return ["typing", "mid word", "midword", "unfinished", "word boundary", "space", "pause",
+                    "wait", "complete word", "word ending", "autocomplete"]
+        case .showFollowingWords:
+            return ["following words", "next words", "phrase preview", "one word", "word at a time",
+                    "preview length", "quiet", "distraction", "autocomplete"]
         case .addSpaceAfterAccept:
             return ["space", "spacebar", "trailing space", "auto space", "add space",
                     "accept", "after accept", "whitespace", "gap", "separator"]
@@ -433,6 +484,12 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextSize:
             return ["size", "font size", "scale", "bigger", "smaller", "larger", "text size",
                     "zoom", "multiplier", "too big", "too small"]
+        case .ghostTextSizeFloor:
+            return ["smallest", "minimum", "floor", "limit", "min", "tiny", "too small",
+                    "point size", "pt", "clamp", "size"]
+        case .ghostTextSizeCeiling:
+            return ["largest", "maximum", "ceiling", "cap", "limit", "max", "too big",
+                    "oversized", "point size", "pt", "clamp", "size"]
         case .emojiPicker:
             return ["emoji", "smile", "picker", "inline", "colon", "emoticon", "face",
                     "symbol"]
@@ -568,8 +625,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["update", "version", "upgrade", "sparkle", "release", "new version",
                     "check updates", "auto update"]
         case .support:
-            return ["donate", "support", "ko-fi", "kofi", "tip", "donation", "sponsor",
-                    "contribute money", "help"]
+            return ["support", "contribute", "bugs", "features", "feedback", "help"]
         case .githubRepository:
             return ["github", "repo", "repository", "source code", "code", "git",
                     "contribute", "issues", "open source"]

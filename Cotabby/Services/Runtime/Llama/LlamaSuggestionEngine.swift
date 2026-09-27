@@ -186,7 +186,6 @@ final class LlamaSuggestionEngine {
                 "llama generation",
                 metadata: baseMetadata.merging([
                     "prompt": .string(request.prompt),
-                    "anchor": .string(request.wordBoundaryAnchor ?? ""),
                     "completion_raw": .string(rawSuggestion),
                     "completion_normalized": .string(normalizedSuggestion),
                     "prompt_bytes": .stringConvertible(request.prompt.utf8.count),
@@ -223,9 +222,10 @@ final class LlamaSuggestionEngine {
             // so that path fired ~twice a second — each time synchronously destroying the prompt KV on
             // the main actor (contending with the keystroke-delivery run loop) and forcing the next
             // keystroke to re-decode the whole prompt from scratch. The cooperative cancel inside
-            // `LlamaRuntimeCore.generate` already unwound cleanly (its KV-trim defer restored
-            // prompt-only state), so the cache is still valid and reusable. Route this to the same
-            // quiet path as `CancellationError` and leave the cache intact.
+            // `LlamaRuntimeCore.generate` closes the cancelled operation's abort target and retains
+            // its validated prompt descriptor. The next request restores that prefix before reuse,
+            // or rebuilds on a cache miss. Keep the sequence available for that decision rather
+            // than discarding every cancelled request's reusable context here.
             CotabbyLogger.suggestion.debug("Llama generation cancelled (runtime task)", metadata: baseMetadata)
             throw SuggestionClientError.cancelled
         } catch let error as LlamaRuntimeError {
@@ -280,9 +280,6 @@ final class LlamaSuggestionEngine {
                 precedingText: request.context.precedingText,
                 trailingText: request.context.trailingText
             ),
-            requiredPrefix: request.wordBoundaryAnchor.map {
-                WordBoundaryAnchorPolicy.requiredCompletionPrefix(precedingText: request.context.precedingText, anchor: $0)
-            },
             confidenceFloor: resolvedConfidenceFloor(),
             sentenceStopMinimumWords: request.wordRange?.lowWords ?? 0,
             stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()

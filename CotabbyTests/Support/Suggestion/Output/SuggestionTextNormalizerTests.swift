@@ -5,385 +5,282 @@ import XCTest
 ///
 /// The normalizer is deliberately backend-agnostic: llama.cpp and Foundation Models can both echo
 /// prompt text, add template markers, or return multi-line completions. These tests lock down the
-/// UI-facing contract that only one usable inline continuation reaches the overlay.
+/// UI-facing contract that only one usable inline continuation reaches the overlay, and that an
+/// empty result names the stage that emptied it. Most suites are tables of `(preceding, raw) ->
+/// expected` cases because the interesting behavior lives in small input differences (a trailing
+/// space, a tab, a repeated word) that read best side by side.
 final class SuggestionTextNormalizerTests: XCTestCase {
-    func test_normalize_removesChatTemplateMarkersAndPromptEcho() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "Hello",
-            prompt: "PROMPT_PAYLOAD",
-            precedingText: "Hello"
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "PROMPT_PAYLOAD<|im_start|> useful continuation<|im_end|>",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, " useful continuation")
+    private struct Case {
+        let name: String
+        let precedingText: String
+        /// Defaults to `precedingText`, matching how the factory builds requests; set explicitly only
+        /// when a test must keep the prefix-echo stage out of the way.
+        var prefixText: String?
+        var trailingText = ""
+        let raw: String
+        let expected: String
     }
 
-    func test_normalize_truncatesAtStopMarkerSalvagingPrefix() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "I will ",
+    private func request(for testCase: Case, isMultiLineEnabled: Bool = false) -> SuggestionRequest {
+        CotabbyTestFixtures.suggestionRequest(
+            prefixText: testCase.prefixText ?? testCase.precedingText,
             prompt: "PROMPT",
-            precedingText: "I will "
+            precedingText: testCase.precedingText,
+            trailingText: testCase.trailingText,
+            isMultiLineEnabled: isMultiLineEnabled
         )
-
-        // The model answers, then hallucinates a new chat turn. Only the answer before the stop
-        // marker should survive; the new turn must not leak into the ghost text.
-        let normalized = SuggestionTextNormalizer.normalize(
-            "be there soon.<|im_end|><|im_start|>user\nAnything else?",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "be there soon.")
     }
 
-    func test_normalize_removesPrefixEchoWhenPromptWasNotEchoed() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "Hello world",
-            prompt: "SHORT_APPLE_PROMPT",
-            precedingText: "Hello world"
-        )
+    private func assertCases(
+        _ cases: [Case],
+        isMultiLineEnabled: Bool = false,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionTextNormalizer.normalize(
+                    testCase.raw,
+                    for: request(for: testCase, isMultiLineEnabled: isMultiLineEnabled)
+                ),
+                testCase.expected,
+                testCase.name,
+                file: file,
+                line: line
+            )
+        }
+    }
 
-        let normalized = SuggestionTextNormalizer.normalize(
-            "Hello world, with a small addition",
-            for: request
-        )
+    // MARK: - Backend scaffolding and prompt echo
 
-        XCTAssertEqual(normalized, ", with a small addition")
+    func test_normalize_removesChatTemplateMarkersAndPromptEcho() {
+        let request = CotabbyTestFixtures.suggestionRequest(prompt: "PROMPT_PAYLOAD")
+
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(
+                "PROMPT_PAYLOAD<|im_start|> useful continuation<|im_end|>",
+                for: request
+            ),
+            " useful continuation"
+        )
+    }
+
+    /// The model answers, then hallucinates a new chat turn. Only the answer before the stop marker
+    /// survives; the new turn must not leak into the ghost text.
+    func test_normalize_truncatesAtStopMarkerSalvagingPrefix() {
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "I will ")
+
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(
+                "be there soon.<|im_end|><|im_start|>user\nAnything else?",
+                for: request
+            ),
+            "be there soon."
+        )
     }
 
     func test_normalize_removesBackendSpecificPromptEchoCandidate() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "Hello world",
-            prompt: "LLAMA_PROMPT",
-            precedingText: "Hello world"
-        )
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello world", prompt: "LLAMA_PROMPT")
 
-        let normalized = SuggestionTextNormalizer.normalize(
-            "APPLE_PROMPT\n useful continuation",
-            for: request,
-            promptEchoCandidates: ["APPLE_PROMPT"]
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(
+                "APPLE_PROMPT\n useful continuation",
+                for: request,
+                promptEchoCandidates: ["APPLE_PROMPT"]
+            ),
+            " useful continuation"
         )
-
-        XCTAssertEqual(normalized, " useful continuation")
     }
 
-    func test_normalize_trimsLeadingFormattingNewlinesBeforeTakingFirstLine() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "\n\nnext words only\nsecond paragraph should be dropped",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "next words only")
+    /// Apple Intelligence may echo only the visible prefix. Removal counts grapheme clusters, so a
+    /// multi-scalar emoji or CJK prefix is removed whole rather than leaving scalar debris.
+    func test_normalize_removesVisiblePrefixEcho() {
+        assertCases([
+            Case(name: "ASCII prefix", precedingText: "Hello world",
+                 raw: "Hello world, with a small addition", expected: ", with a small addition"),
+            Case(name: "emoji ZWJ sequence", precedingText: "I love 👩🏽‍💻",
+                 raw: "I love 👩🏽‍💻 coding", expected: " coding"),
+            Case(name: "CJK", precedingText: "今日は", raw: "今日は良い天気", expected: "良い天気"),
+            // A full prompt echo is peeled first; the newline it exposes is trimmed, and then the
+            // prefix echo underneath is removed too.
+            Case(name: "prompt echo then prefix echo", precedingText: "Hello",
+                 raw: "PROMPT\nHello there", expected: " there")
+        ])
     }
 
-    func test_normalize_dropsSuggestionThatRepeatsTrailingTextAfterCaret() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            precedingText: "Hello",
-            trailingText: " existing suffix"
-        )
+    // MARK: - Line handling
 
-        let normalized = SuggestionTextNormalizer.normalize(
-            " existing suffix and extra generated text",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "")
+    func test_normalize_singleLineKeepsOnlyTheFirstContentLine() {
+        assertCases([
+            // Leading formatting newlines are trimmed before the split, so they do not read as an
+            // empty first line that would drop the real continuation.
+            Case(name: "leading newlines", precedingText: "Hello",
+                 raw: "\n\nnext words only\nsecond paragraph should be dropped", expected: "next words only"),
+            Case(name: "CRLF line ending", precedingText: "Hello", raw: "next\r\nsecond", expected: "next")
+        ])
     }
 
-    func test_normalize_stripsModelLeadingWhitespaceWhenPrecedingTextAlreadyEndsWithWhitespace() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello ")
+    /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior
+    /// tab reaches the safety gate and is rejected rather than inserted.
+    func test_normalize_trimsEdgeControlCharactersButRejectsInteriorOnes() {
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "x")
 
-        let normalized = SuggestionTextNormalizer.normalize(" world", for: request)
-
-        XCTAssertEqual(normalized, "world")
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("\tfoo", for: request), "foo")
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalizeDetailed("foo\tbar", for: request),
+            SuggestionNormalizationResult(text: "", suppression: .unsafeToInsert)
+        )
     }
 
-    func test_normalize_preservesModelLeadingWhitespaceWhenPrecedingTextNeedsWordBoundary() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
+    // MARK: - Seam whitespace and echo suppression
 
-        let normalized = SuggestionTextNormalizer.normalize(" world", for: request)
-
-        XCTAssertEqual(normalized, " world")
+    /// Leading whitespace is kept only when the field does not already end in a space or tab, and
+    /// echo suppression runs first so the inter-word space it exposes follows the same rule.
+    func test_normalize_seamWhitespaceAndEchoSuppression() {
+        assertCases([
+            Case(name: "field already has a space", precedingText: "Hello ", raw: " world", expected: "world"),
+            Case(name: "field already has a tab", precedingText: "Hello\t", raw: " world", expected: "world"),
+            Case(name: "model supplies the word boundary", precedingText: "Hello", raw: " world", expected: " world"),
+            Case(name: "echoed tail word, no trailing space", precedingText: "hello world",
+                 raw: "world is great", expected: " is great"),
+            Case(name: "echoed tail word, trailing space", precedingText: "hello world ",
+                 raw: "world is great", expected: "is great"),
+            // "i like" overlaps at offset -2, not just a last-word/first-word alignment, and the
+            // comparison is case-insensitive.
+            Case(name: "multi-word case-insensitive echo", precedingText: "hi i like",
+                 raw: "I like matcha in the morning", expected: " matcha in the morning"),
+            // Both a 2-word and a 4-word alignment match; the longest one wins. The prefix is set
+            // apart so the verbatim prefix-echo stage cannot handle this first.
+            Case(name: "longest overlap wins", precedingText: "the cat the cat", prefixText: "Hello",
+                 raw: "the cat the cat sat", expected: " sat")
+        ])
     }
 
-    func test_normalize_stripsRepeatedPrecedingTailAcrossMultipleWords() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "hi i like")
+    // MARK: - Scaffolding labels
 
-        let normalized = SuggestionTextNormalizer.normalize(
-            "I like matcha in the morning",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, " matcha in the morning")
-    }
-
-    func test_normalize_preservesSpaceAfterEchoStrippingWhenPrecedingTextLacksTrailingSpace() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "hello world")
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "world is great",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, " is great")
-    }
-
-    func test_normalize_stripsSpaceAfterEchoStrippingWhenPrecedingTextEndsWithSpace() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "hello world ")
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "world is great",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "is great")
-    }
-
-    func test_normalize_returnsEmptyWhenSuggestionIsOnlyAnEchoedTailWord() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "hello world")
-
-        let normalized = SuggestionTextNormalizer.normalize("world", for: request)
-
-        XCTAssertEqual(normalized, "")
-    }
-
-    func test_normalize_stripsLeadingInlineScaffoldingLabel() {
-        // Caret sits right after a space, so the exposed leading space is dropped and the
-        // continuation surfaces cleanly without the echoed "Text before caret:" header.
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "I am ",
-            prompt: "PROMPT",
-            precedingText: "I am "
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "Text before caret: going to the store",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "going to the store")
-    }
-
-    func test_normalize_stripsHallucinatedAppLabel() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "send the ",
-            prompt: "PROMPT",
-            precedingText: "send the "
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "App: report by Friday",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "report by Friday")
-    }
-
-    func test_normalize_stripsStackedScaffoldingLabelLines() {
-        // Stacked labels across newlines must be peeled before the single-line collapse, otherwise
-        // the collapse would keep only the first label line ("Task:") and the real text would be
-        // lost.
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "The ",
-            prompt: "PROMPT",
-            precedingText: "The "
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "Task:\nText before caret:\nquick brown fox",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "quick brown fox")
-    }
-
-    func test_normalize_keepsLegitimateNonLabelColon() {
-        // A colon that is not a known scaffolding label is real user content and must survive.
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "my list ",
-            prompt: "PROMPT",
-            precedingText: "my list "
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "TODO: buy milk",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "TODO: buy milk")
-    }
-
-    func test_normalize_keepsLabelLikeTextWhenNotLeading() {
-        // "Task:" appears mid-continuation, not at the start, so it is real text and stays.
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "finish the ",
-            prompt: "PROMPT",
-            precedingText: "finish the "
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "first Task: review",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "first Task: review")
+    /// Small models sometimes parrot prompt section headers. Only known labels at the very start are
+    /// stripped (case-insensitively, stacked across lines before the single-line collapse); a colon
+    /// in real text, or a label later in the continuation, is user content.
+    func test_normalize_scaffoldingLabels() {
+        assertCases([
+            Case(name: "inline label", precedingText: "I am ",
+                 raw: "Text before caret: going to the store", expected: "going to the store"),
+            Case(name: "short hallucinated label", precedingText: "send the ",
+                 raw: "App: report by Friday", expected: "report by Friday"),
+            Case(name: "stacked label lines", precedingText: "The ",
+                 raw: "Task:\nText before caret:\nquick brown fox", expected: "quick brown fox"),
+            Case(name: "case-insensitive label", precedingText: "The ",
+                 raw: "continuation: quick fox", expected: "quick fox"),
+            Case(name: "non-label colon", precedingText: "my list ",
+                 raw: "TODO: buy milk", expected: "TODO: buy milk"),
+            Case(name: "label not leading", precedingText: "finish the ",
+                 raw: "first Task: review", expected: "first Task: review")
+        ])
     }
 
     // MARK: - Multi-line mode
 
-    func test_normalize_multiLineKeepsLinesUpToBlankLineBoundary() {
-        // Multi-line mode keeps real line breaks but must stop at the first blank line, which is
-        // the runaway-paragraph signature.
-        let request = CotabbyTestFixtures.suggestionRequest(
-            precedingText: "Notes",
-            isMultiLineEnabled: true
-        )
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "first line\nsecond line\n\nrunaway paragraph",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "first line\nsecond line")
+    /// Multi-line mode keeps real line breaks up to the first blank line (the runaway-paragraph
+    /// signature) and trims only trailing whitespace, so the leading space that separates the
+    /// caret word from the next one survives unless the field already provides it.
+    func test_normalize_multiLine() {
+        let hearing = "I look forward to hearing"
+        assertCases([
+            Case(name: "keeps word-boundary space", precedingText: hearing, raw: " from you", expected: " from you"),
+            Case(name: "mid-word suffix stays unspaced", precedingText: "Please send the sched",
+                 raw: "ule", expected: "ule"),
+            Case(name: "avoids a double space", precedingText: hearing + " ", raw: " from you", expected: "from you"),
+            Case(name: "stops at blank line, trims trailing whitespace", precedingText: hearing,
+                 raw: " from you\nabout the schedule  \t\n\nextra paragraph",
+                 expected: " from you\nabout the schedule"),
+            Case(name: "trailing whitespace without blank line", precedingText: hearing,
+                 raw: " from you  \n\t", expected: " from you"),
+            Case(name: "keeps lines up to blank line", precedingText: "Notes",
+                 raw: "first line\nsecond line\n\nrunaway paragraph", expected: "first line\nsecond line"),
+            Case(name: "no blank line keeps every line", precedingText: "Notes",
+                 raw: "first line\nsecond line", expected: "first line\nsecond line"),
+            Case(name: "leading newlines trimmed", precedingText: "Notes",
+                 raw: "\n\nfirst line\nsecond line", expected: "first line\nsecond line"),
+            // Carriage returns are removed up front; left in place they would trip the safety gate.
+            Case(name: "CRLF becomes LF", precedingText: "Notes", raw: "one\r\ntwo", expected: "one\ntwo")
+        ], isMultiLineEnabled: true)
     }
 
-    func test_normalize_multiLineWithoutBlankLineKeepsEveryLine() {
+    /// Streaming feeds cumulative partials through the normalizer; every partial must keep the same
+    /// insertion boundary so the ghost text does not flicker between spaced and unspaced forms.
+    func test_normalize_multiLineCumulativePartialsKeepTheInsertionBoundary() {
         let request = CotabbyTestFixtures.suggestionRequest(
-            precedingText: "Notes",
+            prefixText: "I look forward to hearing",
             isMultiLineEnabled: true
         )
 
-        let normalized = SuggestionTextNormalizer.normalize(
-            "first line\nsecond line",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "first line\nsecond line")
+        for partial in [" f", " from", " from you", " from you.\nBest wishes"] {
+            XCTAssertEqual(SuggestionTextNormalizer.normalize(partial, for: request), partial, partial)
+        }
     }
 
     // MARK: - Reasoning-block stripping
 
-    func test_normalize_stripsCompleteThinkBlockBeforeContinuation() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "<think>the user is mid-sentence</think>next words",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "next words")
-    }
-
-    func test_normalize_stripsCompleteAndDanglingThinkBlocks() {
-        // A completed block is removed in place; a second block cut off by the token limit has no
-        // closing tag, so everything from its open tag onward is dropped.
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
-
-        let normalized = SuggestionTextNormalizer.normalize(
-            "<think>first</think>real<think>second never closes",
-            for: request
-        )
-
-        XCTAssertEqual(normalized, "real")
-    }
-
-    func test_normalizeDetailed_danglingThinkBlockOnlyReportsNormalizedToEmpty() {
-        // The model spent its whole budget reasoning: raw had content, but nothing printable
-        // survives the strip, which must be attributed as normalized-to-empty (not empty
-        // generation, and not a filter drop).
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
-
-        let result = SuggestionTextNormalizer.normalizeDetailed(
-            "<think>reasoning that never closes",
-            for: request
-        )
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .normalizedToEmpty)
+    /// A completed block is removed in place (even across lines); a block cut off by the token
+    /// limit has no closing tag, so everything from its open tag onward is dropped.
+    func test_normalize_stripsThinkBlocks() {
+        assertCases([
+            Case(name: "complete block", precedingText: "Hello",
+                 raw: "<think>the user is mid-sentence</think>next words", expected: "next words"),
+            Case(name: "multi-line block", precedingText: "Hello",
+                 raw: "<think>line one\nline two</think>\nnext words", expected: "next words"),
+            Case(name: "complete then dangling", precedingText: "Hello",
+                 raw: "<think>first</think>real<think>second never closes", expected: "real")
+        ])
     }
 
     // MARK: - Suppression-reason attribution (normalizeDetailed)
 
-    func test_normalizeDetailed_successHasNoSuppressionReason() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "I love ",
-            prompt: "PROMPT",
-            precedingText: "I love "
-        )
+    /// An empty result always names the stage that emptied it, and a non-empty result never carries
+    /// a reason. The distinction separates "the model produced nothing usable" (prompt/model tuning)
+    /// from "a filter dropped a real completion" (filter tuning).
+    func test_normalizeDetailed_attributesEverySuppression() {
+        let cases: [(name: String, precedingText: String, trailingText: String, raw: String,
+                     expected: SuggestionNormalizationResult)] = [
+            ("success", "I love ", "", "this product",
+             SuggestionNormalizationResult(text: "this product", suppression: nil)),
+            ("empty raw", "x", "", "", SuggestionNormalizationResult(text: "", suppression: .emptyGeneration)),
+            ("whitespace-only raw", "x", "", "   \n  ",
+             SuggestionNormalizationResult(text: "", suppression: .emptyGeneration)),
+            ("only control markers", "x", "", "<|im_start|><|im_end|>",
+             SuggestionNormalizationResult(text: "", suppression: .normalizedToEmpty)),
+            // The model spent its whole budget reasoning.
+            ("dangling think block", "Hello", "", "<think>reasoning that never closes",
+             SuggestionNormalizationResult(text: "", suppression: .normalizedToEmpty)),
+            ("only a scaffolding label", "x", "", "Continuation:",
+             SuggestionNormalizationResult(text: "", suppression: .normalizedToEmpty)),
+            ("only the prompt echo", "x", "", "PROMPT",
+             SuggestionNormalizationResult(text: "", suppression: .normalizedToEmpty)),
+            ("repeats text after the caret", "Hello", " existing suffix", " existing suffix and extra generated text",
+             SuggestionNormalizationResult(text: "", suppression: .duplicatesTrailingText)),
+            ("only re-emits the preceding tail", "hello world", "", "world",
+             SuggestionNormalizationResult(text: "", suppression: .echoesPrecedingText)),
+            ("replacement glyph", "x", "", "abc\u{FFFD}",
+             SuggestionNormalizationResult(text: "", suppression: .unsafeToInsert))
+        ]
 
-        let result = SuggestionTextNormalizer.normalizeDetailed("this product", for: request)
-
-        XCTAssertEqual(result.text, "this product")
-        XCTAssertNil(result.suppression)
-    }
-
-    func test_normalizeDetailed_reportsDuplicatesTrailingText() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            precedingText: "Hello",
-            trailingText: " existing suffix"
-        )
-
-        let result = SuggestionTextNormalizer.normalizeDetailed(
-            " existing suffix and extra generated text",
-            for: request
-        )
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .duplicatesTrailingText)
-    }
-
-    func test_normalizeDetailed_reportsEchoesPrecedingTextWhenFullyEchoed() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            prefixText: "hello world",
-            prompt: "PROMPT",
-            precedingText: "hello world"
-        )
-
-        // The model re-emits the last word of the preceding text and nothing else.
-        let result = SuggestionTextNormalizer.normalizeDetailed("world", for: request)
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .echoesPrecedingText)
-    }
-
-    func test_normalizeDetailed_reportsUnsafeToInsertForReplacementGlyph() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
-
-        // Real characters survive normalization but carry a U+FFFD replacement glyph.
-        let result = SuggestionTextNormalizer.normalizeDetailed("abc\u{FFFD}", for: request)
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .unsafeToInsert)
-    }
-
-    func test_normalizeDetailed_reportsEmptyGenerationForWhitespaceOnlyRaw() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
-
-        let result = SuggestionTextNormalizer.normalizeDetailed("   \n  ", for: request)
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .emptyGeneration)
-    }
-
-    func test_normalizeDetailed_reportsNormalizedToEmptyWhenOnlyControlMarkers() {
-        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
-
-        // Raw had content, but it was entirely chat-template markers that normalization strips.
-        let result = SuggestionTextNormalizer.normalizeDetailed("<|im_start|><|im_end|>", for: request)
-
-        XCTAssertEqual(result.text, "")
-        XCTAssertEqual(result.suppression, .normalizedToEmpty)
+        for testCase in cases {
+            let request = CotabbyTestFixtures.suggestionRequest(
+                prefixText: testCase.precedingText,
+                trailingText: testCase.trailingText
+            )
+            XCTAssertEqual(
+                SuggestionTextNormalizer.normalizeDetailed(testCase.raw, for: request),
+                testCase.expected,
+                testCase.name
+            )
+        }
     }
 }
 
-/// Most normalization tests care about the public insertion text rather than suppression
-/// attribution. Keep that convenience in the test target instead of shipping a second production
-/// entry point that no runtime caller uses.
+/// Most normalization tests care about the insertion text rather than suppression attribution.
+/// Keep that convenience in the test target instead of shipping a second production entry point
+/// that no runtime caller uses.
 private extension SuggestionTextNormalizer {
     static func normalize(
         _ rawSuggestion: String,

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "complete-at-user-request",
+  "completedUTC": "2026-09-17T15:44:43.331900+00:00",
+  "decision": "retained-baseline",
+  "sixHourRequirementSupersededByUser": true,
+  "newInferenceAfterStopRequest": false,
+  "completedRuns": 20,
+  "completedPredictions": 99654,
+  "inferenceErrorsInCompletedRuns": 0,
+  "productionChangesAdopted": false,
+  "buildCleanup": "complete; isolated caches only",
+  "deferred": [
+    "larger character checks",
+    "isolated latency repeats"
+  ],
+  "finalChecklist": {
+    "path": "FINAL_CHECKLIST.md",
+    "sha256": "6d0761548c2dbacdb15aad51d474103eb84867ff0f96e8334d4b0d9851aa5b48"
+  },
+  "scope": "Post-archive closure receipt; archived evidence and its manifest hashes remain unchanged."
+}

@@ -1,6 +1,8 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for the gate that swallows single-poll `Supported -> Blocked -> Supported` flicker on the
+/// same focused element while still letting real focus loss and element changes through promptly.
 final class FocusCapabilityFlickerGateTests: XCTestCase {
     func testFirstSnapshotIsAlwaysApplied() {
         var gate = FocusCapabilityFlickerGate()
@@ -39,6 +41,27 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             gate.evaluate(blockedSnapshot(elementID: "field-A")),
             .suppress(pendingBlockedReadCount: 1)
         )
+        XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
+    }
+
+    func testBlockedAfterReleaseKeepsApplyingUntilSupportedRearmsTheGate() {
+        var gate = FocusCapabilityFlickerGate()
+        _ = gate.evaluate(supportedSnapshot(elementID: "field-A"))
+        _ = gate.evaluate(blockedSnapshot(elementID: "field-A"))
+        XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
+
+        // Once the downgrade is released the gate is disarmed: a lingering Blocked field keeps
+        // propagating instead of starting a fresh suppression window.
+        XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
+    }
+
+    func testSupportedOnANewElementMovesTheReference() {
+        var gate = FocusCapabilityFlickerGate()
+        _ = gate.evaluate(supportedSnapshot(elementID: "field-A"))
+        _ = gate.evaluate(supportedSnapshot(elementID: "field-B"))
+
+        // The reference is now field-B: a flicker there is debounced, one on the old field is not.
+        XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-B")), .suppress(pendingBlockedReadCount: 1))
         XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
     }
 

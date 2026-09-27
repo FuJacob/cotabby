@@ -59,6 +59,20 @@ final class WebContentFieldDetectorTests: XCTestCase {
         )
     }
 
+    func test_firefoxIsWebContentByBundle() {
+        // Gecko does not vend DOM-reflection attributes, so the bundle list is the only signal.
+        XCTAssertTrue(
+            WebContentFieldDetector.isWebContentField(
+                bundleIdentifier: "org.mozilla.firefox",
+                vendsDOMAttributes: false
+            )
+        )
+    }
+
+    func test_emptyAttributeSetDoesNotMarkElementAsWebContent() {
+        XCTAssertFalse(WebContentFieldDetector.vendsDOMAttributes([]))
+    }
+
     func test_electronEditorBundleIsWebContent() {
         XCTAssertTrue(
             WebContentFieldDetector.isWebContentField(

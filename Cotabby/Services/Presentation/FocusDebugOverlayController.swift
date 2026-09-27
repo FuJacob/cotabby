@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 
-/// Gated behind `-cotabby-debug`. Shows focused-input geometry near the caret and renders a
+/// Opt-in in development builds. Shows focused-input geometry near the caret and renders a
 /// bottom-edge status panel for focus polling diagnostics and the screenshot/OCR visual-context
 /// pipeline.
 ///
@@ -13,11 +13,21 @@ import SwiftUI
 final class FocusDebugOverlayController {
     /// Debug-only escape hatch: the caret badge and frame outline paint over the host's text, which
     /// spoils pixel comparisons of ghost text against the host. Setting this default keeps every
-    /// other `-cotabby-debug` artifact (logs, forced suggestions) while hiding these two panels.
+    /// other `-cotabby-debug` artifact (logs, forced suggestions) while hiding these two panels,
+    /// whatever the in-app developer overlay preference says.
     static let hiddenDefaultsKey = "cotabbyDebugFocusOverlayHidden"
 
-    static var isEnabled: Bool {
-        CotabbyDebugOptions.isEnabled && !UserDefaults.standard.bool(forKey: hiddenDefaultsKey)
+    private(set) var isEnabled = false
+
+    /// AppDelegate forwards the live preference to this app-lifetime controller. Hiding all panels
+    /// here, and guarding every update below, prevents later focus/OCR events from reopening them.
+    func setEnabled(_ enabled: Bool) {
+        let enabled = enabled
+            && CotabbyDebugOptions.areOverlaysAvailable
+            && !UserDefaults.standard.bool(forKey: Self.hiddenDefaultsKey)
+        guard isEnabled != enabled else { return }
+        isEnabled = enabled
+        if !enabled { hide() }
     }
 
     private lazy var caretPanel: NSPanel = makePanel()
@@ -36,6 +46,7 @@ final class FocusDebugOverlayController {
     private var latestPollEvent: FocusPollingEvent?
 
     func update(for snapshot: FocusSnapshot) {
+        guard isEnabled else { return }
         guard let context = snapshot.context else {
             hideFocusGeometry()
             return
@@ -51,6 +62,7 @@ final class FocusDebugOverlayController {
     /// We show metadata only, not the cleaned OCR excerpt. The raw prompt block remains the source
     /// of truth for sensitive text debugging, and it is already gated behind `-cotabby-debug`.
     func updateVisualContext(status: VisualContextStatus, excerpt: String?) {
+        guard isEnabled else { return }
         latestVisualContextStatus = status
         latestVisualContextExcerptCharacterCount = excerpt?.count
         renderBottomStatusPanel()
@@ -61,6 +73,7 @@ final class FocusDebugOverlayController {
     /// Polling diagnostics replace the old AXObserver pulse. This keeps focus debugging tied to
     /// the single source of truth that now drives snapshots.
     func updateFocusPolling(event: FocusPollingEvent) {
+        guard isEnabled else { return }
         latestPollEvent = event
         renderBottomStatusPanel()
     }

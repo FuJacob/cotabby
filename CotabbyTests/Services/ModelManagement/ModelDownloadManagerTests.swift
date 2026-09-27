@@ -1,6 +1,9 @@
 import XCTest
 @testable import Cotabby
 
+/// Locks the download manager's filesystem-facing state rules: install detection, deletion,
+/// same-filename source isolation, and cancel/pause transitions. Every manager points at a fresh
+/// temporary directory; tests that need no transfer never start one.
 @MainActor
 final class ModelDownloadManagerTests: XCTestCase {
     /// Xcode 26.3's app-hosted test runner can crash in the back-deploy executor shim when a
@@ -139,6 +142,57 @@ final class ModelDownloadManagerTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: scopedDirectory.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: ambiguousLegacyDirectory.path))
+    }
+
+    /// An install under any known alias short-circuits `download` without starting a transfer, and
+    /// deleting that file lets the untracked dynamic state fall back to "not installed".
+    func test_downloadOfInstalledAliasPublishesDownloadedThenDeleteReturnsToIdle() throws {
+        let aliasName = "cotabby-test-alias-\(UUID().uuidString).gguf"
+        try "installed".write(to: tempDir.appendingPathComponent(aliasName), atomically: true, encoding: .utf8)
+        let manager = makeManager()
+        let model = DownloadableRuntimeModel(
+            filename: "cotabby-test-\(UUID().uuidString).gguf",
+            displayName: "Aliased",
+            downloadURL: try XCTUnwrap(URL(string: "https://example.com/aliased.gguf")),
+            approximateSizeInGigabytes: 1,
+            alternateFilenames: [aliasName]
+        )
+
+        manager.download(model)
+        XCTAssertEqual(manager.modelStates[model.id], .downloaded)
+
+        manager.deleteModel(filename: aliasName)
+        XCTAssertNil(manager.modelStates[model.id])
+        XCTAssertEqual(manager.state(for: model), .idle)
+    }
+
+    func test_pauseWithoutActiveTransferIsNoOp() throws {
+        let manager = makeManager()
+        let model = try makeModel(source: "https://example.com/idle/shared.gguf")
+
+        manager.pause(model)
+
+        XCTAssertNil(manager.modelStates[model.id])
+        XCTAssertEqual(manager.state(for: model), .idle)
+    }
+
+    func test_installedModelOptions_listsLoadableGGUFsSortedAndSkipsSidecars() throws {
+        let fileManager = FileManager.default
+        let nested = tempDir.appendingPathComponent("nested", isDirectory: true)
+        try fileManager.createDirectory(at: nested, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: tempDir.appendingPathComponent("directory.gguf", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        for relativePath in ["b-model.gguf", "a-model.GGUF", "nested/c-model.gguf", "mmproj-vision.gguf", "notes.txt"] {
+            try "x".write(to: tempDir.appendingPathComponent(relativePath), atomically: true, encoding: .utf8)
+        }
+        let manager = makeManager()
+
+        XCTAssertEqual(
+            manager.installedModelOptions().map(\.filename),
+            ["a-model.GGUF", "b-model.gguf", "c-model.gguf"]
+        )
     }
 
     private func makeManager() -> ModelDownloadManager {

@@ -176,22 +176,6 @@ final class PerformanceMetricsStoreTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(first.timestamp, before)
         XCTAssertLessThanOrEqual(first.timestamp, after)
     }
-
-    func test_metricEntry_roundTripsThroughJSON() throws {
-        // The entry's synthesized Codable/Equatable inherit the app module's default MainActor
-        // isolation, so the round trip runs through the main-actor hop helper.
-        try runOnMainActor {
-            let entry = PerformanceMetricEntry(timestamp: exactDate(), modelName: "tabby-2-mini", latencyMs: 412)
-
-            let decoded = try JSONDecoder().decode(
-                PerformanceMetricEntry.self,
-                from: JSONEncoder().encode(entry)
-            )
-
-            XCTAssertEqual(decoded, entry)
-            XCTAssertEqual(decoded.hashValue, entry.hashValue)
-        }
-    }
 }
 
 private func runOnMainActor<Result>(

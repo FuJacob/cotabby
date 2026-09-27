@@ -5,12 +5,20 @@ import os
 /// File overview:
 /// Centralizes Cotabby's developer-only runtime switches.
 ///
-/// A single launch argument is easier to reason about than separate feature flags because every
-/// privacy-sensitive diagnostic path has one obvious gate. Passing `-cotabby-debug` means the
-/// developer intentionally opted into local debugging artifacts such as overlays, detailed service
-/// logs, and screenshot/OCR captures.
+/// Passing `-cotabby-debug` opts into local logs and screenshot/OCR captures. On-screen overlays
+/// have a separate, default-off setting so a development session can keep logging quietly.
 nonisolated enum CotabbyDebugOptions {
     static let launchArgument = "-cotabby-debug"
+
+    /// Compile-time availability prevents a saved preference from exposing developer panels in
+    /// release builds. The settings model owns the user's separate, durable visibility choice.
+    static var areOverlaysAvailable: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
 
     static var isEnabled: Bool {
         ProcessInfo.processInfo.arguments.contains(launchArgument)

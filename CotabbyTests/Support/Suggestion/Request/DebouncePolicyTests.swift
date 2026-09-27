@@ -1,59 +1,63 @@
 import XCTest
 @testable import Cotabby
 
+/// Pure tests for latency-keyed debounce. Each tier is pinned at both edges so a threshold edit is
+/// always deliberate: the tiers trade time-to-first-suggestion against piling doomed generations
+/// onto a model that cannot keep up.
 final class DebouncePolicyTests: XCTestCase {
-    func testNoLatencyDataUsesFallback() {
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: nil, fallback: 20), 20)
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 0, fallback: 20), 20)
+    private func assertDebounce(
+        _ cases: [(latency: Int?, expected: Int)],
+        fallback: Int,
+        engine: SuggestionEngineKind,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for testCase in cases {
+            XCTAssertEqual(
+                DebouncePolicy.milliseconds(
+                    lastGenerationLatencyMilliseconds: testCase.latency,
+                    fallback: fallback,
+                    engine: engine
+                ),
+                testCase.expected,
+                "\(engine) latency \(String(describing: testCase.latency)) fallback \(fallback)",
+                file: file,
+                line: line
+            )
+        }
     }
 
-    func testFastGenerationsGetTheShortDebounce() {
+    /// In-process engines use the configured fallback until a real (positive) latency exists.
+    func test_localEngines_tiersAndFallback() {
+        let cases: [(latency: Int?, expected: Int)] = [
+            (nil, 20), (0, 20), (-5, 20),
+            (1, 15), (70, 15),
+            (71, 25), (140, 25),
+            (141, 55), (900, 55)
+        ]
+        assertDebounce(cases, fallback: 20, engine: .llamaOpenSource)
+        // Apple Intelligence runs on-device too and shares the local tiers.
+        assertDebounce(cases, fallback: 20, engine: .appleIntelligence)
+    }
+
+    func test_defaultEngineIsLocal() {
         XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 45, fallback: 20), 15)
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 70, fallback: 20), 15)
     }
 
-    func testMediumGenerationsGetTheMiddleDebounce() {
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 71, fallback: 20), 25)
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 140, fallback: 20), 25)
-    }
-
-    func testSlowGenerationsBackOff() {
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 141, fallback: 20), 55)
-        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 900, fallback: 20), 55)
-    }
-
-    func testEndpointUsesTrailingDebounceToCollapseTypingBursts() {
-        XCTAssertEqual(
-            DebouncePolicy.milliseconds(
-                lastGenerationLatencyMilliseconds: nil,
-                fallback: 20,
-                engine: .openAICompatible
-            ),
-            180
+    /// An HTTP endpoint cannot reuse the in-process KV cache and may not stop work on cancel, so it
+    /// always uses a longer trailing-edge pause that collapses a typing burst into one request.
+    func test_endpoint_tiersAndFallbackFloor() {
+        assertDebounce(
+            [
+                (nil, 180), (0, 180), (-5, 180),
+                (1, 100), (300, 100),
+                (301, 150), (700, 150),
+                (701, 220), (1_000, 220)
+            ],
+            fallback: 20,
+            engine: .openAICompatible
         )
-        XCTAssertEqual(
-            DebouncePolicy.milliseconds(
-                lastGenerationLatencyMilliseconds: 250,
-                fallback: 20,
-                engine: .openAICompatible
-            ),
-            100
-        )
-        XCTAssertEqual(
-            DebouncePolicy.milliseconds(
-                lastGenerationLatencyMilliseconds: 600,
-                fallback: 20,
-                engine: .openAICompatible
-            ),
-            150
-        )
-        XCTAssertEqual(
-            DebouncePolicy.milliseconds(
-                lastGenerationLatencyMilliseconds: 1_000,
-                fallback: 20,
-                engine: .openAICompatible
-            ),
-            220
-        )
+        // Without a latency, a configured fallback above the 180 ms floor wins.
+        assertDebounce([(nil, 250)], fallback: 250, engine: .openAICompatible)
     }
 }

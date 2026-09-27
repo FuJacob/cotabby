@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// File overview:
@@ -24,10 +25,13 @@ nonisolated enum OCRTextHygiene {
     struct OCRLine: Equatable, Sendable {
         let text: String
         let confidence: Float
+        /// Vision coordinates (unit square, origin at bottom left). Optional for text-only fixtures.
+        let boundingBox: CGRect?
 
-        init(text: String, confidence: Float) {
+        init(text: String, confidence: Float, boundingBox: CGRect? = nil) {
             self.text = text
             self.confidence = confidence
+            self.boundingBox = boundingBox
         }
     }
 

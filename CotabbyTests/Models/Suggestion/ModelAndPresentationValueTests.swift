@@ -2,54 +2,12 @@ import AppKit
 import XCTest
 @testable import Cotabby
 
-/// Tests for compact value-model behavior used directly by menu and overlay UI.
+/// Tests for compact suggestion/session/presentation value models used directly by the coordinator,
+/// menu, and overlay UI.
 ///
-/// These are intentionally small, but they protect user-facing copy and normalization rules that
-/// would otherwise regress quietly during UI refactors.
-final class SuggestionTextColorCodecTests: XCTestCase {
-    func test_nsColorFromHex_decodesSixDigitRGB() {
-        let color = SuggestionTextColorCodec.nsColor(fromHex: "336699")?.usingColorSpace(.sRGB)
-
-        XCTAssertNotNil(color)
-        XCTAssertEqual(color?.redComponent ?? 0, CGFloat(0x33) / 255, accuracy: 0.001)
-        XCTAssertEqual(color?.greenComponent ?? 0, CGFloat(0x66) / 255, accuracy: 0.001)
-        XCTAssertEqual(color?.blueComponent ?? 0, CGFloat(0x99) / 255, accuracy: 0.001)
-        XCTAssertEqual(color?.alphaComponent ?? 0, 1, accuracy: 0.001)
-    }
-
-    func test_nsColorFromHex_rejectsMalformedValues() {
-        XCTAssertNil(SuggestionTextColorCodec.nsColor(fromHex: nil))
-        XCTAssertNil(SuggestionTextColorCodec.nsColor(fromHex: "12345"))
-        XCTAssertNil(SuggestionTextColorCodec.nsColor(fromHex: "1234567"))
-        XCTAssertNil(SuggestionTextColorCodec.nsColor(fromHex: "#336699"))
-        XCTAssertNil(SuggestionTextColorCodec.nsColor(fromHex: "GG6699"))
-    }
-
-    func test_hexStringFromNSColor_roundsToUppercaseSixDigitRGB() {
-        let color = NSColor(
-            srgbRed: CGFloat(0x12) / 255,
-            green: CGFloat(0xAB) / 255,
-            blue: CGFloat(0xF0) / 255,
-            alpha: 0.5
-        )
-
-        XCTAssertEqual(SuggestionTextColorCodec.hexString(from: color), "12ABF0")
-    }
-}
-
+/// These are intentionally small, but they protect session slicing and presentation-state rules that
+/// would otherwise regress quietly during coordinator or UI refactors.
 final class SuggestionModelValueTests: XCTestCase {
-    func test_wordCountPresetsExposeMatchingRanges() {
-        XCTAssertEqual(
-            SuggestionWordCountPreset.allCases.map(\.range),
-            [
-                SuggestionWordRange(lowWords: 2, highWords: 4),
-                SuggestionWordRange(lowWords: 4, highWords: 7),
-                SuggestionWordRange(lowWords: 7, highWords: 12),
-                SuggestionWordRange(lowWords: 12, highWords: 20)
-            ]
-        )
-    }
-
     func test_languageCatalog_effectiveTokensPerWord_fallsBackToEnglishForMultiOrUnknown() {
         XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: []), LanguageCatalog.fallbackTokensPerWord)
         XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: ["German"]), 1.7)
@@ -66,70 +24,144 @@ final class SuggestionModelValueTests: XCTestCase {
         )
     }
 
-    func test_suggestionWordRange_clampedKeepsLowBelowHighAndWithinBounds() {
-        let inverted = SuggestionWordRange.clamped(low: 12, high: 3)
-        XCTAssertEqual(inverted.lowWords, 12)
-        XCTAssertEqual(inverted.highWords, 12)
-
-        let belowFloor = SuggestionWordRange.clamped(low: 0, high: 4)
-        XCTAssertEqual(belowFloor.lowWords, SuggestionWordRange.minimumWord)
-        XCTAssertEqual(belowFloor.highWords, 4)
-
-        let aboveCeiling = SuggestionWordRange.clamped(low: 10, high: 9999)
-        XCTAssertEqual(aboveCeiling.lowWords, 10)
-        XCTAssertEqual(aboveCeiling.highWords, SuggestionWordRange.maximumWord)
-    }
+    // MARK: - ActiveSuggestionSession
 
     func test_activeSuggestionSession_clampsConsumedCountAndSlicesByCharacters() {
-        let session = CotabbyTestFixtures.activeSession(
-            fullText: "hello",
-            consumedCharacterCount: 99
-        )
+        let overConsumed = CotabbyTestFixtures.activeSession(fullText: "hello", consumedCharacterCount: 99)
+        XCTAssertEqual(overConsumed.acceptedText, "hello")
+        XCTAssertEqual(overConsumed.remainingText, "")
+        XCTAssertTrue(overConsumed.isExhausted)
 
-        XCTAssertEqual(session.acceptedText, "hello")
-        XCTAssertEqual(session.remainingText, "")
+        // A negative count (e.g. a stale reconciliation delta) must clamp to the start, not index
+        // before the string.
+        let underConsumed = CotabbyTestFixtures.activeSession(fullText: "hello", consumedCharacterCount: -4)
+        XCTAssertEqual(underConsumed.consumedCharacterCount, 0)
+        XCTAssertEqual(underConsumed.remainingText, "hello")
+    }
+
+    func test_activeSuggestionSession_advancingByNegativeCountIsANoOp() {
+        let session = CotabbyTestFixtures.activeSession(fullText: "hello", consumedCharacterCount: 2)
+
+        XCTAssertEqual(session.advancing(by: -3).consumedCharacterCount, 2)
+    }
+
+    func test_activeSuggestionSession_whitespaceOnlyTailCountsAsExhausted() {
+        // Ghost spaces are visually confusing, so a tail of only whitespace ends the session.
+        let session = CotabbyTestFixtures.activeSession(fullText: "hello \n ", consumedCharacterCount: 5)
+
         XCTAssertTrue(session.isExhausted)
     }
 
-    /// A text field or combo box lays its text out on one line (an HTML input, Chromium's address
-    /// bar, an NSTextField): measured 2026-09-11, a long ghost's second row was drawn under a Chrome
-    /// text input. A text area, or a web area standing in for an editor, may wrap.
-    func test_focusedInputContext_textFieldsAndComboBoxesAreSingleLine() {
-        func context(role: String) -> FocusedInputContext {
-            FocusedInputContext(snapshot: CotabbyTestFixtures.focusedInputSnapshot(role: role), generation: 1)
+    func test_activeSuggestionSession_clampsInitialVisibleBoundaryToTheText() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "abc",
+            initialVisibleCharacterCount: 99,
+            latency: 0
+        )
+
+        XCTAssertEqual(session.initialVisibleCharacterCount, 3)
+        XCTAssertEqual(session.remainingText, "abc")
+        XCTAssertFalse(session.hasBufferedContinuation)
+    }
+
+    func test_activeSuggestionSession_retainsFollowingWordsBehindAnInitialWordEnding() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Build a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0.05
+        )
+
+        XCTAssertEqual(session.remainingText, "beam")
+        XCTAssertEqual(session.predictedRemainingText, "beam for the device")
+        XCTAssertTrue(session.hasBufferedContinuation)
+
+        let partlyTyped = session.advancing(by: 2)
+        XCTAssertEqual(partlyTyped.remainingText, "am")
+        XCTAssertTrue(partlyTyped.hasBufferedContinuation)
+
+        let completedWord = partlyTyped.advancing(by: 2)
+        XCTAssertEqual(completedWord.remainingText, " for the device")
+        XCTAssertFalse(completedWord.isExhausted)
+        XCTAssertFalse(completedWord.hasBufferedContinuation)
+        XCTAssertEqual(completedWord.baseContext, session.baseContext)
+    }
+
+    func test_activeSuggestionSession_oneWordPresentationRollsThroughTheSamePrediction() {
+        var session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0.05
+        )
+
+        for expectedOffer in [" hello", " world", " again"] {
+            XCTAssertEqual(session.remainingText, expectedOffer)
+            XCTAssertFalse(session.isExhausted)
+            session = session.advancing(by: expectedOffer.count)
         }
-        XCTAssertTrue(context(role: "AXTextField").isSingleLineField)
-        XCTAssertTrue(context(role: "AXComboBox").isSingleLineField)
-        XCTAssertFalse(context(role: "AXTextArea").isSingleLineField)
-        XCTAssertFalse(context(role: "AXWebArea").isSingleLineField)
+        XCTAssertTrue(session.isExhausted)
+        XCTAssertEqual(session.remainingText, "")
     }
 
-    func test_overlayStateVisibleExposesRenderMode() {
-        let state = OverlayState.visible(
-            text: "hello",
-            geometry: CotabbyTestFixtures.overlayGeometry(
-                caretRect: CGRect(x: 12.9, y: 40.1, width: 2, height: 18),
-                caretQuality: .derived
-            ),
-            mode: .inline
+    func test_activeSuggestionSession_initialBoundaryCountsGraphemes() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "é👩🏽‍💻 next",
+            initialVisibleCharacterCount: 2,
+            latency: 0
         )
 
-        XCTAssertTrue(state.isVisible)
-        XCTAssertEqual(state.visibleMode, .inline)
+        XCTAssertEqual(session.remainingText, "é👩🏽‍💻")
+        XCTAssertEqual(session.advancing(by: 1).remainingText, "👩🏽‍💻")
+        XCTAssertEqual(session.withConsumedCharacters(2).remainingText, " next")
     }
 
-    func test_suggestionWordRange_compactLabelRendersLowAndHighBounds() {
-        let range = SuggestionWordRange(lowWords: 5, highWords: 15)
-
-        XCTAssertEqual(range.compactLabel, "5-15 w")
-    }
-
-    func test_wordCountPreset_idsStayInSyncWithRawValues() {
-        XCTAssertEqual(
-            SuggestionWordCountPreset.allCases.map(\.id),
-            ["2-4", "4-7", "7-12", "12-20"]
+    func test_activeSuggestionSession_extensionPreservesPresentationAndConsumedPosition() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            initialVisibleCharacterCount: 5,
+            showFollowingWords: false,
+            consumedCharacterCount: 2,
+            latency: 0.05
         )
+        let extended = try XCTUnwrap(session.extendingPrediction(to: "hello world again"))
+
+        XCTAssertEqual(extended.consumedCharacterCount, 2)
+        XCTAssertEqual(extended.remainingText, "llo")
+        XCTAssertEqual(extended.predictedRemainingText, "llo world again")
+        XCTAssertEqual(extended.advancing(by: 3).remainingText, " world")
+        XCTAssertEqual(extended.latency, session.latency)
+        XCTAssertNil(session.extendingPrediction(to: "help instead"))
     }
+
+    func test_activeSuggestionSession_unrestrictedExtensionImmediatelyOffersTheWholeTail() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            latency: 0
+        )
+
+        XCTAssertEqual(try XCTUnwrap(session.extendingPrediction(to: "hello world")).remainingText, "hello world")
+    }
+
+    func test_activeSuggestionSession_correctionsNeverExtend() {
+        // A correction commits as a whole-word replacement; streaming extra text onto it would turn
+        // the replacement into a forward continuation.
+        let correction = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "teh"),
+            fullText: "the",
+            latency: 0,
+            kind: .correction(typoWord: "teh")
+        )
+
+        XCTAssertNil(correction.extendingPrediction(to: "the end"))
+        XCTAssertEqual(correction.advancing(by: 1).kind, .correction(typoWord: "teh"))
+    }
+
+    // MARK: - Focused context and presentation values
 
     func test_focusedInputContext_contentSignatureMirrorsSnapshotAndTagsSecureFields() {
         let context = CotabbyTestFixtures.focusedInputContext(
@@ -161,16 +193,19 @@ final class SuggestionModelValueTests: XCTestCase {
 
     func test_overlayGeometry_withCaretRectReplacesOnlyTheCaretRect() {
         let style = ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 13, colorHex: "336699")
+        let edges = ObservedContentEdges(leftX: 4, topY: 30, isRunMeasured: true)
         let original = SuggestionOverlayGeometry(
             caretRect: CGRect(x: 10, y: 20, width: 2, height: 18),
             inputFrameRect: CGRect(x: 0, y: 0, width: 240, height: 32),
             caretQuality: .derived,
+            bundleIdentifier: "com.example.host",
             isCaretAtEndOfLine: false,
             observedCharWidth: 7,
             isRightToLeft: true,
             focusChangeSequence: 9,
             focusedInputIdentityKey: 77,
-            resolvedFieldStyle: style
+            resolvedFieldStyle: style,
+            observedContentEdges: edges
         )
 
         let advanced = original.withCaretRect(CGRect(x: 52, y: 20, width: 2, height: 18))
@@ -178,42 +213,44 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertEqual(advanced.caretRect, CGRect(x: 52, y: 20, width: 2, height: 18))
         XCTAssertEqual(advanced.inputFrameRect, original.inputFrameRect)
         XCTAssertEqual(advanced.caretQuality, .derived)
+        XCTAssertEqual(advanced.bundleIdentifier, "com.example.host")
         XCTAssertFalse(advanced.isCaretAtEndOfLine)
         XCTAssertEqual(advanced.observedCharWidth, 7)
         XCTAssertTrue(advanced.isRightToLeft)
         XCTAssertEqual(advanced.focusChangeSequence, 9)
         XCTAssertEqual(advanced.focusedInputIdentityKey, 77)
         XCTAssertEqual(advanced.resolvedFieldStyle, style)
+        XCTAssertEqual(advanced.observedContentEdges, edges)
     }
 
-    func test_overlayState_hiddenExposesNoVisibleMode() {
-        let hidden = OverlayState.hidden(reason: "No suggestion buffered")
+    func test_overlayState_visibleExposesRenderModeAndHiddenExposesNone() {
+        let visible = OverlayState.visible(
+            text: "hello",
+            geometry: CotabbyTestFixtures.overlayGeometry(caretQuality: .derived),
+            mode: .mirror(reason: .caretMidLine)
+        )
+        XCTAssertTrue(visible.isVisible)
+        XCTAssertEqual(visible.visibleMode, .mirror(reason: .caretMidLine))
 
+        let hidden = OverlayState.hidden(reason: "No suggestion buffered")
         XCTAssertFalse(hidden.isVisible)
         XCTAssertNil(hidden.visibleMode)
     }
 
     func test_suggestionClientError_errorDescriptionSurfacesTheUnderlyingMessage() {
-        XCTAssertEqual(
-            SuggestionClientError.unavailable("Engine offline").errorDescription,
-            "Engine offline"
-        )
+        XCTAssertEqual(SuggestionClientError.unavailable("Engine offline").errorDescription, "Engine offline")
         XCTAssertEqual(
             SuggestionClientError.unsupportedLanguageOrLocale("Locale unsupported").errorDescription,
             "Locale unsupported"
         )
-        XCTAssertEqual(
-            SuggestionClientError.generationFailed("Decode failed").errorDescription,
-            "Decode failed"
-        )
-        XCTAssertEqual(
-            SuggestionClientError.cancelled.errorDescription,
-            "Generation was cancelled."
-        )
+        XCTAssertEqual(SuggestionClientError.generationFailed("Decode failed").errorDescription, "Decode failed")
+        XCTAssertEqual(SuggestionClientError.cancelled.errorDescription, "Generation was cancelled.")
     }
 }
 
-final class RuntimeAndInputModelValueTests: XCTestCase {
+/// Runtime catalog, download-state, and generation-option values surfaced by onboarding, the menu,
+/// and the llama engine.
+final class RuntimeModelValueTests: XCTestCase {
     func test_modelDownloadStateProgressFractionIsClamped() {
         XCTAssertEqual(ModelDownloadState.downloading(progress: -0.5).progressFraction, 0)
         XCTAssertEqual(ModelDownloadState.downloading(progress: 0.42).progressFraction, 0.42)
@@ -239,59 +276,33 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
     }
 
     func test_runtimeModelCatalogMapsKnownNamesAndLeavesCustomNamesAlone() {
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            "tabby-2-nano"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            "tabby-2-mini"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
-            "tabby-2-base"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            "tabby-2-pro"
-        )
-        // Retired models fall back to their raw filename like any unknown local GGUF. The 4B Qwen
-        // base was dropped when the catalog moved to the nano/mini/base/pro four-tier lineup.
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
-            "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
-            "Qwen3.5-0.8B-Q4_K_M.gguf"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "gemma-3-1b-it-Q4_K_M.gguf"),
-            "gemma-3-1b-it-Q4_K_M.gguf"
-        )
-        XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "custom-local-model.gguf"),
-            "custom-local-model.gguf"
-        )
-    }
+        let expectations: [(filename: String, displayName: String)] = [
+            ("Qwen3.5-0.8B-Base.i1-Q6_K.gguf", "Cotabby Nano"),
+            ("Qwen3.5-2B-Base.i1-Q4_K_M.gguf", "Cotabby Mini"),
+            ("gemma-4-E2B.i1-Q6_K.gguf", "Cotabby Base"),
+            ("gemma-4-E4B.i1-Q4_K_M.gguf", "Cotabby Pro"),
+            // Retired models fall back to their raw filename like any unknown local GGUF. The 4B Qwen
+            // base was dropped when the catalog moved to the nano/mini/base/pro four-tier lineup.
+            ("Qwen3.5-4B-Base.i1-Q4_K_M.gguf", "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
+            ("Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+            ("gemma-3-1b-it-Q4_K_M.gguf", "gemma-3-1b-it-Q4_K_M.gguf"),
+            ("custom-local-model.gguf", "custom-local-model.gguf")
+        ]
 
-    func test_capturedInputEventComputedPropertiesReflectSchedulingPolicy() {
-        XCTAssertTrue(CotabbyTestFixtures.inputEvent(kind: .textMutation).shouldSchedulePrediction)
-        XCTAssertTrue(CotabbyTestFixtures.inputEvent(kind: .shortcutMutation).shouldSchedulePrediction)
-        XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .navigation).shouldSchedulePrediction)
-
-        XCTAssertTrue(CotabbyTestFixtures.inputEvent(kind: .dismissal).shouldClearSuggestion)
-        XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .acceptance).shouldClearSuggestion)
-        XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .fullAcceptance).shouldClearSuggestion)
-        XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .fullAcceptance).shouldSchedulePrediction)
-        XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .other).shouldClearSuggestion)
+        for expectation in expectations {
+            XCTAssertEqual(
+                RuntimeModelCatalog.displayName(for: expectation.filename),
+                expectation.displayName,
+                expectation.filename
+            )
+        }
     }
 
     func test_runtimeBootstrapState_summaryShowsDetailForEveryNonIdleState() {
         XCTAssertEqual(RuntimeBootstrapState.idle.summary, "Idle")
         XCTAssertEqual(RuntimeBootstrapState.starting("Locating runtime").summary, "Locating runtime")
         XCTAssertEqual(RuntimeBootstrapState.loading("Loading model").summary, "Loading model")
-        XCTAssertEqual(RuntimeBootstrapState.ready("tabby-2-base ready").summary, "tabby-2-base ready")
+        XCTAssertEqual(RuntimeBootstrapState.ready("Cotabby Base ready").summary, "Cotabby Base ready")
         XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").summary, "Missing model file")
     }
 
@@ -300,7 +311,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertNil(RuntimeBootstrapState.idle.failureDetail)
         XCTAssertNil(RuntimeBootstrapState.starting("Locating runtime").failureDetail)
         XCTAssertNil(RuntimeBootstrapState.loading("Loading model").failureDetail)
-        XCTAssertNil(RuntimeBootstrapState.ready("tabby-2-base ready").failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.ready("Cotabby Base ready").failureDetail)
     }
 
     func test_runtimeModelOption_keepsRawFilenameAsIdentityButAliasesDisplayName() {
@@ -311,7 +322,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
 
         XCTAssertEqual(option.id, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
         XCTAssertEqual(option.actualModelName, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
-        XCTAssertEqual(option.displayName, "tabby-2-nano")
+        XCTAssertEqual(option.displayName, "Cotabby Nano")
     }
 
     func test_downloadableRuntimeModel_defaultsLeaveValidationMetadataEmpty() throws {
@@ -331,6 +342,18 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertEqual(model.approximateSizeLabel, "~1.4 GB")
     }
 
+    func test_downloadableRuntimeModel_allKnownFilenamesListsPrimaryBeforeAlternates() throws {
+        let model = DownloadableRuntimeModel(
+            filename: "current.gguf",
+            displayName: "Current",
+            downloadURL: try XCTUnwrap(URL(string: "https://example.com/current.gguf")),
+            approximateSizeInGigabytes: 0.5,
+            alternateFilenames: ["legacy-a.gguf", "legacy-b.gguf"]
+        )
+
+        XCTAssertEqual(model.allKnownFilenames, ["current.gguf", "legacy-a.gguf", "legacy-b.gguf"])
+    }
+
     func test_downloadableModelCatalog_entriesAreUniqueHuggingFaceGGUFDownloads() {
         let models = RuntimeModelCatalog.downloadableModels
 
@@ -344,9 +367,21 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         }
     }
 
+    func test_defaultRuntimeConfiguration_prefersExactlyTheDownloadableCatalog() {
+        // The locator loads the first preferred file that exists. A preferred name missing from the
+        // catalog could never be installed by onboarding, and a catalog model missing from the list
+        // would lose its priority slot to alphabetical discovery.
+        let preferred = LlamaRuntimeConfiguration.default.preferredModelNames
+        let catalog = RuntimeModelCatalog.downloadableModels.map(\.filename)
+
+        XCTAssertEqual(Set(preferred), Set(catalog))
+        XCTAssertEqual(preferred.count, catalog.count, "Preferred names must not contain duplicates")
+    }
+
     func test_llamaGenerationOptions_defaultsKeepMaskingAndSuppressionOff() {
         // Omitting the trailing parameters must reproduce the conservative production defaults:
-        // no line masking, no forced word continuation, suppression disabled, two-token stop floor.
+        // no line masking, no forced word continuation, suppression disabled, two-token stop floor,
+        // and the argmax end-of-generation stop left on.
         let options = LlamaGenerationOptions(
             maxPredictionTokens: 8,
             temperature: 0.1,
@@ -362,6 +397,13 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertFalse(options.forceWordContinuation)
         XCTAssertEqual(options.confidenceFloor, -.infinity)
         XCTAssertEqual(options.sentenceStopMinimumTokens, 2)
+        XCTAssertTrue(options.stopAtArgmaxEOG)
+    }
+
+    func test_llamaRuntimeError_errorDescriptionSurfacesTheUnderlyingMessage() {
+        XCTAssertEqual(LlamaRuntimeError.unavailable("No model").errorDescription, "No model")
+        XCTAssertEqual(LlamaRuntimeError.generationFailed("Decode failed").errorDescription, "Decode failed")
+        XCTAssertEqual(LlamaRuntimeError.cancelled.errorDescription, "Runtime work was cancelled.")
     }
 }
 
@@ -387,162 +429,17 @@ final class GhostTextColorPresetTests: XCTestCase {
             )
         }
     }
-}
 
-final class GhostTextOpacitySettingsTests: XCTestCase {
-    /// Hosted macOS tests crash while deallocating short-lived `SuggestionSettingsModel` instances,
-    /// so we retain them for the process lifetime and drive each test through `MainActor`. This
-    /// mirrors `SuggestionSettingsModelDisabledAppsTests`, which quarantines the same runtime issue.
-    private static var retainedModels: [SuggestionSettingsModel] = []
-
-    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
-
-    override func tearDown() {
-        for suite in userDefaultsSuites {
-            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
+    /// A text field or combo box lays its text out on one line (an HTML input, Chromium's address
+    /// bar, an NSTextField): measured 2026-09-11, a long ghost's second row was drawn under a Chrome
+    /// text input. A text area, or a web area standing in for an editor, may wrap.
+    func test_focusedInputContext_textFieldsAndComboBoxesAreSingleLine() {
+        func context(role: String) -> FocusedInputContext {
+            FocusedInputContext(snapshot: CotabbyTestFixtures.focusedInputSnapshot(role: role), generation: 1)
         }
-        userDefaultsSuites.removeAll()
-        super.tearDown()
-    }
-
-    func test_defaultOpacityIsFullyOpaqueOnFreshInstall() {
-        runOnMainActor {
-            XCTAssertEqual(makeModel().ghostTextOpacity, SuggestionSettingsStore.defaultGhostTextOpacity)
-        }
-    }
-
-    func test_setOpacityClampsBelowMinimumAndAboveMaximum() {
-        runOnMainActor {
-            let model = makeModel()
-
-            model.setGhostTextOpacity(0.0)
-            XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.minimumGhostTextOpacity)
-
-            model.setGhostTextOpacity(5.0)
-            XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.maximumGhostTextOpacity)
-        }
-    }
-
-    func test_opacityPersistsAcrossModelReload() {
-        runOnMainActor {
-            let userDefaults = makeUserDefaults()
-            makeModel(userDefaults: userDefaults).setGhostTextOpacity(0.5)
-
-            XCTAssertEqual(makeModel(userDefaults: userDefaults).ghostTextOpacity, 0.5)
-        }
-    }
-
-    @MainActor
-    private func makeModel(userDefaults: UserDefaults? = nil) -> SuggestionSettingsModel {
-        let model = SuggestionSettingsModel(
-            configuration: .standard,
-            userDefaults: userDefaults ?? makeUserDefaults()
-        )
-        Self.retainedModels.append(model)
-        return model
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "GhostTextOpacitySettingsTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-
-        userDefaults.removePersistentDomain(forName: suiteName)
-        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
-        return userDefaults
-    }
-
-    private func runOnMainActor<Result>(
-        _ body: @MainActor () throws -> Result
-    ) rethrows -> Result {
-        if Thread.isMainThread {
-            return try MainActor.assumeIsolated(body)
-        }
-
-        return try DispatchQueue.main.sync {
-            try MainActor.assumeIsolated(body)
-        }
-    }
-}
-
-final class GhostTextSizeSettingsTests: XCTestCase {
-    /// Same hosted-test deinit quarantine as `GhostTextOpacitySettingsTests`: retain the models for
-    /// the process lifetime and drive each test through `MainActor`.
-    private static var retainedModels: [SuggestionSettingsModel] = []
-
-    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
-
-    override func tearDown() {
-        for suite in userDefaultsSuites {
-            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
-        }
-        userDefaultsSuites.removeAll()
-        super.tearDown()
-    }
-
-    func test_defaultSizeMultiplierIsOneOnFreshInstall() {
-        runOnMainActor {
-            XCTAssertEqual(
-                makeModel().ghostTextSizeMultiplier,
-                SuggestionSettingsStore.defaultGhostTextSizeMultiplier
-            )
-        }
-    }
-
-    func test_setSizeMultiplierClampsBelowMinimumAndAboveMaximum() {
-        runOnMainActor {
-            let model = makeModel()
-
-            model.setGhostTextSizeMultiplier(0.0)
-            XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
-
-            model.setGhostTextSizeMultiplier(5.0)
-            XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
-        }
-    }
-
-    func test_sizeMultiplierPersistsAcrossModelReload() {
-        runOnMainActor {
-            let userDefaults = makeUserDefaults()
-            makeModel(userDefaults: userDefaults).setGhostTextSizeMultiplier(0.8)
-
-            XCTAssertEqual(makeModel(userDefaults: userDefaults).ghostTextSizeMultiplier, 0.8)
-        }
-    }
-
-    @MainActor
-    private func makeModel(userDefaults: UserDefaults? = nil) -> SuggestionSettingsModel {
-        let model = SuggestionSettingsModel(
-            configuration: .standard,
-            userDefaults: userDefaults ?? makeUserDefaults()
-        )
-        Self.retainedModels.append(model)
-        return model
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "GhostTextSizeSettingsTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-
-        userDefaults.removePersistentDomain(forName: suiteName)
-        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
-        return userDefaults
-    }
-
-    private func runOnMainActor<Result>(
-        _ body: @MainActor () throws -> Result
-    ) rethrows -> Result {
-        if Thread.isMainThread {
-            return try MainActor.assumeIsolated(body)
-        }
-
-        return try DispatchQueue.main.sync {
-            try MainActor.assumeIsolated(body)
-        }
+        XCTAssertTrue(context(role: "AXTextField").isSingleLineField)
+        XCTAssertTrue(context(role: "AXComboBox").isSingleLineField)
+        XCTAssertFalse(context(role: "AXTextArea").isSingleLineField)
+        XCTAssertFalse(context(role: "AXWebArea").isSingleLineField)
     }
 }

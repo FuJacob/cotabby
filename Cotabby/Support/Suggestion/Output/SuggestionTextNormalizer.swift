@@ -31,7 +31,6 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case lowConfidence
     /// The request was anchored at a word boundary and the model completed a different word than
     /// the one the user had started (see `WordBoundaryAnchorPolicy`).
-    case wordBoundaryMismatch
     /// Nothing but punctuation or symbols survived: not a continuation the user can use.
     case noWordContent
     /// Closing punctuation offered right after the user typed a space.
@@ -99,16 +98,25 @@ enum SuggestionTextNormalizer {
         normalized = stripLeadingScaffoldingLabels(normalized)
         normalized = normalized.trimmingCharacters(in: .newlines)
 
-        // A word-boundary-anchored request produced a whole word; keep only what the user has not
-        // typed yet, or nothing when the model chose a different word.
-        if let anchor = request.wordBoundaryAnchor {
-            guard let remainder = WordBoundaryAnchorPolicy.remainder(of: normalized, anchor: anchor) else {
-                return SuggestionNormalizationResult(text: "", suppression: .wordBoundaryMismatch)
+        if request.isMultiLineEnabled {
+            // Multi-line mode: keep content up to the first blank-line boundary (double newline)
+            // to prevent runaway paragraph generation while still allowing multi-line completions.
+            if let blankLine = normalized.range(of: "\n\n") {
+                normalized = String(normalized[..<blankLine.lowerBound])
             }
-            normalized = remainder
+            // A leading space can be the only boundary between the existing word and the next
+            // one ("hearing" + " from you"). Trim only the trailing formatting here; the shared
+            // seam handling below removes leading space when the field already supplies it.
+            while let last = normalized.unicodeScalars.last,
+                  CharacterSet.whitespacesAndNewlines.contains(last) {
+                normalized.unicodeScalars.removeLast()
+            }
+        } else {
+            // Single-line mode: only surface the immediate continuation line.
+            if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
+                normalized = String(firstLine)
+            }
         }
-
-        normalized = collapsingLines(normalized, isMultiLineEnabled: request.isMultiLineEnabled)
 
         // If the model starts by repeating text that already exists after the caret, we treat the
         // suggestion as unusable. Showing only the remainder often produces confusing mid-word
@@ -191,22 +199,6 @@ enum SuggestionTextNormalizer {
             normalized.removeFirst(request.prefixText.count)
         }
         return normalized
-    }
-
-    /// Multi-line mode keeps content up to the first blank line so paragraphs cannot run away;
-    /// single-line mode surfaces only the immediate continuation line.
-    private static func collapsingLines(_ text: String, isMultiLineEnabled: Bool) -> String {
-        if isMultiLineEnabled {
-            var normalized = text
-            if let blankLine = normalized.range(of: "\n\n") {
-                normalized = String(normalized[..<blankLine.lowerBound])
-            }
-            return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let firstLine = text.split(separator: "\n", maxSplits: 1).first {
-            return String(firstLine)
-        }
-        return text
     }
 
     /// Names the most specific cause of an empty normalization outcome at the safety gate. The gate

@@ -32,7 +32,9 @@ struct CotabbyApp: App {
                     appDelegate.settingsCoordinator.showSettings()
                 },
                 onReportFeedback: {
-                    guard let baseURL = URL(string: "https://www.cotabby.app/feedback") else {
+                    // Reports belong with this fork's source and releases.
+                    let feedbackURL = "https://github.com/FuJacob/cotabby/issues"
+                    guard let baseURL = URL(string: feedbackURL) else {
                         return
                     }
                     // Attach host details so the landing form can pre-fill the Environment block

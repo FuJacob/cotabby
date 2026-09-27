@@ -25,12 +25,12 @@ final class SuggestionStreamingStateTests: XCTestCase {
         XCTAssertTrue(state.enqueue(result(text: " old"), workID: 1))
 
         state.recordRendered(" old")
-        state.resolveLeadingWordGate(.allowed)
+        state.spellingAssessments["world"] = .known
         state.beginGeneration()
 
         XCTAssertNil(state.renderedText)
         XCTAssertNil(state.pendingPartial)
-        XCTAssertEqual(state.leadingWordGateState, .pending)
+        XCTAssertTrue(state.spellingAssessments.isEmpty)
         XCTAssertTrue(state.isDrainScheduled)
         XCTAssertFalse(state.enqueue(result(text: " new"), workID: 2))
 
@@ -43,13 +43,13 @@ final class SuggestionStreamingStateTests: XCTestCase {
         var state = SuggestionStreamingState()
         state.enqueue(result(text: " pending"), workID: 4)
         state.recordRendered(" pending")
-        state.resolveLeadingWordGate(.suppressed)
+        state.spellingAssessments["wrold"] = .correctableTypo
 
         state.clearSession()
 
         XCTAssertNil(state.renderedText)
         XCTAssertNil(state.pendingPartial)
-        XCTAssertEqual(state.leadingWordGateState, .pending)
+        XCTAssertTrue(state.spellingAssessments.isEmpty)
         XCTAssertTrue(state.isDrainScheduled)
         XCTAssertNil(state.drain())
         XCTAssertFalse(state.isDrainScheduled)
@@ -65,13 +65,56 @@ final class SuggestionStreamingStateTests: XCTestCase {
         XCTAssertFalse(state.canRender(" wild"))
     }
 
-    /// A terminal first-word verdict remains reusable until the next generation resets the state.
-    func test_leadingWordGateCachesATerminalDecisionForTheGeneration() {
+    func test_eachDrainReopensSchedulingForTheNextPartial() throws {
         var state = SuggestionStreamingState()
+        XCTAssertNil(state.drain(), "a drain with nothing pending is harmless")
+        XCTAssertFalse(state.isDrainScheduled)
 
-        XCTAssertEqual(state.leadingWordGateState, .pending)
-        state.resolveLeadingWordGate(.allowed)
-        XCTAssertEqual(state.leadingWordGateState, .allowed)
+        XCTAssertTrue(state.enqueue(result(text: " wor"), workID: 1))
+        let drained = try XCTUnwrap(state.drain())
+        XCTAssertEqual(drained.result.text, " wor")
+        // Once the scheduled callback has run, the next partial needs a fresh drain.
+        XCTAssertTrue(state.enqueue(result(text: " world"), workID: 1))
+        XCTAssertTrue(state.isDrainScheduled)
+    }
+
+    func test_resetRenderedTextRebasesMonotonicityWithoutDroppingPendingWork() {
+        // Typing through the ghost moves the anchor: the remaining tail is shorter than what was
+        // rendered, yet it must be renderable at the new caret.
+        var state = SuggestionStreamingState()
+        state.enqueue(result(text: " world again"), workID: 3)
+        state.recordRendered(" world again")
+        XCTAssertFalse(state.canRender(" again"))
+
+        state.resetRenderedText()
+
+        XCTAssertNil(state.renderedText)
+        XCTAssertTrue(state.canRender(" again"))
+        XCTAssertTrue(state.isDrainScheduled)
+        XCTAssertEqual(state.pendingPartial?.workID, 3)
+        XCTAssertFalse(state.isFinalized)
+    }
+
+    func test_clearSessionRejectsLatePartialsUntilTheNextGeneration() {
+        var state = SuggestionStreamingState()
+        state.clearSession()
+        XCTAssertTrue(state.isFinalized)
+        XCTAssertFalse(state.enqueue(result(text: "late"), workID: 1))
+        XCTAssertNil(state.pendingPartial)
+
+        state.beginGeneration()
+        XCTAssertFalse(state.isFinalized)
+        XCTAssertTrue(state.enqueue(result(text: "fresh"), workID: 2))
+    }
+
+    func testFinalResultRejectsLatePartialsUntilTheNextGeneration() {
+        var state = SuggestionStreamingState()
+        state.enqueue(result(text: "late"), workID: 4)
+        state.finishGeneration()
+        XCTAssertNil(state.drain())
+        XCTAssertFalse(state.enqueue(result(text: "later"), workID: 4))
+        state.beginGeneration()
+        XCTAssertTrue(state.enqueue(result(text: "new"), workID: 5))
     }
 
     private func result(text: String) -> SuggestionResult {

@@ -38,7 +38,7 @@ concurrency:
 env:
   APP_NAME: Cotabby
   DMG_NAME: Cotabby.dmg
-  PROJECT_PATH: Cotabby.xcodeproj
+  WORKSPACE_PATH: build/cotabby-dependencies/Cotabby.xcworkspace
   SCHEME: Cotabby
   CONFIGURATION: Release
   PAGES_CUSTOM_DOMAIN: updates.cotabby.app
@@ -71,7 +71,7 @@ jobs:
       has_sparkle_key: ${{ steps.sparkle-key.outputs.has_key }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
@@ -79,9 +79,12 @@ jobs:
           xcode-version: latest-stable
 
       - name: Select Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+
+      - name: Prepare matching inference dependency
+        run: scripts/prepare_cotabby_workspace.sh
 
       - name: Toolchain info
         run: |
@@ -93,7 +96,9 @@ jobs:
       - name: Resolve Swift package dependencies
         run: |
           xcodebuild \
-            -project "${PROJECT_PATH}" \
+            -workspace "${WORKSPACE_PATH}" \
+            -scheme "${SCHEME}" \
+            -derivedDataPath build/DerivedData \
             -resolvePackageDependencies
 
       - name: Install DMG packaging dependencies
@@ -110,7 +115,7 @@ jobs:
 
           sparkle_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('build/cotabby-dependencies/Cotabby.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('Sparkle not found in Package.resolved', file=sys.stderr)
@@ -308,7 +313,7 @@ jobs:
           # "0.0.1-beta" is kept as-is so users see the full version
           # string including the channel tag.
           xcodebuild archive \
-            -project "${PROJECT_PATH}" \
+            -workspace "${WORKSPACE_PATH}" \
             -scheme "${SCHEME}" \
             -configuration "${CONFIGURATION}" \
             -archivePath "build/${APP_NAME}.xcarchive" \
@@ -430,6 +435,10 @@ jobs:
           path: build/${{ env.APP_NAME }}.xcarchive/
           if-no-files-found: ignore
 
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData
+
   # ---------------------------------------------------------------------------
   # 2. NOTARIZE
   # Downloads the signed DMG, submits to Apple notarization, polls until
@@ -448,7 +457,7 @@ jobs:
 
     steps:
       - name: Download DMG artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: cotabby-dmg
           path: build
@@ -664,15 +673,15 @@ jobs:
       url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
 
       - name: Download notarized DMG
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: cotabby-dmg-notarized
           path: build
@@ -815,7 +824,7 @@ jobs:
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

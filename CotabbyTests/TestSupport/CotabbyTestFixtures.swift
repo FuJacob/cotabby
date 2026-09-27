@@ -185,7 +185,8 @@ enum CotabbyTestFixtures {
         caretQuality: CaretGeometryQuality = .exact,
         isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat? = nil,
-        isRightToLeft: Bool = false
+        isRightToLeft: Bool = false,
+        observedContentEdges: ObservedContentEdges? = nil
     ) -> SuggestionOverlayGeometry {
         SuggestionOverlayGeometry(
             caretRect: caretRect,
@@ -193,7 +194,8 @@ enum CotabbyTestFixtures {
             caretQuality: caretQuality,
             isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
-            isRightToLeft: isRightToLeft
+            isRightToLeft: isRightToLeft,
+            observedContentEdges: observedContentEdges
         )
     }
 
@@ -256,9 +258,12 @@ enum CotabbyTestFixtures {
         debounceMilliseconds: Int = 50,
         focusPollIntervalMilliseconds: Int = 50,
         isMultiLineEnabled: Bool = false,
+        suggestWithinWords: Bool = true,
+        showFollowingWords: Bool = true,
         autoAcceptTrailingPunctuation: Bool = true,
         addSpaceAfterAccept: Bool = false,
         streamSuggestionsWhileGenerating: Bool = false,
+        predictAheadWhileTyping: Bool = true,
         isFastModeEnabled: Bool = false,
         mirrorPreference: MirrorPreference = .auto,
         acceptanceGranularity: AcceptanceGranularity = .word,
@@ -286,9 +291,12 @@ enum CotabbyTestFixtures {
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled,
+            suggestWithinWords: suggestWithinWords,
+            showFollowingWords: showFollowingWords,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             addSpaceAfterAccept: addSpaceAfterAccept,
             streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
+            predictAheadWhileTyping: predictAheadWhileTyping,
             isFastModeEnabled: isFastModeEnabled,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity,

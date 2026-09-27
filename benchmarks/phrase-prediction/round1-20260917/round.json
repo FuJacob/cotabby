@@ -1,0 +1,11 @@
+{
+  "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+  "deadlineUTC": "2026-09-17T11:13:55Z",
+  "model": "build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+  "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+  "nativePatchSHA256": "814a139320af2bcbfb57751508511c4a2f0e62ef8e4f56fbb951fedbf74d4bd5",
+  "nativeRevision": "7574a21516c65fc31f5cf8ef7380a03412eed480",
+  "nativeStatus": " M README.md\n M Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp\n A Sources/CotabbyInferenceEngine/TokenHealing.cpp\n A Sources/CotabbyInferenceEngine/TokenHealing.h\n M Sources/CotabbyInferenceEngine/include/CotabbyInferenceEngine.h\n M Tests/CotabbyInferenceTests/LlamaMiddlewareTests.swift\n A Tests/TokenHealingTests.cpp\n",
+  "rootRevision": "342a76d002b534d13d3a9689768d13fda12f8609",
+  "startUTC": "2026-09-17T05:13:55Z"
+}

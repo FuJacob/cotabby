@@ -89,6 +89,11 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// Width of the ink on the caret's line as the pixel caret saw it; the typeface match trims
     /// the paragraph tail to what fits it. Nil for every other caret.
     let pixelLineInkWidth: CGFloat?
+    /// Where the host actually starts drawing text, when it could be measured. A field's `AXFrame`
+    /// is not its text area — Word publishes the whole page, so its left edge is the paper's edge
+    /// rather than the document's margin. Ghost text that wraps onto another line aligns to this
+    /// instead of the frame, so overflow lines land on the host's margin like its own text does.
+    let observedContentEdges: ObservedContentEdges?
 
     init(
         caretRect: CGRect,
@@ -111,7 +116,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         lineTextBeforeCaret: String? = nil,
         wrappedRun: WrappedRunAnchor? = nil,
         pixelBaselineOffset: CGFloat? = nil,
-        pixelLineInkWidth: CGFloat? = nil
+        pixelLineInkWidth: CGFloat? = nil,
+        observedContentEdges: ObservedContentEdges? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -134,6 +140,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.wrappedRun = wrappedRun
         self.pixelBaselineOffset = pixelBaselineOffset
         self.pixelLineInkWidth = pixelLineInkWidth
+        self.observedContentEdges = observedContentEdges
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -158,7 +165,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             isSingleLineField: isSingleLineField,
             elementFrameRect: elementFrameRect,
             lineTextBeforeCaret: lineTextBeforeCaret,
-            wrappedRun: wrappedRun
+            wrappedRun: wrappedRun,
+            observedContentEdges: observedContentEdges
         )
     }
 
@@ -195,7 +203,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             lineTextBeforeCaret: lineTextBeforeCaret,
             wrappedRun: wrappedRun,
             pixelBaselineOffset: baselineOffsetFromTop,
-            pixelLineInkWidth: lineInkWidth
+            pixelLineInkWidth: lineInkWidth,
+            observedContentEdges: observedContentEdges
         )
     }
 }

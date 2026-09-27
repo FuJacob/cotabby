@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import XCTest
 @testable import Cotabby
@@ -11,7 +10,8 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
     func test_streamingGeneration_forwardsNormalizedCumulativePartials() async throws {
         let runtime = StreamingFakeRuntime()
-        runtime.partialRawTexts = [" wor", " world ag"]
+        // The empty first partial normalizes to nothing and must be withheld, not forwarded.
+        runtime.partialRawTexts = ["", " wor", " world ag"]
         runtime.finalText = " world again"
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
 
@@ -25,7 +25,6 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
         XCTAssertEqual(result.rawText, " world again")
         XCTAssertEqual(partials.map(\.rawText), [" wor", " world ag"])
-        XCTAssertFalse(partials.contains { $0.text.isEmpty }, "Empty normalizations must be withheld, not forwarded.")
         XCTAssertEqual(partials.map(\.generation), [1, 1], "Partials must carry the request generation for stale guards.")
     }
 
@@ -37,7 +36,6 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
         _ = try await engine.generateSuggestion(for: makeRequest(prompt: "Hello"))
 
-        try await drainUntil { true }
         XCTAssertEqual(runtime.streamingCallCount, 0, "The single-shot entry point must use the non-streaming runtime path.")
     }
 
@@ -52,46 +50,7 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
     }
 
     private func makeRequest(prompt: String) -> SuggestionRequest {
-        let snapshot = FocusedInputSnapshot(
-            applicationName: "TestApp",
-            bundleIdentifier: "com.example.TestApp",
-            processIdentifier: 123,
-            elementIdentifier: "field",
-            role: "AXTextField",
-            subrole: nil,
-            caretRect: .zero,
-            inputFrameRect: nil,
-            caretSource: "test",
-            caretQuality: .exact,
-            observedCharWidth: nil,
-            precedingText: prompt,
-            trailingText: "",
-            selection: NSRange(location: prompt.count, length: 0),
-            isSecure: false
-        )
-        let context = FocusedInputContext(snapshot: snapshot, generation: 1)
-
-        return SuggestionRequest(
-            context: context,
-            prefixText: prompt,
-            prompt: prompt,
-            generation: context.generation,
-            maxPredictionTokens: 8,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
-            maxSuffixCharacters: 192,
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: [],
-            languageInstruction: nil,
-            clipboardContext: nil,
-            visualContextSummary: nil,
-            isMultiLineEnabled: false
-        )
+        CotabbyTestFixtures.suggestionRequest(prefixText: prompt, prompt: prompt)
     }
 }
 

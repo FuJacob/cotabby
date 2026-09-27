@@ -98,6 +98,11 @@ final class OverlayController: SuggestionOverlayControlling {
     private let faceMemoryDefaults: UserDefaults?
     static let faceMemoryDefaultsKey = "cotabbyHostFaceMemory"
 
+    /// `"<bundle id>|<font name>"` pairs already handed to `HostFontRegistry`, so a font the host
+    /// bundle does not contain is looked up once rather than on every render. Grows only with the
+    /// number of distinct unresolvable fonts actually encountered, which is small.
+    private var requestedHostFonts: Set<String> = []
+
     init(
         suggestionSettings: SuggestionSettingsModel,
         renderModePolicyOverride: CompletionRenderModePolicy? = nil,
@@ -541,7 +546,83 @@ final class OverlayController: SuggestionOverlayControlling {
             zoomKind: zoomStep(for: geometry).kind
         )
         let sized = applyingHostAdvance(matched, for: geometry)
-        return rememberingHostFace(sized.resolution, advanceMeasured: sized.advanceMeasured, for: geometry)
+        let remembered = rememberingHostFace(sized.resolution, advanceMeasured: sized.advanceMeasured, for: geometry)
+        requestHostFontIfNeeded(for: geometry)
+        return applyingUserSizeLimits(remembered)
+    }
+
+    /// The user's ghost-size floor and ceiling (Settings → Appearance → Ghost Text Size Limits) are
+    /// absolute bounds over whatever the host resolution produced: they say what the user is willing
+    /// to read, so a host that reports 6pt or a runaway caret estimate cannot override them. The face
+    /// and provenance stay as resolved; only the size moves, and `HostFaceMemory` above already
+    /// recorded the unclamped host size so the field's own measurement is not polluted by the limit.
+    private func applyingUserSizeLimits(_ resolution: GhostFontResolver.Resolution) -> GhostFontResolver.Resolution {
+        let clamped = GhostFontSizeLimits.clamped(
+            resolution.font.pointSize,
+            floor: CGFloat(suggestionSettings.ghostFontSizeFloor),
+            ceiling: CGFloat(suggestionSettings.ghostFontSizeCeiling)
+        )
+        guard abs(clamped - resolution.font.pointSize) > 0.01 else { return resolution }
+        return GhostFontResolver.Resolution(
+            font: GhostFontResolver.resized(resolution.font, to: clamped),
+            provenance: resolution.provenance,
+            widthAgreement: resolution.widthAgreement
+        )
+    }
+
+    /// Asks `HostFontRegistry` to load a face the host names but this process cannot instantiate.
+    /// Hosts that ship private fonts (Word's Aptos and Calibri live in its bundle and are installed
+    /// nowhere on the system) would otherwise render ghost text in a stand-in face forever.
+    /// Registration is deliberately not awaited: it does disk I/O that must not block a render, so
+    /// the current frame keeps the stand-in and the redraw below picks up the now-resolvable font.
+    /// Only hosts on `HostFontRegistry`'s allowlist ever reach the registry, which also verifies the
+    /// host's code signature before parsing anything: a focused app controls both the font name it
+    /// reports and the files in its bundle, so any other app keeps the stand-in.
+    private func requestHostFontIfNeeded(for geometry: SuggestionOverlayGeometry) {
+        guard let name = geometry.resolvedFieldStyle?.fontName,
+              GhostFontResolver.font(named: name, size: 12) == nil,
+              let bundleIdentifier = geometry.bundleIdentifier,
+              HostFontRegistry.isTrustedHost(bundleIdentifier: bundleIdentifier)
+        else { return }
+        // Ask at most once per (host, font) pair: this runs on every keystroke, so without the set a
+        // typeface that genuinely is not in the host's bundle would spawn a throwaway Task per render.
+        let requestKey = "\(bundleIdentifier)|\(name)"
+        guard !requestedHostFonts.contains(requestKey),
+              let bundleURL = runningHostBundleURL(for: bundleIdentifier)
+        else { return }
+        requestedHostFonts.insert(requestKey)
+        Task { [weak self] in
+            let registered = await HostFontRegistry.shared.ensureFontAvailable(
+                named: name, bundleIdentifier: bundleIdentifier, bundleURL: bundleURL
+            )
+            guard registered else { return }
+            self?.redrawInlineAfterFontRegistration(fontName: name)
+        }
+    }
+
+    /// The bundle the running host was launched from. Read from the process rather than looked up
+    /// by identifier through LaunchServices, which can name a different copy of the app than the
+    /// one the user is typing into. The focused field belongs to the frontmost app, so that instance
+    /// wins when several share the identifier.
+    private func runningHostBundleURL(for bundleIdentifier: String) -> URL? {
+        if let frontmost = NSWorkspace.shared.frontmostApplication, frontmost.bundleIdentifier == bundleIdentifier {
+            return frontmost.bundleURL
+        }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first?.bundleURL
+    }
+
+    /// Re-renders a visible inline suggestion once a host font finishes registering. A suggestion
+    /// that arrived complete (no streaming, no further keystrokes) is drawn once in the stand-in
+    /// and would otherwise stay that way until an unrelated later render. Guarded on the font
+    /// actually resolving now, so a registration that reported success but left the name unusable
+    /// cannot cause a pointless redraw loop.
+    private func redrawInlineAfterFontRegistration(fontName: String) {
+        guard case .visible(let text, let geometry, let mode) = state,
+              mode == .inline,
+              geometry.resolvedFieldStyle?.fontName == fontName,
+              GhostFontResolver.font(named: fontName, size: 12) != nil
+        else { return }
+        _ = showInline(text: text, geometry: geometry)
     }
 
     /// A pixel-matched face in a web field that reports no size, or a single-line field's stand-in

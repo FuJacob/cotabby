@@ -56,32 +56,81 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
         XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", topK: 40)))
     }
 
+    func test_cacheHint_invalidatesWhenProcessChanges() {
+        var tracker = LlamaPromptCacheHintTracker()
+        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", processIdentifier: 100))
+
+        XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", processIdentifier: 200)))
+    }
+
+    /// A mismatch forgets the recorded prompt entirely, so returning to the original field cannot
+    /// advertise reuse of a native sequence that the other field's generation has since replaced.
+    func test_cacheHint_mismatchForgetsTheRecordedPrompt() {
+        var tracker = LlamaPromptCacheHintTracker()
+        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", elementIdentifier: "field-a"))
+
+        XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello", elementIdentifier: "field-b")))
+        XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", elementIdentifier: "field-a")))
+    }
+
+    func test_cacheHint_resetForgetsTheRecordedPrompt() {
+        var tracker = LlamaPromptCacheHintTracker()
+        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello"))
+        tracker.reset()
+
+        XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!")))
+    }
+
+    func test_cacheHint_toleratesSubPointInputFrameJitter() {
+        var tracker = LlamaPromptCacheHintTracker()
+        tracker.recordSuccessfulRequest(
+            makeRequest(prompt: "hello", inputFrameRect: CGRect(x: 10.2, y: 20.4, width: 300.3, height: 44.1))
+        )
+
+        XCTAssertEqual(
+            tracker.cachedPrefixBytes(
+                for: makeRequest(prompt: "hello!", inputFrameRect: CGRect(x: 9.8, y: 19.6, width: 299.7, height: 43.9))
+            ),
+            5
+        )
+    }
+
+    /// The hint is a UTF-8 byte count of the shared prefix: zero (not nil) when nothing is shared,
+    /// bounded by the shorter prompt, and counted in bytes for multi-byte characters.
+    func test_cacheHint_countsSharedUTF8PrefixBytes() {
+        let cases: [(recorded: String, next: String, expected: Int)] = [
+            ("hello", "world", 0),
+            ("hello world", "hello", 5),
+            ("café", "café au lait", "café".utf8.count),
+            ("naïve", "naive", 2)
+        ]
+
+        for testCase in cases {
+            var tracker = LlamaPromptCacheHintTracker()
+            tracker.recordSuccessfulRequest(makeRequest(prompt: testCase.recorded))
+            XCTAssertEqual(
+                tracker.cachedPrefixBytes(for: makeRequest(prompt: testCase.next)),
+                testCase.expected,
+                "\(testCase.recorded) -> \(testCase.next)"
+            )
+        }
+    }
+
     // MARK: - helpers
 
     private func makeRequest(
         prompt: String,
         elementIdentifier: String = "field",
+        processIdentifier: Int32 = 123,
         topK: Int = 20,
         inputFrameRect: CGRect? = nil
     ) -> SuggestionRequest {
-        let snapshot = FocusedInputSnapshot(
-            applicationName: "TestApp",
-            bundleIdentifier: "com.example.TestApp",
-            processIdentifier: 123,
+        let context = CotabbyTestFixtures.focusedInputContext(
+            processIdentifier: processIdentifier,
             elementIdentifier: elementIdentifier,
-            role: "AXTextField",
-            subrole: nil,
-            caretRect: .zero,
             inputFrameRect: inputFrameRect,
-            caretSource: "test",
-            caretQuality: .exact,
-            observedCharWidth: nil,
-            precedingText: prompt,
-            trailingText: "",
-            selection: NSRange(location: prompt.count, length: 0),
-            isSecure: false
+            precedingText: prompt
         )
-        let context = FocusedInputContext(snapshot: snapshot, generation: 1)
 
         return SuggestionRequest(
             context: context,

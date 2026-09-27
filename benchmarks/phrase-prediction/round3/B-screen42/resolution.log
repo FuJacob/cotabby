@@ -1,0 +1,13 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -workspace /Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/CotabbyDevelopment.xcworkspace -scheme Cotabby -configuration Release -destination platform=macOS -derivedDataPath /Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/DerivedData -skipPackageUpdates
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  CotabbyInference: /Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabbyinference
+  swift-log: https://github.com/apple/swift-log.git @ 1.15.1
+  LaunchAtLogin: https://github.com/sindresorhus/LaunchAtLogin-Modern @ 1.1.0
+  Sparkle: https://github.com/sparkle-project/Sparkle @ 2.9.1
+
+resolved source packages: CotabbyInference, swift-log, LaunchAtLogin, Sparkle

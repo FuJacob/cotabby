@@ -34,7 +34,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Same Xcode pin policy as the Build workflow. Drift between these two
       # would let a test-only cert mismatch turn into spooky green-red
@@ -43,6 +43,9 @@ jobs:
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
+
+      - name: Prepare matching inference dependency
+        run: scripts/prepare_cotabby_workspace.sh
 
       - name: Toolchain info
         run: |
@@ -53,14 +56,22 @@ jobs:
       # and the test bundle's project settings already mirror this. Without
       # it, xcodebuild would refuse to embed the test xctest bundle into the
       # host app's Contents/PlugIns for loading.
+      - name: Test Python tooling
+        run: python3 -m unittest discover -s scripts/tests
+
       - name: Run tests
         # FoundationModelDriftEvalTests is excluded here: it drives the real on-device Apple
         # Intelligence model (absent on CI runners) and is non-deterministic. It self-skips via
         # RUN_FM_EVAL too, but skipping it explicitly keeps the CI intent visible.
         run: |
           xcodebuild test \
-            -project Cotabby.xcodeproj \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
             -scheme Cotabby \
             -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
             -skip-testing:CotabbyTests/FoundationModelDriftEvalTests \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData

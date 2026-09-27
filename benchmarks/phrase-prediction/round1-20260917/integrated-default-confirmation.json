@@ -1,0 +1,133 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/scripts/phrase_eval.py",
+    "run",
+    "--model",
+    "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+    "--workspace",
+    "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/CotabbyDevelopment.xcworkspace",
+    "--output",
+    "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-default42",
+    "--label",
+    "integration-default42",
+    "--split",
+    "all",
+    "--screen-per-category",
+    "20",
+    "--split-seed",
+    "1337",
+    "--workers",
+    "3",
+    "--context",
+    "paired",
+    "--mode",
+    "word"
+  ],
+  "compilerInputs": {
+    "nonLockSourceSHA256": "1914e768b88135ec9db11be96f8314c78376a10e0c94d7253192716b1bf398f1",
+    "packageLocks": {
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "e395714caede082253af0599a2ff23c3dd75cc742145d9cefdabcdf5feaf0433",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/CotabbyDevelopment.xcworkspace/xcshareddata/swiftpm/Package.resolved": "50b7bba3dd55c15bee85eb0a38d6970428107361095b7ee2e2a465ce9584a3a7",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabbyinference/Package.resolved": null
+    },
+    "sourceSHA256": "01aae86ddc456bbc5e1cd2285abaa8a1fd7b1bfbc9fdf56588373f738f9d70d9"
+  },
+  "completion": {
+    "build": {
+      "productSHA256": "91cef434fa13e5f264e81e4d7931f1aed0adf9632c98f4db6a813c11b640ce15",
+      "reused": false,
+      "sourceSHA256": "01aae86ddc456bbc5e1cd2285abaa8a1fd7b1bfbc9fdf56588373f738f9d70d9",
+      "xctestrun": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun"
+    },
+    "checkpointsPerCondition": 7437,
+    "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+    "errorCount": 0,
+    "manifest": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-default42/manifest.json",
+    "manifestSHA256": "12eac52d9581243b4d7aa3bfac8d9fe8eaf8c7c0925760e9754caf351e932fa7",
+    "manifestSamplingOverrides": {},
+    "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+    "phraseCountPerCondition": 1337,
+    "report": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-default42/report.json",
+    "reportSHA256": "15546c7b5c2f289794078cbc54c71b813d8523a01250e1e635df6784d6e3822e",
+    "samplingDefaults": {
+      "minP": 0.08,
+      "repetitionPenalty": 1.025,
+      "temperature": 0.1,
+      "topK": 20,
+      "topP": 0.7
+    },
+    "scores": {
+      "none": {
+        "accuracy": 0.3100712652951459,
+        "checkpoints": 7437,
+        "correct": 2306,
+        "coverage": 0.9997310743579401,
+        "errors": 0,
+        "latencyP50Milliseconds": 148.948083,
+        "latencyP95Milliseconds": 418.146666,
+        "precisionWhenShown": 0.3101546738399462,
+        "shown": 7435
+      },
+      "screen": {
+        "accuracy": 0.37501680785262875,
+        "checkpoints": 7437,
+        "correct": 2789,
+        "coverage": 0.99986553717897,
+        "errors": 0,
+        "latencyP50Milliseconds": 120.76,
+        "latencyP95Milliseconds": 300.7275,
+        "precisionWhenShown": 0.37506724045185585,
+        "shown": 7436
+      }
+    },
+    "seed": 42
+  },
+  "elapsedSeconds": 809.6375360488892,
+  "estimatedSeconds": 1000,
+  "execution": {
+    "derivedData": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/DerivedData",
+    "model": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+    "root": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby",
+    "workspace": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/CotabbyDevelopment.xcworkspace"
+  },
+  "expectedBenchmarkSeed": 42,
+  "expectedManifestSamplingOverrides": {},
+  "expectedSamplingDefaults": {
+    "minP": 0.08,
+    "repetitionPenalty": 1.025,
+    "temperature": 0.1,
+    "topK": 20,
+    "topP": 0.7
+  },
+  "finishedUTC": "2026-09-17T10:38:18.495384+00:00",
+  "label": "integration-default42",
+  "mainCheckoutModified": false,
+  "paired": false,
+  "plan": {
+    "context": "paired",
+    "mode": "word",
+    "screenPerCategory": 20,
+    "split": "all",
+    "splitSeed": 1337,
+    "workers": 3
+  },
+  "purpose": "Unpaired descriptive confirmation of integrated candidate sampling defaults; no paired gain or selection claim.",
+  "registeredUTC": "2026-09-17T10:24:48.223855+00:00",
+  "remainingSecondsAtRegistration": 2946.776167869568,
+  "requestedSamplingOverrides": {},
+  "reservedSeconds": 600,
+  "seedMeaning": "No --seed flag; Swift benchmark fallback is 42. Product nil seed delegates to native 12648430.",
+  "snapshotManifestSHA256": "c3e52495a4bdf0f933ae9a4e2f3aa22c772519f32f139ae3169dfab98a006fb9",
+  "sourceAfter": {
+    "sourceSHA256": "f4dc3ffb4aacfd2039ee6c4e4a2de558e2be9818986e8e5a893be2da8426035c",
+    "stage": "candidate",
+    "verifiedFiles": 625
+  },
+  "sourceBefore": {
+    "sourceSHA256": "f4dc3ffb4aacfd2039ee6c4e4a2de558e2be9818986e8e5a893be2da8426035c",
+    "stage": "candidate",
+    "verifiedFiles": 625
+  },
+  "status": "complete"
+}

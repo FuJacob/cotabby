@@ -123,6 +123,22 @@ final class DeviceInfoTests: XCTestCase {
         XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
     }
 
+    func test_appending_keepsExistingQueryWhenSnapshotAddsNothing() {
+        let snapshot = DeviceInfo.Snapshot(appVersion: nil, macosVersion: "", model: nil, chip: nil, memoryGB: nil)
+        let baseWithQuery = URL(string: "https://cotabby.app/feedback?source=menu")!
+
+        XCTAssertEqual(snapshot.appending(to: baseWithQuery), baseWithQuery)
+    }
+
+    func test_appending_preservesFragmentAfterTheQuery() {
+        let snapshot = DeviceInfo.Snapshot(appVersion: "1.0", macosVersion: nil, model: nil, chip: nil, memoryGB: nil)
+        let baseWithFragment = URL(string: "https://cotabby.app/feedback#form")!
+
+        let url = snapshot.appending(to: baseWithFragment)
+
+        XCTAssertEqual(url.absoluteString, "https://cotabby.app/feedback?appVersion=1.0#form")
+    }
+
     func test_appending_percentEncodesValuesLosslessly() {
         let snapshot = DeviceInfo.Snapshot(
             appVersion: nil,

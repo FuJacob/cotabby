@@ -94,17 +94,19 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// Maps installed model filenames to presentation names. Rebranding these labels never changes
+/// download URLs, model files, or the filenames persisted by the settings model.
 enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":
-            return "tabby-2-nano"
+            return "Cotabby Nano"
         case "Qwen3.5-2B-Base.i1-Q4_K_M.gguf":
-            return "tabby-2-mini"
+            return "Cotabby Mini"
         case "gemma-4-E2B.i1-Q6_K.gguf":
-            return "tabby-2-base"
+            return "Cotabby Base"
         case "gemma-4-E4B.i1-Q4_K_M.gguf":
-            return "tabby-2-pro"
+            return "Cotabby Pro"
         default:
             return filename
         }
@@ -190,11 +192,6 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     var singleLine: Bool = false
     /// Constrains the first generated token to continue the current word (mid-word carets only).
     var forceWordContinuation: Bool = false
-    /// Bytes the completion must begin with: for a request anchored at a word boundary, the
-    /// boundary whitespace plus the letters the user has typed of the current word. The engine masks
-    /// every token inconsistent with them until they are produced, so the model finishes the word
-    /// the user started from a prompt whose last token is a whole word (see `WordBoundaryAnchorPolicy`).
-    var requiredPrefix: String?
 
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.

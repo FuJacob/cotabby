@@ -170,6 +170,49 @@ enum AXHelper {
         return rect
     }
 
+    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is an
+    /// integer — `AXLineForIndex` (character offset -> visual line number) is the only current use.
+    ///
+    /// Kept separate from the range-parameterized readers because the parameter is a `CFNumber`
+    /// rather than an `AXValue`, which is a different bridging shape at this unsafe boundary.
+    static func parameterizedIntValue(
+        for attribute: CFString,
+        index: Int,
+        on element: AXUIElement
+    ) -> Int? {
+        let parameter = index as CFNumber
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let number = value as? NSNumber else {
+            return nil
+        }
+
+        return number.intValue
+    }
+
+    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is a
+    /// range — `AXRangeForLine` (visual line number -> character range) is the current use.
+    static func parameterizedRangeValue(
+        for attribute: CFString,
+        index: Int,
+        on element: AXUIElement
+    ) -> NSRange? {
+        let parameter = index as CFNumber
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let axValue = axValue(from: value) else { return nil }
+        guard AXValueGetType(axValue) == .cfRange else {
+            return nil
+        }
+
+        var range = CFRange()
+        guard AXValueGetValue(axValue, .cfRange, &range) else {
+            return nil
+        }
+
+        return NSRange(location: range.location, length: range.length)
+    }
+
     /// Reads a parameterized rectangle attribute such as `AXBoundsForRange`.
     static func parameterizedRectValue(
         for attribute: CFString,
@@ -319,6 +362,52 @@ enum AXHelper {
         return nil
     }
 
+    /// Picks the font face name to render with out of an `AXFont` dictionary, preferring the
+    /// specific face but falling back to the family when the two contradict each other.
+    ///
+    /// The dictionary carries up to four keys, and hosts do not agree on which are trustworthy:
+    /// `AXFontName` (conventionally the PostScript name, so the most specific — it encodes weight
+    /// and slant), `AXFontFamily`, and `AXVisibleName` (the name shown in the host's own font
+    /// picker). Reading `AXFontName` alone is right for well-behaved hosts and wrong for Microsoft
+    /// Word, which publishes a fixed placeholder there while reporting the truth beside it:
+    ///
+    ///     AXFont = {AXFontFamily: Aptos, AXFontName: Helvetica, AXFontSize: 12, AXVisibleName: Aptos}
+    ///
+    /// The document above is Aptos; only `AXFontName` says Helvetica. Note the placeholder resolves
+    /// through `NSFont(name:)` perfectly well, so "does this name load?" cannot detect it — the
+    /// contradiction with the reported family is the only available signal.
+    ///
+    /// Resolution order:
+    /// 1. No family reported: nothing to cross-check, take `AXFontName` as before.
+    /// 2. The face's own family matches the reported family: the face is the more specific truth,
+    ///    so keep it (this is what preserves "Aptos-Bold" rather than flattening to "Aptos").
+    /// 3. The face name is a variant of the family by name (`Aptos-Bold` under `Aptos`): keep it.
+    ///    Checked separately because a font the system has not loaded yet cannot be instantiated —
+    ///    exactly the case for a host's privately bundled fonts before `HostFontRegistry` runs.
+    /// 4. Otherwise the face contradicts the family: trust the family.
+    ///
+    /// Internal (not private) so the selection rule is unit-testable without live AX elements,
+    /// matching `AXTextGeometryResolver`'s testable pure helpers.
+    static func faceName(fromAXFontDictionary fontInfo: [String: Any]) -> String? {
+        let faceName = (fontInfo["AXFontName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let familyName = ["AXFontFamily", "AXVisibleName"]
+            .lazy
+            .compactMap { fontInfo[$0] as? String }
+            .first { !$0.isEmpty }
+
+        guard let familyName else { return faceName }
+        guard let faceName else { return familyName }
+
+        // Size is irrelevant here; the instance exists only to read the face's declared family.
+        if let font = NSFont(name: faceName, size: 12), font.familyName == familyName {
+            return faceName
+        }
+        if faceName == familyName || faceName.hasPrefix(familyName) {
+            return faceName
+        }
+        return familyName
+    }
+
     /// Extracts a `ResolvedFieldStyle` from one character's attributes, handling both the AppKit
     /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
     private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
@@ -330,9 +419,11 @@ enum AXHelper {
             fontFamily = font.familyName
             fontPointSize = font.pointSize
         } else if let fontInfo = attributes[NSAttributedString.Key("AXFont")] as? [String: Any] {
-            // AppKit hosts vend name, family, and size. Chromium vends only the size (its inline
+            // AppKit hosts vend name, family, and size; Chromium vends only the size (its inline
             // text boxes carry no face), which is still the single most useful fact for matching.
-            fontName = fontInfo["AXFontName"] as? String
+            // The name goes through `faceName(fromAXFontDictionary:)`: Word reports a fixed
+            // "Helvetica" placeholder under `AXFontName` while `AXFontFamily` names the real face.
+            fontName = faceName(fromAXFontDictionary: fontInfo)
             fontFamily = fontInfo["AXFontFamily"] as? String
             if let size = fontInfo["AXFontSize"] as? NSNumber {
                 fontPointSize = CGFloat(size.doubleValue)
@@ -406,8 +497,9 @@ enum AXHelper {
     private static let selectedTextMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
     private static let startTextMarkerAttribute = "AXStartTextMarker" as CFString
     private static let endTextMarkerAttribute = "AXEndTextMarker" as CFString
+    /// Chromium answers this range-splitting query; WebKit does not advertise it, so
+    /// `startMarker(of:on:attributes:)` reads the range object locally there instead.
     private static let startMarkerForRangeAttribute = "AXStartTextMarkerForTextMarkerRange" as CFString
-    private static let endMarkerForRangeAttribute = "AXEndTextMarkerForTextMarkerRange" as CFString
     private static let markerRangeForMarkersAttribute = "AXTextMarkerRangeForUnorderedTextMarkers" as CFString
     private static let stringForMarkerRangeAttribute = "AXStringForTextMarkerRange" as CFString
     private static let lineRangeForMarkerAttribute = "AXLineTextMarkerRangeForTextMarker" as CFString
@@ -578,15 +670,16 @@ enum AXHelper {
     }
 
     /// The first marker of an opaque range: through the element's own query when it advertises one,
-    /// else HIServices' splitter, the path `synthesizeMarkerSelection` takes for the same hosts
-    /// (measured 2026-09-10: Chrome's contenteditable answered no `AXStartTextMarkerForTextMarkerRange`,
-    /// so the line box never formed until this fallback).
+    /// else read locally from the range object (`textMarkerEndpoints`), the path
+    /// `synthesizeMarkerSelection` takes for the same hosts (measured 2026-09-10: Chrome's
+    /// contenteditable answered no `AXStartTextMarkerForTextMarkerRange`, so the line box never
+    /// formed until this fallback).
     private static func startMarker(of range: CFTypeRef, on element: AXUIElement, attributes: Set<String>) -> CFTypeRef? {
         if attributes.contains(startMarkerForRangeAttribute as String),
            let start = copyOpaqueParameterized(startMarkerForRangeAttribute, parameter: range, on: element) {
             return start
         }
-        return MarkerRangeSplitter.startMarker(of: range)
+        return textMarkerEndpoints(from: range).map { $0.start as CFTypeRef }
     }
 
     /// The box `AXBoundsForTextMarkerRange` gives for an opaque marker range, when it is a real one.
@@ -686,17 +779,12 @@ enum AXHelper {
     /// opaque `CFTypeRef`: never inspected, never cached across ticks or threads.
     static func synthesizeMarkerSelection(
         on element: AXUIElement,
-        parameterizedAttributes: Set<String>
+        parameterizedAttributes: Set<String>,
+        normalizeNonBreakingSpaces: Bool = false
     ) -> MarkerSelection? {
         // Guard on advertised parameterized attributes so apps without marker support degrade to
-        // nil instead of issuing doomed cross-process AX calls on every poll. Chromium advertises
-        // the two range-splitting queries; WebKit's web areas answer them with
-        // kAXErrorParameterizedAttributeUnsupported (Mail's compose body, measured 2026-09-10) and
-        // are split with HIServices' own functions instead (`MarkerRangeSplitter`).
-        let splitsRangesItself = parameterizedAttributes.contains(startMarkerForRangeAttribute as String)
-            && parameterizedAttributes.contains(endMarkerForRangeAttribute as String)
-        guard splitsRangesItself || MarkerRangeSplitter.isAvailable,
-            parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
+        // nil instead of issuing doomed cross-process AX calls on every poll.
+        guard parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
             parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
         else {
             return nil
@@ -704,28 +792,14 @@ enum AXHelper {
 
         guard let selectionRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
             let documentStart = copyOpaqueAttribute(startTextMarkerAttribute, on: element),
-            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element)
+            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element),
+            let endpoints = textMarkerEndpoints(from: selectionRange)
         else {
             return nil
         }
-        let selectionStart: CFTypeRef
-        let selectionEnd: CFTypeRef
-        if splitsRangesItself,
-            let start = copyOpaqueParameterized(startMarkerForRangeAttribute, parameter: selectionRange, on: element),
-            let end = copyOpaqueParameterized(endMarkerForRangeAttribute, parameter: selectionRange, on: element) {
-            selectionStart = start
-            selectionEnd = end
-        } else if let start = MarkerRangeSplitter.startMarker(of: selectionRange),
-            let end = MarkerRangeSplitter.endMarker(of: selectionRange) {
-            selectionStart = start
-            selectionEnd = end
-        } else {
-            return nil
-        }
-
         // Before-caret text is required: its length is the caret offset. An empty-but-present
         // result (caret at document start) is valid; a failed query is not.
-        guard let preRange = markerRange(from: documentStart, to: selectionStart, on: element),
+        guard let preRange = markerRange(from: documentStart, to: endpoints.start, on: element),
             let beforeText = stringForMarkerRange(preRange, on: element)
         else {
             return nil
@@ -735,13 +809,28 @@ enum AXHelper {
 
         // After-caret context is nice-to-have, not required for offset correctness.
         var afterText = ""
-        if let postRange = markerRange(from: selectionEnd, to: documentEnd, on: element),
+        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element),
             let trailing = stringForMarkerRange(postRange, on: element) {
             afterText = trailing
         }
 
         return MarkerSelectionSynthesizer.make(
-            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText)
+            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText,
+            normalizeNonBreakingSpaces: normalizeNonBreakingSpaces
+        )
+    }
+
+    /// Reads endpoints locally from the opaque CF range returned by the host. WebKit (including
+    /// Mail) does not advertise Chromium's AXStart/EndTextMarkerForTextMarkerRange queries, so
+    /// requiring those queries rejects valid selections before any text can be read.
+    ///
+    /// The type check protects the CF cast from malformed host replies. The Copy functions are
+    /// imported with ARC ownership: the returned markers live through this poll and are released
+    /// automatically. Their host-specific bytes are never interpreted or retained across polls.
+    static func textMarkerEndpoints(from value: CFTypeRef) -> (start: AXTextMarker, end: AXTextMarker)? {
+        guard CFGetTypeID(value) == AXTextMarkerRangeGetTypeID() else { return nil }
+        let range = unsafeBitCast(value, to: AXTextMarkerRange.self)
+        return (AXTextMarkerRangeCopyStartMarker(range), AXTextMarkerRangeCopyEndMarker(range))
     }
 
     /// Builds an `AXTextMarkerRange` spanning two markers via `AXTextMarkerRangeForUnorderedTextMarkers`.
@@ -958,7 +1047,7 @@ enum AXHelper {
     /// `kAXWindowAttribute` directly on any descendant element; when that misses, nil is returned
     /// rather than walking the tree, so the read stays a single bounded round-trip on the focus
     /// path. Used for surface conditioning (the title carries the email subject, document name,
-    /// channel, or page title) and cached per field session by the caller.
+    /// channel, or page title) and to detect navigation before reusing context.
     static func windowTitle(near element: AXUIElement) -> String? {
         guard let value = copyAttributeValue(kAXWindowAttribute as CFString, on: element) else {
             return nil
@@ -971,7 +1060,7 @@ enum AXHelper {
         return stringValue(for: kAXTitleAttribute as CFString, on: window)
     }
 
-    /// Best-effort, fail-safe read of the web page URL near `element`, used only for per-site rules.
+    /// Best-effort read of the page URL for local navigation identity and per-site rules.
     /// Browsers expose `kAXURLAttribute` on the web area or window rather than the focused field, so
     /// this walks up a bounded number of ancestors. It returns nil on any miss (non-browser focus, an
     /// app that does not expose the attribute, or the climb running out), so a failed read degrades to
@@ -1102,8 +1191,22 @@ enum AXHelper {
     }
 
     /// A strong editability signal is what separates a real input target from display text that merely exposes AX metadata.
-    static func hasStrongEditabilitySignal(role: String, explicitEditableFlag: Bool?) -> Bool {
+    static func hasStrongEditabilitySignal(
+        role: String, explicitEditableFlag: Bool?, isValueSettable: Bool = false
+    ) -> Bool {
+        // Mail's WebKit composer can expose a writable AXWebArea without AXEditable.
+        // A web area alone is not evidence: received messages and browser documents use the
+        // same role. Require a writable value, and never override an explicit read-only flag.
         explicitEditableFlag == true || isKnownEditableRole(role)
+            || (role == "AXWebArea" && explicitEditableFlag == nil && isValueSettable)
+    }
+
+    /// Queries capability only; this never writes the host's text. AX errors fail closed so an
+    /// unavailable or read-only web document cannot become an autocomplete insertion target.
+    static func isValueSettable(on element: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success
+            && settable.boolValue
     }
 
     static func isKnownEditableRole(_ role: String) -> Bool {
@@ -1263,43 +1366,5 @@ enum AXHelper {
             width: rect.width,
             height: rect.height
         )
-    }
-}
-
-/// File-local bridge to two HIServices functions that split an `AXTextMarkerRange` into its
-/// markers: `AXTextMarkerRangeCopyStartMarker` and `AXTextMarkerRangeCopyEndMarker`. They ship in
-/// HIServices (VoiceOver uses them) but are not in the public headers, so they are resolved once
-/// with `dlsym` and called through C function types.
-///
-/// Why: WebKit's editable web areas (Mail's compose body) vend the selection only as a marker
-/// range and refuse the parameterized attributes that would split it, while Chromium answers
-/// them. Without the split there is no before-caret text and no caret offset, and the resolver
-/// falls back to whichever header field happens to be capable. The returned markers are +1
-/// retained CF objects (the Copy rule) and are handed straight back to other marker queries; they
-/// are never inspected. On a system without the symbols `isAvailable` is false and the synthesis
-/// declines exactly as it did before.
-enum MarkerRangeSplitter {
-    private typealias CopyMarker = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
-
-    private static let copyStart: CopyMarker? = load("AXTextMarkerRangeCopyStartMarker")
-    private static let copyEnd: CopyMarker? = load("AXTextMarkerRangeCopyEndMarker")
-
-    static var isAvailable: Bool { copyStart != nil && copyEnd != nil }
-
-    static func startMarker(of range: CFTypeRef) -> CFTypeRef? {
-        copyStart?(range)?.takeRetainedValue()
-    }
-
-    static func endMarker(of range: CFTypeRef) -> CFTypeRef? {
-        copyEnd?(range)?.takeRetainedValue()
-    }
-
-    /// `dlsym` against the whole process image: HIServices is already loaded through
-    /// ApplicationServices, so no `dlopen` is needed. `unsafeBitCast` reinterprets the raw symbol
-    /// address as the C function type; that is the standard (and only) way to call an unexported
-    /// C function from Swift.
-    private static func load(_ name: String) -> CopyMarker? {
-        guard let handle = dlopen(nil, RTLD_NOW), let symbol = dlsym(handle, name) else { return nil }
-        return unsafeBitCast(symbol, to: CopyMarker.self)
     }
 }

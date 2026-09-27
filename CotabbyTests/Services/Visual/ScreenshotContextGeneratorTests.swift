@@ -2,21 +2,41 @@ import CoreGraphics
 import XCTest
 @testable import Cotabby
 
+/// Tests for the screenshot -> OCR -> bounded-excerpt pipeline in `ScreenshotContextGenerator`.
+///
+/// Capture and Vision are replaced by in-file doubles, so these cases pin the generator's own
+/// policy: privacy profile selection, OCR hygiene and bounding, the pixel-hash extraction cache,
+/// the window-title fallback, and how capture/OCR failures are classified.
 @MainActor
 final class ScreenshotContextGeneratorTests: XCTestCase {
+    private static let meaningfulLine =
+        "GeneralPaneView.swift should say Screen Recording is required for autocomplete context"
+
+    // MARK: - Privacy profile and bounding
+
+    func test_localProfileCapturesFullWindowAndDoesNotReuseLowerResolutionEndpointOCR() async throws {
+        let lines = (0..<80).map { OCRTextHygiene.OCRLine(text: "Project agenda item \($0)", confidence: 1) }
+        let extractor = CountingTextExtractor(extracted: extracted(lines))
+        let capture = RecordingScreenshotCapture(image: makeImage())
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
+
+        let endpoint = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
+        let local = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
+
+        XCTAssertEqual(capture.fullWindowRequests, [false, true, true])
+        // The cache is keyed on configuration too: the endpoint crop's OCR never serves `.local`.
+        XCTAssertEqual(extractor.extractionCount, 2)
+        XCTAssertLessThanOrEqual(endpoint.text.count, 1500)
+        XCTAssertFalse(endpoint.text.contains("item 79"))
+        XCTAssertTrue(local.text.contains("item 79"))
+        XCTAssertLessThanOrEqual(local.text.count, 4000)
+    }
+
     func test_generateContext_ocrTextIsCappedAndSanitized() async throws {
-        let configuration = VisualContextConfiguration(
-            snapshotDimension: 700,
-            maxImageDimension: 1600,
-            minRecognizedCharacterCount: 12,
-            maxRecognizedCharacters: 500,
-            maxSummaryCharacters: 60
-        )
+        let configuration = makeConfiguration(maxSummaryCharacters: 60)
         let generator = makeGenerator(
-            extractedText: """
-            gLVWrt bDokE 54tbdbDX
-            GeneralPaneView.swift should say Screen Recording is required for autocomplete context
-            """,
+            extracted: extracted(text: "gLVWrt bDokE 54tbdbDX\n\(Self.meaningfulLine)"),
             configuration: configuration
         )
 
@@ -28,102 +48,21 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         XCTAssertTrue(excerpt.text.contains("GeneralPaneView.swift"))
     }
 
-    func test_generateContext_allNoiseOCRReturnsUnavailable() async throws {
-        let generator = makeGenerator(extractedText: "gLVWrt bDokE 54tbdbDX\n50 424 102 99")
+    func test_generateContext_allNoiseOCRReturnsUnavailable() async {
+        let generator = makeGenerator(extracted: extracted(text: "gLVWrt bDokE 54tbdbDX\n50 424 102 99"))
 
-        do {
-            _ = try await generator.generateContext(for: makeSnapshot())
-            XCTFail("Expected all-noise OCR to be unavailable.")
-        } catch let error as ScreenshotContextGenerationError {
-            XCTAssertTrue(error.localizedDescription.contains("not contain enough visible text"))
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
-    }
-
-    private func makeGenerator(
-        extractedText: String,
-        configuration: VisualContextConfiguration = .default
-    ) -> ScreenshotContextGenerator {
-        // Mirror the real extractor: split into per-line OCR with a confidence above the hygiene
-        // threshold, so these cases keep exercising the non-confidence filters exactly as before.
-        let lines = extractedText
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map { OCRTextHygiene.OCRLine(text: String($0), confidence: 0.9) }
-        return makeGenerator(
-            extracted: ExtractedScreenText(text: extractedText, lineCount: lines.count, lines: lines),
-            configuration: configuration
-        )
-    }
-
-    private func makeGenerator(
-        lines: [OCRTextHygiene.OCRLine],
-        configuration: VisualContextConfiguration = .default
-    ) -> ScreenshotContextGenerator {
-        let joined = lines.map(\.text).joined(separator: "\n")
-        return makeGenerator(
-            extracted: ExtractedScreenText(text: joined, lineCount: lines.count, lines: lines),
-            configuration: configuration
-        )
-    }
-
-    private func makeGenerator(
-        extracted: ExtractedScreenText,
-        configuration: VisualContextConfiguration
-    ) -> ScreenshotContextGenerator {
-        ScreenshotContextGenerator(
-            screenshotService: StubScreenshotCapture(
-                screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: nil)
-            ),
-            textExtractor: StubTextExtractor(result: .success(extracted)),
-            configuration: configuration
-        )
-    }
-
-    func test_generateContext_reusesExtractionForIdenticalPixels() async throws {
-        let line = "GeneralPaneView.swift should say Screen Recording is required for autocomplete context"
-        let extractor = CountingTextExtractor(
-            extracted: ExtractedScreenText(
-                text: line,
-                lineCount: 1,
-                lines: [OCRTextHygiene.OCRLine(text: line, confidence: 0.9)]
-            )
-        )
-        let generator = ScreenshotContextGenerator(
-            screenshotService: StubScreenshotCapture(
-                screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: nil)
-            ),
-            textExtractor: extractor,
-            configuration: .default
-        )
-
-        let first = try await generator.generateContext(for: makeSnapshot())
-        let second = try await generator.generateContext(for: makeSnapshot())
-
-        XCTAssertEqual(
-            extractor.extractionCount,
-            1,
-            "Re-capturing pixel-identical content must reuse the extraction instead of re-running Vision."
-        )
-        XCTAssertEqual(first.text, second.text, "A cache hit must produce the same excerpt as a fresh OCR.")
+        await assertUnavailable(generator, containing: "not contain enough visible text")
     }
 
     func test_generateContext_dropsLowConfidenceOCRLines() async throws {
         // A clean, plausible sentence at low confidence must be dropped even though no other hygiene
-        // filter would catch it, proving real per-line Vision confidence now reaches the hygiene pass.
-        let configuration = VisualContextConfiguration(
-            snapshotDimension: 700,
-            maxImageDimension: 1600,
-            minRecognizedCharacterCount: 12,
-            maxRecognizedCharacters: 500,
-            maxSummaryCharacters: 200
-        )
+        // filter would catch it, proving real per-line Vision confidence reaches the hygiene pass.
         let generator = makeGenerator(
-            lines: [
+            extracted: extracted([
                 OCRTextHygiene.OCRLine(text: "The quarterly report is due on Friday afternoon.", confidence: 0.2),
                 OCRTextHygiene.OCRLine(text: "Please review the attached budget spreadsheet carefully.", confidence: 0.95)
-            ],
-            configuration: configuration
+            ]),
+            configuration: makeConfiguration(maxSummaryCharacters: 200)
         )
 
         let excerpt = try await generator.generateContext(for: makeSnapshot())
@@ -132,20 +71,65 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         XCTAssertTrue(excerpt.text.contains("budget spreadsheet"))
     }
 
-    // MARK: - OCR-empty fallback to the window title
+    func test_generateContext_reportsCapturingThenExtractingStatus() async throws {
+        let generator = makeGenerator(extracted: extracted(text: Self.meaningfulLine))
+        let recorder = StatusRecorder()
 
-    private func makeGenerator(
-        extractionError: Error,
-        windowTitle: String?
-    ) -> ScreenshotContextGenerator {
-        ScreenshotContextGenerator(
-            screenshotService: StubScreenshotCapture(
-                screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: windowTitle)
-            ),
-            textExtractor: StubTextExtractor(result: .failure(extractionError)),
+        _ = try await generator.generateContext(
+            for: makeSnapshot(),
+            configuration: nil,
+            onStatusChange: { recorder.statuses.append($0) }
+        )
+
+        // `.ready` is the coordinator's transition to publish, not the generator's.
+        XCTAssertEqual(recorder.statuses, [.capturing, .extractingText])
+    }
+
+    // MARK: - Extraction cache
+
+    func test_generateContext_reusesExtractionForIdenticalPixels() async throws {
+        let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
+        let generator = ScreenshotContextGenerator(
+            screenshotService: RecordingScreenshotCapture(image: makeImage()),
+            textExtractor: extractor,
             configuration: .default
         )
+
+        let first = try await generator.generateContext(for: makeSnapshot())
+        let second = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertEqual(extractor.extractionCount, 1, "Pixel-identical recaptures must skip the Vision pass.")
+        XCTAssertEqual(first.text, second.text, "A cache hit must produce the same excerpt as a fresh OCR.")
     }
+
+    func test_generateContext_cacheHoldsTheFourMostRecentCrops() async throws {
+        let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
+        let capture = RecordingScreenshotCapture(image: makeImage())
+        let generator = ScreenshotContextGenerator(
+            screenshotService: capture,
+            textExtractor: extractor,
+            configuration: .default
+        )
+
+        // Width is mixed into the pixel hash, so each width is a distinct cache key.
+        func generate(width: Int) async throws {
+            capture.image = makeImage(width: width)
+            _ = try await generator.generateContext(for: makeSnapshot())
+        }
+
+        for width in 1...5 {
+            try await generate(width: width)
+        }
+        XCTAssertEqual(extractor.extractionCount, 5, "Distinct pixels always miss")
+
+        try await generate(width: 1)
+        XCTAssertEqual(extractor.extractionCount, 6, "The oldest crop was evicted by the fifth entry")
+
+        try await generate(width: 5)
+        XCTAssertEqual(extractor.extractionCount, 6, "Recent crops stay cached")
+    }
+
+    // MARK: - OCR-empty fallback to the window title
 
     func test_generateContext_noRecognizedTextFallsBackToTheWindowTitle() async throws {
         // A screenshot of an image-heavy window can OCR to nothing while its title still names
@@ -160,103 +144,182 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         XCTAssertTrue(excerpt.text.contains("Quarterly budget review"))
     }
 
-    func test_generateContext_noRecognizedTextWithoutATitleIsUnavailable() async {
-        let generator = makeGenerator(
-            extractionError: ScreenTextExtractionError.noRecognizedText,
-            windowTitle: nil
-        )
+    func test_generateContext_noRecognizedTextWithoutAUsableTitleIsUnavailable() async {
+        // A missing title and a title with no meaningful signal (window chrome noise) must both
+        // give up rather than promote junk to prompt context.
+        for windowTitle in [nil, "x1 9z"] as [String?] {
+            let generator = makeGenerator(
+                extractionError: ScreenTextExtractionError.noRecognizedText,
+                windowTitle: windowTitle
+            )
 
-        do {
-            _ = try await generator.generateContext(for: makeSnapshot())
-            XCTFail("Expected unavailable")
-        } catch let error as ScreenshotContextGenerationError {
-            XCTAssertTrue(error.localizedDescription.contains("not contain enough visible text"))
-        } catch {
-            XCTFail("Unexpected error: \(error)")
+            await assertUnavailable(generator, containing: "not contain enough visible text")
         }
     }
 
-    func test_generateContext_noRecognizedTextWithAJunkTitleIsUnavailable() async {
-        // A title with no meaningful signal (window chrome noise) must not be promoted to prompt
-        // context just because OCR came up empty.
-        let generator = makeGenerator(
-            extractionError: ScreenTextExtractionError.noRecognizedText,
-            windowTitle: "x1 9z"
-        )
+    // MARK: - Error classification
 
-        do {
-            _ = try await generator.generateContext(for: makeSnapshot())
-            XCTFail("Expected unavailable")
-        } catch is ScreenshotContextGenerationError {
-            // Expected: the junk title fails the meaningful-signal gate.
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+    func test_generateContext_ocrFailureSurfacesAsUnavailableWithItsDescription() async {
+        let generator = makeGenerator(extractionError: ScreenTextExtractionError.ocrFailed("boom"), windowTitle: nil)
+
+        await assertUnavailable(generator, containing: "Screenshot OCR failed: boom")
     }
 
     func test_generateContext_unexpectedExtractionErrorSurfacesAsFailed() async {
         struct VisionExploded: Error {}
         let generator = makeGenerator(extractionError: VisionExploded(), windowTitle: nil)
 
+        await assertFailed(generator)
+    }
+
+    func test_generateContext_screenshotErrorSurfacesAsUnavailableAndSkipsOCR() async {
+        let capture = RecordingScreenshotCapture(image: makeImage())
+        capture.error = WindowScreenshotError.screenRecordingPermissionMissing
+        let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
+
+        await assertUnavailable(generator, containing: "Screen Recording permission is required")
+        XCTAssertEqual(extractor.extractionCount, 0)
+    }
+
+    func test_generateContext_unexpectedCaptureErrorSurfacesAsFailed() async {
+        struct CaptureExploded: Error {}
+        let capture = RecordingScreenshotCapture(image: makeImage())
+        capture.error = CaptureExploded()
+        let generator = ScreenshotContextGenerator(
+            screenshotService: capture,
+            textExtractor: CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
+        )
+
+        await assertFailed(generator)
+    }
+
+    // MARK: - Helpers
+
+    private func makeConfiguration(maxSummaryCharacters: Int) -> VisualContextConfiguration {
+        VisualContextConfiguration(
+            snapshotDimension: 700,
+            maxImageDimension: 1600,
+            minRecognizedCharacterCount: 12,
+            maxRecognizedCharacters: 500,
+            maxSummaryCharacters: maxSummaryCharacters
+        )
+    }
+
+    private func extracted(_ lines: [OCRTextHygiene.OCRLine]) -> ExtractedScreenText {
+        ExtractedScreenText(text: lines.map(\.text).joined(separator: "\n"), lineCount: lines.count, lines: lines)
+    }
+
+    /// Mirrors the real extractor: one OCR line per text line, with a confidence above the hygiene
+    /// threshold so these cases exercise the non-confidence filters.
+    private func extracted(text: String) -> ExtractedScreenText {
+        extracted(
+            text.split(separator: "\n", omittingEmptySubsequences: true)
+                .map { OCRTextHygiene.OCRLine(text: String($0), confidence: 0.9) }
+        )
+    }
+
+    private func makeGenerator(
+        extracted: ExtractedScreenText,
+        configuration: VisualContextConfiguration = .default
+    ) -> ScreenshotContextGenerator {
+        ScreenshotContextGenerator(
+            screenshotService: RecordingScreenshotCapture(image: makeImage()),
+            textExtractor: StubTextExtractor(result: .success(extracted)),
+            configuration: configuration
+        )
+    }
+
+    private func makeGenerator(extractionError: Error, windowTitle: String?) -> ScreenshotContextGenerator {
+        ScreenshotContextGenerator(
+            screenshotService: RecordingScreenshotCapture(image: makeImage(), windowTitle: windowTitle),
+            textExtractor: StubTextExtractor(result: .failure(extractionError)),
+            configuration: .default
+        )
+    }
+
+    private func assertUnavailable(
+        _ generator: ScreenshotContextGenerator,
+        containing expectedMessage: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
         do {
             _ = try await generator.generateContext(for: makeSnapshot())
-            XCTFail("Expected failure")
-        } catch let error as ScreenshotContextGenerationError {
-            if case .failed = error {
-                // Non-extraction errors keep their distinct "failed" classification.
-            } else {
-                XCTFail("Expected .failed, got \(error)")
-            }
+            XCTFail("Expected unavailable", file: file, line: line)
+        } catch ScreenshotContextGenerationError.unavailable(let message) {
+            XCTAssertTrue(message.contains(expectedMessage), "Got: \(message)", file: file, line: line)
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            XCTFail("Expected .unavailable, got \(error)", file: file, line: line)
+        }
+    }
+
+    private func assertFailed(
+        _ generator: ScreenshotContextGenerator,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await generator.generateContext(for: makeSnapshot())
+            XCTFail("Expected failure", file: file, line: line)
+        } catch ScreenshotContextGenerationError.failed {
+            // Errors outside the capture/OCR vocabularies keep their distinct "failed" classification.
+        } catch {
+            XCTFail("Expected .failed, got \(error)", file: file, line: line)
         }
     }
 
     private func makeSnapshot() -> FocusedInputSnapshot {
-        FocusedInputSnapshot(
+        CotabbyTestFixtures.focusedInputSnapshot(
             applicationName: "Xcode",
             bundleIdentifier: "com.apple.dt.Xcode",
-            processIdentifier: 123,
             elementIdentifier: "test-field",
             role: "AXTextArea",
-            subrole: nil,
             caretRect: CGRect(x: 140, y: 420, width: 2, height: 18),
             inputFrameRect: CGRect(x: 100, y: 380, width: 600, height: 120),
-            caretSource: "test",
-            caretQuality: .exact,
-            observedCharWidth: nil,
-            precedingText: "Screen Recording",
-            trailingText: "",
-            selection: NSRange(location: 16, length: 0),
-            isSecure: false
+            precedingText: "Screen Recording"
         )
     }
 
-    private func makeImage() -> CGImage {
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
+    private func makeImage(width: Int = 1) -> CGImage {
         let context = CGContext(
             data: nil,
-            width: 1,
+            width: width,
             height: 1,
             bitsPerComponent: 8,
-            bytesPerRow: 4,
-            space: colorSpace,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         context.setFillColor(CGColor(gray: 1, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: 1))
         return context.makeImage()!
     }
 }
 
-private struct StubScreenshotCapture: WindowScreenshotCapturing {
-    let screenshot: CapturedWindowScreenshot
+/// Serves a configurable screenshot (or error) and records which capture profile was requested.
+@MainActor
+private final class RecordingScreenshotCapture: WindowScreenshotCapturing {
+    var image: CGImage
+    let windowTitle: String?
+    var error: Error?
+    private(set) var fullWindowRequests: [Bool] = []
+
+    init(image: CGImage, windowTitle: String? = nil) {
+        self.image = image
+        self.windowTitle = windowTitle
+    }
 
     func captureSnapshot(
         around context: FocusedInputSnapshot,
-        snapshotDimension: Int
+        snapshotDimension: Int,
+        capturesEntireWindow: Bool
     ) async throws -> CapturedWindowScreenshot {
-        screenshot
+        fullWindowRequests.append(capturesEntireWindow)
+        if let error {
+            throw error
+        }
+        return CapturedWindowScreenshot(image: image, windowTitle: windowTitle)
     }
 }
 
@@ -292,4 +355,9 @@ private struct StubTextExtractor: ScreenTextExtracting {
             throw error
         }
     }
+}
+
+@MainActor
+private final class StatusRecorder {
+    var statuses: [VisualContextStatus] = []
 }

@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Optimistic type-through: a direct keystroke that matches the predicted tail advances the session
+/// before AX publishes it, while divergent, control, or correction input never does.
 final class SuggestionSessionTypingTests: XCTestCase {
     func test_advanceIfTypedCharactersMatch_advancesMatchingDirectText() {
         let session = CotabbyTestFixtures.activeSession(fullText: " world again")
@@ -37,11 +38,106 @@ final class SuggestionSessionTypingTests: XCTestCase {
         XCTAssertNil(advanced)
     }
 
+    func test_advanceIfTypedCharactersMatch_rejectsControlCharactersEvenWhenTheyMatchTheTail() {
+        // Tab and Return have editor-specific meanings (focus change, submit), so a matching control
+        // key still has to go through regeneration rather than optimistic advancement.
+        let session = CotabbyTestFixtures.activeSession(fullText: "\tindented")
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("\t", session: session))
+    }
+
+    func test_advanceIfTypedCharactersMatch_advancesByUserCharactersAndCanExhaust() throws {
+        let session = CotabbyTestFixtures.activeSession(fullText: " 🐈 cat")
+
+        let afterEmoji = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(" 🐈", session: session))
+        XCTAssertEqual(afterEmoji.consumedCharacterCount, 2)
+        XCTAssertEqual(afterEmoji.remainingText, " cat")
+        XCTAssertFalse(afterEmoji.isExhausted)
+
+        let exhausted = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(" cat", session: afterEmoji))
+        XCTAssertTrue(exhausted.isExhausted)
+        XCTAssertEqual(exhausted.remainingText, "")
+        XCTAssertNil(
+            SuggestionSessionReconciler.advanceIfTypedCharactersMatch("s", session: exhausted),
+            "typing past the prediction is divergence, not advancement"
+        )
+    }
+
     func test_advanceIfTypedCharactersMatch_returnsNilForEmptyInput() {
         // An empty capture is not a text mutation; advancing by zero would silently re-validate a
         // session that no key event actually confirmed.
         let session = CotabbyTestFixtures.activeSession(fullText: " world again")
 
         XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("", session: session))
+    }
+
+    func test_advanceIfTypedCharactersMatch_neverConsumesACorrection() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Please recieve "),
+            fullText: "receive",
+            latency: 0,
+            kind: .correction(typoWord: "recieve")
+        )
+
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("r", session: session))
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("receive", session: session))
+    }
+
+    func test_typedTextCanCrossTheInitialVisibleBoundaryWithoutDiscardingFollowingWords() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Make a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            "beam for", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, " the device")
+        XCTAssertEqual(advanced.consumedCharacterCount, 8)
+        XCTAssertFalse(advanced.isExhausted)
+    }
+
+    func test_typingThroughOneWordRevealsOnlyTheNextWordInOneWordMode() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            " hello ", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, "world")
+        XCTAssertEqual(advanced.predictedRemainingText, "world again")
+    }
+
+    func testMailTrailingSpaceRewriteKeepsTypedSuggestionTailAlive() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            fullText: " world again", latency: 0
+        )
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            " ", session: session
+        ))
+        // First Mail publishes the space as NBSP; typing the next word rewrites it to ASCII.
+        // Both snapshots must reconcile against the original anchor and consumed tail.
+        for (hostPrefix, expectedTail) in [("Hello\u{00A0}", "world again"), ("Hello world", " again")] {
+            let capture = MarkerSelectionSynthesizer.make(
+                beforeCaret: hostPrefix, selected: "", afterCaret: "",
+                normalizeNonBreakingSpaces: true
+            )
+            let live = CotabbyTestFixtures.focusedInputContext(precedingText: capture.text)
+            let result = SuggestionSessionReconciler.reconcile(
+                session: advanced, with: live, pendingInsertionConsumedCount: nil
+            )
+            guard case let .valid(reconciled, _, _) = result else {
+                return XCTFail("Mail's space representation invalidated the suggestion: \(result)")
+            }
+            XCTAssertEqual(reconciled.remainingText, expectedTail)
+        }
     }
 }

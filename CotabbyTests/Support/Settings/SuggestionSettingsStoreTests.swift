@@ -16,6 +16,52 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // @MainActor test blocks the main actor while the host app is still doing its own main-actor
     // startup, which can crash the native runtime. Yielding cooperatively avoids that.
 
+    func test_predictAheadPreservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        XCTAssertTrue(store.load(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
+
+        store.savePredictAheadWhileTyping(false)
+        XCTAssertFalse(store.load(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
+    }
+
+    // MARK: - Suggestion timing
+
+    func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(store.load(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, true)
+
+        store.saveSuggestWithinWords(false)
+        XCTAssertFalse(store.load(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, true)
+    }
+
+    func test_showFollowingWords_preservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(store.load(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, true)
+
+        store.saveShowFollowingWords(false)
+        XCTAssertFalse(store.load(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, true)
+    }
+
     // MARK: - Word-count preset migration (#475)
 
     func test_load_migratesRetiredShortPresetToFourToSeven() async {
@@ -84,6 +130,19 @@ final class SuggestionSettingsStoreTests: XCTestCase {
             data.focusPollIntervalMilliseconds,
             SuggestionConfiguration.standard.focusPollIntervalMilliseconds
         )
+    }
+
+    /// Below the shipped default, persisted timings are honored down to a 10 ms floor so a corrupt
+    /// value cannot turn debounce or focus polling into a busy loop.
+    func test_load_floorsPersistedDebounceAndFocusPollAtTenMilliseconds() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(1, forKey: "cotabbyDebounceMilliseconds")
+        defaults.set(-5, forKey: "cotabbyFocusPollIntervalMilliseconds")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.debounceMilliseconds, 10)
+        XCTAssertEqual(data.focusPollIntervalMilliseconds, 10)
     }
 
     // MARK: - Keybinding defaults
@@ -298,17 +357,6 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         )
     }
 
-    func test_clampedFadeInDuration_nonFiniteFallsBackToDefault() async {
-        XCTAssertEqual(
-            SuggestionSettingsStore.clampedFadeInDuration(.nan),
-            SuggestionSettingsStore.defaultFadeInDuration
-        )
-        XCTAssertEqual(
-            SuggestionSettingsStore.clampedFadeInDuration(.infinity),
-            SuggestionSettingsStore.defaultFadeInDuration
-        )
-    }
-
     func test_saveThenLoad_roundTripsAcceptanceKey() async {
         let defaults = makeIsolatedDefaults()
         let store = SuggestionSettingsStore(userDefaults: defaults)
@@ -509,27 +557,91 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertNil(SuggestionSettingsStore.normalizedHexString("GGGGGG"), "Non-hex characters must be rejected")
     }
 
-    // MARK: - Clamp guards for non-finite values
+    // MARK: - Clamp guards
 
-    func test_clampedGhostTextOpacity_nonFiniteFallsBackToDefault() async {
-        XCTAssertEqual(
-            SuggestionSettingsStore.clampedGhostTextOpacity(.nan),
-            SuggestionSettingsStore.defaultGhostTextOpacity
-        )
-        XCTAssertEqual(
-            SuggestionSettingsStore.clampedGhostTextOpacity(.infinity),
-            SuggestionSettingsStore.defaultGhostTextOpacity
-        )
+    /// Every presentation clamp pins out-of-range values to its own bounds, passes in-range values
+    /// through, and maps non-finite input (a corrupt or hand-edited default) to the shipped default
+    /// rather than to a bound, so NaN can never reach layout.
+    func test_clampFunctions_boundFiniteValuesAndDefaultNonFinite() async {
+        typealias Store = SuggestionSettingsStore
+        let clamps: [(name: String, clamp: @MainActor (Double) -> Double, min: Double, max: Double, fallback: Double)] = [
+            ("opacity", Store.clampedGhostTextOpacity,
+             Store.minimumGhostTextOpacity, Store.maximumGhostTextOpacity, Store.defaultGhostTextOpacity),
+            ("size multiplier", Store.clampedGhostTextSizeMultiplier,
+             Store.minimumGhostTextSizeMultiplier, Store.maximumGhostTextSizeMultiplier, Store.defaultGhostTextSizeMultiplier),
+            ("font floor", Store.clampedGhostFontSizeFloor,
+             Store.minimumGhostFontSizeFloor, Store.maximumGhostFontSizeFloor, Store.defaultGhostFontSizeFloor),
+            ("font ceiling", Store.clampedGhostFontSizeCeiling,
+             Store.minimumGhostFontSizeCeiling, Store.maximumGhostFontSizeCeiling, Store.defaultGhostFontSizeCeiling),
+            ("fade duration", Store.clampedFadeInDuration,
+             Store.minimumFadeInDuration, Store.maximumFadeInDuration, Store.defaultFadeInDuration)
+        ]
+        for entry in clamps {
+            XCTAssertEqual(entry.clamp(entry.min - 100), entry.min, entry.name)
+            XCTAssertEqual(entry.clamp(entry.max + 100), entry.max, entry.name)
+            let midpoint = (entry.min + entry.max) / 2
+            XCTAssertEqual(entry.clamp(midpoint), midpoint, entry.name)
+            for nonFinite in [Double.nan, .infinity, -.infinity] {
+                XCTAssertEqual(entry.clamp(nonFinite), entry.fallback, "\(entry.name) \(nonFinite)")
+            }
+        }
     }
 
-    func test_clampedGhostTextSizeMultiplier_nonFiniteFallsBackToDefault() async {
+    // MARK: - Ghost font size bounds
+
+    /// The floor and ceiling are stored under separate keys, so each is clamped to its own range
+    /// and an inverted pair (a crash between the two writes) is repaired by raising the ceiling to
+    /// the floor instead of letting the ceiling silently win at render time.
+    func test_load_resolvesGhostFontSizeBounds() async {
+        let cases: [(floor: Double?, ceiling: Double?, expectedFloor: Double, expectedCeiling: Double)] = [
+            (nil, nil, 11, 48),      // unset: shipped defaults
+            (2, 500, 9, 96),         // each clamped to its own range
+            (20, 30, 20, 30),        // valid pair passes through
+            (24, 16, 24, 24)         // inverted pair: ceiling raised to the floor
+        ]
+        for testCase in cases {
+            let defaults = makeIsolatedDefaults()
+            if let floor = testCase.floor { defaults.set(floor, forKey: "cotabbyGhostFontSizeFloor") }
+            if let ceiling = testCase.ceiling { defaults.set(ceiling, forKey: "cotabbyGhostFontSizeCeiling") }
+
+            let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+            let label = "floor \(String(describing: testCase.floor)) ceiling \(String(describing: testCase.ceiling))"
+            XCTAssertEqual(data.ghostFontSizeFloor, testCase.expectedFloor, label)
+            XCTAssertEqual(data.ghostFontSizeCeiling, testCase.expectedCeiling, label)
+        }
+    }
+
+    // MARK: - Extended context and display names
+
+    /// Extended context is capped at the advertised maximum but never trimmed: the editor writes
+    /// back on every keystroke, so trimming would eat a space the user is in the middle of typing.
+    func test_normalizedExtendedContext_capsLengthWithoutTrimming() async {
+        let maximum = SuggestionSettingsStore.maximumExtendedContextCharacters
+        let atCap = String(repeating: "a", count: maximum)
+        XCTAssertEqual(SuggestionSettingsStore.normalizedExtendedContext(atCap), atCap)
+        XCTAssertEqual(SuggestionSettingsStore.normalizedExtendedContext(atCap + "b"), atCap)
+        XCTAssertEqual(SuggestionSettingsStore.normalizedExtendedContext("  word  "), "  word  ")
+    }
+
+    func test_load_capsPersistedExtendedContext() async {
+        let defaults = makeIsolatedDefaults()
+        let maximum = SuggestionSettingsStore.maximumExtendedContextCharacters
+        defaults.set(String(repeating: "x", count: maximum + 300), forKey: "cotabbyExtendedContext")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.extendedContext, String(repeating: "x", count: maximum))
+    }
+
+    func test_normalizedDisplayName_trimsAndFallsBackToBundleIdentifier() async {
         XCTAssertEqual(
-            SuggestionSettingsStore.clampedGhostTextSizeMultiplier(.nan),
-            SuggestionSettingsStore.defaultGhostTextSizeMultiplier
+            SuggestionSettingsStore.normalizedDisplayName("  Mail \n", fallbackBundleIdentifier: "com.apple.mail"),
+            "Mail"
         )
         XCTAssertEqual(
-            SuggestionSettingsStore.clampedGhostTextSizeMultiplier(-.infinity),
-            SuggestionSettingsStore.defaultGhostTextSizeMultiplier
+            SuggestionSettingsStore.normalizedDisplayName(" \t ", fallbackBundleIdentifier: "com.apple.mail"),
+            "com.apple.mail"
         )
     }
 
@@ -644,6 +756,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveAutoAcceptTrailingPunctuation(false)
         store.saveAddSpaceAfterAccept(true)
         store.saveStreamSuggestionsWhileGenerating(true)
+        store.savePredictAheadWhileTyping(false)
         store.saveFadeInSuggestions(false)
         store.saveFadeInDurationSeconds(0.25)
         store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")

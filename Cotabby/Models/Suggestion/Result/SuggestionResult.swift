@@ -20,7 +20,9 @@ struct SuggestionResult: Equatable, Sendable {
     /// decides from the characters on either side instead.
     let spacingIsExact: Bool
 
-    init(
+    // This immutable Sendable value is also constructed by pure candidate-reconciliation rules.
+    // Construction needs no UI actor; engine delivery and presentation remain main-actor owned.
+    nonisolated init(
         generation: UInt64,
         rawText: String,
         text: String,

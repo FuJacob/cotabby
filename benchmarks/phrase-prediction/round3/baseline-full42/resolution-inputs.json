@@ -1,0 +1,21 @@
+{
+  "before": {
+    "sourceSHA256": "73a5b07bc6f43a31c485d82f8e447424e241e00bb6b7422ccaf7ccdcafbec7a9",
+    "nonLockSourceSHA256": "310fc97e73613c7034dd5c2cd5e36399010a43359d1e344d4f96e40d6e54a12e",
+    "packageLocks": {
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "e395714caede082253af0599a2ff23c3dd75cc742145d9cefdabcdf5feaf0433",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/CotabbyDevelopment.xcworkspace/xcshareddata/swiftpm/Package.resolved": "50b7bba3dd55c15bee85eb0a38d6970428107361095b7ee2e2a465ce9584a3a7",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabbyinference/Package.resolved": null
+    }
+  },
+  "status": "resolved",
+  "after": {
+    "sourceSHA256": "73a5b07bc6f43a31c485d82f8e447424e241e00bb6b7422ccaf7ccdcafbec7a9",
+    "nonLockSourceSHA256": "310fc97e73613c7034dd5c2cd5e36399010a43359d1e344d4f96e40d6e54a12e",
+    "packageLocks": {
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "e395714caede082253af0599a2ff23c3dd75cc742145d9cefdabcdf5feaf0433",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/CotabbyDevelopment.xcworkspace/xcshareddata/swiftpm/Package.resolved": "50b7bba3dd55c15bee85eb0a38d6970428107361095b7ee2e2a465ce9584a3a7",
+      "/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabbyinference/Package.resolved": null
+    }
+  }
+}

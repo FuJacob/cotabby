@@ -1,30 +1,39 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for the "what's included" rows each onboarding template card discloses. The rows must stay
+/// in lock-step with the template's own behavior flags, in a fixed order, for every tier (including
+/// Custom, which the "Set up later" button applies without showing a card).
 final class OnboardingTemplateFeatureListTests: XCTestCase {
-    func testQuickShowsShortLengthAndFastModeOnAndClipboardOff() {
-        let rows = OnboardingTemplateFeatureList.rows(for: .quick)
-        XCTAssertEqual(rows.map(\.title), [
-            "Suggestion length",
-            "Fast mode (skip screen context)",
-            "Clipboard context"
-        ])
-        XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.quick.wordCountPreset.displayLabel))
-        XCTAssertEqual(rows[1].value, .enabled)
-        XCTAssertEqual(rows[2].value, .disabled)
+    func test_rowsFollowEachTemplatesFlagsInDisplayOrder() {
+        let expectedClipboard: [OnboardingTemplate: OnboardingTemplateFeatureValue] = [
+            .quick: .disabled,
+            .everyday: .enabled,
+            .powerful: .enabled,
+            .custom: .enabled
+        ]
+        for template in OnboardingTemplate.allCases {
+            let rows = OnboardingTemplateFeatureList.rows(for: template)
+
+            XCTAssertEqual(
+                rows,
+                [
+                    OnboardingTemplateFeatureRow(
+                        title: "Suggestion length",
+                        value: .detail(template.wordCountPreset.displayLabel)
+                    ),
+                    // No tier turns on fast mode, so screen context is always shown as included.
+                    OnboardingTemplateFeatureRow(title: "Use screen context", value: .enabled),
+                    OnboardingTemplateFeatureRow(title: "Clipboard context", value: expectedClipboard[template]!)
+                ],
+                "\(template)"
+            )
+        }
     }
 
-    func testEverydayShowsMediumLengthFastModeOffAndClipboardOn() {
+    func test_rowIdentityIsTheTitleAndUniqueWithinATemplate() {
         let rows = OnboardingTemplateFeatureList.rows(for: .everyday)
-        XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.everyday.wordCountPreset.displayLabel))
-        XCTAssertEqual(rows[1].value, .disabled)
-        XCTAssertEqual(rows[2].value, .enabled)
-    }
-
-    func testPowerfulShowsLongLengthFastModeOffAndClipboardOn() {
-        let rows = OnboardingTemplateFeatureList.rows(for: .powerful)
-        XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.powerful.wordCountPreset.displayLabel))
-        XCTAssertEqual(rows[1].value, .disabled)
-        XCTAssertEqual(rows[2].value, .enabled)
+        XCTAssertEqual(rows.map(\.id), rows.map(\.title))
+        XCTAssertEqual(Set(rows.map(\.id)).count, rows.count)
     }
 }

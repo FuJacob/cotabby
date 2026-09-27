@@ -44,7 +44,7 @@ struct MirrorOverlayLayout: Equatable {
         /// distance, not to match the host editor (mirror is explicitly a preview, not a forgery).
         static let fontSize: CGFloat = 13
         /// Hard legibility floor after the user's size multiplier.
-        static let absoluteMinimumFontSize: CGFloat = 9
+        static let absoluteMinimumFontSize = GhostFontSizeLimits.absoluteMinimumPointSize
 
         /// Tight visual gap between the bottom of the input field (or caret rect) and the top of
         /// the card. The card already has a distinct backdrop, so it does not need a full text-row

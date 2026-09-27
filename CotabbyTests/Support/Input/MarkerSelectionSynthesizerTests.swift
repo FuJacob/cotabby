@@ -43,17 +43,32 @@ final class MarkerSelectionSynthesizerTests: XCTestCase {
     }
 
     func testWindowDoesNotSplitSurrogatePairs() {
-        // Each emoji is 2 UTF-16 units. A window of 3 lands mid-emoji; we widen to a
-        // composed-character boundary, so the kept slice is whole emoji, not an orphaned surrogate.
+        // Each emoji is 2 UTF-16 units. A window of 3 lands mid-emoji on both sides; the slice is
+        // widened outward to whole composed characters (so it can exceed the window by one unit)
+        // rather than keeping an orphaned surrogate.
         let result = MarkerSelectionSynthesizer.make(
-            beforeCaret: "😀😀😀", selected: "", afterCaret: "", window: 3)
+            beforeCaret: "😀😀😀", selected: "", afterCaret: "🐱🐱🐱", window: 3)
 
-        // Every kept scalar is a full emoji (no U+FFFD from a split pair), and the caret location
-        // is the UTF-16 length of the widened before-window.
-        XCTAssertFalse(result.text.unicodeScalars.contains("\u{FFFD}"))
-        XCTAssertTrue(result.text.allSatisfy { $0 == "😀" })
-        XCTAssertEqual(result.selection.location, (result.text as NSString).length)
-        XCTAssertEqual(result.selection.length, 0)
+        XCTAssertEqual(result.text, "😀😀🐱🐱")
+        XCTAssertEqual(result.selection, NSRange(location: 4, length: 0))
+    }
+
+    func testSelectedTextIsNeverWindowed() {
+        // Only the context on either side is bounded; the selection itself must survive whole so
+        // the replacement range still covers everything the user highlighted.
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "abc", selected: "SELECTED", afterCaret: "xyz", window: 1)
+
+        XCTAssertEqual(result.text, "cSELECTEDx")
+        XCTAssertEqual(result.selection, NSRange(location: 1, length: 8))
+    }
+
+    func testTextExactlyAtTheWindowIsUnchanged() {
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "abc", selected: "", afterCaret: "def", window: 3)
+
+        XCTAssertEqual(result.text, "abcdef")
+        XCTAssertEqual(result.selection, NSRange(location: 3, length: 0))
     }
 
     func testShorterThanWindowIsUnchanged() {
@@ -62,5 +77,22 @@ final class MarkerSelectionSynthesizerTests: XCTestCase {
 
         XCTAssertEqual(result.text, "abcd")
         XCTAssertEqual(result.selection, NSRange(location: 2, length: 0))
+    }
+
+    func testMailSpaceNormalizationPreservesUTF16SelectionAndOtherWhitespace() {
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "😀Hello\u{00A0}", selected: "a\u{00A0}b", afterCaret: "\t\nnext\u{00A0}word",
+            normalizeNonBreakingSpaces: true
+        )
+        XCTAssertEqual(result.text, "😀Hello a b\t\nnext word")
+        XCTAssertEqual(result.selection, NSRange(location: 8, length: 3))
+        XCTAssertEqual((result.text as NSString).substring(with: result.selection), "a b")
+    }
+
+    func testOtherHostsPreserveIntentionalNonBreakingSpaces() {
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "Hello\u{00A0}", selected: "", afterCaret: "world"
+        )
+        XCTAssertEqual(result.text, "Hello\u{00A0}world")
     }
 }

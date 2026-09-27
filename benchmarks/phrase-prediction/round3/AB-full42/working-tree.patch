@@ -1,0 +1,870 @@
+diff --git a/Cotabby/Support/Context/SurfaceContextComposer.swift b/Cotabby/Support/Context/SurfaceContextComposer.swift
+index cfa0d2d..c10d466 100644
+--- a/Cotabby/Support/Context/SurfaceContextComposer.swift
++++ b/Cotabby/Support/Context/SurfaceContextComposer.swift
+@@ -68,7 +68,11 @@ nonisolated enum SurfaceContextComposer {
+     /// Renders one optional preface line in stable order: format, app, browser host, title, and field.
+     /// A compact representation reduces prose about the UI for the model to imitate. The renderer
+     /// still owns the section's final budget and its separation from the writer's actual draft.
+-    static func prefaceLines(for surface: SurfaceContext) -> [String] {
++    static func prefaceLines(
++        for surface: SurfaceContext,
++        omitFormat: Bool = false,
++        omitField: Bool = false
++    ) -> [String] {
+         let format: String
+         switch surface.surfaceClass {
+         case .email: format = "email"
+@@ -77,11 +81,13 @@ nonisolated enum SurfaceContextComposer {
+         case .other: format = "text"
+         case .codeEditor, .terminal: return []
+         }
+-        var fields = ["Format: \(format)", "App: \(surface.applicationName)"]
++        var fields: [String] = []
++        if !omitFormat { fields.append("Format: \(format)") }
++        fields.append("App: \(surface.applicationName)")
+         // Preserve the base preface's existing input scope: only browsers contribute a domain.
+         if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
+         if let title = surface.windowTitle { fields.append("Title: \(title)") }
+-        if let placeholder = surface.fieldPlaceholder { fields.append("Field: \(placeholder)") }
++        if !omitField, let placeholder = surface.fieldPlaceholder { fields.append("Field: \(placeholder)") }
+         return [fields.joined(separator: "; ") + "."]
+     }
+ 
+diff --git a/Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift b/Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+index 4e1f049..fd33dff 100644
+--- a/Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
++++ b/Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+@@ -42,7 +42,14 @@ enum BaseCompletionPromptRenderer {
+         // value is frozen per field session upstream, so these bytes stay stable across keystrokes
+         // and the llama KV prefix reuse keeps amortizing them.
+         if let surface = surfaceContext {
+-            let lines = SurfaceContextComposer.prefaceLines(for: surface)
++            // AB finalist: retain only the context-specific metadata. A screen excerpt replaces
++            // the generic format label; without one the field placeholder is the lower-signal fact.
++            let hasUsableScreen = visualContextSummary?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
++            let lines = SurfaceContextComposer.prefaceLines(
++                for: surface,
++                omitFormat: hasUsableScreen,
++                omitField: !hasUsableScreen
++            )
+             if !lines.isEmpty {
+                 sections.append(
+                     Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
+diff --git a/CotabbyTests/Evals/PhrasePredictionEvalTests.swift b/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
+index 6c252c7..f6525aa 100644
+--- a/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
++++ b/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
+@@ -29,11 +29,23 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         replayArgumentDomain[LlamaSuggestionEngine.argmaxStopDisabledKey] = false
+         defaults.setVolatileDomain(replayArgumentDomain, forName: UserDefaults.argumentDomain)
+         defer { defaults.setVolatileDomain(previousArgumentDomain, forName: UserDefaults.argumentDomain) }
+-        let corpusURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
++        let corpusURL: URL
++        if let explicit = options.corpusURL {
++            corpusURL = explicit
++        } else {
++            corpusURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
++        }
+         let data = try Data(contentsOf: corpusURL)
++        let corpusHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
++        if let expected = options.corpusSHA256, expected != corpusHash {
++            throw Options.invalid("Explicit fixture bytes differ from the CLI fingerprint")
++        }
+         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: data)
++        guard options.corpusURL != nil || corpus.version == 2 else {
++            throw Options.invalid("The bundled default must remain the original version-2 corpus")
++        }
+         try corpus.validate()
+-        let selected = try options.select(corpus.phrases)
++        let selected = try options.select(corpus.phrases, supplementary: corpus.version == 3)
+         let shards = try PhrasePredictionReplayPlan.shards(phraseCount: selected.count, workers: options.workers)
+         let managers = try shards.map { _ in try LlamaEvalRuntime.makeManager() }
+         // Keep every context alive until the task group has drained, including on cancellation.
+@@ -73,10 +85,12 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         }
+         configurationRecord["modelSHA256"] = try Self.fileSHA256(URL(fileURLWithPath: modelPath))
+         let metadata = PhrasePredictionReport.Metadata(
+-            corpusSHA256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
++            corpusSHA256: corpusHash,
+             corpusVersion: corpus.version, model: modelPath, seed: try XCTUnwrap(configuration.randomSeed),
+             mode: options.mode, configuration: configurationRecord, runLabel: options.label,
+-            contextMode: options.contextMode, workerCount: managers.count
++            contextMode: options.contextMode, workerCount: managers.count,
++            corpusPath: corpusURL.path,
++            evaluationGroupIDs: corpus.version == 3 ? Set(selected.compactMap(\.evaluationGroup)).sorted() : nil
+         )
+         try FileManager.default.createDirectory(at: options.output, withIntermediateDirectories: true)
+         let journal = try ReplayJournal(output: options.output)
+@@ -128,6 +142,9 @@ final class PhrasePredictionEvalTests: XCTestCase {
+               configurationRecord["stopAtArgmaxEOG"] == String(LlamaSuggestionEngine.resolvedStopAtArgmaxEOG()) else {
+             throw Options.invalid("Generation preferences changed during replay; rerun with stable settings")
+         }
++        guard try Self.fileSHA256(corpusURL) == corpusHash else {
++            throw Options.invalid("Corpus bytes changed during replay")
++        }
+         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+         try encoder.encode(report).write(to: options.output.appendingPathComponent("report.json"), options: .atomic)
+         try (report.rendered() + "\n").write(to: options.output.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8)
+@@ -181,6 +198,28 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         }
+     }
+ 
++    func testSupplementaryFixtureOptionsRequireFingerprintAndFullSelection() throws {
++        let base = ["COTABBY_PHRASE_OUTPUT": "/tmp/cotabby-options-test",
++                    "COTABBY_PHRASE_CORPUS": "/tmp/immutable-fixture.json",
++                    "COTABBY_PHRASE_CORPUS_SHA256": String(repeating: "a", count: 64)]
++        let options = try Options(base)
++        XCTAssertEqual(options.corpusURL?.path, "/tmp/immutable-fixture.json")
++        XCTAssertEqual(options.corpusSHA256, String(repeating: "a", count: 64))
++        let phrases = [PhrasePredictionCorpus.Phrase(id: "test", category: "science", text: "A tiny fixture.")]
++        XCTAssertEqual(try options.select(phrases, supplementary: true), phrases)
++        for (key, value) in [("SPLIT", "screen"), ("SPLIT", "heldout"), ("CATEGORY", "science"),
++                             ("ID", "test"), ("LIMIT", "1"), ("PER_CATEGORY", "1")] {
++            var filtered = base
++            filtered["COTABBY_PHRASE_\(key)"] = value
++            XCTAssertThrowsError(try Options(filtered).select(phrases, supplementary: true))
++        }
++        for (key, value) in [("CORPUS", "relative.json"), ("CORPUS_SHA256", ""), ("CORPUS_SHA256", "bad")] {
++            var invalid = base
++            invalid["COTABBY_PHRASE_\(key)"] = value
++            XCTAssertThrowsError(try Options(invalid))
++        }
++    }
++
+     /// The test owns one journal for the entire replay. Actor isolation makes each append atomic
+     /// with respect to other workers; the Python progress reader sees only complete JSONL lines.
+     /// Results stay in completion order here and are validated/reordered before final scoring.
+@@ -294,6 +333,8 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         let workers: Int
+         let output: URL
+         let label: String
++        let corpusURL: URL?
++        let corpusSHA256: String?
+ 
+         init(_ environment: [String: String]) throws {
+             guard let mode = PhrasePredictionScorer.Mode(rawValue: environment["COTABBY_PHRASE_MODE"] ?? "word") else {
+@@ -337,9 +378,25 @@ final class PhrasePredictionEvalTests: XCTestCase {
+             }
+             output = URL(fileURLWithPath: path, isDirectory: true)
+             label = environment["COTABBY_PHRASE_LABEL"] ?? "unlabeled"
++            let fixture = environment["COTABBY_PHRASE_CORPUS"] ?? ""
++            let fixtureHash = (environment["COTABBY_PHRASE_CORPUS_SHA256"] ?? "").lowercased()
++            if fixture.isEmpty && fixtureHash.isEmpty {
++                corpusURL = nil
++                corpusSHA256 = nil
++            } else {
++                guard fixture.hasPrefix("/"), fixtureHash.count == 64,
++                      fixtureHash.allSatisfy({ "0123456789abcdef".contains($0) }) else {
++                    throw Self.invalid("Explicit corpus requires an absolute path and SHA-256 fingerprint")
++                }
++                corpusURL = URL(fileURLWithPath: fixture)
++                corpusSHA256 = fixtureHash
++            }
+         }
+ 
+-        func select(_ phrases: [PhrasePredictionCorpus.Phrase]) throws -> [PhrasePredictionCorpus.Phrase] {
++        func select(_ phrases: [PhrasePredictionCorpus.Phrase], supplementary: Bool = false) throws -> [PhrasePredictionCorpus.Phrase] {
++            guard !supplementary || (split == "all" && category == nil && phraseID == nil && limit == nil && perCategory == nil) else {
++                throw Self.invalid("The supplementary confirmatory corpus requires split all without narrowing filters")
++            }
+             // SHA-256 over an explicitly encoded seed/ID pair has the same ordering in Python
+             // and Swift. Swift's Hasher intentionally changes across processes and cannot define
+             // an experimental split. Membership is fixed before filters, so heldout stays disjoint.
+diff --git a/CotabbyTests/Evals/PhrasePredictionScoring.swift b/CotabbyTests/Evals/PhrasePredictionScoring.swift
+index 341f108..2e77435 100644
+--- a/CotabbyTests/Evals/PhrasePredictionScoring.swift
++++ b/CotabbyTests/Evals/PhrasePredictionScoring.swift
+@@ -14,6 +14,9 @@ struct PhrasePredictionCorpus: Codable {
+         let category: String
+         let text: String
+         var scenario: ScreenScenario? = nil
++        // Family identity is evaluation provenance only; it never enters a model prompt.
++        var evaluationGroup: String? = nil
++        var contextKind: String? = nil
+     }
+ 
+     /// A synthetic visible surface before typing starts. This is an OCR transcription fixture,
+@@ -33,9 +36,11 @@ struct PhrasePredictionCorpus: Codable {
+         func require(_ condition: Bool, _ message: String) throws {
+             if !condition { throw ValidationError.invalid(message) }
+         }
+-        try require(version == 2 && language == "en", "Unsupported corpus version or language")
++        try require([2, 3].contains(version) && language == "en", "Unsupported corpus version or language")
+         try require(!provenance.isEmpty, "Corpus provenance is required")
+-        try require(phrases.count == 1337, "Expected exactly 1337 phrases")
++        let expectedCount = version == 2 ? 1337 : 700
++        let perCategory = version == 2 ? 191 : 100
++        try require(phrases.count == expectedCount, "Unexpected phrase count for corpus version")
+         try require(Set(phrases.map(\.id)).count == phrases.count, "Duplicate phrase IDs")
+         let folded = phrases.map { $0.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+         try require(Set(folded).count == phrases.count, "Duplicate phrase text")
+@@ -43,8 +48,8 @@ struct PhrasePredictionCorpus: Codable {
+         try require(Set(categories.keys) == Set([
+             "conversation", "science", "entertainment", "work", "technology", "everyday", "travel"
+         ]), "Unexpected categories")
+-        try require(categories.values.allSatisfy { $0.count == 191 }, "Each category must contain 191 phrases")
+-        try require(Set(phrases.compactMap { $0.scenario?.screenText }).count == 1337, "Each phrase needs its own screen context")
++        try require(categories.values.allSatisfy { $0.count == perCategory }, "Unexpected category balance for corpus version")
++        try require(Set(phrases.compactMap { $0.scenario?.screenText }).count == expectedCount, "Each phrase needs its own screen context")
+         for phrase in phrases {
+             try require(!phrase.id.isEmpty, "Empty phrase ID")
+             try require(phrase.text == phrase.text.trimmingCharacters(in: .whitespacesAndNewlines), "Untrimmed phrase")
+@@ -56,6 +61,21 @@ struct PhrasePredictionCorpus: Codable {
+             let source = Self.normalizedWords(scene.screenText + " " + scene.documentPrefix)
+             try require(!source.contains(answer), "Complete reference phrase leaked into context: \(phrase.id)")
+         }
++        if version == 3 {
++            for phrase in phrases {
++                guard let group = phrase.evaluationGroup, let kind = phrase.contextKind else {
++                    throw ValidationError.invalid("Supplementary phrase needs evaluationGroup and contextKind")
++                }
++                try require(!group.isEmpty && group == group.trimmingCharacters(in: .whitespacesAndNewlines), "Invalid evaluation group")
++                try require(["useful", "distracting", "neutral"].contains(kind), "Invalid context kind")
++            }
++            let families = Dictionary(grouping: phrases, by: { $0.evaluationGroup! })
++            try require(families.count >= 140, "Supplementary corpus needs at least 140 authored families")
++            for family in families.values {
++                try require(family.count <= 5 && Set(family.map(\.category)).count == 1 && Set(family.compactMap(\.contextKind)).count == 1,
++                            "A family must contain at most five phrases with one category and context kind")
++            }
++        }
+     }
+ 
+     private static func normalizedWords(_ text: String) -> String {
+@@ -271,6 +291,8 @@ struct PhrasePredictionReport: Codable {
+         var contextMode: PhrasePredictionScorer.ContextMode = .none
+         // Optional for decoding reports created before parallel replay; absent means one worker.
+         var workerCount: Int? = nil
++        var corpusPath: String? = nil
++        var evaluationGroupIDs: [String]? = nil
+     }
+ 
+     struct PhraseResult: Codable {
+diff --git a/CotabbyTests/Evals/PhrasePredictionScoringTests.swift b/CotabbyTests/Evals/PhrasePredictionScoringTests.swift
+index 0ce6c64..e5c2bd7 100644
+--- a/CotabbyTests/Evals/PhrasePredictionScoringTests.swift
++++ b/CotabbyTests/Evals/PhrasePredictionScoringTests.swift
+@@ -80,6 +80,32 @@ final class PhrasePredictionScoringTests: XCTestCase {
+         XCTAssertThrowsError(try corpus.validate())
+     }
+ 
++    func testSupplementaryCorpusUsesItsOwnBalancedFamilyContract() throws {
++        let corpus = supplementaryCorpus()
++        try corpus.validate()
++        let decoded = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: JSONEncoder().encode(corpus))
++        XCTAssertEqual(decoded.phrases, corpus.phrases)
++        XCTAssertEqual(Set(decoded.phrases.compactMap(\.evaluationGroup)).count, 140)
++        XCTAssertThrowsError(try PhrasePredictionCorpus(version: 2, language: "en", provenance: "test", phrases: corpus.phrases).validate())
++        var missing = corpus.phrases
++        missing[0].evaluationGroup = nil
++        XCTAssertThrowsError(try PhrasePredictionCorpus(version: 3, language: "en", provenance: "test", phrases: missing).validate())
++        var mixed = corpus.phrases
++        mixed[0].contextKind = "neutral"
++        XCTAssertThrowsError(try PhrasePredictionCorpus(version: 3, language: "en", provenance: "test", phrases: mixed).validate())
++        var oversized = corpus.phrases
++        oversized[5].evaluationGroup = oversized[0].evaluationGroup
++        XCTAssertThrowsError(try PhrasePredictionCorpus(version: 3, language: "en", provenance: "test", phrases: oversized).validate())
++    }
++
++    func testFamilyMetadataDoesNotEnterCheckpointText() {
++        var original = phrase()
++        let expected = PhrasePredictionScorer.checkpoints(for: original, mode: .character)
++        original.evaluationGroup = "independent-authored-family"
++        original.contextKind = "distracting"
++        XCTAssertEqual(PhrasePredictionScorer.checkpoints(for: original, mode: .character), expected)
++    }
++
+     func testWordReplayContainsOnlyPreviouslyTypedText() {
+         let checkpoints = PhrasePredictionScorer.checkpoints(for: phrase("Please send it."), mode: .word)
+         XCTAssertEqual(checkpoints.map(\.prefix), ["Please ", "Please send "])
+@@ -205,6 +231,23 @@ final class PhrasePredictionScoringTests: XCTestCase {
+         .init(id: "a", category: "conversation", text: text)
+     }
+ 
++    private func supplementaryCorpus() -> PhrasePredictionCorpus {
++        let categories = ["conversation", "science", "entertainment", "work", "technology", "everyday", "travel"]
++        let phrases = categories.flatMap { category in
++            (0..<100).map { index in
++                let scenario = PhrasePredictionCorpus.ScreenScenario(
++                    kind: "notes", applicationName: "Notes", bundleIdentifier: "test.notes", windowTitle: "Fixture",
++                    fieldPlaceholder: "", documentPrefix: "",
++                    screenText: "Public board \(category) record \(index). These ordinary source notes provide unique bounded context.")
++                return PhrasePredictionCorpus.Phrase(
++                    id: "\(category)-\(index)", category: category, text: "Reference \(category) item \(index) can wait.",
++                    scenario: scenario, evaluationGroup: "\(category)-family-\(index / 5)",
++                    contextKind: ["useful", "distracting", "neutral"][(index / 5) % 3])
++            }
++        }
++        return .init(version: 3, language: "en", provenance: "Synthetic unit fixture, not validation data", phrases: phrases)
++    }
++
+     private func checkpoint(expected: String = "cat", typed: String = "") -> PhrasePredictionScorer.Checkpoint {
+         .init(wordIndex: 1, typedCharacters: typed.count, prefix: "The " + typed, typedWordPrefix: typed, expectedWord: expected)
+     }
+diff --git a/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift b/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
+index fb0c528..1110ebe 100644
+--- a/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
++++ b/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
+@@ -69,6 +69,44 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
+         }
+     }
+ 
++    /// A longer reference block crosses every experimental history boundary (16, 32, 64,
++    /// and 128 tokens). Repeated vocabulary makes an abandoned prediction relevant to the
++    /// penalty component, while midword edits also exercise the token-healing replay path.
++    /// The invariant holds for every compiled history policy: cached and cold requests agree.
++    func testSampledHistorySensitiveMidwordEditsMatchFreshState() throws {
++        let core = try makeCore()
++        defer { core.shutdown() }
++        let context = Array(repeating:
++            "The project schedule includes a review of the revised schedule and a project update.",
++            count: 12
++        ).joined(separator: " ")
++        let original = context + "\n\nHi Alex, please send me the revised sched"
++        let editedPrompts = [original + "u", String(original.dropLast(5)) + "project sched"]
++        let historyOptions = LlamaGenerationOptions(
++            maxPredictionTokens: 12,
++            temperature: 0.1,
++            topK: 20,
++            topP: 0.7,
++            minP: 0.08,
++            repetitionPenalty: 1.025,
++            seed: 42,
++            stopAtArgmaxEOG: false
++        )
++
++        for edited in editedPrompts {
++            core.resetPromptCache()
++            _ = try core.generate(prompt: original, options: historyOptions)
++            let hint = zip(original.utf8, edited.utf8).prefix { $0.0 == $0.1 }.count
++            let reused = try core.generate(prompt: edited, cachedPrefixBytes: hint, options: historyOptions)
++            core.resetPromptCache()
++            let fresh = try core.generate(prompt: edited, options: historyOptions)
++            XCTAssertFalse(fresh.text.isEmpty)
++            XCTAssertFalse(reused.text.contains("\u{FFFD}"))
++            XCTAssertEqual(reused.text, fresh.text, "History policy must not retain discarded or healing replay tokens")
++            XCTAssertEqual(reused.suppressedByLowConfidence, fresh.suppressedByLowConfidence)
++        }
++    }
++
+     func testHealingStreamsOnlyValidCumulativeContinuation() throws {
+         let core = try makeCore()
+         defer { core.shutdown() }
+@@ -145,13 +183,14 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
+         )
+     }
+ 
+-    /// The first two entries cover the production sampler and this round's no-penalty candidate.
++    /// The entries cover the current production penalty, the earlier baseline, and no penalty.
+     /// Their low temperature can collapse to one allowed token, so the final diagnostic entry
+     /// deliberately leaves more choices available and makes a missing RNG reset observable.
+     /// These are per-test values; they never change app preferences or the benchmark defaults.
+     private var sampledConfigurations: [(label: String, options: LlamaGenerationOptions)] {
+         [
+-            ("sampled baseline", 0.1, 20, 0.7, 0.08, 1.05),
++            ("sampled current production", 0.1, 20, 0.7, 0.08, 1.025),
++            ("sampled earlier baseline", 0.1, 20, 0.7, 0.08, 1.05),
+             ("sampled without repetition penalty", 0.1, 20, 0.7, 0.08, 1.0),
+             ("RNG diagnostic", 0.8, 0, 1.0, 0.0, 1.0)
+         ].map { label, temperature, topK, topP, minP, repetitionPenalty in
+diff --git a/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift b/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+index d1bec40..120a9a7 100644
+--- a/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
++++ b/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+@@ -1,3 +1,4 @@
++import CryptoKit
+ import XCTest
+ @testable import Cotabby
+ 
+@@ -6,6 +7,57 @@ import XCTest
+ /// These tests protect the inputs to generation; model quality belongs to the inference benchmark.
+ final class BaseCompletionPromptRendererTests: XCTestCase {
+ 
++    /// Round-local, model-free input audit. It runs the same old-corpus request adapter as the
++    /// benchmark before inference, so a changed source literal cannot masquerade as a changed
++    /// experimental input. External paths are opt-in test-process values, never app settings.
++    @MainActor
++    func testRoundTwoScreeningPromptAudit() throws {
++        #if RUN_LLAMA_EVAL
++        let environment = ProcessInfo.processInfo.environment
++        guard let outputPath = environment["COTABBY_ROUND2_PROMPT_AUDIT"],
++              let selectionPath = environment["COTABBY_ROUND2_SCREEN_IDS"] else {
++            throw XCTSkip("Round-two input audit requires explicit output and screening IDs")
++        }
++        let ids = Set(try JSONDecoder().decode([String].self, from: Data(contentsOf: URL(fileURLWithPath: selectionPath))))
++        let corpusURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
++        let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: Data(contentsOf: corpusURL))
++        try corpus.validate()
++        let phrases = corpus.phrases.filter { ids.contains($0.id) }
++        XCTAssertEqual(phrases.count, 140)
++        XCTAssertEqual(Set(phrases.map(\.id)), ids)
++        let configuration = LlamaEvalRuntime.configuration
++        let settings = CotabbyTestFixtures.settingsSnapshot(
++            selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
++            isClipboardContextEnabled: false, isSurfaceContextEnabled: true, userName: "",
++            isMultiLineEnabled: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true
++        )
++        var records: [[String: Any]] = []
++        for phrase in phrases {
++            let scenario = try XCTUnwrap(phrase.scenario)
++            for condition in PhrasePredictionScorer.ContextMode.paired.conditions {
++                for checkpoint in PhrasePredictionScorer.checkpoints(for: phrase, mode: .word) {
++                    let request = PhrasePredictionScreenContext.request(
++                        checkpoint: checkpoint, scenario: scenario, condition: condition,
++                        settings: settings, configuration: configuration
++                    )
++                    XCTAssertTrue(request.prompt.hasSuffix(checkpoint.prefix), "The exact short-corpus caret prefix must remain last")
++                    records.append([
++                        "id": phrase.id, "condition": condition.rawValue,
++                        "wordIndex": checkpoint.wordIndex,
++                        "promptSHA256": SHA256.hash(data: Data(request.prompt.utf8)).map { String(format: "%02x", $0) }.joined(),
++                        "characters": request.prompt.count
++                    ])
++                }
++            }
++        }
++        XCTAssertEqual(records.count, 1540)
++        let data = try JSONSerialization.data(withJSONObject: records, options: [.prettyPrinted, .sortedKeys])
++        try data.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
++        #else
++        throw XCTSkip("Round-two audit requires RUN_LLAMA_EVAL")
++        #endif
++    }
++
+     func test_bareField_returnsExactPrefixOnly() {
+         let prompt = BaseCompletionPromptRenderer.prompt(
+             prefixText: "I am writing to ",
+diff --git a/scripts/analyze_phrase_experiments.py b/scripts/analyze_phrase_experiments.py
+index acd5c95..2e04668 100644
+--- a/scripts/analyze_phrase_experiments.py
++++ b/scripts/analyze_phrase_experiments.py
+@@ -90,6 +90,11 @@ def validate_pair(before, after):
+     for field in ("corpusSHA256", "mode", "contextMode", "seed"):
+         if before["metadata"].get(field) != after["metadata"].get(field):
+             raise ValueError(f"Cannot compare different {field}")
++    if 3 in (before["metadata"].get("corpusVersion"), after["metadata"].get("corpusVersion")):
++        if before["metadata"].get("corpusVersion") != after["metadata"].get("corpusVersion"):
++            raise ValueError("Cannot compare different supplementary corpus versions")
++        if any(not row["phrase"].get("evaluationGroup") for row in [*old.values(), *new.values()]):
++            raise ValueError("Version-3 uncertainty requires every evaluationGroup")
+     if before["errorCount"] or after["errorCount"]:
+         raise ValueError("Cannot compare runs with inference errors")
+     if old.keys() != new.keys():
+@@ -167,7 +172,8 @@ def paired_statistics(old, new, *, samples=2000, seed=1337, metric="nextWord"):
+     """Resample whole phrases within categories, preserving all conditions in each draw.
+ 
+     Checkpoints in a phrase share text and context, so treating them as independent trials would
+-    understate uncertainty. Category-stratified phrase sampling preserves the benchmark mix.
++    understate uncertainty. Version-3 authored families keep every related phrase together;
++    legacy reports retain whole-phrase clusters. Category stratification preserves the mix.
+     These descriptive intervals measure fixture sampling uncertainty, not native-runtime noise,
+     and are not corrected for selecting a winner from multiple screened configurations.
+     """
+@@ -176,17 +182,41 @@ def paired_statistics(old, new, *, samples=2000, seed=1337, metric="nextWord"):
+         raise ValueError("Use at least 100 bootstrap samples")
+     conditions = sorted({c for _, c in old})
+     groups = collections.defaultdict(list)
++    family_mode = any(row["phrase"].get("evaluationGroup") is not None for row in old.values())
++    clusters, family_kinds = {}, {}
+     for phrase_id in sorted({pid for pid, _ in old}):
+         available = [c for c in conditions if (phrase_id, c) in old]
+         if available != conditions:
+             raise ValueError("Conditions must contain matching phrase sets")
+         category = old[(phrase_id, conditions[0])]["phrase"]["category"]
++        phrase = old[(phrase_id, conditions[0])]["phrase"]
++        cluster_id = phrase.get("evaluationGroup") if family_mode else phrase_id
++        if family_mode:
++            kind = phrase.get("contextKind")
++            if not isinstance(cluster_id, str) or not cluster_id.strip() or kind not in {"useful", "distracting", "neutral"}:
++                raise ValueError("Family bootstrap requires valid evaluationGroup/contextKind for every phrase")
++            identity = (category, kind)
++            if cluster_id in family_kinds and family_kinds[cluster_id] != identity:
++                raise ValueError("Evaluation family crosses categories or context kinds")
++            family_kinds[cluster_id] = identity
++            if any((old[(phrase_id, condition)]["phrase"].get("evaluationGroup"),
++                    old[(phrase_id, condition)]["phrase"].get("contextKind"),
++                    old[(phrase_id, condition)]["phrase"]["category"]) != (cluster_id, kind, category)
++                   for condition in conditions):
++                raise ValueError("Context conditions disagree on evaluation family identity")
+         values = []
+         for condition in conditions:
+             a, b = old[(phrase_id, condition)][metric], new[(phrase_id, condition)][metric]
+             if a["checkpoints"] != b["checkpoints"] or not a["checkpoints"]:
+                 raise ValueError("Checkpoint denominators must match and be positive")
+             values.append((a["checkpoints"], b["correct"] - a["correct"]))
++        key = (category, cluster_id)
++        if key not in clusters:
++            clusters[key] = [[0, 0] for _ in conditions]
++        for i, (denominator, delta) in enumerate(values):
++            clusters[key][i][0] += denominator
++            clusters[key][i][1] += delta
++    for (category, _), values in clusters.items():
+         groups[category].append(values)
+     distributions = {(condition, category): [] for condition in conditions for category in ["suite", *sorted(groups)]}
+     lift = []
+@@ -214,7 +244,10 @@ def paired_statistics(old, new, *, samples=2000, seed=1337, metric="nextWord"):
+     if lift:
+         intervals["contextLift"] = [percentile(lift, .025), percentile(lift, .975)]
+     return {"metric": metric, "samples": samples, "seed": seed, "confidence": .95,
+-            "method": "paired category-stratified phrase-cluster percentile bootstrap",
++            "method": ("paired category-stratified evaluation-group-cluster percentile bootstrap" if family_mode else
++                       "paired category-stratified phrase-cluster percentile bootstrap"),
++            "clusterUnit": "evaluationGroup" if family_mode else "phrase",
++            "clusterCounts": {category: len(values) for category, values in sorted(groups.items())},
+             "accuracyDeltaIntervals": intervals}
+ 
+ 
+diff --git a/scripts/phrase_eval.py b/scripts/phrase_eval.py
+index 40e9a56..2367a15 100644
+--- a/scripts/phrase_eval.py
++++ b/scripts/phrase_eval.py
+@@ -28,6 +28,7 @@ CORPUS = ROOT / "CotabbyTests/Fixtures/phrase-prediction-1337.json"
+ DERIVED = ROOT / "build/DerivedData"
+ BASELINES = ROOT / "benchmarks/phrase-prediction"
+ CATEGORIES = ("conversation", "science", "entertainment", "work", "technology", "everyday", "travel")
++CONTEXT_KINDS = {"useful", "distracting", "neutral"}
+ WORD = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
+ SAMPLING_FIELDS = {
+     "temperature": ("temperature", "COTABBY_PHRASE_TEMPERATURE"),
+@@ -90,24 +91,56 @@ def partition_phrases(phrases, args):
+     return selected
+ 
+ 
+-def read_selection(args):
+-    corpus = json.loads(CORPUS.read_text())
++def corpus_path(args):
++    return pathlib.Path(getattr(args, "corpus", None) or CORPUS).resolve()
++
++
++def validate_corpus(corpus, *, supplementary=False):
++    """Keep the original fixture contract distinct from this round's family-grouped sidecar."""
+     phrases = corpus["phrases"]
+-    if (corpus["version"] != 2 or corpus["language"] != "en"
+-            or len(phrases) != 1337
+-            or len({p["id"] for p in phrases}) != 1337
+-            or len({p["text"].strip().lower() for p in phrases}) != 1337
+-            or collections.Counter(p["category"] for p in phrases) != dict.fromkeys(CATEGORIES, 191)
++    version = corpus.get("version")
++    if version not in (2, 3) or (version == 3 and not supplementary):
++        raise ValueError("Version 3 requires an explicit supplementary --corpus path; the default remains version 2")
++    size, per_category = (1337, 191) if version == 2 else (700, 100)
++    if (corpus["language"] != "en" or not corpus.get("provenance")
++            or len(phrases) != size
++            or len({p["id"] for p in phrases}) != size
++            or len({p["text"].strip().lower() for p in phrases}) != size
++            or collections.Counter(p["category"] for p in phrases) != dict.fromkeys(CATEGORIES, per_category)
+             or any(len(WORD.findall(p["text"])) < 3 for p in phrases)):
+-        raise ValueError("Invalid corpus: expected 1337 unique phrases, 191 per category, at least three words each")
++        raise ValueError(f"Invalid corpus: expected {size} unique phrases, {per_category} per category, at least three words each")
+     screens = [p.get("scenario", {}).get("screenText", "") for p in phrases]
+-    if len(set(screens)) != 1337 or any(len(screen) < 40 or len(screen) > 4000 for screen in screens):
++    if len(set(screens)) != size or any(len(screen) < 40 or len(screen) > 4000 for screen in screens):
+         raise ValueError("Every phrase requires a distinct bounded screen scenario")
+     folded = lambda text: " ".join(WORD.findall(text.lower()))
+     for phrase in phrases:
+         scene = phrase["scenario"]
++        if not phrase["id"] or phrase["text"] != phrase["text"].strip() or any(not scene.get(key) for key in ("kind", "applicationName", "bundleIdentifier")):
++            raise ValueError("Phrase identity, trimming, or surface metadata is invalid")
+         if folded(phrase["text"]) in folded(scene["screenText"] + " " + scene["documentPrefix"]):
+             raise ValueError(f"Reference sentence leaked into screen context: {phrase['id']}")
++    if version == 3:
++        groups = collections.defaultdict(list)
++        for phrase in phrases:
++            group, kind = phrase.get("evaluationGroup"), phrase.get("contextKind")
++            if not isinstance(group, str) or not group.strip() or group != group.strip() or kind not in CONTEXT_KINDS:
++                raise ValueError("Supplementary phrases require a nonempty evaluationGroup and useful/distracting/neutral contextKind")
++            groups[group].append(phrase)
++        if len(groups) < 140:
++            raise ValueError("Supplementary corpus requires at least 140 independent authored families")
++        for group, members in groups.items():
++            if len(members) > 5 or len({p["category"] for p in members}) != 1 or len({p["contextKind"] for p in members}) != 1:
++                raise ValueError(f"Evaluation group must contain at most five phrases with one category/context kind: {group}")
++    return corpus
++
++
++def read_selection(args, corpus_data=None):
++    corpus = validate_corpus(json.loads(corpus_data if corpus_data is not None else corpus_path(args).read_bytes()),
++                             supplementary=getattr(args, "corpus", None) is not None)
++    phrases = corpus["phrases"]
++    if corpus["version"] == 3 and (getattr(args, "split", "all") != "all" or
++            any(getattr(args, key, None) is not None for key in ("category", "phrase", "limit", "per_category"))):
++        raise ValueError("The supplementary confirmatory corpus requires --split all without narrowing filters")
+     selected = [p for p in partition_phrases(phrases, args) if (not args.category or p["category"] == args.category)
+                 and (not args.phrase or p["id"] == args.phrase)]
+     per_category = getattr(args, "per_category", None)
+@@ -141,9 +174,9 @@ def checkpoint_counts(phrases, mode, context):
+     return counts
+ 
+ 
+-def show_plan(args):
++def show_plan(args, corpus_data=None):
+     overrides = sampling_overrides(args)
+-    _, phrases = read_selection(args)
++    corpus, phrases = read_selection(args, corpus_data)
+     context = getattr(args, "context", "paired")
+     workers = min(getattr(args, "workers", 3), len(phrases))
+     counts = checkpoint_counts(phrases, args.mode, context)
+@@ -152,11 +185,41 @@ def show_plan(args):
+         print(f"  {category}: {count:,} checkpoints")
+     print("Primary score: exact next word before its first letter; suppressed output is a miss.")
+     print(f"Selection: split={getattr(args, 'split', 'all')}; split seed={getattr(args, 'split_seed', 1337)}; screen phrases/category={getattr(args, 'screen_per_category', 20)}")
++    if corpus["version"] == 3:
++        print(f"Supplementary version 3: {len({p['evaluationGroup'] for p in phrases})} evaluation families; full confirmatory selection")
+     if overrides:
+         print("Sampling overrides:", json.dumps(overrides, sort_keys=True))
+     return phrases
+ 
+ 
++def prepare_corpus_input(args, output, data):
++    """Freeze runtime fixture bytes separately from reusable app/test compiler inputs."""
++    source = corpus_path(args)
++    digest = hashlib.sha256(data).hexdigest()
++    if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
++        raise RuntimeError("Corpus changed during selection")
++    replay = None
++    if getattr(args, "corpus", None) is not None:
++        replay = output / "corpus-input.json"
++        with replay.open("xb") as stream:
++            stream.write(data)
++        replay.chmod(0o444)
++    return {"sourcePath": str(source), "replayPath": str(replay) if replay else None,
++            "sha256": digest, "version": json.loads(data).get("version", 2)}
++
++
++def verify_corpus_input(record, report=None):
++    for key in ("sourcePath", "replayPath"):
++        if record[key] and hashlib.sha256(pathlib.Path(record[key]).read_bytes()).hexdigest() != record["sha256"]:
++            raise RuntimeError(f"Corpus input changed: {key}")
++    if report is not None:
++        metadata = report["metadata"]
++        if metadata.get("corpusSHA256") != record["sha256"] or metadata.get("corpusVersion") != record["version"]:
++            raise RuntimeError("Executed corpus identity differs from the immutable requested fixture")
++        if record["replayPath"] and metadata.get("corpusPath") != record["replayPath"]:
++            raise RuntimeError("Test host did not use the explicit immutable corpus copy")
++
++
+ def validate_sampling_report(report, overrides):
+     """Reject effective settings that differ from the requested experimental settings."""
+     metadata = report["metadata"]
+@@ -410,7 +473,8 @@ def build_product_fingerprint(source):
+ 
+ 
+ def run(args):
+-    phrases = show_plan(args)
++    corpus_data = corpus_path(args).read_bytes()
++    phrases = show_plan(args, corpus_data=corpus_data)
+     overrides = sampling_overrides(args)
+     workers = min(args.workers, len(phrases))
+     if platform.system() != "Darwin":
+@@ -422,10 +486,11 @@ def run(args):
+     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+     output = (args.output or ROOT / "build/eval/phrases" / f"{stamp}-{uuid.uuid4().hex[:8]}").resolve()
+     output.mkdir(parents=True, exist_ok=False)
++    corpus_input = prepare_corpus_input(args, output, corpus_data)
+     manifest = {
+         "startedUTC": stamp, "label": args.label, "gitCommit": git_output("rev-parse", "HEAD").strip(),
+         "gitStatus": git_output("status", "--short"), "mode": args.mode, "contextMode": args.context,
+-        "corpusSHA256": hashlib.sha256(CORPUS.read_bytes()).hexdigest(),
++        "corpusSHA256": corpus_input["sha256"], "corpusInput": corpus_input,
+         "phraseIDs": [p["id"] for p in phrases], "platform": platform.platform(),
+         "modelPath": str(args.model.resolve()) if args.model else "app runtime default",
+         "workerCount": workers,
+@@ -442,14 +507,16 @@ def run(args):
+     initial_git = {key: manifest[key] for key in ("gitCommit", "gitStatus")}
+     prepared_inputs = prepare_build_inputs(args.workspace, project, output, skip_build=args.skip_build)
+     source_fingerprint = prepared_inputs["sourceSHA256"]
+-    if hashlib.sha256(CORPUS.read_bytes()).hexdigest() != manifest["corpusSHA256"]:
+-        raise RuntimeError("Corpus changed after phrase selection; retry with a stable checkout")
++    verify_corpus_input(corpus_input)
+     # The manifest/patch now describe the inputs about to compile, including newly generated pins.
+     # Keep launch provenance as well; a rejected setup never masquerades as a completed benchmark.
+     manifest["gitAtStart"] = initial_git
+     manifest["gitCommit"] = git_output("rev-parse", "HEAD").strip()
+     manifest["gitStatus"] = git_output("status", "--short")
+     manifest["buildInputs"] = prepared_inputs
++    manifest["evaluationInputsSHA256"] = hashlib.sha256(json.dumps(
++        {"compilerInputsSHA256": source_fingerprint, "corpusSHA256": corpus_input["sha256"]},
++        sort_keys=True).encode()).hexdigest()
+     (output / "working-tree.patch").write_text(git_output(*patch_arguments))
+     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+     if build_input_fingerprint(args.workspace) != source_fingerprint:
+@@ -474,6 +541,7 @@ def run(args):
+         raise RuntimeError("--skip-build found changed app/test binaries; rebuild before evaluating")
+     if build_input_fingerprint(args.workspace) != source_fingerprint:
+         raise RuntimeError("Source inputs changed during build setup; retry with a stable checkout")
++    verify_corpus_input(corpus_input)
+     build_record = {"sourceSHA256": source_fingerprint, "productSHA256": product_fingerprint,
+                     "xctestrun": str(source), "reused": args.skip_build}
+     if not args.skip_build:
+@@ -489,6 +557,8 @@ def run(args):
+         "COTABBY_PHRASE_WORKERS": str(workers),
+         "COTABBY_PHRASE_SPLIT": args.split, "COTABBY_PHRASE_SPLIT_SEED": str(args.split_seed),
+         "COTABBY_PHRASE_SCREEN_PER_CATEGORY": str(args.screen_per_category),
++        "COTABBY_PHRASE_CORPUS": corpus_input["replayPath"] or "",
++        "COTABBY_PHRASE_CORPUS_SHA256": corpus_input["sha256"] if corpus_input["replayPath"] else "",
+     }
+     for field, value in overrides.items():
+         environment["COTABBY_PHRASE_SEED" if field == "seed" else SAMPLING_FIELDS[field][1]] = str(value)
+@@ -514,6 +584,9 @@ def run(args):
+     if not report_path.exists():
+         raise RuntimeError("No report was produced; check test.log for a skipped or interrupted benchmark")
+     report = json.loads(report_path.read_text())
++    verify_corpus_input(corpus_input, report)
++    if build_input_fingerprint(args.workspace) != source_fingerprint or build_product_fingerprint(source) != product_fingerprint:
++        raise RuntimeError("Compiler inputs or app/test products changed during replay")
+     validate_sampling_report(report, overrides)
+     if report["metadata"].get("workerCount", 1) != workers:
+         raise RuntimeError("Executed worker count does not match the requested worker count")
+@@ -522,6 +595,12 @@ def run(args):
+     actual = [(p["phrase"]["id"], p["condition"]) for p in report["phrases"]]
+     if sorted(actual) != sorted(expected):
+         raise RuntimeError("Executed phrase selection does not match the requested selection")
++    if corpus_input["version"] == 3:
++        expected_phrases = {phrase["id"]: phrase for phrase in phrases}
++        if any(row["phrase"] != expected_phrases[row["phrase"]["id"]] for row in report["phrases"]):
++            raise RuntimeError("Executed supplementary phrases or family metadata differ from the requested fixture")
++        if report["metadata"].get("evaluationGroupIDs") != sorted({phrase["evaluationGroup"] for phrase in phrases}):
++            raise RuntimeError("Executed supplementary family identities are missing or inconsistent")
+     if report["errorCount"]:
+         raise RuntimeError("Report contains inference errors; do not use this run as a baseline")
+     print("Complete: replay and report validation passed.")
+@@ -646,6 +725,8 @@ def main():
+     commands = parser.add_subparsers(dest="command", required=True)
+     for name in ("plan", "run"):
+         command = commands.add_parser(name)
++        command.add_argument("--corpus", type=pathlib.Path,
++                             help="Explicit supplementary fixture; version 3 is a complete 700-phrase confirmatory corpus")
+         command.add_argument("--mode", choices=("word", "character"), default="word")
+         command.add_argument("--context", choices=("none", "screen", "paired"), default="paired")
+         command.add_argument("--workers", type=int, choices=(1, 2, 3), default=3,
+diff --git a/scripts/tests/test_analyze_phrase_experiments.py b/scripts/tests/test_analyze_phrase_experiments.py
+index 7035d30..1c23144 100644
+--- a/scripts/tests/test_analyze_phrase_experiments.py
++++ b/scripts/tests/test_analyze_phrase_experiments.py
+@@ -48,6 +48,31 @@ def report(outcomes, *, paired=False, typed_characters=()):
+ 
+ 
+ class PhraseExperimentAnalysisTests(unittest.TestCase):
++    def test_evaluation_families_are_sampled_together_across_phrases_and_conditions(self):
++        before = report({'science-1': [0], 'science-2': [0], 'science-3': [0], 'science-4': [0]}, paired=True)
++        after = report({'science-1': [1], 'science-2': [1], 'science-3': [0], 'science-4': [0]}, paired=True)
++        for value in (before, after):
++            value['metadata']['corpusVersion'] = 3
++            for row in value['phrases']:
++                row['phrase'].update(evaluationGroup='family-a' if row['phrase']['id'] in ('science-1', 'science-2') else 'family-b',
++                                     contextKind='useful')
++        result = analysis.compare(before, after, samples=1000, seed=42)
++        self.assertEqual(result['bootstrap']['clusterCounts'], {'science': 2})
++        self.assertEqual(result['bootstrap']['clusterUnit'], 'evaluationGroup')
++        self.assertEqual(result['bootstrap']['accuracyDeltaIntervals']['screen/suite'], [0, 1])
++        self.assertEqual(result['bootstrap']['accuracyDeltaIntervals']['contextLift'], [0, 0])
++        self.assertEqual(result, analysis.compare(before, after, samples=1000, seed=42))
++
++    def test_missing_or_inconsistent_families_cannot_fall_back_to_phrase_bootstrap(self):
++        value = report({'science-1': [0], 'science-2': [0]}, paired=True)
++        value['metadata']['corpusVersion'] = 3
++        with self.assertRaisesRegex(ValueError, 'every evaluationGroup'):
++            analysis.compare(value, copy.deepcopy(value), samples=100)
++        for row in value['phrases']:
++            row['phrase'].update(evaluationGroup='same', contextKind='useful' if row['phrase']['id'] == 'science-1' else 'neutral')
++        with self.assertRaisesRegex(ValueError, 'crosses categories or context kinds'):
++            analysis.compare(value, copy.deepcopy(value), samples=100)
++
+     def test_identical_runs_have_zero_delta_and_zero_width_interval(self):
+         value = report({"science-1": [0, 1, 0], "science-2": [1, 0], "work-1": [1]})
+         result = analysis.compare(value, copy.deepcopy(value), samples=100)
+diff --git a/scripts/tests/test_phrase_eval.py b/scripts/tests/test_phrase_eval.py
+index a573ccc..c4851eb 100644
+--- a/scripts/tests/test_phrase_eval.py
++++ b/scripts/tests/test_phrase_eval.py
+@@ -18,6 +18,79 @@ SPEC.loader.exec_module(eval_cli)
+ 
+ 
+ class PhraseEvalCLITests(unittest.TestCase):
++    def supplementary_corpus(self):
++        phrases = []
++        for category in eval_cli.CATEGORIES:
++            for i in range(100):
++                phrases.append(dict(id=f'{category}-{i}', category=category,
++                    text=f'Reference {category} item {i} can wait.',
++                    evaluationGroup=f'{category}-family-{i // 5}',
++                    contextKind=('useful', 'distracting', 'neutral')[(i // 5) % 3],
++                    scenario=dict(kind='notes', applicationName='Notes', bundleIdentifier='test.notes',
++                        windowTitle='Fixture', fieldPlaceholder='', documentPrefix='',
++                        screenText=f'Public board {category} record {i}. These ordinary source notes have distinct context.')))
++        return dict(version=3, language='en', provenance='Synthetic unit fixture, not validation data', phrases=phrases)
++
++    def test_supplementary_contract_is_explicit_balanced_and_family_grouped(self):
++        corpus = self.supplementary_corpus()
++        self.assertIs(eval_cli.validate_corpus(corpus, supplementary=True), corpus)
++        with self.assertRaisesRegex(ValueError, 'explicit supplementary'):
++            eval_cli.validate_corpus(corpus)
++        mutations = [lambda c: c['phrases'].pop(),
++                     lambda c: c['phrases'][0].update(evaluationGroup=''),
++                     lambda c: c['phrases'][0].update(contextKind='answer'),
++                     lambda c: c['phrases'][0].update(evaluationGroup=c['phrases'][100]['evaluationGroup']),
++                     lambda c: c['phrases'][0].update(contextKind='neutral'),
++                     lambda c: c['phrases'][5].update(evaluationGroup=c['phrases'][0]['evaluationGroup'])]
++        for mutate in mutations:
++            invalid = copy.deepcopy(corpus)
++            mutate(invalid)
++            with self.assertRaises(ValueError):
++                eval_cli.validate_corpus(invalid, supplementary=True)
++
++    def test_supplementary_selection_rejects_screening_and_narrowing(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path = pathlib.Path(directory) / 'fresh.json'
++            path.write_text(json.dumps(self.supplementary_corpus()))
++            args = argparse.Namespace(corpus=path, category=None, phrase=None, limit=None, per_category=None, split='all')
++            self.assertEqual(len(eval_cli.read_selection(args)[1]), 700)
++            for key, value in (('split', 'screen'), ('split', 'heldout'), ('category', 'science'),
++                               ('phrase', 'science-0'), ('limit', 1), ('per_category', 1)):
++                narrowed = copy.copy(args)
++                setattr(narrowed, key, value)
++                with self.assertRaisesRegex(ValueError, 'without narrowing'):
++                    eval_cli.read_selection(narrowed)
++
++    def test_explicit_fixture_copy_and_executed_identity_are_guarded(self):
++        for changed in ('sourcePath', 'replayPath', 'reportHash', 'reportPath', 'reportVersion'):
++            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
++                root = pathlib.Path(directory)
++                source = root / 'fresh.json'
++                data = json.dumps(self.supplementary_corpus()).encode()
++                source.write_bytes(data)
++                output = root / 'output'
++                output.mkdir()
++                record = eval_cli.prepare_corpus_input(argparse.Namespace(corpus=source), output, data)
++                self.assertEqual(pathlib.Path(record['replayPath']).read_bytes(), data)
++                self.assertEqual(pathlib.Path(record['replayPath']).stat().st_mode & 0o777, 0o444)
++                report = {'metadata': dict(corpusSHA256=record['sha256'], corpusVersion=3, corpusPath=record['replayPath'])}
++                eval_cli.verify_corpus_input(record, report)
++                if changed.endswith('Path') and changed in record:
++                    path = pathlib.Path(record[changed])
++                    path.chmod(0o644)
++                    path.write_bytes(data + b' ')
++                else:
++                    report['metadata'][{'reportHash': 'corpusSHA256', 'reportPath': 'corpusPath', 'reportVersion': 'corpusVersion'}[changed]] = 'wrong'
++                with self.assertRaises(RuntimeError):
++                    eval_cli.verify_corpus_input(record, report)
++
++    def test_fixture_change_between_selection_and_copy_is_rejected(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path = pathlib.Path(directory) / 'source.json'
++            path.write_bytes(b'changed')
++            with self.assertRaisesRegex(RuntimeError, 'changed during selection'):
++                eval_cli.prepare_corpus_input(argparse.Namespace(corpus=path), pathlib.Path(directory), b'original')
++
+     @contextlib.contextmanager
+     def resolution_fixture(self):
+         """A tiny app/native workspace with filesystem changes and a stubbed Git file listing."""
+@@ -151,7 +224,8 @@ class PhraseEvalCLITests(unittest.TestCase):
+                             path.write_text('changed during compilation')
+                     else:
+                         self.assertEqual(arguments[1], 'test-without-building')
+-                        (args.output / 'report.json').write_text(json.dumps({'metadata': {'workerCount': 1},
++                        (args.output / 'report.json').write_text(json.dumps({'metadata': {'workerCount': 1,
++                            'corpusSHA256': eval_cli.hashlib.sha256(corpus.read_bytes()).hexdigest(), 'corpusVersion': 2},
+                             'phrases': [{'phrase': phrase, 'condition': 'none'}], 'errorCount': 0}))
+                         (args.output / 'summary.txt').write_text('Synthetic summary')
+                 def git_output(*arguments):

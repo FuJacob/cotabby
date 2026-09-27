@@ -28,4 +28,28 @@ final class MidWordContinuationPolicyTests: XCTestCase {
             MidWordContinuationPolicy.shouldForceContinuation(precedingText: "done", trailingText: ". Next")
         )
     }
+
+    func test_wordCharacterBoundaries() {
+        let cases: [(name: String, preceding: String, trailing: String, expected: Bool)] = [
+            // Digits count as word characters, so identifiers and numbers heal like words.
+            ("digits on both sides", "build 12", "34", true),
+            ("letter then digit", "v", "2", true),
+            ("non-ASCII letters", "caf", "é au lait", true),
+            ("CJK inside a run", "今日", "は", true),
+            ("empty preceding text", "", "word", false),
+            // A connector is not a word character: the trigger stays narrow at `don|'t`.
+            ("apostrophe after caret", "don", "'t", false),
+            ("newline after caret", "word", "\nnext", false)
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                MidWordContinuationPolicy.shouldForceContinuation(
+                    precedingText: testCase.preceding,
+                    trailingText: testCase.trailing
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
 }

@@ -1,117 +1,9 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the random, unit-conversion, and currency macro evaluators, plus the engine that routes
-/// a query to the first matching family.
-
-final class RandomMacroEvaluatorTests: XCTestCase {
-    /// A deterministic evaluator: the RNG always returns the low end of the range, and the UUID is fixed.
-    private let sut = RandomMacroEvaluator(randomSource: { $0.lowerBound }, uuidSource: { "FIXED-UUID" })
-
-    func test_randomRange() {
-        XCTAssertEqual(sut.evaluate("random(1,2)")?.insertionText, "1")
-    }
-
-    func test_randomSingleArgument() {
-        XCTAssertEqual(sut.evaluate("random(5)")?.insertionText, "1")
-    }
-
-    func test_randomDefaultRange() {
-        XCTAssertEqual(sut.evaluate("random")?.insertionText, "0")
-    }
-
-    func test_randomNormalizesReversedBounds() {
-        XCTAssertEqual(sut.evaluate("random(2,1)")?.insertionText, "1")
-    }
-
-    func test_dice() {
-        XCTAssertEqual(sut.evaluate("dice")?.insertionText, "1")
-    }
-
-    func test_coin() {
-        XCTAssertEqual(sut.evaluate("coin")?.insertionText, "Heads")
-    }
-
-    func test_uuid() {
-        XCTAssertEqual(sut.evaluate("uuid")?.insertionText, "FIXED-UUID")
-    }
-
-    func test_invalidArguments_returnNil() {
-        XCTAssertNil(sut.evaluate("random(abc)"))
-        XCTAssertNil(sut.evaluate("random(0)"))
-    }
-
-    func test_aliasesAndDiceNotation() {
-        XCTAssertEqual(sut.evaluate("rand")?.insertionText, "0")
-        XCTAssertEqual(sut.evaluate("roll")?.insertionText, "1")
-        XCTAssertEqual(sut.evaluate("flip")?.insertionText, "Heads")
-        XCTAssertEqual(sut.evaluate("guid")?.insertionText, "FIXED-UUID")
-        XCTAssertEqual(sut.evaluate("d20")?.insertionText, "1")
-        XCTAssertEqual(sut.evaluate("rnd(7,7)")?.insertionText, "7")
-    }
-}
-
-final class UnitConversionEvaluatorTests: XCTestCase {
-    private let sut = UnitConversionEvaluator(locale: Locale(identifier: "en_US"))
-
-    func test_lengthKilometersToMiles() {
-        XCTAssertEqual(sut.evaluate("10km->mi")?.insertionText, "6.214 mi")
-    }
-
-    func test_temperatureFahrenheitToCelsius() {
-        XCTAssertEqual(sut.evaluate("100f->c")?.insertionText, "37.78 c")
-    }
-
-    func test_integerResultHasNoDecimals() {
-        XCTAssertEqual(sut.evaluate("1km->m")?.insertionText, "1000 m")
-        XCTAssertEqual(sut.evaluate("5ft->in")?.insertionText, "60 in")
-    }
-
-    func test_crossQuantity_returnsNil() {
-        XCTAssertNil(sut.evaluate("10km->kg"))
-    }
-
-    func test_nonUnitTokens_returnNil() {
-        XCTAssertNil(sut.evaluate("100USD->EUR"))
-    }
-
-    func test_toSeparatorAndFullNames() {
-        XCTAssertEqual(sut.evaluate("10 km to mi")?.insertionText, "6.214 mi")
-        XCTAssertEqual(sut.evaluate("1 kilometer to meters")?.insertionText, "1000 meters")
-        XCTAssertEqual(sut.evaluate("100 fahrenheit to celsius")?.insertionText, "37.78 celsius")
-    }
-}
-
-final class CurrencyEvaluatorTests: XCTestCase {
-    private let sut = CurrencyEvaluator(locale: Locale(identifier: "en_US"))
-
-    func test_sameCurrency() {
-        XCTAssertEqual(sut.evaluate("100USD->USD")?.insertionText, "$100.00")
-    }
-
-    func test_crossRateViaUSD() {
-        // 136 CAD / 1.36 (CAD per USD) = 100 USD.
-        XCTAssertEqual(sut.evaluate("136CAD->USD")?.insertionText, "$100.00")
-    }
-
-    func test_targetCurrencyFormatting() {
-        let result = sut.evaluate("100USD->EUR")
-        XCTAssertNotNil(result)
-        XCTAssertTrue(result?.insertionText.contains("92") ?? false)
-    }
-
-    func test_unknownCode_returnsNil() {
-        XCTAssertNil(sut.evaluate("100XXX->USD"))
-    }
-
-    func test_aliasesSymbolsAndToSeparator() {
-        let canonical = sut.evaluate("100USD->EUR")?.insertionText
-        XCTAssertEqual(sut.evaluate("100us->eur")?.insertionText, canonical)
-        XCTAssertEqual(sut.evaluate("$100 to eur")?.insertionText, canonical)
-        XCTAssertEqual(sut.evaluate("100 dollars to euros")?.insertionText, canonical)
-    }
-}
-
+/// Tests for the engine that routes a `/query` to the first matching macro family, plus the shared
+/// conversion-separator parser the unit and currency families both depend on. Per-family behavior
+/// lives in the `Evaluators/` suites; these tests pin routing order and query normalization only.
 final class MacroEngineRoutingTests: XCTestCase {
     private func makeEngine() -> MacroEngine {
         var calendar = Calendar(identifier: .gregorian)
@@ -125,6 +17,24 @@ final class MacroEngineRoutingTests: XCTestCase {
         )
     }
 
+    /// Records every query it sees and answers with a fixed result (or nil), so routing order and
+    /// the exact string forwarded to each family are observable.
+    private final class StubEvaluator: MacroEvaluating {
+        let result: MacroResult?
+        private(set) var receivedQueries: [String] = []
+
+        init(result: MacroResult?) {
+            self.result = result
+        }
+
+        func evaluate(_ query: String) -> MacroResult? {
+            receivedQueries.append(query)
+            return result
+        }
+    }
+
+    // MARK: - Standard engine
+
     func test_routesToEachFamily() {
         let engine = makeEngine()
         XCTAssertEqual(engine.evaluate("today")?.insertionText, "Jun 4, 2026")
@@ -132,6 +42,26 @@ final class MacroEngineRoutingTests: XCTestCase {
         XCTAssertEqual(engine.evaluate("10km->mi")?.insertionText, "6.214 mi")
         XCTAssertEqual(engine.evaluate("136CAD->USD")?.insertionText, "$100.00")
         XCTAssertEqual(engine.evaluate("random(7,7)")?.insertionText, "7")
+    }
+
+    func test_routesForgivingAliases() {
+        let engine = makeEngine()
+        XCTAssertEqual(engine.evaluate("tdy")?.insertionText, "Jun 4, 2026")
+        XCTAssertEqual(engine.evaluate("10 km to mi")?.insertionText, "6.214 mi")
+        XCTAssertEqual(engine.evaluate("$100 to eur")?.insertionText, "€92.00")
+        XCTAssertEqual(engine.evaluate("roll")?.insertionText, "1")
+    }
+
+    func test_sharedWordRoutesByTarget_unitBeforeCurrency() {
+        // "pound" is both a mass unit and a currency alias. The unit family runs first and claims it
+        // only when the target is also a mass; otherwise it returns nil and currency takes over.
+        let engine = makeEngine()
+        XCTAssertEqual(engine.evaluate("1 pound to kg")?.insertionText, "0.4536 kg")
+        XCTAssertEqual(engine.evaluate("1 pound to usd")?.insertionText, "$1.27")
+    }
+
+    func test_surroundingSpacesAreTrimmedBeforeRouting() {
+        XCTAssertEqual(makeEngine().evaluate("  5+5  ")?.insertionText, "10")
     }
 
     func test_emptyAndUnknownReturnNil() {
@@ -142,11 +72,65 @@ final class MacroEngineRoutingTests: XCTestCase {
         XCTAssertNil(engine.evaluate("zzz"))
     }
 
-    func test_routesForgivingAliases() {
-        let engine = makeEngine()
-        XCTAssertEqual(engine.evaluate("tdy")?.insertionText, "Jun 4, 2026")
-        XCTAssertEqual(engine.evaluate("10 km to mi")?.insertionText, "6.214 mi")
-        XCTAssertEqual(engine.evaluate("$100 to eur")?.insertionText, "€92.00")
-        XCTAssertEqual(engine.evaluate("roll")?.insertionText, "1")
+    // MARK: - Routing mechanics
+
+    func test_firstMatchingEvaluatorWins_andLaterOnesAreNotConsulted() {
+        let declining = StubEvaluator(result: nil)
+        let first = StubEvaluator(result: MacroResult("first"))
+        let second = StubEvaluator(result: MacroResult("second"))
+        let engine = MacroEngine(evaluators: [declining, first, second])
+
+        XCTAssertEqual(engine.evaluate("q")?.insertionText, "first")
+        XCTAssertEqual(declining.receivedQueries, ["q"])
+        XCTAssertEqual(first.receivedQueries, ["q"])
+        XCTAssertTrue(second.receivedQueries.isEmpty)
+    }
+
+    func test_evaluatorsReceiveTheTrimmedQuery_andBlankQueriesNeverReachThem() {
+        let stub = StubEvaluator(result: nil)
+        let engine = MacroEngine(evaluators: [stub])
+
+        XCTAssertNil(engine.evaluate(" \t "))
+        XCTAssertTrue(stub.receivedQueries.isEmpty)
+
+        _ = engine.evaluate("  a b  ")
+        XCTAssertEqual(stub.receivedQueries, ["a b"])
+    }
+}
+
+/// Tests for the separator parser shared by the unit and currency families.
+final class ConversionSeparatorTests: XCTestCase {
+    func test_splitsOnEachSupportedSeparator() {
+        let cases: [(query: String, left: String, right: String)] = [
+            ("10km->mi", "10km", "mi"),
+            ("10km→mi", "10km", "mi"),
+            ("10 km to mi", "10 km", "mi"),
+            ("10 km TO mi", "10 km", "mi")
+        ]
+        for (query, left, right) in cases {
+            let split = ConversionSeparator.split(query)
+            XCTAssertEqual(split?.left, left, query)
+            XCTAssertEqual(split?.right, right, query)
+        }
+    }
+
+    func test_sidesAreReturnedUntrimmed() {
+        // Callers own trimming; the parser only cuts at the separator.
+        let split = ConversionSeparator.split("10 km -> mi")
+        XCTAssertEqual(split?.left, "10 km ")
+        XCTAssertEqual(split?.right, " mi")
+    }
+
+    func test_arrowTakesPrecedenceOverSpacedTo() {
+        let split = ConversionSeparator.split("a to b->c")
+        XCTAssertEqual(split?.left, "a to b")
+        XCTAssertEqual(split?.right, "c")
+    }
+
+    func test_toMustBeSpaceDelimited() {
+        // "to" inside a word (or without surrounding spaces) is not a separator.
+        XCTAssertNil(ConversionSeparator.split("tomato"))
+        XCTAssertNil(ConversionSeparator.split("10kmtomi"))
+        XCTAssertNil(ConversionSeparator.split("10km mi"))
     }
 }

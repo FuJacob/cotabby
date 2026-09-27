@@ -43,46 +43,44 @@ final class OCRTextHygieneTests: XCTestCase {
 
     // MARK: - Filter 3: symbol-density drop
 
-    func test_dropHighSymbolDensity_dropsBoxDrawingNoise() {
-        let input = [line("\u{250C}\u{2500}\u{2500}\u{2500}\u{2510}")]
-        let result = OCRTextHygiene.dropHighSymbolDensity(input)
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_dropHighSymbolDensity_keepsProse() {
-        let input = [line("Hello, world! This is fine.")]
-        let result = OCRTextHygiene.dropHighSymbolDensity(input)
-        XCTAssertEqual(texts(result), ["Hello, world! This is fine."])
-    }
-
-    func test_dropHighSymbolDensity_keepsCodeAndVersionAndModelNames() {
-        let input = [
-            line("arr[i] = foo / bar; // ok"),
-            line("gpt-4o-mini (v2.1)"),
-            line("path/to/file.swift")
+    /// Density counts characters that are neither alphanumeric (any script), a space, nor common
+    /// punctuation, and drops the line only when that fraction strictly exceeds 0.2.
+    func test_dropHighSymbolDensity_keepsTextAndDropsGlyphNoise() {
+        let cases: [(text: String, kept: Bool)] = [
+            ("Hello, world! This is fine.", true),
+            ("arr[i] = foo / bar; // ok", true),
+            ("gpt-4o-mini (v2.1)", true),
+            ("path/to/file.swift", true),
+            ("日本語のテキスト", true),                          // non-Latin letters are word characters
+            ("", true),                                          // nothing to score; later guards drop it
+            ("abcd\u{2192}", true),                             // exactly 1/5 = 0.2 is not "over"
+            ("abc\u{2192}", false),                             // 1/4 = 0.25
+            ("\u{250C}\u{2500}\u{2500}\u{2500}\u{2510}", false), // box drawing
+            ("\u{2014}\u{2014}\u{2022}\u{2022}\u{2014}\u{2014}", false) // em-dashes and bullets
         ]
-        let result = OCRTextHygiene.dropHighSymbolDensity(input)
-        XCTAssertEqual(texts(result), texts(input))
+        for testCase in cases {
+            let result = OCRTextHygiene.dropHighSymbolDensity([line(testCase.text)])
+            XCTAssertEqual(result.isEmpty, !testCase.kept, "text \(testCase.text.debugDescription)")
+        }
     }
 
-    func test_dropHighSymbolDensity_dropsNonAsciiGlyphRun() {
-        // Em-dashes and bullets are not in the allowed punctuation set and should read as noise.
-        let input = [line("\u{2014}\u{2014}\u{2022}\u{2022}\u{2014}\u{2014}")]
-        let result = OCRTextHygiene.dropHighSymbolDensity(input)
-        XCTAssertTrue(result.isEmpty)
+    func test_dropHighSymbolDensity_honorsCustomThreshold() {
+        // 1/4 symbols passes a 0.3 ceiling that the default 0.2 would reject.
+        let result = OCRTextHygiene.dropHighSymbolDensity([line("abc\u{2192}")], threshold: 0.3)
+        XCTAssertEqual(texts(result), ["abc\u{2192}"])
     }
 
     // MARK: - Filter 4: digit-substitution drop (preserve / drop matrix)
 
     func test_dropDigitSubstitution_dropsMisreadTokens() {
-        for token in ["qu81ity", "h3llo"] {
+        for token in ["qu81ity", "h3llo", "x2y"] {
             let result = OCRTextHygiene.dropDigitSubstitution([line(token)])
             XCTAssertTrue(result.isEmpty, "expected \(token) to be dropped")
         }
     }
 
     func test_dropDigitSubstitution_preservesRealTokens() {
-        for token in ["utf8", "v2", "3D", "5070", "20-core", "RTX5070", "N1X"] {
+        for token in ["utf8", "v2", "3D", "5070", "20-core", "RTX5070", "N1X", "A1b"] {
             let result = OCRTextHygiene.dropDigitSubstitution([line(token)])
             XCTAssertEqual(texts(result), [token], "expected \(token) to be preserved")
         }
@@ -103,75 +101,55 @@ final class OCRTextHygieneTests: XCTestCase {
 
     // MARK: - Filter 5: word-character-ratio drop
 
-    func test_dropLowWordCharacterRatio_dropsPunctuationHeavyLine() {
-        let input = [line("--- :: --- :: ---")]
-        let result = OCRTextHygiene.dropLowWordCharacterRatio(input)
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_dropLowWordCharacterRatio_keepsNormalSentence() {
-        let input = [line("This sentence has plenty of letters.")]
-        let result = OCRTextHygiene.dropLowWordCharacterRatio(input)
-        XCTAssertEqual(texts(result), texts(input))
-    }
-
-    func test_dropLowWordCharacterRatio_dropsWhitespaceOnlyLine() {
-        let input = [line("    ")]
-        let result = OCRTextHygiene.dropLowWordCharacterRatio(input)
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_dropLowWordCharacterRatio_ignoresLeadingWhitespaceInRatio() {
-        // Indentation should not push an otherwise wordy line below the ratio threshold.
-        let input = [line("        indented code here")]
-        let result = OCRTextHygiene.dropLowWordCharacterRatio(input)
-        XCTAssertEqual(texts(result), texts(input))
+    /// Keeps lines whose alphanumeric share of non-space characters is at least 0.5. Whitespace is
+    /// excluded from the denominator, so indentation cannot sink a wordy line, and whitespace-only
+    /// lines score zero.
+    func test_dropLowWordCharacterRatio_matrix() {
+        let cases: [(text: String, kept: Bool)] = [
+            ("This sentence has plenty of letters.", true),
+            ("        indented code here", true),
+            ("ab--", true),               // exactly 2/4 = 0.5 meets the threshold
+            ("ab---", false),             // 2/5 = 0.4
+            ("--- :: --- :: ---", false),
+            ("    ", false)
+        ]
+        for testCase in cases {
+            let result = OCRTextHygiene.dropLowWordCharacterRatio([line(testCase.text)])
+            XCTAssertEqual(result.isEmpty, !testCase.kept, "text \(testCase.text.debugDescription)")
+        }
     }
 
     // MARK: - Filter 6: field-text stripping
 
-    func test_strip_dropsExactEcho() {
-        let input = [line("hello world"), line("unrelated context")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "hello world")
-        XCTAssertEqual(texts(result), ["unrelated context"])
-    }
-
-    func test_strip_dropsCaseDifferentEcho() {
-        let input = [line("Hello World")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "hello world")
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_strip_dropsWhitespaceDifferentEcho() {
-        let input = [line("Hello    World")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "the hello world here")
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_strip_keepsTooShortCoincidence() {
-        // "to" is a substring of the field text but shorter than minMatch, so it must NOT be stripped.
-        let input = [line("to")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "this is something to read")
-        XCTAssertEqual(texts(result), ["to"])
-    }
-
-    func test_strip_keepsNonSubstringLine() {
-        let input = [line("completely different")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "hello world")
-        XCTAssertEqual(texts(result), ["completely different"])
+    /// A line is stripped when its lowercased, whitespace-collapsed form is a substring of the
+    /// equally normalized field text and is at least `minMatch` (default 4) characters long, so
+    /// short coincidences like "to" survive.
+    func test_strip_matrix() {
+        let cases: [(line: String, field: String, kept: Bool)] = [
+            ("hello world", "hello world", false),
+            ("Hello World", "hello world", false),
+            ("Hello    World", "the hello   world here", false),
+            ("read", "something to read", false),  // exactly minMatch characters
+            ("rea", "something to read", true),    // one below minMatch
+            ("to", "this is something to read", true),
+            ("completely different", "hello world", true),
+            ("anything", "", true),                // no field text: nothing to echo
+            ("anything", "  \n ", true)            // whitespace-only field normalizes to empty
+        ]
+        for testCase in cases {
+            let result = OCRTextHygiene.strip(lines: [line(testCase.line)], fieldText: testCase.field)
+            XCTAssertEqual(
+                result.isEmpty,
+                !testCase.kept,
+                "line \(testCase.line.debugDescription) field \(testCase.field.debugDescription)"
+            )
+        }
     }
 
     func test_strip_honorsCustomMinMatch() {
         // With a higher minMatch, a medium-length echo is kept because it is below the bar.
-        let input = [line("hello")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "hello there", minMatch: 8)
+        let result = OCRTextHygiene.strip(lines: [line("hello")], fieldText: "hello there", minMatch: 8)
         XCTAssertEqual(texts(result), ["hello"])
-    }
-
-    func test_strip_withEmptyFieldText_keepsEverything() {
-        let input = [line("anything"), line("else")]
-        let result = OCRTextHygiene.strip(lines: input, fieldText: "")
-        XCTAssertEqual(texts(result), ["anything", "else"])
     }
 
     // MARK: - Top-level clean
@@ -203,16 +181,22 @@ final class OCRTextHygieneTests: XCTestCase {
         XCTAssertEqual(result, "spaced out")
     }
 
-    func test_clean_boundsMaxLines() {
+    /// Line bounding keeps the FIRST lines in reading order; the default cap is 40.
+    func test_clean_boundsMaxLinesKeepingEarliest() {
         let input = (0..<60).map { line("line number \($0) has words") }
-        let result = OCRTextHygiene.clean(lines: input, fieldText: "", maxLines: 5)
-        XCTAssertEqual(result.components(separatedBy: "\n").count, 5)
+        XCTAssertEqual(
+            OCRTextHygiene.clean(lines: input, fieldText: "", maxLines: 2),
+            "line number 0 has words\nline number 1 has words"
+        )
+        XCTAssertEqual(OCRTextHygiene.clean(lines: input, fieldText: "").components(separatedBy: "\n").count, 40)
+        XCTAssertEqual(OCRTextHygiene.clean(lines: input, fieldText: "", maxLines: 0), "")
     }
 
-    func test_clean_boundsMaxChars() {
-        let input = [line(String(repeating: "abcde ", count: 200))]
-        let result = OCRTextHygiene.clean(lines: input, fieldText: "", maxChars: 50)
-        XCTAssertEqual(result.count, 50)
+    /// The character cap applies to the final joined string, newline separators included.
+    func test_clean_boundsMaxCharsOnJoinedText() {
+        let input = [line("first line"), line("second line")]
+        XCTAssertEqual(OCRTextHygiene.clean(lines: input, fieldText: "", maxChars: 13), "first line\nse")
+        XCTAssertEqual(OCRTextHygiene.clean(lines: input, fieldText: "", maxChars: -1), "")
     }
 
     func test_clean_withNoSurvivingLines_returnsEmptyString() {

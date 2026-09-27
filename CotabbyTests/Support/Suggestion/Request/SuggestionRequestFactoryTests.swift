@@ -1,59 +1,187 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the shouldGenerate gate in the request factory.
-///
-/// The factory's comment is explicit that it does NOT require a trailing
-/// space — debounce handles keystroke settling, the output normalizer
-/// handles spacing. This suite locks that contract in so a future refactor
-/// that adds "one more guard, just in case" doesn't silently remove
-/// completions that used to work.
+/// Tests for the pure request-construction boundary: the should-generate gate, engine-aware prefix
+/// truncation, token budgeting, and which optional context (clipboard, screen, surface, notes) is
+/// allowed into the prompt for each engine.
 final class SuggestionRequestFactoryTests: XCTestCase {
-
-    // MARK: - degenerate inputs
-
-    func test_shouldGenerate_falseForEmptyString() {
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: ""))
+    /// A configuration with small, explicit budgets so truncation and token-floor behavior is
+    /// visible in short fixtures. Only the knobs a test varies are parameters.
+    private func makeConfiguration(
+        maxPredictionTokens: Int = 8,
+        maxPrefixWords: Int = 50,
+        maxPrefixCharacters: Int = 1000,
+        maxPrefixWordsFoundationModel: Int = 150,
+        maxPrefixCharactersFoundationModel: Int = 2500
+    ) -> SuggestionConfiguration {
+        SuggestionConfiguration(
+            maxPredictionTokens: maxPredictionTokens,
+            debounceMilliseconds: 0,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            randomSeed: 42,
+            maxPrefixWords: maxPrefixWords,
+            maxPrefixCharacters: maxPrefixCharacters,
+            maxPrefixWordsFoundationModel: maxPrefixWordsFoundationModel,
+            maxPrefixCharactersFoundationModel: maxPrefixCharactersFoundationModel,
+            maxSuffixCharacters: 192,
+            llamaPromptTokenBudget: 1934,
+            defaultUserName: nil,
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
+        )
     }
 
-    func test_shouldGenerate_falseForPureWhitespace() {
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "   \t  "))
+    func test_localScreenContextExceedsOldCapButEndpointKeepsLegacyPrompt() {
+        let screen = String(repeating: "Project discussion and meeting agenda. ", count: 120)
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: "Please send "),
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),
+                configuration: .standard, visualContextSummary: screen
+            )
+            let limit = engine == .openAICompatible ? 1500 : 4000
+            XCTAssertLessThanOrEqual(result.request.visualContextSummary?.count ?? 0, limit)
+            if engine == .openAICompatible {
+                XCTAssertLessThan(result.request.prompt.count, 800)
+                XCTAssertFalse(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            } else {
+                XCTAssertGreaterThan(result.request.visualContextSummary?.count ?? 0, 1500)
+                XCTAssertGreaterThan(result.request.prompt.count, 1000)
+                XCTAssertTrue(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            }
+            XCTAssertTrue(result.request.prompt.hasSuffix("Please send "))
+        }
     }
 
-    func test_shouldGenerate_falseForPureNewlines() {
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "\n\n"))
+    func test_denseUnicodeScreenTextLeavesRoomForLocalInstructionsAndCaret() {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "今天"),
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard, visualContextSummary: String(repeating: "请在周五之前发送项目报告", count: 500)
+        )
+        XCTAssertLessThan(result.request.visualContextSummary?.count ?? 0, 600)
+        XCTAssertTrue(result.request.prompt.hasSuffix("今天"))
     }
 
-    func test_shouldGenerate_falseForMixedPureWhitespaceAndNewlines() {
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: " \n\t \n  "))
+    // MARK: - shouldGenerateSuggestion
+
+    /// A request needs at least one non-whitespace character. No trailing space is required:
+    /// debounce handles keystroke settling and the output normalizer handles spacing, so adding
+    /// "one more guard" here would silently remove completions that used to work.
+    func test_shouldGenerate_requiresNonWhitespaceButNotATrailingDelimiter() {
+        for text in ["", "   \t  ", "\n\n", " \n\t \n  "] {
+            XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text), text.debugDescription)
+        }
+        for text in ["a", "word", "Hello, wor", "  hello", "hello  ", "今日は"] {
+            XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: text), text.debugDescription)
+        }
     }
 
-    // MARK: - meaningful inputs
-
-    func test_shouldGenerate_trueForSingleCharacter() {
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "a"))
-    }
-
-    func test_shouldGenerate_trueForPartialWord() {
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Hello, wor"))
-    }
-
-    /// The key documented behavior: no trailing-space requirement. If this
-    /// test starts failing, someone added a settling heuristic that belongs
-    /// in the debounce layer, not here.
-    func test_shouldGenerate_trueMidWordWithoutTrailingSpace() {
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "word"))
-    }
-
-    func test_shouldGenerate_trueWhenLeadingWhitespacePrecedesRealContent() {
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "  hello"))
-    }
-
-    func test_shouldGenerate_trueWhenContentPrecedesTrailingWhitespace() {
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "hello  "))
+    /// The opt-in boundary preference waits for a delimiter inside space-delimited words, but must
+    /// not starve scripts that never produce one, or code-like tokens the lexical policy ignores.
+    func test_boundaryPreferenceWaitsForDelimiterButPreservesUnspacedLanguages() {
+        for text in ["w", "word", "Please schedu", "I don't", "Try (wor"] {
+            XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        for text in ["word ", "word,", "word.", "word\n", "今日は", "user_name", "version v2"] {
+            XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "  ", suggestWithinWords: false))
     }
 
     // MARK: - buildRequest
+
+    func test_buildRequest_preservesDocumentStructureAndExactCaretBoundary() {
+        let text = "\tHello Casey,\n\nThe agenda:\n  - first item\n  - "
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: text),
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),
+                configuration: .standard
+            )
+            XCTAssertEqual(result.request.prefixText, text)
+            XCTAssertTrue(result.request.prompt.hasSuffix(text))
+        }
+    }
+
+    func test_truncatedPromptPrefix_preservesSeparatorsWhenWordBudgetDropsOldText() {
+        // Sized from the shipped word budget so the window binds on words, not characters.
+        let retainedText = String(repeating: "w\n\t", count: SuggestionConfiguration.standard.maxPrefixWords - 1) + "last  \n"
+        let text = "discard this " + retainedText
+        let prefix = SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard)
+        XCTAssertEqual(prefix, retainedText)
+    }
+
+    func test_truncatedPromptPrefix_characterWindowKeepsUnicodeAndTrailingWhitespace() {
+        let text = String(repeating: "👩🏽‍💻", count: 2_600) + "\n\tHello  "
+        let prefix = SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard)
+        XCTAssertEqual(prefix, String(text.suffix(SuggestionConfiguration.standard.maxPrefixCharacters)))
+        XCTAssertTrue(prefix.hasSuffix("\n\tHello  "))
+    }
+
+    func test_buildRequest_boundsFollowingTextForLocalCompletion() {
+        let boundedSuffix = String(repeating: "x", count: SuggestionConfiguration.standard.maxSuffixCharacters)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "We are meeting ",
+            trailingText: boundedSuffix + "UNBOUNDED_DOCUMENT_TAIL"
+        )
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertTrue(result.request.prompt.contains("“\(boundedSuffix)”"))
+        XCTAssertFalse(result.request.prompt.contains("UNBOUNDED_DOCUMENT_TAIL"))
+        XCTAssertTrue(result.request.prompt.hasSuffix("We are meeting "))
+    }
+
+    func test_buildRequest_doesNotAddFollowingTextToEndpointPayload() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "We are meeting ",
+            trailingText: "LOCAL_DOCUMENT_TAIL"
+        )
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .openAICompatible),
+            configuration: .standard
+        )
+        XCTAssertFalse(result.request.prompt.contains("LOCAL_DOCUMENT_TAIL"))
+        XCTAssertFalse(result.promptPreview.contains("LOCAL_DOCUMENT_TAIL"))
+        // Local normalization still needs the suffix to reject duplicate insertions. Excluding
+        // it from the transport payload must not remove that safety check's source context.
+        XCTAssertEqual(result.request.context.trailingText, "LOCAL_DOCUMENT_TAIL")
+    }
+
+    func test_buildRequest_referenceNotesAddContextWithoutRewritingTheWritingSample() {
+        let text = "Hey Casey,\n\nQuick update on Matcha: "
+        let notes = "Matcha is our internal calendar.\nExample phrasing: Quick update, then next steps."
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: text)
+        let bare = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(isSurfaceContextEnabled: false),
+            configuration: .standard
+        )
+        let withNotes = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(
+                isSurfaceContextEnabled: false,
+                customRules: ["IMPERATIVE_RULE_MUST_STAY_DISABLED"],
+                extendedContext: notes
+            ),
+            configuration: .standard
+        )
+        // A deterministic context ablation proves which text enters the model, not that a model
+        // learned the intended voice. Live typing evaluations must establish that separately.
+        XCTAssertEqual(bare.request.prompt, text)
+        XCTAssertEqual(withNotes.request.prompt, "Notes the writer keeps in mind: " + notes + "\n\n" + text)
+        XCTAssertEqual(withNotes.request.prefixText, bare.request.prefixText)
+        XCTAssertTrue(withNotes.request.customRules.isEmpty)
+        XCTAssertFalse(withNotes.request.prompt.contains("IMPERATIVE_RULE_MUST_STAY_DISABLED"))
+    }
 
     /// Request construction is the boundary between live editor state and runtime-specific prompt
     /// work. This test locks down the "small local context" rule: keep the recent character window,
@@ -62,25 +190,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         let context = CotabbyTestFixtures.focusedInputContext(
             precedingText: "alpha beta gamma delta epsilon zeta eta theta"
         )
-        let configuration = SuggestionConfiguration(
-            maxPredictionTokens: 8,
-            debounceMilliseconds: 0,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
-            maxPrefixWords: 3,
-            maxPrefixCharacters: 32,
-            maxPrefixWordsFoundationModel: 9,
-            maxPrefixCharactersFoundationModel: 96,
-            maxSuffixCharacters: 192,
-            llamaPromptTokenBudget: 1934,
-            defaultUserName: nil,
-            defaultWordCountPreset: .sevenToTwelve,
-            focusPollIntervalMilliseconds: 50
-        )
+        let configuration = makeConfiguration(maxPrefixWords: 3, maxPrefixCharacters: 32)
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -88,11 +198,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: configuration
         )
 
-        // The budget keeps the last three words; the partial "theta" then leaves the prompt as the
-        // anchor the engine reproduces (see `WordBoundaryAnchorPolicy`).
-        XCTAssertEqual(result.request.prefixText, "zeta eta ")
-        XCTAssertEqual(result.request.wordBoundaryAnchor, "theta")
-        XCTAssertTrue(result.promptPreview.contains("zeta eta"))
+        XCTAssertEqual(result.request.prefixText, "zeta eta theta")
+        XCTAssertTrue(result.promptPreview.contains("zeta eta theta"))
         XCTAssertFalse(result.promptPreview.contains("alpha beta"))
     }
 
@@ -103,24 +210,11 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     func test_buildRequest_appliesFoundationModelPrefixBudgetWhenAppleEngineSelected() {
         let precedingText = "alpha beta gamma delta epsilon zeta eta theta"
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: precedingText)
-        let configuration = SuggestionConfiguration(
-            maxPredictionTokens: 8,
-            debounceMilliseconds: 0,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
+        let configuration = makeConfiguration(
             maxPrefixWords: 3,
             maxPrefixCharacters: 32,
             maxPrefixWordsFoundationModel: 6,
-            maxPrefixCharactersFoundationModel: 96,
-            maxSuffixCharacters: 192,
-            llamaPromptTokenBudget: 1934,
-            defaultUserName: nil,
-            defaultWordCountPreset: .sevenToTwelve,
-            focusPollIntervalMilliseconds: 50
+            maxPrefixCharactersFoundationModel: 96
         )
 
         let llamaResult = SuggestionRequestFactory.buildRequest(
@@ -133,39 +227,25 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
             configuration: configuration
         )
+        // The endpoint backend is a small-window completion transport like llama, so it shares the
+        // llama budget rather than Apple's larger one.
+        let endpointResult = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .openAICompatible),
+            configuration: configuration
+        )
 
-        // The llama request is anchored at the word boundary (the partial "theta" becomes the
-        // anchor the engine reproduces); the Apple path cannot constrain its output and keeps it.
-        XCTAssertEqual(llamaResult.request.prefixText, "zeta eta ")
-        XCTAssertEqual(llamaResult.request.wordBoundaryAnchor, "theta")
+        XCTAssertEqual(llamaResult.request.prefixText, "zeta eta theta")
+        XCTAssertEqual(endpointResult.request.prefixText, "zeta eta theta")
         XCTAssertEqual(
             foundationModelResult.request.prefixText,
             "gamma delta epsilon zeta eta theta"
         )
-        XCTAssertNil(foundationModelResult.request.wordBoundaryAnchor)
     }
 
     func test_buildRequest_usesWordCountPresetForInstructionAndTokenBudget() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world")
-        let configuration = SuggestionConfiguration(
-            maxPredictionTokens: 1,
-            debounceMilliseconds: 0,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
-            maxPrefixWords: 50,
-            maxPrefixCharacters: 1000,
-            maxPrefixWordsFoundationModel: 150,
-            maxPrefixCharactersFoundationModel: 2500,
-            maxSuffixCharacters: 192,
-            llamaPromptTokenBudget: 1934,
-            defaultUserName: nil,
-            defaultWordCountPreset: .sevenToTwelve,
-            focusPollIntervalMilliseconds: 50
-        )
+        let configuration = makeConfiguration(maxPredictionTokens: 1)
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -199,17 +279,10 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.visualContextSummary,
             "Calendar window says project review at 3 PM."
         )
-        // The name rides on the request but reaches the prompt only at a sign-off (`SignOffCue`);
-        // "Hello" is an opening, where a named writer made the model introduce itself.
+        // The writer's name reaches the prompt only where the caret follows a sign-off
+        // (`SignOffCue`); "Hello" is an opening, so the name stays out of the preview.
         XCTAssertFalse(result.promptPreview.contains("Casey"))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
-
-        let signing = SuggestionRequestFactory.buildRequest(
-            context: CotabbyTestFixtures.focusedInputContext(precedingText: "See you Friday.\n\nThanks,\n"),
-            settings: CotabbyTestFixtures.settingsSnapshot(userName: "Casey"),
-            configuration: .standard
-        )
-        XCTAssertTrue(signing.promptPreview.contains("Casey"))
     }
 
     func test_buildRequest_sanitizesVisualContextBeforePromptInjection() {
@@ -231,8 +304,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     }
 
     func test_buildRequest_usesApplePromptPreviewWhenAppleEngineSelected() {
-        // A word boundary keeps the typed text in the prompt (a lone partial word is anchored out).
-        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello ")
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -297,20 +369,49 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertFalse(result.promptPreview.contains("Copied project notes."))
     }
 
-    func test_buildRequest_clipsLongClipboardContext() throws {
-        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-        let longClipboard = String(repeating: "a", count: 1_500)
+    /// The clipboard cap is 1,200 characters including the "..." marker, and whitespace exposed
+    /// by the cut is trimmed before the marker so the clip never reads as "word ...".
+    func test_buildRequest_clipsClipboardContextAtItsCharacterCap() throws {
+        func clipboard(for raw: String) throws -> String {
+            try XCTUnwrap(
+                SuggestionRequestFactory.buildRequest(
+                    context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+                    settings: CotabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+                    configuration: .standard,
+                    clipboardContext: raw
+                ).request.clipboardContext
+            )
+        }
 
-        let result = SuggestionRequestFactory.buildRequest(
-            context: context,
-            settings: CotabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
-            configuration: .standard,
-            clipboardContext: longClipboard
+        let atCap = String(repeating: "a", count: 1_200)
+        XCTAssertEqual(try clipboard(for: atCap), atCap)
+
+        XCTAssertEqual(
+            try clipboard(for: String(repeating: "a", count: 1_201)),
+            String(repeating: "a", count: 1_197) + "..."
         )
 
-        let clipboardContext = try XCTUnwrap(result.request.clipboardContext)
-        XCTAssertEqual(clipboardContext.count, 1_200)
-        XCTAssertTrue(clipboardContext.hasSuffix("..."))
+        // The 1,197-character cut lands just after the space, which is trimmed before the marker.
+        XCTAssertEqual(
+            try clipboard(for: String(repeating: "a", count: 1_196) + " " + String(repeating: "b", count: 10)),
+            String(repeating: "a", count: 1_196) + "..."
+        )
+    }
+
+    /// A clipboard or screen excerpt with no letters or digits carries no conditioning signal, so
+    /// it is dropped instead of adding an empty-looking section to the prompt.
+    func test_buildRequest_dropsContextWithoutAlphanumericSignal() {
+        for raw in ["   \n\t ", "--- +++ ***", "@@ ... @"] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+                settings: CotabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+                configuration: .standard,
+                clipboardContext: raw,
+                visualContextSummary: raw
+            )
+            XCTAssertNil(result.request.clipboardContext, raw.debugDescription)
+            XCTAssertNil(result.request.visualContextSummary, raw.debugDescription)
+        }
     }
 
     func test_buildRequest_includesSurfaceContextWhenEnabled() {
@@ -328,62 +429,12 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
-        XCTAssertTrue(result.request.prompt.contains("Email draft."))
+        XCTAssertTrue(result.request.prompt.contains("Format: email; App: Mail;"))
         XCTAssertTrue(
-            result.request.prompt.contains("Window title: \"Re: Q3 budget\"."),
+            result.request.prompt.contains("Title: Re: Q3 budget."),
             "the app-name suffix is stripped from the title before it reaches the prompt"
         )
-        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again"), "\"for\" is the anchor the engine reproduces")
-        XCTAssertEqual(result.request.wordBoundaryAnchor, "for")
-    }
-
-    func test_shouldGenerateSuggestion_declinesACaretInsideAToken() {
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "head", trailingText: "phones"))
-        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "jane", trailingText: "@example.com"))
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks", trailingText: ". Bye"))
-        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks for", trailingText: ""))
-    }
-
-    /// A caret after letters is usually the end of a finished word, so by default the whole text
-    /// stays in the prompt; the retry path asks explicitly for the word-boundary prompt.
-    func test_buildRequest_anchorsEveryPartialWordAtItsBoundary() {
-        // The partial word leaves the prompt (so its last token is a whole word) and becomes the
-        // anchor the engine's required prefix reproduces; see `WordBoundaryAnchorPolicy`.
-        for partial in ["t", "th", "thr", "apprec"] {
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went \(partial)")
-            let built = SuggestionRequestFactory.buildRequest(
-                context: context,
-                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
-                configuration: .standard
-            )
-            XCTAssertEqual(built.request.wordBoundaryAnchor, partial)
-            XCTAssertTrue(built.request.prefixText.hasSuffix("I went "), built.request.prefixText)
-            XCTAssertTrue(built.request.prompt.hasSuffix("I went"), "the prompt ends at the boundary, trimmed like every prompt")
-        }
-        let boundary = SuggestionRequestFactory.buildRequest(
-            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went "),
-            settings: CotabbyTestFixtures.settingsSnapshot(),
-            configuration: .standard
-        )
-        XCTAssertNil(boundary.request.wordBoundaryAnchor, "a caret after a space has no partial word")
-        let apple = SuggestionRequestFactory.buildRequest(
-            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went thr"),
-            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
-            configuration: .standard
-        )
-        XCTAssertNil(apple.request.wordBoundaryAnchor, "only the llama engine can reproduce an anchor")
-        XCTAssertTrue(apple.request.prefixText.hasSuffix("thr"))
-    }
-
-    func test_buildRequest_carriesTheWordRange() {
-        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really ")
-        let result = SuggestionRequestFactory.buildRequest(
-            context: context,
-            settings: CotabbyTestFixtures.settingsSnapshot(),
-            configuration: .standard
-        )
-        XCTAssertNil(result.request.wordBoundaryAnchor)
-        XCTAssertNotNil(result.request.wordRange)
+        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
     }
 
     func test_buildRequest_omitsSurfaceContextWhenDisabled() {
@@ -401,7 +452,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertNil(result.request.surfaceContext)
-        XCTAssertFalse(result.request.prompt.contains("Email draft"))
+        XCTAssertFalse(result.request.prompt.contains("Format:"))
         XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
     }
 
@@ -422,10 +473,149 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertNil(result.request.surfaceContext, "app metadata biases base models toward code; editors stay bare")
         XCTAssertFalse(result.request.prompt.contains("Project.swift"))
     }
-}
 
-/// The prompt's word window keeps the text as typed between its words.
-final class SuggestionRequestFactoryWordWindowTests: XCTestCase {
+    // MARK: - Token budget
+
+    /// The budget is `ceil(highWords * tokensPerWord)`, floored by the configuration and doubled
+    /// (capped at 120) in multi-line mode. A single known response language supplies its own
+    /// tokens-per-word factor; none, several, or an unknown language fall back to 1.3.
+    func test_buildRequest_maxPredictionTokensCombinesWordRangeLanguageFloorAndMultiLine() {
+        struct Case {
+            let name: String
+            var floor = 5
+            var preset: SuggestionWordCountPreset = .sevenToTwelve
+            var customRange: SuggestionWordRange?
+            var languages: [String] = []
+            let expectedSingleLine: Int
+            let expectedMultiLine: Int
+        }
+        let cases = [
+            Case(name: "default preset, English fallback", expectedSingleLine: 16, expectedMultiLine: 32),
+            Case(name: "Russian factor", preset: .twelveToTwenty, languages: ["Russian"],
+                 expectedSingleLine: 40, expectedMultiLine: 80),
+            Case(name: "several languages use the fallback", preset: .twelveToTwenty,
+                 languages: ["Russian", "German"], expectedSingleLine: 26, expectedMultiLine: 52),
+            Case(name: "multi-line doubling is capped at 120",
+                 customRange: SuggestionWordRange(lowWords: 50, highWords: 50), languages: ["Russian"],
+                 expectedSingleLine: 100, expectedMultiLine: 120),
+            Case(name: "configuration floor wins over a short range", floor: 30,
+                 expectedSingleLine: 30, expectedMultiLine: 60)
+        ]
+
+        for testCase in cases {
+            for isMultiLineEnabled in [false, true] {
+                let settings = CotabbyTestFixtures.settingsSnapshot(
+                    selectedWordCountPreset: testCase.preset,
+                    isUsingCustomWordCountRange: testCase.customRange != nil,
+                    customWordCountRange: testCase.customRange ?? SuggestionWordRange(lowWords: 5, highWords: 15),
+                    responseLanguages: testCase.languages,
+                    isMultiLineEnabled: isMultiLineEnabled
+                )
+                let result = SuggestionRequestFactory.buildRequest(
+                    context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+                    settings: settings,
+                    configuration: makeConfiguration(maxPredictionTokens: testCase.floor)
+                )
+                XCTAssertEqual(
+                    result.request.maxPredictionTokens,
+                    isMultiLineEnabled ? testCase.expectedMultiLine : testCase.expectedSingleLine,
+                    "\(testCase.name), multi-line: \(isMultiLineEnabled)"
+                )
+                XCTAssertEqual(result.request.isMultiLineEnabled, isMultiLineEnabled, testCase.name)
+            }
+        }
+    }
+
+    /// Sampling knobs and the focus generation flow through unchanged; the factory only decides
+    /// content, never engine tuning. Each build also gets its own correlation ID for log joins.
+    func test_buildRequest_carriesConfigurationAndGenerationThroughUnchanged() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", generation: 7)
+        let build = {
+            SuggestionRequestFactory.buildRequest(
+                context: context,
+                settings: CotabbyTestFixtures.settingsSnapshot(responseLanguages: ["Spanish"]),
+                configuration: self.makeConfiguration()
+            ).request
+        }
+        let request = build()
+
+        XCTAssertEqual(request.generation, 7)
+        XCTAssertEqual(request.context, context)
+        XCTAssertEqual(request.temperature, 0.1)
+        XCTAssertEqual(request.topK, 20)
+        XCTAssertEqual(request.topP, 0.7)
+        XCTAssertEqual(request.minP, 0.08)
+        XCTAssertEqual(request.repetitionPenalty, 1.05)
+        XCTAssertEqual(request.randomSeed, 42)
+        XCTAssertEqual(request.maxSuffixCharacters, 192)
+        XCTAssertEqual(request.languageInstruction, LanguageCatalog.promptInstruction(for: ["Spanish"]))
+        XCTAssertTrue(request.requestID.hasPrefix("req_"))
+        XCTAssertNotEqual(request.requestID, build().requestID)
+    }
+
+    // MARK: - truncatedPromptPrefix edges
+
+    func test_truncatedPromptPrefix_nonPositiveBudgetsProduceEmptyPrefix() {
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(
+                from: "Hello world",
+                configuration: makeConfiguration(maxPrefixCharacters: 0)
+            ),
+            ""
+        )
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(
+                from: "Hello world",
+                configuration: makeConfiguration(maxPrefixWords: 0)
+            ),
+            ""
+        )
+    }
+
+    /// At exactly the word budget the character window is returned verbatim, leading whitespace
+    /// included; one word over drops the oldest word together with the whitespace before the next.
+    func test_truncatedPromptPrefix_wordBudgetBoundary() {
+        let configuration = makeConfiguration(maxPrefixWords: 3)
+
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(from: "\n  one two three", configuration: configuration),
+            "\n  one two three"
+        )
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(from: "zero\n\none two three ", configuration: configuration),
+            "one two three "
+        )
+    }
+
+    /// The character window is applied first and can start mid-word; the word budget does not
+    /// repair that partial leading word when the window is already within budget.
+    func test_truncatedPromptPrefix_characterWindowMayStartMidWord() {
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(
+                from: "abcdef ghi",
+                configuration: makeConfiguration(maxPrefixCharacters: 6)
+            ),
+            "ef ghi"
+        )
+    }
+
+    func test_shouldGenerateSuggestion_declinesACaretInsideAToken() {
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "head", trailingText: "phones"))
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "jane", trailingText: "@example.com"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks", trailingText: ". Bye"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks for", trailingText: ""))
+    }
+
+    func test_buildRequest_carriesTheWordRange() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really ")
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertNotNil(result.request.wordRange)
+    }
+
     /// Measured 2026-09-11 in a Chrome page modelled on Claude's composer: three paragraphs reached the
     /// model as "one line. The second paragraph starts here and A third one".
     func testTheWindowKeepsLineAndParagraphBreaks() {
@@ -434,19 +624,5 @@ final class SuggestionRequestFactoryWordWindowTests: XCTestCase {
             SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard, engine: .llamaOpenSource),
             text
         )
-    }
-
-    func testTheWindowStartsAtAWordAndEndsAtTheLastWord() {
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two\nthree  four", count: 2), "three  four")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two\nthree  four", count: 3), "two\nthree  four")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "  one two  ", count: 5), "one two")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "First paragraph ends here.\n", count: 10), "First paragraph ends here.\n")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "Hi Sarah,\n\n  ", count: 10), "Hi Sarah,\n\n")
-    }
-
-    func testTextWithoutAWordComesBackWhole() {
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: " \n ", count: 3), " \n ")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "", count: 3), "")
-        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two", count: 0), "one two")
     }
 }

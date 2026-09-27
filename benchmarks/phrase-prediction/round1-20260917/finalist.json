@@ -1,0 +1,154 @@
+{
+  "criteria": "Registered in IMPROVEMENT_BRAINSTORMING.md before candidates; unchanged.",
+  "criteriaSHA256": "53cae652b965316b5c4c3e697e5072aaeafde601b9fd6cdbd34f2085ee6c657f",
+  "frozenUTC": "2026-09-17T06:19:21.698237+00:00",
+  "label": "screen-P2-H",
+  "promptVariant": "P2",
+  "sampling": {
+    "min_p": 0.08,
+    "repetition_penalty": 1.025,
+    "seed": 42,
+    "temperature": 0.1,
+    "top_k": 20,
+    "top_p": 0.7
+  },
+  "screenRanking": [
+    {
+      "label": "screen-P2-H",
+      "noneCorrect": 235,
+      "screenCorrect": 288
+    },
+    {
+      "label": "screen-P2-B",
+      "noneCorrect": 244,
+      "screenCorrect": 287
+    },
+    {
+      "label": "screen-P2-E",
+      "noneCorrect": 238,
+      "screenCorrect": 287
+    },
+    {
+      "label": "screen-P2-F",
+      "noneCorrect": 237,
+      "screenCorrect": 285
+    },
+    {
+      "label": "screen-P2-C",
+      "noneCorrect": 242,
+      "screenCorrect": 284
+    },
+    {
+      "label": "screen-P2",
+      "noneCorrect": 232,
+      "screenCorrect": 283
+    },
+    {
+      "label": "screen-P3",
+      "noneCorrect": 217,
+      "screenCorrect": 282
+    },
+    {
+      "label": "screen-P4",
+      "noneCorrect": 238,
+      "screenCorrect": 280
+    },
+    {
+      "label": "screen-P2-G",
+      "noneCorrect": 236,
+      "screenCorrect": 280
+    },
+    {
+      "label": "screen-P2-A",
+      "noneCorrect": 241,
+      "screenCorrect": 279
+    },
+    {
+      "label": "screen-P2-D",
+      "noneCorrect": 239,
+      "screenCorrect": 279
+    },
+    {
+      "label": "screen-B",
+      "noneCorrect": 211,
+      "screenCorrect": 278
+    },
+    {
+      "label": "screen-E",
+      "noneCorrect": 209,
+      "screenCorrect": 272
+    },
+    {
+      "label": "screen-H",
+      "noneCorrect": 214,
+      "screenCorrect": 271
+    },
+    {
+      "label": "screen-A",
+      "noneCorrect": 211,
+      "screenCorrect": 270
+    },
+    {
+      "label": "screen-C",
+      "noneCorrect": 201,
+      "screenCorrect": 270
+    },
+    {
+      "label": "screen-D",
+      "noneCorrect": 213,
+      "screenCorrect": 267
+    },
+    {
+      "label": "screen-F",
+      "noneCorrect": 202,
+      "screenCorrect": 267
+    },
+    {
+      "label": "screen-G",
+      "noneCorrect": 217,
+      "screenCorrect": 266
+    },
+    {
+      "label": "screen-P1",
+      "noneCorrect": 198,
+      "screenCorrect": 258
+    }
+  ],
+  "screenScores": {
+    "none": {
+      "accuracy": 0.3051948051948052,
+      "checkpoints": 770,
+      "correct": 235,
+      "coverage": 0.9987012987012988,
+      "errors": 0,
+      "latencyP50Milliseconds": 180.043042,
+      "latencyP95Milliseconds": 496.276417,
+      "precisionWhenShown": 0.305591677503251,
+      "shown": 769
+    },
+    "screen": {
+      "accuracy": 0.37402597402597404,
+      "checkpoints": 770,
+      "correct": 288,
+      "coverage": 1,
+      "errors": 0,
+      "latencyP50Milliseconds": 142.531834,
+      "latencyP95Milliseconds": 389.534917,
+      "precisionWhenShown": 0.37402597402597404,
+      "shown": 770
+    }
+  },
+  "selection": "Highest exact screen correct count among 20 alternatives; none correct count breaks ties. One finalist only. No further tuning.",
+  "sourceState": {
+    "executionRoot": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/phrase-round1-checkout",
+    "hashes": {
+      "BaseCompletionPromptRenderer.swift": "e08810a1d1e9e716ae957e5f5733fd04df76c1ba7ea0d6b865fc970c0aec6c72",
+      "SurfaceContextComposer.swift": "66f3c9027f5d2c3cc0a71ae0ae1be03cf4924cc5b34b0a609c0e557a462de0a7"
+    },
+    "paths": {
+      "BaseCompletionPromptRenderer.swift": "Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift",
+      "SurfaceContextComposer.swift": "Cotabby/Support/Context/SurfaceContextComposer.swift"
+    },
+    "variant": "P2"
+  }
+}

@@ -38,7 +38,7 @@ struct PermissionsPaneView: View {
                 SettingsPermissionRow(
                     permission: .screenRecording,
                     description: "Optional. Lets Cotabby screenshot the focused window for extra " +
-                        "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
+                        "context. Without it, suggestions still work, but screen context is unavailable.",
                     granted: permissionManager.screenRecordingGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )

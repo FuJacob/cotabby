@@ -21,17 +21,21 @@ enum SuggestionRequestFactory {
     private static let maxClipboardContextCharacters = 1_200
 
     /// Require at least one non-whitespace character so we don't suggest on a blank field.
-    /// No trailing-space gate — the debounce handles rapid keystroke settling, and
-    /// `SuggestionTextNormalizer` applies deterministic space management on the output side.
-    static func shouldGenerateSuggestion(for precedingText: String) -> Bool {
+    /// The optional word-boundary preference gates new requests, never advancement of an already
+    /// visible tail. Sharing it here keeps ordinary and speculative generation in agreement.
+    /// Scripts without space-delimited words retain their normal completion path.
+    static func shouldGenerateSuggestion(for precedingText: String, suggestWithinWords: Bool = true) -> Bool {
         let trimmed = precedingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty
+        return !trimmed.isEmpty && (suggestWithinWords || CaretWordContext.unfinishedWord(in: precedingText) == nil)
     }
 
-    /// The full pre-generation gate: some typed text, and a caret that is not parked inside a token
-    /// (see `CaretTokenPosition`), where any completion would duplicate or splice what follows.
-    static func shouldGenerateSuggestion(for precedingText: String, trailingText: String) -> Bool {
-        guard shouldGenerateSuggestion(for: precedingText) else { return false }
+    /// The full pre-generation gate: some typed text (and, when the boundary preference asks for
+    /// it, a finished word), and a caret that is not parked inside a token (see
+    /// `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    static func shouldGenerateSuggestion(
+        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true
+    ) -> Bool {
+        guard shouldGenerateSuggestion(for: precedingText, suggestWithinWords: suggestWithinWords) else { return false }
         return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
     }
 
@@ -43,21 +47,11 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
-        let fullPrefixText = truncatedPromptPrefix(
+        let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
             engine: settings.selectedEngine
         )
-        // On the llama path a caret after letters anchors the request at the word boundary: the
-        // partial word leaves the prompt (so its last token is a whole word) and the engine is
-        // required to reproduce it, so the model finishes the word the user started and the
-        // normalizer takes the typed part back off (see `WordBoundaryAnchorPolicy`). The other
-        // engines cannot constrain their output and keep the prompt exactly where the user stopped.
-        let wordBoundaryAnchor = settings.selectedEngine == .llamaOpenSource
-            ? WordBoundaryAnchorPolicy.anchor(precedingText: context.precedingText, trailingText: context.trailingText)
-            : nil
-        let prefixText = wordBoundaryAnchor.map { WordBoundaryAnchorPolicy.promptPrefix(fullPrefixText, removing: $0) }
-            ?? fullPrefixText
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
@@ -81,7 +75,8 @@ enum SuggestionRequestFactory {
             prefixText: prefixText
         )
         let boundedVisualContextSummary = activeVisualContextSummary(
-            rawSummary: visualContextSummary
+            rawSummary: visualContextSummary,
+            engine: settings.selectedEngine
         )
         // The composed surface description; nil when the user disabled it or the surface class
         // suppresses it (code editors, terminals, anonymous generic apps). The composer sanitizes
@@ -99,7 +94,7 @@ enum SuggestionRequestFactory {
             )
             : nil
         // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
-        // prompt is always the base render: no instruction blob, prefix last, trailing-trimmed.
+        // prompt is always the base render: no instruction blob, exact caret prefix last.
         // Custom instructions and persona condition the output rather than being obeyed. The
         // Foundation Models path builds its own messages from these same request fields, so this
         // prompt string is only consumed by the llama engine.
@@ -107,12 +102,20 @@ enum SuggestionRequestFactory {
             prefixText: prefixText,
             applicationName: context.applicationName,
             userName: userName,
+            // The endpoint backend shares this renderer, but adding document-tail content to a
+            // network request needs its own disclosure and consent. Keep this new context local;
+            // Apple's fallback request can use it because both eligible engines run on-device.
+            trailingText: settings.selectedEngine == .openAICompatible ? "" : context.trailingText,
+            maxSuffixCharacters: configuration.maxSuffixCharacters,
             customRules: customRules,
             extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
+            maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
+            screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
             tokenBudget: configuration.llamaPromptTokenBudget
         )
 
@@ -144,7 +147,6 @@ enum SuggestionRequestFactory {
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
-            wordBoundaryAnchor: wordBoundaryAnchor,
             wordRange: settings.effectiveWordRange
         )
 
@@ -154,7 +156,7 @@ enum SuggestionRequestFactory {
         )
     }
 
-    /// Keep only the latest short word tail to prevent long stale context from steering output.
+    /// Keep the latest bounded text without rewriting its paragraphs or caret boundary.
     ///
     /// Exposed (non-private) so the coordinator can compute the same bounded window before
     /// calling the relevance filter, ensuring the filter and the downstream distiller evaluate
@@ -180,39 +182,16 @@ enum SuggestionRequestFactory {
             maxWords = configuration.maxPrefixWords
         }
 
+        guard maxCharacters > 0, maxWords > 0 else { return "" }
         let characterWindow = String(precedingText.suffix(maxCharacters))
-        return lastWords(of: characterWindow, count: maxWords)
-    }
+        let words = characterWindow.split(whereSeparator: { $0.isWhitespace })
+        guard words.count > maxWords else { return characterWindow }
 
-    /// The text from the start of its `count`-th last word to its end, with the whitespace between
-    /// those words exactly as typed. A base model continues text, and the line and paragraph breaks
-    /// are part of that text: rejoining the words with single spaces, as the window did before,
-    /// handed the model "Hi Sam, Thanks for" for "Hi Sam,\n\nThanks for", and a new paragraph as
-    /// the tail of the sentence before it (a Chrome page modelled on Claude's composer, 2026-09-11: "one
-    /// line. The second paragraph starts here and A third one" for three paragraphs). Leading
-    /// whitespace stays out, and so do trailing spaces and tabs, as before; a trailing line break
-    /// stays, since the caret then opens a new line. Text without a word, or a count below one,
-    /// comes back whole.
-    static func lastWords(of text: String, count: Int) -> String {
-        guard count > 0 else { return text }
-        var wordStarts: [String.Index] = []
-        var end: String.Index?
-        var inWord = false
-        var index = text.startIndex
-        while index < text.endIndex {
-            let character = text[index]
-            let isSpace = character.isWhitespace
-            if !isSpace, !inWord {
-                wordStarts.append(index)
-            }
-            inWord = !isSpace
-            index = text.index(after: index)
-            if !isSpace || (character.isNewline && end != nil) {
-                end = index
-            }
-        }
-        guard let end, !wordStarts.isEmpty else { return text }
-        return String(text[wordStarts[max(0, wordStarts.count - count)]..<end])
+        // Substrings retain indices into the original string. Slice at the first retained word
+        // instead of joining words: paragraph breaks, list indentation, and the exact whitespace
+        // before the caret all carry meaning for continuation and token-boundary healing.
+        let firstKeptWord = words[words.count - maxWords]
+        return String(characterWindow[firstKeptWord.startIndex...])
     }
 
     private static func activeUserName(
@@ -246,12 +225,22 @@ enum SuggestionRequestFactory {
         return clippedText(distilled, maxCharacters: maxClipboardContextCharacters)
     }
 
-    private static func activeVisualContextSummary(rawSummary: String?) -> String? {
+    private static func activeVisualContextSummary(rawSummary: String?, engine: SuggestionEngineKind) -> String? {
         guard let rawSummary else {
             return nil
         }
 
-        let sanitizedSummary = PromptContextSanitizer.sanitize(rawSummary)
+        let limit = VisualContextConfiguration.forEngine(engine).maxSummaryCharacters
+        var sanitizedSummary = PromptContextSanitizer.sanitize(rawSummary, maxCharacters: limit)
+        // CJK and code can cost far more tokens per character than English. Reserve space for
+        // Apple's instructions, caret text and clipboard instead of filling its shared 4K window
+        // with screen text alone. Native llama additionally allocates the complete prompt by token.
+        if engine != .openAICompatible {
+            while TokenCountEstimator.estimate(sanitizedSummary)
+                + sanitizedSummary.unicodeScalars.filter({ !$0.isASCII }).count * 2 > 1200 {
+                sanitizedSummary = String(sanitizedSummary.prefix(sanitizedSummary.count * 9 / 10))
+            }
+        }
         guard !sanitizedSummary.isEmpty,
               PromptContextSanitizer.containsAlphanumericSignal(sanitizedSummary)
         else {

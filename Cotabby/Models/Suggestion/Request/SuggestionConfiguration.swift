@@ -85,9 +85,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let topP: Double
     let minP: Double
     let repetitionPenalty: Double
-    /// Optional fixed seed for deterministic llama sampling.
-    /// Production keeps this nil so suggestions can vary naturally; tests and microbenches can set
-    /// it to prove cached and uncached decoding produce the same output for the same sampler state.
+    /// Optional explicit seed for deterministic llama sampling.
+    /// Production leaves this nil so LlamaRuntimeCore supplies its stable default seed.
+    /// Tests and microbenches can override it to compare sampler state across cache paths.
     let randomSeed: UInt32?
     let maxPrefixWords: Int
     let maxPrefixCharacters: Int
@@ -145,7 +145,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         topK: 20,
         topP: 0.7,
         minP: 0.08,
-        repetitionPenalty: 1.05,
+        repetitionPenalty: 1.025,
         randomSeed: nil,
         // The llama prefix window is bounded by the token budget below (what the model's context
         // can hold after the preface), not by a word cap: a 150-word cap left most of a long

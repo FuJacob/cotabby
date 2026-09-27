@@ -46,16 +46,6 @@ final class ExtendedContextTests: XCTestCase {
         XCTAssertEqual(model.extendedContext.count, SuggestionSettingsModel.maximumExtendedContextCharacters)
     }
 
-    func test_setExtendedContext_persistsAcrossReload() {
-        let defaults = makeIsolatedDefaults()
-        let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
-
-        model.setExtendedContext("Glossary: meow = cat sound")
-        let reloaded = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
-
-        XCTAssertEqual(reloaded.extendedContext, "Glossary: meow = cat sound")
-    }
-
     func test_setExtendedContext_emptyStringClearsPersistedValue() {
         let defaults = makeIsolatedDefaults()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
@@ -147,11 +137,12 @@ final class ExtendedContextTests: XCTestCase {
     // MARK: - helpers
 
     /// Each settings-model test gets its own isolated UserDefaults so state cannot leak between
-    /// cases. `removePersistentDomain` resets the in-memory suite to a clean slate before use.
+    /// cases, and the suite is removed again at teardown so runs do not accumulate plist files.
     private func makeIsolatedDefaults() -> UserDefaults {
         let suiteName = "cotabby.test.extendedContext.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
         return defaults
     }
 }

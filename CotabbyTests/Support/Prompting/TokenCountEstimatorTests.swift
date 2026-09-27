@@ -1,43 +1,35 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the heuristic token-count estimator. It is deliberately approximate, so these lock down
-/// robust *relationships* (empty is zero, longer text estimates more, every word counts) rather than
-/// exact token counts a real tokenizer would produce.
+/// Tests for the heuristic token-count estimator. It approximates real tokenizers, but the heuristic
+/// itself is deterministic (words split on whitespace and punctuation, each word
+/// `max(1, round(length / 4))` tokens), and prompt budgeting depends on those exact counts, so the
+/// cases pin exact values including the half-way rounding boundary.
 final class TokenCountEstimatorTests: XCTestCase {
-    func test_emptyOrWhitespaceIsZero() {
-        XCTAssertEqual(TokenCountEstimator.estimate(""), 0)
-        XCTAssertEqual(TokenCountEstimator.estimate("   \n\t "), 0)
-    }
-
-    func test_everyWordIsAtLeastOneToken() {
-        XCTAssertEqual(TokenCountEstimator.estimate("a"), 1)
-        XCTAssertGreaterThanOrEqual(TokenCountEstimator.estimate("hi there"), 2)
-    }
-
-    func test_longerTextEstimatesMoreTokens() {
-        let short = TokenCountEstimator.estimate("the cat sat")
-        let long = TokenCountEstimator.estimate("the cat sat on the warm windowsill all afternoon long")
-        XCTAssertGreaterThan(long, short)
-    }
-
-    func test_longWordCountsForMoreThanShortWord() {
-        XCTAssertGreaterThan(
-            TokenCountEstimator.estimate("internationalization"),
-            TokenCountEstimator.estimate("cat")
-        )
-    }
-
-    func test_scalesWithWordCount() {
-        let oneWord = TokenCountEstimator.estimate("word")
-        let fiveWords = TokenCountEstimator.estimate("word word word word word")
-        XCTAssertEqual(fiveWords, oneWord * 5)
-    }
-
-    func test_splitsOnPunctuationBoundaries() {
-        // Punctuation creates token boundaries (like real subword tokenizers), so a contraction or a
-        // punctuation-joined identifier estimates more tokens than the same letters with none.
-        XCTAssertGreaterThan(TokenCountEstimator.estimate("can't"), TokenCountEstimator.estimate("cant"))
-        XCTAssertGreaterThan(TokenCountEstimator.estimate("foo.bar.baz"), TokenCountEstimator.estimate("foobarbaz"))
+    func test_estimate_matchesWordAwareHeuristic() {
+        let cases: [(text: String, expected: Int)] = [
+            ("", 0),
+            ("   \n\t ", 0),
+            ("...", 0),                      // punctuation alone is not a word
+            ("a", 1),                        // every word is at least one token
+            ("hi there", 2),
+            ("abcde", 1),                    // 1.25 rounds down
+            ("abcdef", 2),                   // 1.5 rounds away from zero
+            ("abcdefghij", 3),               // 2.5 rounds away from zero
+            ("internationalization", 5),
+            ("word word word word word", 5), // scales linearly with word count
+            ("cant", 1),
+            ("can't", 2),                    // punctuation splits a contraction
+            ("foobarbaz", 2),
+            ("foo.bar.baz", 3),              // and a dotted identifier
+            ("func(x)", 2)
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                TokenCountEstimator.estimate(testCase.text),
+                testCase.expected,
+                "text \(testCase.text.debugDescription)"
+            )
+        }
     }
 }

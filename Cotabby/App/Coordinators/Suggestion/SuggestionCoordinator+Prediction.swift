@@ -15,9 +15,12 @@ extension SuggestionCoordinator {
     static let freshSnapshotReuseWindowMilliseconds = 30
 
     func schedulePrediction(consumedDelayMilliseconds: Int = 0) {
+        if usePreparedContinuationIfPossible() { return }
+        cancelPreparedContinuation()
+        clearTypingPrediction()
         // Any normal reschedule supersedes an outstanding speculative bet (its work id retires the
         // in-flight task; this retires the signature exemption so a late result cannot sneak in).
-        pendingSpeculativeSignature = nil
+        pendingSpeculativeContext = nil
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
@@ -74,6 +77,8 @@ extension SuggestionCoordinator {
         // The host-publish poll usually captured one milliseconds ago, though, so a fresh-enough
         // capture is reused instead of paying another synchronous AX walk back to back.
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        // Refresh may synchronously publish navigation and cancel this work.
+        guard workController.isCurrent(workID) else { return }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -86,23 +91,13 @@ extension SuggestionCoordinator {
             return
         }
 
-        // No generation while the host shows its own inline prediction or composes text.
-        if rawContext.hasHostMarkedText {
-            holdForHostMarkedText()
+        guard passesPreGenerationGates(rawContext: rawContext, snapshot: snapshot) else {
             return
         }
 
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(
-            for: rawContext.precedingText, trailingText: rawContext.trailingText
-        ) else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the field has no typed text yet or the caret is inside a word.")
-            state = .idle
-            return
-        }
-
-        // Typo gate: before building a normal continuation, check the current word with
-        // NSSpellChecker. A misspelled word either suppresses the continuation (so completions never
+        // Typo gate: only a delimiter commits a word for NSSpellChecker. A pause inside a
+        // word always reaches normal completion with the writer's letters intact. A committed typo
+        // either suppresses the continuation (so completions never
         // pile onto a broken word), presents a green correction, or automatically fixes a completed
         // word after Space. Native correction is instant and needs no model generation, so it is
         // handled synchronously and returns before any request runs.
@@ -111,16 +106,20 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+        // Validate age before restoring prediction memory too. Expiry may synchronously cancel
+        // work conditioned on the old excerpt; retry once with the now-cleared visual context.
+        let visualContextSummary = permissionManager.screenRecordingGranted
+            ? visualContextCoordinator.excerpt(for: context)
+            : nil
+        guard workController.isCurrent(workID) else {
+            schedulePrediction()
+            return
+        }
         // A cached suggestion consistent with the live text re-shows instantly: no debounce paid,
         // no model run. Covers backspace rollback, type-through re-entry, and field return.
         if restoreSuggestionFromAnchorCache(context: context, workID: workID) {
             return
         }
-        // Screen Recording is optional. Re-check it live so a cached excerpt captured before the user
-        // revoked the permission can never be injected during the 2s permission-poll window.
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
         let clipboardContext = pinnedClipboardContext(rawContext: rawContext)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -132,7 +131,6 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
         latestRequestID = request.requestID
-        latestWordBoundaryAnchor = request.wordBoundaryAnchor
         latestRequestPrecedingText = request.context.precedingText
 
         state = .generating
@@ -150,6 +148,39 @@ extension SuggestionCoordinator {
         dispatchGeneration(request: request, workID: workID)
     }
 
+    /// The gates that run before any request is built: the host's own marked text (an inline
+    /// prediction or IME composition) holds everything, and a field with no typed text, a caret
+    /// inside a token, or an unfinished word under the boundary preference gets no request. Returns
+    /// false when it handled the cycle, so `generateFromCurrentFocus` stays within the project's
+    /// complexity budget.
+    private func passesPreGenerationGates(rawContext: FocusedInputSnapshot, snapshot: FocusSnapshot) -> Bool {
+        // No generation while the host shows its own inline prediction or composes text.
+        if rawContext.hasHostMarkedText {
+            holdForHostMarkedText()
+            return false
+        }
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: rawContext.precedingText,
+            trailingText: rawContext.trailingText,
+            suggestWithinWords: settingsSnapshot.suggestWithinWords
+        ) else {
+            // A visual-context refresh may ask for new work while a valid tail is visible.
+            // The boundary preference quiets new suggestions without interrupting type-through.
+            if interactionState.activeSession != nil {
+                reconcileActiveSession(with: snapshot)
+            } else {
+                clearSuggestion()
+                let isEmpty = rawContext.precedingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                hideOverlay(reason: isEmpty
+                    ? "Overlay hidden because the field has no typed text yet."
+                    : "Overlay hidden while waiting for a word boundary or because the caret is inside a word.")
+                state = .idle
+            }
+            return false
+        }
+        return true
+    }
+
     /// Re-shows the freshest cached suggestion consistent with the live text, if any survives the
     /// same display guards a fresh generation passes. Returns true when a suggestion was restored
     /// (the caller skips generation entirely). The win is exactly the common editing moments:
@@ -158,7 +189,7 @@ extension SuggestionCoordinator {
         guard !userDefaults.bool(forKey: Self.anchorReuseDisabledDefaultsKey) else { return false }
         guard context.selection.length == 0, !context.isSecure else { return false }
         guard let remainder = suggestionAnchorCache.remainder(
-            identityKey: context.focusedInputIdentityKey,
+            identityKey: context.suggestionSessionIdentityKey,
             precedingText: context.precedingText
         ), !remainder.isEmpty else { return false }
 
@@ -178,13 +209,16 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // The cache retains the complete prediction, including hidden following words. Recheck
+        // the visible boundary at this caret so restoring an unknown ending cannot expose its
+        // buffered phrase early, then preserve that phrase behind the same acceptance boundary.
+        guard case let .show(visibleText, wordEndingOnly) = completionPresentation(text: remainder, context: context, isFinal: true),
+              !wasDismissed(visibleText, context: context), presentationDelay(context: context) == 0 else { return false }
+        let text = remainder
         lastAcceptedTail = nil
         latestGenerationNumber = context.generation
-        let session = interactionState.startSession(
-            fullText: remainder,
-            liveContext: context,
-            latency: 0
-        )
+        let session = startCompletionSession(prediction: text, visibleText: visibleText,
+            context: context, latency: 0, isFinal: true, wordEndingOnly: wordEndingOnly)
         state = .ready(text: session.remainingText, latency: session.latency)
         presentOverlay(
             text: session.remainingText,
@@ -197,15 +231,18 @@ extension SuggestionCoordinator {
             workID: workID,
             generation: context.generation,
             message: "Re-showed a cached suggestion without regenerating.",
-            normalizedOutput: remainder
+            normalizedOutput: text
         )
+        if let rawContext = focusModel.snapshot.context {
+            prepareContinuation(after: session, rawContext: rawContext)
+        }
         return true
     }
 
     /// Starts the next generation immediately after a final-chunk accept, against the snapshot
     /// the host is expected to publish, instead of idling through the publish poll first. The
     /// poll keeps running as the validator: a matching publish lets this result through
-    /// (`pendingSpeculativeSignature` in `apply`), a mismatch schedules a normal regeneration
+    /// (`pendingSpeculativeContext` in `apply`), a mismatch schedules a normal regeneration
     /// whose newer work id retires this one automatically.
     func dispatchSpeculativePostAcceptanceGeneration(
         rawContext: FocusedInputSnapshot,
@@ -224,18 +261,19 @@ extension SuggestionCoordinator {
         // little text) or suppress (typo gate). The post-publish regeneration still runs the full
         // gate with its correction semantics; declining here only skips the speculation.
         guard SuggestionRequestFactory.shouldGenerateSuggestion(
-            for: optimistic.precedingText, trailingText: optimistic.trailingText
+            for: optimistic.precedingText, trailingText: optimistic.trailingText,
+            suggestWithinWords: settingsSnapshot.suggestWithinWords
         ) else {
             return
         }
         if settingsSnapshot.suppressCompletionsOnTypo,
-           let trailingWord = CurrentWordExtractor.extractTrailingWord(from: optimistic.precedingText)?.result.word,
+           let trailingWord = CaretWordContext.committedWord(in: optimistic.precedingText)?.word,
            spellChecker.isTypo(trailingWord) {
             return
         }
 
         let context = interactionState.materializeContext(from: optimistic)
-        pendingSpeculativeSignature = context.contentSignature
+        pendingSpeculativeContext = context
 
         let visualContextSummary = permissionManager.screenRecordingGranted
             ? visualContextCoordinator.excerpt(for: context)
@@ -255,7 +293,6 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
         latestRequestID = request.requestID
-        latestWordBoundaryAnchor = request.wordBoundaryAnchor
         latestRequestPrecedingText = request.context.precedingText
 
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
@@ -331,11 +368,10 @@ extension SuggestionCoordinator {
             guard let self, let result, !result.text.isEmpty else { return }
             // Space-corrected against the text this continuation will follow, so the cached entry
             // is already right when it is restored (see `GhostSpaceBoundary`).
-            let text = GhostSpaceBoundary.adjusted(
+            let text = GhostSpaceBoundary.liveAdjusted(
                 result.text,
                 precedingText: precedingText,
-                requestPrecedingText: result.spacingIsExact ? request.context.precedingText : nil,
-                continuesPartialWord: request.wordBoundaryAnchor != nil
+                requestPrecedingText: result.spacingIsExact ? request.context.precedingText : nil
             )
             self.suggestionAnchorCache.record(identityKey: identityKey, precedingText: precedingText, fullText: text)
             CotabbyLogger.suggestion.debug(
@@ -357,12 +393,11 @@ extension SuggestionCoordinator {
         // A new generation starts a new stream. The state value deliberately preserves an already
         // scheduled drain callback while dropping the old request's partial and rendered text.
         suggestionStreamingState.beginGeneration()
-        // Streaming the ghost text token-by-token is opt-in. Read the flag here on the main actor so
-        // the work closure captures a plain Bool. When off, the closure passes no `onPartial`, so the
-        // engine skips its per-token main-actor hops entirely and the suggestion appears once, fully
-        // formed, through `apply` below; when on, each partial renders as an acceptable session the
-        // user can Tab into early.
+        beginTypingPrediction(for: request)
+        // Presentation remains opt-in, but on-device lookahead needs partials internally to know
+        // whether a newly typed character still agrees with the request already being decoded.
         let shouldStreamPartials = settingsSnapshot.streamSuggestionsWhileGenerating
+        let shouldCollectPartials = shouldStreamPartials || typingPrediction != nil
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
@@ -370,8 +405,10 @@ extension SuggestionCoordinator {
 
             do {
                 let onPartial: (@MainActor (SuggestionResult) -> Void)?
-                if shouldStreamPartials {
-                    onPartial = { [weak self] partial in self?.queueStreamedPartial(partial, workID: workID) }
+                if shouldCollectPartials {
+                    onPartial = { [weak self] partial in
+                        self?.receiveTypingPartial(partial, workID: workID, showPartials: shouldStreamPartials)
+                    }
                 } else {
                     onPartial = nil
                 }
@@ -383,14 +420,16 @@ extension SuggestionCoordinator {
                     return
                 }
 
-                await apply(result: result, workID: workID)
+                await finishTypingPrediction(result, workID: workID)
             } catch SuggestionClientError.cancelled {
+                if self.workController.isCurrent(workID) { self.clearTypingPrediction() }
                 return
             } catch {
                 guard self.workController.isCurrent(workID) else {
                     return
                 }
 
+                self.clearTypingPrediction()
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
@@ -402,7 +441,7 @@ extension SuggestionCoordinator {
     /// verdict re-evaluates per request because it adds nothing to the prompt and the clipboard
     /// may only become relevant once more text is typed. A new copy or a field switch always
     /// re-evaluates.
-    private func pinnedClipboardContext(rawContext: FocusedInputSnapshot) -> String? {
+    func pinnedClipboardContext(rawContext: FocusedInputSnapshot) -> String? {
         guard settingsSnapshot.isClipboardContextEnabled else {
             return nil
         }
@@ -441,7 +480,7 @@ extension SuggestionCoordinator {
     /// 10-50ms from the engine, and rendering each one would stack session updates and overlay
     /// layout on the main actor; latest-wins coalescing bounds that work while the authoritative
     /// final result still arrives through `apply`.
-    private func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
+    func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
         guard workController.isCurrent(workID) else {
             return
         }
@@ -465,92 +504,76 @@ extension SuggestionCoordinator {
     /// A real session rather than a cosmetic overlay because acceptance gates on the live session
     /// (never on `state`), so the user can Tab into a stream the moment the first words appear;
     /// accepting cancels the in-flight work (work id bump), freezing the suggestion at what was
-    /// streamed. Renders are monotonic (`StreamedGhostTextPolicy`) so reordered hops and
-    /// normalizer rewrites never shrink visible ghost text, and the materialize check stops
-    /// partials the moment the field text moves on without a keystroke (a keystroke already
-    /// bumped the work id before this runs).
+    /// streamed. Matching typed input can instead keep that stream alive; its candidate rebases
+    /// only after AX confirms the exact append. All other edits still retire the work ID.
     private func applyStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
-        guard workController.isCurrent(workID) else {
+        guard workController.isCurrent(workID), !suggestionStreamingState.isFinalized else {
             return
         }
-        guard suggestionStreamingState.canRender(partial.text) else {
-            return
-        }
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        guard workController.isCurrent(workID) else { return }
         guard let rawContext = focusModel.snapshot.context else {
             return
         }
 
         let liveContext = interactionState.materializeContext(from: rawContext)
-        guard liveContext.generation == partial.generation else {
-            return
-        }
+        guard let presentedPartial = rebasedStreamedPartial(partial, rawContext: rawContext, liveContext: liveContext) else { return }
 
-        // Junk checks remain cheap enough for every partial. The first generated word is buffered
-        // until its boundary arrives, then its spelling decision is cached for the generation so
-        // the AppKit/XPC lookup never runs at token cadence.
-        guard CompletionSeamGuard.allowsStreamedPartial(
+        // A partial that attaches to a word the user has since ended with a space is stale, and the
+        // leading space of the rest is decided against the live text (see `GhostSpaceBoundary`).
+        guard !GhostSpaceBoundary.isStaleAfterTypedSpace(presentedPartial.text, precedingText: liveContext.precedingText) else { return }
+        let spacedText = GhostSpaceBoundary.liveAdjusted(
+            presentedPartial.text,
             precedingText: liveContext.precedingText,
-            completion: partial.text
-        ) else {
+            requestPrecedingText: presentedPartial.spacingIsExact ? latestRequestPrecedingText : nil
+        )
+        guard case let .show(text, wordOnly) = completionPresentation(text: spacedText, context: liveContext, isFinal: false),
+              !wasDismissed(text, context: liveContext) else { return }
+        let delay = presentationDelay(context: liveContext)
+        if delay > 0 {
+            delayedStreamPresentation?.cancel()
+            delayedStreamPresentation = Task { [weak self] in
+                do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
+                self?.applyStreamedPartial(partial, workID: workID)
+            }
             return
         }
-        guard passesStreamedLeadingWordGate(
-            precedingText: liveContext.precedingText,
-            completion: partial.text
-        ) else {
-            return
-        }
-        guard !GhostSpaceBoundary.isStaleAfterTypedSpace(partial.text, precedingText: liveContext.precedingText) else {
-            return
-        }
-
-        let spacedText = GhostSpaceBoundary.adjusted(
-            partial.text,
-            precedingText: liveContext.precedingText,
-            requestPrecedingText: partial.spacingIsExact ? latestRequestPrecedingText : nil,
-            continuesPartialWord: latestWordBoundaryAnchor != nil
-        )
-        _ = interactionState.startSession(
-            fullText: spacedText,
-            liveContext: liveContext,
-            latency: partial.latency
-        )
-        suggestionStreamingState.recordRendered(partial.text)
-        presentOverlay(
-            text: spacedText,
-            at: liveContext.caretRect,
-            context: liveContext,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-        )
+        let buffered = bufferedCompletionText(spacedText, visibleText: text, context: liveContext, isFinal: false)
+        let candidate = ActiveSuggestionSession(baseContext: liveContext, fullText: buffered,
+            initialVisibleCharacterCount: wordOnly ? text.count : nil,
+            showFollowingWords: settingsSnapshot.showFollowingWords, latency: partial.latency)
+        let visible = candidate.remainingText
+        let growsBuffer = interactionState.activeSession.map {
+            $0.remainingText == visible && buffered.count > $0.fullText.count && buffered.hasPrefix($0.fullText)
+        } ?? false
+        guard suggestionStreamingState.canRender(visible) || growsBuffer else { return }
+        let session = startCompletionSession(prediction: spacedText, visibleText: text, context: liveContext,
+            latency: partial.latency, isFinal: false, wordEndingOnly: wordOnly)
+        if growsBuffer { return }
+        suggestionStreamingState.recordRendered(session.remainingText)
+        presentOverlay(text: session.remainingText, at: liveContext.caretRect, context: liveContext,
+                       isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText))
     }
 
-    /// Resolves the generation-scoped leading-word gate for one streamed partial and returns whether
-    /// the partial may render. A pending gate consults the seam guard, which either keeps buffering
-    /// (`wait`) or settles the gate for the rest of this generation; a settled gate answers without
-    /// touching the spell checker again. Kept separate so `applyStreamedPartial` stays within the
-    /// project's cyclomatic-complexity budget.
-    private func passesStreamedLeadingWordGate(precedingText: String, completion: String) -> Bool {
-        switch suggestionStreamingState.leadingWordGateState {
-        case .allowed:
-            return true
-        case .suppressed:
-            return false
-        case .pending:
-            switch CompletionSeamGuard.streamedLeadingWordVerdict(
-                precedingText: precedingText,
-                completion: completion,
-                spellingAssessment: { self.completionSpellingAssessment(for: $0) }
-            ) {
-            case .wait:
-                return false
-            case .allow:
-                suggestionStreamingState.resolveLeadingWordGate(.allowed)
-                return true
-            case .suppress:
-                suggestionStreamingState.resolveLeadingWordGate(.suppressed)
-                return false
+    /// A retained typing candidate may rebase the stream; ordinary streams must still match
+    /// the live generation. Keeping this check together prevents either path bypassing freshness.
+    private func rebasedStreamedPartial(
+        _ partial: SuggestionResult,
+        rawContext: FocusedInputSnapshot,
+        liveContext: FocusedInputContext
+    ) -> SuggestionResult? {
+        if let candidate = typingPrediction {
+            guard let rebased = candidate.rebased(partial, in: rawContext, generation: liveContext.generation) else {
+                return nil
             }
+            // Past typed letters, a partial faces the same new-offer checks as the final answer.
+            // It is only skipped here; the final delivery decides whether to request again.
+            if !candidate.typedText.isEmpty, restartReason(forRebased: rebased.text, raw: rawContext) != nil {
+                return nil
+            }
+            return rebased
         }
+        return liveContext.generation == partial.generation ? partial : nil
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,
@@ -570,8 +593,7 @@ extension SuggestionCoordinator {
                     for: $0,
                     precedingText: rawContext.precedingText
                 )
-            },
-            isWordInProgress: { spellChecker.hasCompletions(forPartialWord: $0) }
+            }
         ) {
         case .proceed:
             return false
@@ -586,6 +608,13 @@ extension SuggestionCoordinator {
             )
             return true
         case let .offerCorrection(word, correctedWord):
+            let context = interactionState.materializeContext(from: rawContext)
+            guard !wasDismissed(correctedWord, context: context) else {
+                clearSuggestion()
+                hideOverlay(reason: "Overlay hidden because this correction was explicitly dismissed.")
+                state = .idle
+                return true
+            }
             presentCorrection(
                 typoWord: word,
                 correctedWord: correctedWord,
@@ -627,7 +656,7 @@ extension SuggestionCoordinator {
     /// Collapses native typo detection and correction availability into the seam guard's single
     /// spelling contract. Keeping this adapter at the orchestration boundary lets the pure guard
     /// express its policy without knowing about `NSSpellChecker` or accepting contradictory hooks.
-    private func completionSpellingAssessment(
+    func completionSpellingAssessment(
         for word: String
     ) -> CompletionSeamGuard.SpellingAssessment {
         guard spellChecker.isTypo(word) else {
@@ -702,7 +731,11 @@ extension SuggestionCoordinator {
         )
         // Synthetic replacement is asynchronous from the host editor's perspective. Poll until AX
         // publishes the corrected text before asking for the next continuation.
-        schedulePredictionAfterHostPublishDelay()
+        let correctedSession = ActiveSuggestionSession(baseContext: liveContext, fullText: correctedWord,
+            latency: 0, kind: .correction(typoWord: typoWord))
+        prepareContinuation(after: correctedSession, rawContext: rawContext)
+        markPreparedContinuationCommitted(after: correctedSession)
+        schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
     }
 
     /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model
@@ -738,42 +771,11 @@ extension SuggestionCoordinator {
             message: "Offered a native spell-checker correction for the current word.",
             normalizedOutput: correctedWord
         )
+        prepareContinuation(after: session, rawContext: rawContext)
     }
 
     /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
     /// complexity budget as its guard chain grew.
-    /// Junk punctuation runs, mid-word splices, and newly started words the native checker can
-    /// correct read as glitches, so showing nothing beats showing them. The leading-word check is
-    /// intentionally fail-open for names and jargon with no correction candidate. Returns true when
-    /// the result must not be shown.
-    private func suppressForSeamVerdictIfNeeded(
-        result: SuggestionResult,
-        liveContext: FocusedInputContext,
-        workID: UInt64
-    ) -> Bool {
-        let seamVerdict = CompletionSeamGuard.verdict(
-            precedingText: liveContext.precedingText,
-            completion: result.text,
-            spellingAssessment: { self.completionSpellingAssessment(for: $0) }
-        )
-        guard seamVerdict != .allow else {
-            return false
-        }
-        clearSuggestion()
-        hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
-        state = .idle
-        qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: seamVerdict))
-        logStage(
-            "seam-suppressed",
-            workID: workID,
-            generation: result.generation,
-            message: "Suppressed completion at the caret seam: \(seamVerdict).",
-            rawOutput: result.rawText,
-            normalizedOutput: result.text
-        )
-        return true
-    }
-
     private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
         clearSuggestion()
         hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
@@ -797,6 +799,8 @@ extension SuggestionCoordinator {
         switch verdict {
         case .seamMisspelling:
             return "seamMisspelling"
+        case .abandonedWord:
+            return "abandonedWord"
         case .leadingWordMisspelling:
             return "leadingWordMisspelling"
         case .junkPunctuationRun:
@@ -814,6 +818,11 @@ extension SuggestionCoordinator {
             return
         }
 
+        suggestionStreamingState.finishGeneration()
+        delayedStreamPresentation?.cancel()
+        delayedStreamPresentation = nil
+        guard await waitForTypingPause(workID: workID) else { return }
+
         // Record every completed result, including output later suppressed by normalization or seam
         // checks. Those requests still consumed backend time and are exactly the evidence the next
         // debounce needs to avoid another burst of doomed HTTP work.
@@ -822,9 +831,11 @@ extension SuggestionCoordinator {
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
         // capture often already exists here; only pay a synchronous AX walk when it does not.
-        // Any keystroke during generation bumped the work id (checked above), and non-keyboard
-        // edits are caught by the generation guard below on the materialized context.
+        // Unrelated edits retire the work ID. Matching typing is rebased before reaching apply;
+        // the generation guard below still catches changes after that validation.
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        // Refresh may synchronously publish navigation and cancel this work.
+        guard workController.isCurrent(workID) else { return }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -852,10 +863,11 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeSignature != nil
-            && pendingSpeculativeSignature == liveContext.contentSignature
+        let isPaidOffSpeculation = pendingSpeculativeContext != nil
+            && pendingSpeculativeContext?.sessionIdentity == liveContext.sessionIdentity
+            && pendingSpeculativeContext?.contentSignature == liveContext.contentSignature
         if isPaidOffSpeculation {
-            pendingSpeculativeSignature = nil
+            pendingSpeculativeContext = nil
         }
 
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
@@ -873,11 +885,6 @@ extension SuggestionCoordinator {
                 normalizedOutput: result.text
             )
             hideOverlay(reason: "Overlay hidden because a stale result was dropped.")
-            return
-        }
-
-        guard !result.text.isEmpty else {
-            discardEmptyResult(result, workID: workID)
             return
         }
 
@@ -922,11 +929,17 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Last line of defense before display (see `suppressForSeamVerdictIfNeeded`).
-        if suppressForSeamVerdictIfNeeded(result: result, liveContext: liveContext, workID: workID) {
-            return
-        }
+        presentFreshResult(result, workID: workID, liveContext: liveContext, rawContext: rawContext)
+    }
 
+    /// Only a result that passed the focus, selection, and acceptance-echo guards reaches here.
+    /// This stage chooses a safe visible completion and publishes its session and overlay together.
+    private func presentFreshResult(
+        _ result: SuggestionResult,
+        workID: UInt64,
+        liveContext: FocusedInputContext,
+        rawContext: FocusedInputSnapshot
+    ) {
         // A completion that attaches to a word the user has since ended with a space is stale
         // (see `GhostSpaceBoundary.isStaleAfterTypedSpace`).
         if GhostSpaceBoundary.isStaleAfterTypedSpace(result.text, precedingText: liveContext.precedingText) {
@@ -944,34 +957,66 @@ extension SuggestionCoordinator {
             )
             return
         }
-
-        latestGenerationNumber = liveContext.generation
-        // One shown event per suggestion: this is the only place a fresh generation becomes
-        // visible (re-presentations after partial accepts reuse the same session).
-        qualityMetricsStore.recordShown()
         // The leading space is decided here, against the text that is in the field now, not against
         // the snapshot the request was built from: the user keeps typing while the model runs, so a
         // space that arrived meanwhile would otherwise leave the ghost a space too far right (and
         // insert two), and a completion the model returned without one would glue to the last word.
-        let spacedText = GhostSpaceBoundary.adjusted(
+        let spacedText = GhostSpaceBoundary.liveAdjusted(
             result.text,
             precedingText: liveContext.precedingText,
-            requestPrecedingText: result.spacingIsExact ? latestRequestPrecedingText : nil,
-            continuesPartialWord: latestWordBoundaryAnchor != nil
+            requestPrecedingText: result.spacingIsExact ? latestRequestPrecedingText : nil
         )
-        // Cached as shown, spaced against the live text it follows, so a restore re-offers exactly
-        // this ghost (the prefetched continuation is cached the same way).
+        let decision = completionPresentation(text: spacedText, context: liveContext, isFinal: true)
+        let visibleText: String
+        let prediction: String
+        let wordEndingOnly: Bool
+        switch decision {
+        case let .show(text, wordOnly):
+            visibleText = text
+            prediction = spacedText
+            wordEndingOnly = wordOnly
+        case .wait, .suppress:
+            if let fallback = localWordCompletion(context: liveContext) {
+                visibleText = fallback
+                prediction = fallback
+                wordEndingOnly = true
+                logStage("word-completion-fallback", workID: workID, generation: result.generation,
+                         message: "Offered a local exact-prefix word ending.", normalizedOutput: fallback)
+            } else {
+                if case let .suppress(verdict) = decision {
+                    clearSuggestion()
+                    hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
+                    state = .idle
+                    qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: verdict))
+                    logStage("seam-suppressed", workID: workID, generation: result.generation,
+                             message: "Suppressed completion at the caret seam: \(verdict).",
+                             rawOutput: result.rawText, normalizedOutput: result.text)
+                } else {
+                    discardEmptyResult(result, workID: workID)
+                }
+                return
+            }
+        }
+        guard !wasDismissed(visibleText, context: liveContext) else {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because this suggestion was explicitly dismissed.")
+            state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "explicitDismissal")
+            return
+        }
+
+        latestGenerationNumber = liveContext.generation
+        // One shown event per suggestion: this is the only place a fresh generation becomes
+        // visible (re-presentations after partial accepts reuse the same session).
+        qualityMetricsStore.recordShown(recoveringSuppression: result.suppressionReason)
+        let session = startCompletionSession(prediction: prediction, visibleText: visibleText,
+            context: liveContext, latency: result.latency, isFinal: true, wordEndingOnly: wordEndingOnly)
         suggestionAnchorCache.record(
-            identityKey: liveContext.focusedInputIdentityKey,
+            identityKey: liveContext.suggestionSessionIdentityKey,
             precedingText: liveContext.precedingText,
-            fullText: spacedText
+            fullText: session.fullText
         )
         hasPrefetchedContinuation = false
-        let session = interactionState.startSession(
-            fullText: spacedText,
-            liveContext: liveContext,
-            latency: result.latency
-        )
         state = .ready(text: session.remainingText, latency: session.latency)
 
         presentFreshSession(session, liveContext: liveContext)
@@ -981,12 +1026,13 @@ extension SuggestionCoordinator {
             generation: result.generation,
             message: "Accepted a non-empty normalized suggestion.",
             rawOutput: result.rawText,
-            normalizedOutput: result.text
+            normalizedOutput: visibleText
         )
 
         // If the user pressed Tab while this continuation was still regenerating, accept its first
         // word now so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
         // stalling once the previous suggestion ran out. No-op when nothing was queued.
+        prepareContinuation(after: session, rawContext: rawContext)
         flushQueuedPostExhaustionAcceptIfNeeded()
     }
 
@@ -1127,6 +1173,7 @@ extension SuggestionCoordinator {
         latestGenerationNumber = liveContext.generation
 
         if reconciledSession.isExhausted {
+            markPreparedContinuationCommitted(after: reconciledSession)
             completeActiveSuggestion(
                 reason: "Overlay hidden because the active suggestion was fully consumed.",
                 scheduleNextPrediction: true,
@@ -1198,18 +1245,26 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Keep the offer while the live trailing word (tolerating one trailing space the user just
-        // typed) is still the exact typo we offered to fix, in the same app. This is what makes the
-        // green correction survive a space: the word is unchanged, so we keep showing it as
-        // Tab-acceptable. Any other edit — typing more, a second space, deleting, switching apps —
-        // drops it, and the next prediction re-runs the gate for the new current word.
-        let liveWord = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText)?.result.word
-        if liveWord == typoWord, rawContext.processIdentifier == session.baseContext.processIdentifier {
+        // Keep the offer only while the same typo remains committed at the caret. The boundary
+        // policy tolerates a space after punctuation; further typing, a second space, or deleting
+        // the delimiter makes the old correction ineligible and lets the next cycle reassess it.
+        let liveWord = CaretWordContext.committedWord(in: rawContext.precedingText)?.word
+        if liveWord == typoWord, correctionSessionMatches(session, rawContext: rawContext) {
             return
         }
         invalidateActiveSuggestion(
             reason: "Overlay hidden because the field changed after a correction was offered."
         )
+    }
+
+    /// A replacement must refer to the exact offered edit. Matching spelling alone cannot authorize
+    /// deleting text in another field of the same app or on the other side of a moved caret.
+    func correctionSessionMatches(_ session: ActiveSuggestionSession, rawContext: FocusedInputSnapshot) -> Bool {
+        // Chromium can recycle AX node identifiers while this same field remains focused.
+        // The shared field rule tolerates that only with a stable web frame and focus sequence.
+        SuggestionContinuationPlan.sameFocusedField(rawContext, context: session.baseContext)
+            && rawContext.contentSignature == session.baseContext.contentSignature
+            && rawContext.selection.length == 0 && !rawContext.isSecure
     }
 
     /// The single marshalling point for `SuggestionAvailabilityEvaluator.disabledReason`: every gate
@@ -1232,6 +1287,7 @@ extension SuggestionCoordinator {
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
+        suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
         // here. Once the pipeline is already torn down for this exact reason there is nothing
         // left to cancel or hide; re-running the teardown only spawns a redundant engine-reset
@@ -1252,11 +1308,12 @@ extension SuggestionCoordinator {
 
     /// Disables predictions without tearing down the visual context session.
     ///
-    /// Transient disabled states — "text is selected", "secure field", brief "no focused element"
+    /// Transient disabled states — "text is selected", brief "no focused element"
     /// between field switches — should not cancel an in-progress OCR pipeline. The visual context
     /// session is field-scoped and outlives individual prediction cycles; destroying it here would
     /// force a redundant re-capture when the user starts typing again.
     func disablePredictionsPreservingVisualContext(reason: String) {
+        suggestionPresentationTiming.clear()
         if isAlreadyDisabled(for: reason) {
             return
         }
@@ -1298,8 +1355,11 @@ extension SuggestionCoordinator {
     }
 
     /// Clears the active suggestion and optionally preserves or drops diagnostic breadcrumbs.
-    func clearSuggestion(clearDiagnostics: Bool = false) {
+    func clearSuggestion(clearDiagnostics: Bool = false, preservingContinuation: Bool = false) {
         hasPrefetchedContinuation = false
+        if !preservingContinuation { cancelPreparedContinuation() }
+        delayedStreamPresentation?.cancel()
+        delayedStreamPresentation = nil
         // Drop any pending accepted-tail guard whenever the suggestion state is torn down (user
         // typed, focus changed, predictions disabled). The final-chunk accept re-sets it afterward.
         lastAcceptedTail = nil
@@ -1317,8 +1377,12 @@ extension SuggestionCoordinator {
     }
 
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
-    func cancelPredictionWork() {
-        pendingSpeculativeSignature = nil
+    func cancelPredictionWork(preservingContinuation: Bool = false) {
+        if !preservingContinuation { cancelPreparedContinuation() }
+        clearTypingPrediction()
+        delayedStreamPresentation?.cancel()
+        delayedStreamPresentation = nil
+        pendingSpeculativeContext = nil
         hostPublishPollGeneration &+= 1
         workController.cancelAll()
     }
