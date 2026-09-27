@@ -17,11 +17,13 @@ final class WordCountFormatterTests: XCTestCase {
             (9, "9"),
             (42, "42"),
             (999, "999"),
-            // One-decimal thousands. `%.1f` rounds, so the top of the tier reads "10.0K".
+            // One-decimal thousands, rounded half-up, so the top of the tier reads "10.0K".
             (1_000, "1.0K"),
+            (1_250, "1.3K"),
             (1_500, "1.5K"),
             (9_900, "9.9K"),
             (9_949, "9.9K"),
+            (9_950, "10.0K"),
             (9_951, "10.0K"),
             (9_999, "10.0K"),
             // Whole thousands truncate rather than round.
@@ -32,6 +34,8 @@ final class WordCountFormatterTests: XCTestCase {
             // One-decimal millions.
             (1_000_000, "1.0M"),
             (5_500_000, "5.5M"),
+            (9_949_999, "9.9M"),
+            (9_950_000, "10.0M"),
             (9_999_999, "10.0M"),
             // Whole millions truncate.
             (10_000_000, "10M"),
