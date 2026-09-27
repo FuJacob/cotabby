@@ -18,8 +18,39 @@ nonisolated enum SpeculativeAcceptanceContext {
         after snapshot: FocusedInputSnapshot,
         inserting insertionChunk: String
     ) -> FocusedInputSnapshot {
-        let insertedUTF16Count = insertionChunk.utf16.count
-        return FocusedInputSnapshot(
+        snapshotCopy(
+            snapshot,
+            precedingText: snapshot.precedingText + insertionChunk,
+            selectionLocation: snapshot.selection.location + insertionChunk.utf16.count
+        )
+    }
+
+    /// Replacement lengths come from AX in UTF-16 units, whereas Swift slices whole characters.
+    /// Fail closed when a requested suffix reaches beyond the captured context or splits a user
+    /// character; speculative state must describe an edit the insertion boundary can make exactly.
+    static func optimisticSnapshot(
+        after snapshot: FocusedInputSnapshot,
+        replacing replacement: TypoCorrectionReplacement
+    ) -> FocusedInputSnapshot? {
+        let deleteCount = replacement.deletingUTF16Count
+        let prefix = snapshot.precedingText
+        guard deleteCount > 0, deleteCount <= prefix.utf16.count,
+              deleteCount <= snapshot.selection.location,
+              let range = Range(NSRange(location: prefix.utf16.count - deleteCount, length: deleteCount), in: prefix),
+              prefix.indices.contains(range.lowerBound) else { return nil }
+        return snapshotCopy(
+            snapshot,
+            precedingText: String(prefix[..<range.lowerBound]) + replacement.replacementText,
+            selectionLocation: snapshot.selection.location - deleteCount + replacement.replacementText.utf16.count
+        )
+    }
+
+    private static func snapshotCopy(
+        _ snapshot: FocusedInputSnapshot,
+        precedingText: String,
+        selectionLocation: Int
+    ) -> FocusedInputSnapshot {
+        FocusedInputSnapshot(
             applicationName: snapshot.applicationName,
             bundleIdentifier: snapshot.bundleIdentifier,
             processIdentifier: snapshot.processIdentifier,
@@ -32,14 +63,15 @@ nonisolated enum SpeculativeAcceptanceContext {
             caretQuality: snapshot.caretQuality,
             observedCharWidth: snapshot.observedCharWidth,
             observedContentEdges: snapshot.observedContentEdges,
-            precedingText: snapshot.precedingText + insertionChunk,
+            precedingText: precedingText,
             trailingText: snapshot.trailingText,
             selection: NSRange(
-                location: snapshot.selection.location + insertedUTF16Count,
+                location: selectionLocation,
                 length: 0
             ),
             isSecure: snapshot.isSecure,
             isIntegratedTerminal: snapshot.isIntegratedTerminal,
+            isWebContentField: snapshot.isWebContentField,
             focusChangeSequence: snapshot.focusChangeSequence,
             focusedURLString: snapshot.focusedURLString,
             resolvedFieldStyle: snapshot.resolvedFieldStyle,

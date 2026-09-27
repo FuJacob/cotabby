@@ -36,7 +36,7 @@ struct FocusedInputContext: Equatable, Sendable {
     let isWebContentField: Bool
     /// The host field's own text font/color, carried through so the overlay can match it.
     let resolvedFieldStyle: ResolvedFieldStyle?
-    /// Surface metadata captured once per field session, carried through so the request factory
+    /// Surface metadata captured with the current focus snapshot, carried through so the request factory
     /// can condition the prompt on what the user is writing in (see `SurfaceContextComposer`).
     let windowTitle: String?
     let fieldPlaceholder: String?
@@ -48,7 +48,9 @@ struct FocusedInputContext: Equatable, Sendable {
     let focusChangeSequence: UInt64
     let generation: UInt64
 
-    init(snapshot: FocusedInputSnapshot, generation: UInt64) {
+    // Copying immutable snapshot values needs no UI actor; pure continuation plans use this
+    // initializer to share the same field-identity rule as coordinator-held contexts.
+    nonisolated init(snapshot: FocusedInputSnapshot, generation: UInt64) {
         applicationName = snapshot.applicationName
         bundleIdentifier = snapshot.bundleIdentifier
         processIdentifier = snapshot.processIdentifier
@@ -94,6 +96,23 @@ struct FocusedInputContext: Equatable, Sendable {
         hasher.combine(bundleIdentifier)
         hasher.combine(processIdentifier)
         hasher.combine(elementIdentifier)
+        return UInt64(bitPattern: Int64(hasher.finalize()))
+    }
+
+    nonisolated var sessionIdentity: FocusedInputSessionIdentity {
+        FocusedInputSessionIdentity(
+            processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
+            focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
+            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+        )
+    }
+
+    /// Prediction memory must expire on navigation even when the host reuses the AX element.
+    /// Keep this separate from the geometry/style key, whose stability prevents font jitter.
+    var suggestionSessionIdentityKey: UInt64 {
+        var hasher = Hasher()
+        hasher.combine(focusedInputIdentityKey)
+        hasher.combine(sessionIdentity)
         return UInt64(bitPattern: Int64(hasher.finalize()))
     }
 

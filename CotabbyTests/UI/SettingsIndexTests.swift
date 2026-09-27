@@ -34,6 +34,12 @@ final class SettingsIndexTests: XCTestCase {
         // entry. If one of these fails, a rename or removal broke search for that setting.
         let expectations: [(query: String, item: SettingsItem)] = [
             ("ghost text size", .ghostTextSize),
+            ("predict ahead", .predictAheadWhileTyping),
+            ("background", .predictAheadWhileTyping),
+            ("mid word", .suggestWithinWords),
+            ("word boundary", .suggestWithinWords),
+            ("next words", .showFollowingWords),
+            ("one word", .showFollowingWords),
             ("smallest ghost text", .ghostTextSizeFloor),
             ("largest ghost text", .ghostTextSizeCeiling),
             ("terminal", .suggestInIntegratedTerminals),
@@ -55,4 +61,11 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsItem.results(for: "   ").isEmpty)
         XCTAssertTrue(SettingsItem.results(for: "").isEmpty)
     }
+
+    #if DEBUG
+    func test_debugOverlaySettingIsSearchableInDevelopmentBuilds() {
+        XCTAssertTrue(SettingsItem.results(for: "debug overlays").contains(.developmentDebugOverlays))
+        XCTAssertEqual(SettingsItem.developmentDebugOverlays.category, .general)
+    }
+    #endif
 }

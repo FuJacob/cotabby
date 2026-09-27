@@ -1,0 +1,203 @@
+{
+  "version": 2,
+  "language": "en",
+  "provenance": "Synthetic development scenarios, including paraphrases of user-reported GGUF failures. No captured conversations or held-out benchmark examples.",
+  "phrases": [
+    {
+      "id": "regression-apple",
+      "category": "technology",
+      "text": "apple intelligence is much better.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "ChatGPT",
+        "bundleIdentifier": "com.openai.chat",
+        "windowTitle": "ChatGPT",
+        "fieldPlaceholder": "Message",
+        "documentPrefix": "i'm using gguf models and the predictions are not correct. ",
+        "screenText": "A comparison of local autocomplete tools. One option uses Apple on-device models; the other loads local weights."
+      }
+    },
+    {
+      "id": "regression-gguf",
+      "category": "technology",
+      "text": "They need gguf to run locally.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Technical discussion",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "We are discussing portable model files. ",
+        "screenText": "File formats: GGUF stores model weights for llama.cpp. MLX uses a different runtime. No internet connection is needed."
+      }
+    },
+    {
+      "id": "regression-mlx",
+      "category": "technology",
+      "text": "Mlx won\u2019t support intel hardware.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Technical discussion",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "MLX targets Apple silicon. The other participant is asking about an older Intel laptop."
+      }
+    },
+    {
+      "id": "regression-models",
+      "category": "technology",
+      "text": "gguf models are really bad.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "ChatGPT",
+        "bundleIdentifier": "com.openai.chat",
+        "windowTitle": "ChatGPT",
+        "fieldPlaceholder": "Message",
+        "documentPrefix": "i'm using gguf models and the predictions are not correct. apple intelligence is much better. ",
+        "screenText": "A writer is reporting poor suggestions from locally loaded models and comparing another backend."
+      }
+    },
+    {
+      "id": "regression-chat",
+      "category": "conversation",
+      "text": "Can you send me the address?",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Weekend plans",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "A friend has invited us to dinner but has not provided the street or building number."
+      }
+    },
+    {
+      "id": "regression-thanks",
+      "category": "conversation",
+      "text": "Thanks for getting back to me.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Project update",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "A colleague just replied to a question sent yesterday. There is no urgent follow-up."
+      }
+    },
+    {
+      "id": "regression-report",
+      "category": "work",
+      "text": "Please send the report by Friday.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Mail",
+        "bundleIdentifier": "com.apple.mail",
+        "windowTitle": "Weekly report",
+        "fieldPlaceholder": "Message body",
+        "documentPrefix": "",
+        "screenText": "The manager needs the weekly report before the end of the week. The agreed deadline is Friday."
+      }
+    },
+    {
+      "id": "regression-meeting",
+      "category": "work",
+      "text": "The meeting has been moved to Tuesday.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Mail",
+        "bundleIdentifier": "com.apple.mail",
+        "windowTitle": "Schedule change",
+        "fieldPlaceholder": "Message body",
+        "documentPrefix": "",
+        "screenText": "Calendar update: the Monday review is cancelled. A replacement appointment is booked for Tuesday."
+      }
+    },
+    {
+      "id": "regression-shopping",
+      "category": "everyday",
+      "text": "We need to buy milk and bread.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Notes",
+        "bundleIdentifier": "com.apple.Notes",
+        "windowTitle": "Shopping list",
+        "fieldPlaceholder": "Note",
+        "documentPrefix": "",
+        "screenText": "Kitchen inventory: milk is empty and the last loaf of bread was used at breakfast. Eggs are still stocked."
+      }
+    },
+    {
+      "id": "regression-weather",
+      "category": "everyday",
+      "text": "It looks like it is going to rain.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Weather",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "Dark clouds are gathering and the forecast shows showers this afternoon. Take an umbrella."
+      }
+    },
+    {
+      "id": "regression-water",
+      "category": "science",
+      "text": "Water freezes at zero degrees Celsius.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Notes",
+        "bundleIdentifier": "com.apple.Notes",
+        "windowTitle": "Lab notes",
+        "fieldPlaceholder": "Note",
+        "documentPrefix": "",
+        "screenText": "Lab observation: ice first appeared when the thermometer read 0 C at standard atmospheric pressure."
+      }
+    },
+    {
+      "id": "regression-film",
+      "category": "entertainment",
+      "text": "I really enjoyed watching that movie.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Film night",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "We watched a film last night and talked about the performances afterward. The response was positive."
+      }
+    },
+    {
+      "id": "regression-booking",
+      "category": "travel",
+      "text": "I would like to book a room.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Mail",
+        "bundleIdentifier": "com.apple.mail",
+        "windowTitle": "Hotel enquiry",
+        "fieldPlaceholder": "Message body",
+        "documentPrefix": "",
+        "screenText": "A hotel has rooms available for two adults next weekend. The guest is writing to make a reservation."
+      }
+    },
+    {
+      "id": "regression-flight",
+      "category": "travel",
+      "text": "Our flight leaves tomorrow morning.",
+      "scenario": {
+        "kind": "regression",
+        "applicationName": "Messages",
+        "bundleIdentifier": "com.apple.MobileSMS",
+        "windowTitle": "Travel plans",
+        "fieldPlaceholder": "iMessage",
+        "documentPrefix": "",
+        "screenText": "The itinerary shows departure at 09:00 on the following day. The airport recommends arriving two hours early."
+      }
+    }
+  ]
+}

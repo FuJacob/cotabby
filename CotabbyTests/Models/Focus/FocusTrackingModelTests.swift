@@ -105,6 +105,28 @@ final class FocusTrackingModelTests: XCTestCase {
         }
     }
 
+    func test_pollingDiagnosticsCanBeToggledDuringTheSameSession() {
+        runOnMainActor {
+            let model = makeModel()
+            model.start()
+            XCTAssertNil(model.latestPollEvent)
+
+            model.setPollingDiagnosticsEnabled(true)
+            model.refreshNow()
+            XCTAssertNotNil(model.latestPollEvent)
+
+            model.setPollingDiagnosticsEnabled(false)
+            XCTAssertNil(model.latestPollEvent)
+            model.refreshNow()
+            XCTAssertNil(model.latestPollEvent, "Hidden panels must not keep receiving poll events")
+            XCTAssertEqual(model.snapshot.applicationName, Self.blockedApplicationName)
+
+            model.setPollingDiagnosticsEnabled(true)
+            model.refreshNow()
+            XCTAssertNotNil(model.latestPollEvent, "Re-enabling must not require an app restart")
+        }
+    }
+
     func test_stop_leavesLastSnapshotAvailableAndAllowsManualRefresh() {
         runOnMainActor {
             let model = makeModel(publishesPollingEvents: true)

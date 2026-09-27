@@ -304,7 +304,7 @@ extension WelcomeView {
                     .onboardingReveal(2)
 
                 HStack(spacing: 8) {
-                    WelcomeFeatureChip(systemImage: "lock.fill", label: "100% on-device")
+                    WelcomeFeatureChip(systemImage: "lock.fill", label: "Local-first")
                     WelcomeFeatureChip(systemImage: "chevron.left.forwardslash.chevron.right", label: "Open source")
                     WelcomeFeatureChip(systemImage: "macwindow", label: "Works everywhere")
                 }

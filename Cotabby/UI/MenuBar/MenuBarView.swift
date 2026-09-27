@@ -64,7 +64,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(alignment: .center) {
-            Text("Cotabby")
+            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                 .font(.headline)
 
             if let appShortVersion {
@@ -74,11 +74,9 @@ struct MenuBarView: View {
                     .accessibilityLabel("Version \(appShortVersion)")
             }
 
-            // Ko-fi tip jar lives next to the title because the menu bar surface is the most
-            // frequented entry point. Using a Link lets SwiftUI hand the URL to NSWorkspace and
-            // dismiss the popover; a Button would need its own handler plumbing for the same effect.
-            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link("Support Us", destination: kofiURL)
+            // A plain source link keeps project information separate from the product title.
+            if let projectURL = URL(string: "https://github.com/FuJacob/cotabby") {
+                Link("GitHub", destination: projectURL)
                     .buttonStyle(.borderless)
                     .font(.subheadline)
             }
@@ -111,21 +109,6 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Fast Mode", isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(fastModeForcedOn)
-
-                if fastModeForcedOn {
-                    Text("Forced on because Screen Recording is off")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Divider()
-
             // Activation lives in its own band. While active, the menu offers bounded and manual
             // pauses. While paused or globally disabled, those choices are replaced by one recovery
             // action so the user cannot accidentally stack contradictory disable states.
@@ -162,13 +145,6 @@ struct MenuBarView: View {
                     .menuStyle(.borderlessButton)
                     .fixedSize(horizontal: false, vertical: true)
                 }
-
-                if let application = focusModel.latestExternalApplication,
-                   !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
-                    Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
             }
 
             Divider()
@@ -177,6 +153,19 @@ struct MenuBarView: View {
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Use screen context", isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(screenContextUnavailable)
+
+                if screenContextUnavailable {
+                    Text("Unavailable while Screen Recording is off")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Divider()
 
@@ -350,27 +339,11 @@ struct MenuBarView: View {
         )
     }
 
-    private var fastModeEnabledBinding: Binding<Bool> {
+    /// Keep the positive UI control compatible with the existing inverse stored preference.
+    private var screenContextEnabledBinding: Binding<Bool> {
         Binding(
-            get: { suggestionSettings.isFastModeEnabled },
-            set: { suggestionSettings.setFastModeEnabled($0) }
-        )
-    }
-
-    private func appEnabledBinding(for application: FocusedApplicationIdentity) -> Binding<Bool> {
-        Binding(
-            get: {
-                !suggestionSettings.isApplicationDisabled(
-                    bundleIdentifier: application.bundleIdentifier
-                )
-            },
-            set: { enabled in
-                suggestionSettings.setApplicationDisabled(
-                    bundleIdentifier: application.bundleIdentifier,
-                    displayName: application.applicationName,
-                    disabled: !enabled
-                )
-            }
+            get: { !suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled(!$0) }
         )
     }
 
@@ -485,10 +458,9 @@ struct MenuBarView: View {
         permissionManager.allPermissionsGranted
     }
 
-    /// Fast Mode is forced on and locked while Screen Recording is unavailable, since visual context
-    /// can't run without it. The user's stored preference is preserved and restored once the
-    /// permission is granted.
-    private var fastModeForcedOn: Bool {
+    /// Permission availability changes the displayed state without overwriting the user's choice.
+    /// Granting Screen Recording restores that choice through the settings model.
+    private var screenContextUnavailable: Bool {
         !permissionManager.screenRecordingGranted
     }
 

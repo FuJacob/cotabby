@@ -122,7 +122,7 @@ struct ShortcutsPaneView: View {
                         shouldShowReset: false,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
                         clearLabel: "Clear",
-                        clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off.",
+                        clearHelp: "Unbind this shortcut. No key will toggle Cotabby on or off.",
                         conflictChecker: { keyCode, modifiers in
                             suggestionSettings.conflictingShortcutName(
                                 keyCode: keyCode,

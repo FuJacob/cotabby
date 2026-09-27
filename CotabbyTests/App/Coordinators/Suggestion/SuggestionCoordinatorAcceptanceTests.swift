@@ -234,7 +234,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             // is about to publish (speculative prefetch) instead of idling through the publish
             // poll; the overlay still hides until that result lands and validates.
             XCTAssertEqual(coordinator.state, .generating)
-            XCTAssertNotNil(coordinator.pendingSpeculativeSignature)
+            XCTAssertNotNil(coordinator.pendingSpeculativeContext)
             XCTAssertFalse(coordinator.overlayState.isVisible)
             // It records what it committed so `apply` can drop a stale echo of the same tail.
             XCTAssertEqual(
@@ -396,7 +396,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             inserter: StubSuggestionInserter(),
             interactionState: interactionState
         )
-        let identityKey = FocusedInputContext(snapshot: snapshot, generation: 1).focusedInputIdentityKey
+        let identityKey = FocusedInputContext(snapshot: snapshot, generation: 1).suggestionSessionIdentityKey
         // The suggestion was generated when the field held "Hello"; the user has since typed
         // " wo", which is exactly the suggestion's first three characters.
         coordinator.suggestionAnchorCache.record(
@@ -430,8 +430,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             inserter: StubSuggestionInserter(),
             interactionState: interactionState
         )
-        coordinator.pendingSpeculativeSignature =
-            FocusedInputContext(snapshot: snapshot, generation: 1).contentSignature
+        coordinator.pendingSpeculativeContext =
+            FocusedInputContext(snapshot: snapshot, generation: 1)
         let speculativeResult = SuggestionResult(
             generation: 999,
             rawText: "from here on",
@@ -446,7 +446,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             return
         }
         XCTAssertEqual(text, "from here on")
-        XCTAssertNil(coordinator.pendingSpeculativeSignature, "the exemption is single-use")
+        XCTAssertNil(coordinator.pendingSpeculativeContext, "the exemption is single-use")
     }
 
     /// Without the signature exemption, a stale-generation result must keep being dropped.
@@ -663,8 +663,9 @@ private final class StubVisualContextCoordinator: VisualContextCoordinating {
     var latestExcerpt: String?
     var onStateChange: ((VisualContextStatus, String?) -> Void)?
     var onInjectedContextReady: ((FocusedInputIdentity) -> Void)?
+    var refreshContextProvider: (() -> FocusedInputSnapshot?)?
 
-    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot) {}
+    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot, configuration: VisualContextConfiguration) {}
 
     func cancel(resetState: Bool) {}
 

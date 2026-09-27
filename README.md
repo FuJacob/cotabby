@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://cotabby.app">
   <img width="200" alt="landing-page" src="https://github.com/user-attachments/assets/c28fbb4b-6dfb-4403-a040-1df61daf4df2" /></a>
-  
+
 
 <a href="https://github.com/FuJacob/cotabby/releases/latest/download/Cotabby.dmg">
 <img width="200" alt="download" src="https://github.com/user-attachments/assets/d5cb4454-d2ab-41d3-9d36-171d44ebfc52" /></a>
@@ -66,6 +66,8 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 - **Emoji autocomplete** — type `:rocket:` and accept it without leaving the field
 - **Inline macros** — type `/` for quick math, unit and currency conversion, dates, and random values
 - **One-key autocorrect** — fix a likely typo with a single keystroke
+- **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
+- **Optional screen context** — control visual context independently of the local prediction settings
 
 ## Privacy
 
@@ -163,8 +165,12 @@ Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for
 ```bash
 git clone https://github.com/FuJacob/cotabby.git Cotabby
 cd Cotabby
-open Cotabby.xcodeproj
+scripts/prepare_cotabby_workspace.sh
+open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
+
+Use the **Cotabby Dev** scheme for local work. The workspace temporarily supplies the native
+APIs in our pending CotabbyInference patch; preparation is automatic in CI and release builds.
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -175,6 +181,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 ## Acknowledgments
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for runtime, updates, and logging.
+- [LaunchAtLogin](https://github.com/sindresorhus/LaunchAtLogin-Modern) for macOS login-item integration.
 - Apple's FoundationModels, Accessibility, SwiftUI, and AppKit for on-device generation and macOS integration.
 - [GitHub gemoji](https://github.com/github/gemoji) and Hugging Face for the emoji data and downloadable models.
 - [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for multilingual autocorrect; frequency dictionaries derive from [Google Ngrams](https://books.google.com/ngrams) (CC BY 3.0) and licensed SCOWL/Hunspell word lists.

@@ -9,6 +9,37 @@ import XCTest
 /// that adds "one more guard, just in case" doesn't silently remove
 /// completions that used to work.
 final class SuggestionRequestFactoryTests: XCTestCase {
+    func test_localScreenContextExceedsOldCapButEndpointKeepsLegacyPrompt() {
+        let screen = String(repeating: "Project discussion and meeting agenda. ", count: 120)
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: "Please send "),
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),
+                configuration: .standard, visualContextSummary: screen
+            )
+            let limit = engine == .openAICompatible ? 1500 : 4000
+            XCTAssertLessThanOrEqual(result.request.visualContextSummary?.count ?? 0, limit)
+            if engine == .openAICompatible {
+                XCTAssertLessThan(result.request.prompt.count, 800)
+                XCTAssertFalse(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            } else {
+                XCTAssertGreaterThan(result.request.visualContextSummary?.count ?? 0, 1500)
+                XCTAssertGreaterThan(result.request.prompt.count, 1000)
+                XCTAssertTrue(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            }
+            XCTAssertTrue(result.request.prompt.hasSuffix("Please send "))
+        }
+    }
+
+    func test_denseUnicodeScreenTextLeavesRoomForLocalInstructionsAndCaret() {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "今天"),
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard, visualContextSummary: String(repeating: "请在周五之前发送项目报告", count: 500)
+        )
+        XCTAssertLessThan(result.request.visualContextSummary?.count ?? 0, 600)
+        XCTAssertTrue(result.request.prompt.hasSuffix("今天"))
+    }
 
     // MARK: - degenerate inputs
 
@@ -38,11 +69,19 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Hello, wor"))
     }
 
-    /// The key documented behavior: no trailing-space requirement. If this
-    /// test starts failing, someone added a settling heuristic that belongs
-    /// in the debounce layer, not here.
+    /// The default remains eligible before a delimiter; users can opt into boundary-only requests.
     func test_shouldGenerate_trueMidWordWithoutTrailingSpace() {
         XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "word"))
+    }
+
+    func test_boundaryPreferenceWaitsForDelimiterButPreservesUnspacedLanguages() {
+        for text in ["w", "word", "Please schedu", "I don't"] {
+            XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        for text in ["word ", "word,", "word.", "word\n", "今日は"] {
+            XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "  ", suggestWithinWords: false))
     }
 
     func test_shouldGenerate_trueWhenLeadingWhitespacePrecedesRealContent() {
@@ -54,6 +93,93 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     }
 
     // MARK: - buildRequest
+
+    func test_buildRequest_preservesDocumentStructureAndExactCaretBoundary() {
+        let text = "\tHello Casey,\n\nThe agenda:\n  - first item\n  - "
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: text),
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),
+                configuration: .standard
+            )
+            XCTAssertEqual(result.request.prefixText, text)
+            XCTAssertTrue(result.request.prompt.hasSuffix(text))
+        }
+    }
+
+    func test_truncatedPromptPrefix_preservesSeparatorsWhenWordBudgetDropsOldText() {
+        let retainedText = String(repeating: "word\n\t", count: 149) + "last  \n"
+        let text = "discard this " + retainedText
+        let prefix = SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard)
+        XCTAssertEqual(prefix, retainedText)
+    }
+
+    func test_truncatedPromptPrefix_characterWindowKeepsUnicodeAndTrailingWhitespace() {
+        let text = String(repeating: "👩🏽‍💻", count: 2_600) + "\n\tHello  "
+        let prefix = SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard)
+        XCTAssertEqual(prefix, String(text.suffix(SuggestionConfiguration.standard.maxPrefixCharacters)))
+        XCTAssertTrue(prefix.hasSuffix("\n\tHello  "))
+    }
+
+    func test_buildRequest_boundsFollowingTextForLocalCompletion() {
+        let boundedSuffix = String(repeating: "x", count: SuggestionConfiguration.standard.maxSuffixCharacters)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "We are meeting ",
+            trailingText: boundedSuffix + "UNBOUNDED_DOCUMENT_TAIL"
+        )
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertTrue(result.request.prompt.contains("“\(boundedSuffix)”"))
+        XCTAssertFalse(result.request.prompt.contains("UNBOUNDED_DOCUMENT_TAIL"))
+        XCTAssertTrue(result.request.prompt.hasSuffix("We are meeting "))
+    }
+
+    func test_buildRequest_doesNotAddFollowingTextToEndpointPayload() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "We are meeting ",
+            trailingText: "LOCAL_DOCUMENT_TAIL"
+        )
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .openAICompatible),
+            configuration: .standard
+        )
+        XCTAssertFalse(result.request.prompt.contains("LOCAL_DOCUMENT_TAIL"))
+        XCTAssertFalse(result.promptPreview.contains("LOCAL_DOCUMENT_TAIL"))
+        // Local normalization still needs the suffix to reject duplicate insertions. Excluding
+        // it from the transport payload must not remove that safety check's source context.
+        XCTAssertEqual(result.request.context.trailingText, "LOCAL_DOCUMENT_TAIL")
+    }
+
+    func test_buildRequest_referenceNotesAddContextWithoutRewritingTheWritingSample() {
+        let text = "Hey Casey,\n\nQuick update on Matcha: "
+        let notes = "Matcha is our internal calendar.\nExample phrasing: Quick update, then next steps."
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: text)
+        let bare = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(isSurfaceContextEnabled: false),
+            configuration: .standard
+        )
+        let withNotes = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(
+                isSurfaceContextEnabled: false,
+                customRules: ["IMPERATIVE_RULE_MUST_STAY_DISABLED"],
+                extendedContext: notes
+            ),
+            configuration: .standard
+        )
+        // A deterministic context ablation proves which text enters the model, not that a model
+        // learned the intended voice. Live typing evaluations must establish that separately.
+        XCTAssertEqual(bare.request.prompt, text)
+        XCTAssertEqual(withNotes.request.prompt, "Notes the writer keeps in mind: " + notes + "\n\n" + text)
+        XCTAssertEqual(withNotes.request.prefixText, bare.request.prefixText)
+        XCTAssertTrue(withNotes.request.customRules.isEmpty)
+        XCTAssertFalse(withNotes.request.prompt.contains("IMPERATIVE_RULE_MUST_STAY_DISABLED"))
+    }
 
     /// Request construction is the boundary between live editor state and runtime-specific prompt
     /// work. This test locks down the "small local context" rule: keep the recent character window,
@@ -311,9 +437,9 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
-        XCTAssertTrue(result.request.prompt.contains("An email being written in Mail."))
+        XCTAssertTrue(result.request.prompt.contains("Format: email; App: Mail;"))
         XCTAssertTrue(
-            result.request.prompt.contains("The window is titled \"Re: Q3 budget\"."),
+            result.request.prompt.contains("Title: Re: Q3 budget."),
             "the app-name suffix is stripped from the title before it reaches the prompt"
         )
         XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
@@ -334,7 +460,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertNil(result.request.surfaceContext)
-        XCTAssertFalse(result.request.prompt.contains("An email being written"))
+        XCTAssertFalse(result.request.prompt.contains("Format:"))
         XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
     }
 

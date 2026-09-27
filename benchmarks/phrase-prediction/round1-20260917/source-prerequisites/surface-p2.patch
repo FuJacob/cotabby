@@ -1,0 +1,110 @@
+diff --git a/Cotabby/Support/Context/SurfaceContextComposer.swift b/Cotabby/Support/Context/SurfaceContextComposer.swift
+index 619f804..cfa0d2d 100644
+--- a/Cotabby/Support/Context/SurfaceContextComposer.swift
++++ b/Cotabby/Support/Context/SurfaceContextComposer.swift
+@@ -1,7 +1,8 @@
+ import Foundation
+ 
+-/// The surface description that conditions a prompt: what kind of app the user is writing in,
+-/// plus the sanitized window title, web domain, and field placeholder when available.
++/// Immutable writing-surface facts carried by a suggestion request: the app class/name plus the
++/// sanitized title, URL host, and field placeholder. Keeping facts separate from their rendered
++/// labels lets the base-model and Foundation Models renderers use their own prompt formats.
+ nonisolated struct SurfaceContext: Equatable, Sendable {
+     let surfaceClass: AppSurfaceClass
+     let applicationName: String
+@@ -10,8 +11,9 @@ nonisolated struct SurfaceContext: Equatable, Sendable {
+     let fieldPlaceholder: String?
+ }
+ 
+-/// Builds the surface description from raw focus-capture metadata and renders it as the short
+-/// declarative preface the base model conditions on.
++/// Converts focus-capture metadata into bounded surface facts for `SuggestionRequestFactory`,
++/// then renders compact labels for `BaseCompletionPromptRenderer`. This deterministic boundary
++/// owns sanitization and formatting, with no service lifetime, model access, or mutable state.
+ ///
+ /// Two invariants matter here:
+ ///
+@@ -19,9 +21,9 @@ nonisolated struct SurfaceContext: Equatable, Sendable {
+ ///   metadata biases a small base model toward code/numbers over prose, which is exactly wrong in
+ ///   the one class of app where the text itself already screams "code". An unrecognized app with
+ ///   nothing else to say is also omitted, preserving the old bare-prefix behavior.
+-/// - **Declaratives, not instructions.** A base model has no instruction channel; like the persona
+-///   and style lines around it, the section describes the document ("An email being written in
+-///   Mail.") rather than commanding the model.
++/// - **Compact document facts.** Labels such as `Format: email; App: Mail` keep situational cues
++///   together without turning them into another prose passage. The base renderer budgets this
++///   optional section independently and leaves the writer's exact caret prefix last.
+ nonisolated enum SurfaceContextComposer {
+     /// Window titles are capped hard: they exist to carry the subject/document/channel cue, and a
+     /// runaway title would crowd the budgeted preface.
+@@ -63,40 +65,31 @@ nonisolated enum SurfaceContextComposer {
+         )
+     }
+ 
+-    /// The conditioning sentences for the base-model preface, ready to join into one section.
++    /// Renders one optional preface line in stable order: format, app, browser host, title, and field.
++    /// A compact representation reduces prose about the UI for the model to imitate. The renderer
++    /// still owns the section's final budget and its separation from the writer's actual draft.
+     static func prefaceLines(for surface: SurfaceContext) -> [String] {
+-        var lines: [String] = []
++        let format: String
+         switch surface.surfaceClass {
+-        case .email:
+-            lines.append("An email being written in \(surface.applicationName).")
+-        case .chat:
+-            lines.append("A chat message being typed in \(surface.applicationName).")
+-        case .browser:
+-            if let domain = surface.domain {
+-                lines.append("Text being typed on \(domain) in \(surface.applicationName).")
+-            } else {
+-                lines.append("Text being typed in \(surface.applicationName).")
+-            }
+-        case .other:
+-            lines.append("Text being typed in \(surface.applicationName).")
+-        case .codeEditor, .terminal:
+-            // compose() never produces these; returning nothing keeps the invariant obvious here.
+-            return []
+-        }
+-        if let title = surface.windowTitle {
+-            lines.append("The window is titled \"\(title)\".")
+-        }
+-        if let placeholder = surface.fieldPlaceholder {
+-            lines.append("The text field is labeled \"\(placeholder)\".")
++        case .email: format = "email"
++        case .chat: format = "chat"
++        case .browser: format = "web text"
++        case .other: format = "text"
++        case .codeEditor, .terminal: return []
+         }
+-        return lines
++        var fields = ["Format: \(format)", "App: \(surface.applicationName)"]
++        // Preserve the base preface's existing input scope: only browsers contribute a domain.
++        if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
++        if let title = surface.windowTitle { fields.append("Title: \(title)") }
++        if let placeholder = surface.fieldPlaceholder { fields.append("Field: \(placeholder)") }
++        return [fields.joined(separator: "; ") + "."]
+     }
+ 
+     // MARK: - Sanitization
+ 
+     /// Strips the app-name suffix browsers and many apps append (`Inbox - Google Chrome`,
+-    /// `Notes — Pages`), collapses whitespace, drops control characters and quotes (they would
+-    /// corrupt the quoted prompt line), and caps the length.
++    /// `Notes — Pages`), collapses whitespace, and caps the length. Existing quote/control cleanup
++    /// is retained so compact labels receive the same sanitized facts as the other renderers.
+     static func sanitizedTitle(_ rawTitle: String?, applicationName: String) -> String? {
+         guard var title = nonEmptyCleaned(rawTitle) else { return nil }
+         for separator in [" - ", " — ", " – "] {
+@@ -122,8 +115,9 @@ nonisolated enum SurfaceContextComposer {
+         return String(placeholder.prefix(maxPlaceholderLength))
+     }
+ 
+-    /// The registrable host of the page URL with a leading `www.` dropped: enough to say which
+-    /// site the user is on without leaking the path or query, which can carry identifiers.
++    /// The page URL's host with a leading `www.` dropped. Subdomains remain useful site cues;
++    /// paths and queries stay out of the prompt because they can carry identifiers. The method
++    /// name is historical: this extracts a host, not a public-suffix-based registrable domain.
+     static func registrableDomain(from urlString: String?) -> String? {
+         guard let urlString, !urlString.isEmpty,
+               let host = URL(string: urlString)?.host?.lowercased(), !host.isEmpty

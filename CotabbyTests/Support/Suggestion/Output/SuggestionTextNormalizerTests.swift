@@ -236,6 +236,70 @@ final class SuggestionTextNormalizerTests: XCTestCase {
 
     // MARK: - Multi-line mode
 
+    func test_normalize_multiLinePreservesLeadingSpaceAfterCompleteWord() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "I look forward to hearing",
+            isMultiLineEnabled: true
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" from you", for: request)
+
+        XCTAssertEqual(normalized, " from you")
+        XCTAssertEqual(request.context.precedingText + normalized, "I look forward to hearing from you")
+    }
+
+    func test_normalize_multiLineKeepsMidWordSuffixUnspaced() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "Please send the sched",
+            isMultiLineEnabled: true
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize("ule", for: request)
+
+        XCTAssertEqual(normalized, "ule")
+        XCTAssertEqual(request.context.precedingText + normalized, "Please send the schedule")
+    }
+
+    func test_normalize_multiLineAvoidsDuplicatingExistingSpace() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "I look forward to hearing ",
+            isMultiLineEnabled: true
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" from you", for: request)
+
+        XCTAssertEqual(normalized, "from you")
+        XCTAssertEqual(request.context.precedingText + normalized, "I look forward to hearing from you")
+    }
+
+    func test_normalize_multiLineStillTrimsTrailingWhitespaceAtBlankLineBoundary() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "I look forward to hearing",
+            isMultiLineEnabled: true
+        )
+
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(" from you\nabout the schedule  \t\n\nextra paragraph", for: request),
+            " from you\nabout the schedule"
+        )
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(" from you  \n\t", for: request),
+            " from you"
+        )
+    }
+
+    func test_normalize_multiLineCumulativePartialsKeepTheInsertionBoundary() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "I look forward to hearing",
+            isMultiLineEnabled: true
+        )
+        let partials = [" f", " from", " from you", " from you.\nBest wishes"]
+
+        for partial in partials {
+            XCTAssertEqual(SuggestionTextNormalizer.normalize(partial, for: request), partial)
+        }
+    }
+
     func test_normalize_multiLineKeepsLinesUpToBlankLineBoundary() {
         // Multi-line mode keeps real line breaks but must stop at the first blank line, which is
         // the runaway-paragraph signature.

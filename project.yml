@@ -104,6 +104,10 @@ targetTemplates:
     deploymentTarget: "14.0"
     sources:
       - path: Cotabby
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_LICENSES.md
+        buildPhase: resources
     dependencies:
       - package: Sparkle
         product: Sparkle

@@ -95,6 +95,20 @@ final class SuggestionCoordinator: ObservableObject {
     /// and presentation; the value owns the stream's pure state transitions.
     var suggestionStreamingState = SuggestionStreamingState()
 
+    /// Debug-only, text-free input-to-presentation timing; no separate persistent metrics store.
+    var suggestionPresentationTiming = SuggestionPresentationTiming()
+
+    /// Pure interaction policies live for the coordinator's lifetime; the only extra task owns a
+    /// delayed stream presentation. Work IDs and cancellation protect it when typing resumes.
+    var typingCadence = TypingCadence()
+    var dismissalMemory = SuggestionDismissalMemory()
+    var delayedStreamPresentation: Task<Void, Never>?
+
+    /// One ordinary on-device request may survive matching keys before it becomes visible.
+    /// The value owns text reconciliation; this timer bounds how long the model/AX may lag.
+    var typingPrediction: TypingPredictionCandidate?
+    var typingPredictionExpiry: Task<Void, Never>?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
@@ -129,11 +143,16 @@ final class SuggestionCoordinator: ObservableObject {
     static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
 
-    /// Content signature a speculative post-acceptance generation was built against. While set,
-    /// `apply` may accept a result whose generation predates the live one as long as the live
-    /// content matches this signature (the speculation bet paid off), and the host-publish poll
-    /// stands down instead of scheduling a duplicate regeneration.
-    var pendingSpeculativeSignature: String?
+    /// Expected post-acceptance context. A speculative result may predate the live generation
+    /// only when both its writing session and exact text match. A matching draft in a different
+    /// conversation must never receive this exemption. The host-publish poll shares that rule.
+    var pendingSpeculativeContext: FocusedInputContext?
+
+    /// One bounded next-word request can outlive consumption of its source word. It has its own
+    /// work identity so accepting a correction does not cancel the answer being prepared for it.
+    /// Normal edits, dismissal, focus changes, and settings changes cancel both work controllers.
+    let continuationWorkController = SuggestionWorkController()
+    var preparedContinuation: PreparedContinuation?
 
     /// Pure state for the bounded "keep owning Tab" window after a final-chunk acceptance. The
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
@@ -263,12 +282,36 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         visualContextCoordinator.onStateChange = { [weak self] status, excerpt in
-            self?.visualContextStatus = status
-            self?.latestVisualContextText = excerpt
+            guard let self else { return }
+            let lostContext = self.latestVisualContextText != nil && excerpt == nil
+            self.visualContextStatus = status
+            self.latestVisualContextText = excerpt
+            // Expired or invalidated screen text must not survive indirectly in a visible tail,
+            // cached completion, or late result. New requests can use the live draft immediately.
+            if lostContext {
+                self.suggestionAnchorCache = SuggestionAnchorCache()
+                self.cancelPredictionWork()
+                self.clearSuggestion()
+                self.hideOverlay(reason: "Overlay hidden because screen context was invalidated.")
+                if case .disabled = self.state { return }
+                self.state = .idle
+            }
         }
 
         visualContextCoordinator.onInjectedContextReady = { [weak self] identity in
-            self?.schedulePredictionForCurrentFocusIfPossible(matching: identity)
+            guard let self, self.focusModel.snapshot.context?.identity == identity else { return }
+            // A host may expose identical URL/title/geometry for two chats. Changed screen text
+            // is then our next navigation signal. Retire visible tails as well as cached/async
+            // work; keeping an old tail stable would let it outlive arbitrarily many refreshes.
+            self.suggestionAnchorCache = SuggestionAnchorCache()
+            self.clipboardPrefaceMemo = nil
+            self.cancelPredictionWork()
+            self.clearSuggestion()
+            self.hideOverlay(reason: "Overlay hidden because screen context changed.")
+            self.schedulePredictionForCurrentFocusIfPossible(matching: identity)
+        }
+        visualContextCoordinator.refreshContextProvider = { [weak self] in
+            self?.currentVisualRefreshContext()
         }
 
         suggestionSettings.snapshotPublisher

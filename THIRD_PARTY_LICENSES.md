@@ -5,9 +5,10 @@ Cotabby is licensed under the GNU Affero General Public License v3.0 (see
 licenses; the notices that ask to be reproduced are included below.
 
 The Swift package dependencies Cotabby links against (llama.cpp, CotabbyInference,
-Sparkle, swift-log) are credited in the in-app Acknowledgements
+Sparkle, swift-log, LaunchAtLogin) are credited in the in-app Acknowledgements
 (Settings → About → Acknowledgements) and in the README, each linking to its
-upstream license text.
+upstream license text. Full license texts for these packages and gemoji are also bundled in
+`Cotabby/Resources/ThirdPartyLicenses/`; provenance is recorded in its `SOURCES.md`.
 
 ## SymSpell
 

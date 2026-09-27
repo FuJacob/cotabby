@@ -19,7 +19,7 @@ enum FoundationModelPromptRenderer {
     /// is chat-tuned, so any second-person/assistant framing pulls it toward greetings and
     /// replies. Apple's WWDC25 prompt-design guidance is to use a positive identity plus a small
     /// number of demonstrations rather than a long list of prohibitions, so the rules here stay
-    /// short, positive, and concrete; the two few-shot examples below carry the rest of the
+    /// short, positive, and concrete; the continuation example below carries the rest of the
     /// anti-drift signal.
     static func sessionInstructions(for request: SuggestionRequest) -> String {
         var lines = [
@@ -51,10 +51,9 @@ enum FoundationModelPromptRenderer {
         // you"). The llama backend personalizes via `BaseCompletionPromptRenderer`; Apple's model
         // does not get the name until we can scope it to contexts that actually need it.
 
-        // Two few-shot examples (down from five) carry the heavy anti-drift signal. The first
-        // proves "finish a salutation-adjacent sentence without restarting"; the second proves
-        // "code prefixes produce code, not prose." Both are also short, which matters because
-        // instructions land in Apple's 4096-token shared context and earn their tokens.
+        // Instructions reach every writing surface. An unconditional programming demonstration
+        // introduces unrelated code even when the live text is an email or chat. Keep one short
+        // continuation example; the live prefix and per-app hint supply the subject and format.
         lines.append("Examples (quotes only mark the boundaries; never output the quotes):")
         lines.append(contentsOf: Self.continuationExampleLines)
 
@@ -83,14 +82,12 @@ enum FoundationModelPromptRenderer {
         return lines.joined(separator: "\n")
     }
 
-    /// The minimal demonstration set that locks in "continue, do not converse." One prose pair
-    /// covers the salutation-restart failure mode the chat-tuned model is most prone to; one code
-    /// pair establishes that code prefixes get code continuations, not English prose.
+    /// Demonstrates continuing a sentence without replying to its author. Code completion still
+    /// follows the request's actual text and tone hint, without a fixed programming topic in
+    /// every session's instructions.
     private static let continuationExampleLines: [String] = [
         "Existing text: \"I just wanted to follow up on the \"",
-        "Continuation: proposal we discussed last week.",
-        "Existing text: \"def total(items): return \"",
-        "Continuation: sum(item.price for item in items)"
+        "Continuation: proposal we discussed last week."
     ]
 
     /// The request prompt stays short and concrete.

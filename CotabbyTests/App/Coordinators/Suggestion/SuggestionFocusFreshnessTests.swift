@@ -7,6 +7,21 @@ import XCTest
 /// synchronous AX walk back to back.
 @MainActor
 final class SuggestionFocusFreshnessTests: XCTestCase {
+    func test_visualCaptureRefreshesEvenImmediatelyAfterPoll() {
+        let rig = makeCoordinatorRig()
+        defer { rig.coordinator.stop() }
+        XCTAssertNotNil(rig.focusProvider.snapshot.context)
+        rig.focusProvider.millisecondsSinceLastCapture = 1
+        rig.focusProvider.onRefresh = { [weak focus = rig.focusProvider] in
+            focus?.snapshot = .inactive
+        }
+        let previousRefreshCount = rig.focusProvider.refreshCount
+
+        XCTAssertNil(rig.coordinator.currentVisualRefreshContext())
+        XCTAssertEqual(rig.focusProvider.refreshCount, previousRefreshCount + 1)
+        XCTAssertNil(rig.focusProvider.snapshot.context)
+    }
+
     func test_refreshIfStale_refreshesWhenAgeUnknown() {
         let provider = RecordingFocusProvider(millisecondsSinceLastCapture: nil)
         provider.refreshIfStale(maxAgeMilliseconds: 30)

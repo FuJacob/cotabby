@@ -91,6 +91,88 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertTrue(session.isExhausted)
     }
 
+    func test_activeSuggestionSession_retainsFollowingWordsBehindAnInitialWordEnding() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Build a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0.05
+        )
+
+        XCTAssertEqual(session.remainingText, "beam")
+        XCTAssertEqual(session.predictedRemainingText, "beam for the device")
+        XCTAssertTrue(session.hasBufferedContinuation)
+
+        let partlyTyped = session.advancing(by: 2)
+        XCTAssertEqual(partlyTyped.remainingText, "am")
+        XCTAssertTrue(partlyTyped.hasBufferedContinuation)
+
+        let completedWord = partlyTyped.advancing(by: 2)
+        XCTAssertEqual(completedWord.remainingText, " for the device")
+        XCTAssertFalse(completedWord.isExhausted)
+        XCTAssertFalse(completedWord.hasBufferedContinuation)
+        XCTAssertEqual(completedWord.baseContext, session.baseContext)
+    }
+
+    func test_activeSuggestionSession_oneWordPresentationRollsThroughTheSamePrediction() {
+        var session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0.05
+        )
+
+        for expectedOffer in [" hello", " world", " again"] {
+            XCTAssertEqual(session.remainingText, expectedOffer)
+            XCTAssertFalse(session.isExhausted)
+            session = session.advancing(by: expectedOffer.count)
+        }
+        XCTAssertTrue(session.isExhausted)
+        XCTAssertEqual(session.remainingText, "")
+    }
+
+    func test_activeSuggestionSession_initialBoundaryCountsGraphemes() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "é👩🏽‍💻 next",
+            initialVisibleCharacterCount: 2,
+            latency: 0
+        )
+
+        XCTAssertEqual(session.remainingText, "é👩🏽‍💻")
+        XCTAssertEqual(session.advancing(by: 1).remainingText, "👩🏽‍💻")
+        XCTAssertEqual(session.withConsumedCharacters(2).remainingText, " next")
+    }
+
+    func test_activeSuggestionSession_extensionPreservesPresentationAndConsumedPosition() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            initialVisibleCharacterCount: 5,
+            showFollowingWords: false,
+            consumedCharacterCount: 2,
+            latency: 0.05
+        )
+        let extended = try XCTUnwrap(session.extendingPrediction(to: "hello world again"))
+
+        XCTAssertEqual(extended.consumedCharacterCount, 2)
+        XCTAssertEqual(extended.remainingText, "llo")
+        XCTAssertEqual(extended.predictedRemainingText, "llo world again")
+        XCTAssertEqual(extended.advancing(by: 3).remainingText, " world")
+        XCTAssertEqual(extended.latency, session.latency)
+        XCTAssertNil(session.extendingPrediction(to: "help instead"))
+    }
+
+    func test_activeSuggestionSession_unrestrictedExtensionImmediatelyOffersTheWholeTail() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            latency: 0
+        )
+
+        XCTAssertEqual(try XCTUnwrap(session.extendingPrediction(to: "hello world")).remainingText, "hello world")
+    }
+
     func test_overlayStateVisibleExposesRenderMode() {
         let state = OverlayState.visible(
             text: "hello",
@@ -266,19 +348,19 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
     func test_runtimeModelCatalogMapsKnownNamesAndLeavesCustomNamesAlone() {
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            "tabby-2-nano"
+            "Cotabby Nano"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            "tabby-2-mini"
+            "Cotabby Mini"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
-            "tabby-2-base"
+            "Cotabby Base"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            "tabby-2-pro"
+            "Cotabby Pro"
         )
         // Retired models fall back to their raw filename like any unknown local GGUF. The 4B Qwen
         // base was dropped when the catalog moved to the nano/mini/base/pro four-tier lineup.
@@ -316,7 +398,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertEqual(RuntimeBootstrapState.idle.summary, "Idle")
         XCTAssertEqual(RuntimeBootstrapState.starting("Locating runtime").summary, "Locating runtime")
         XCTAssertEqual(RuntimeBootstrapState.loading("Loading model").summary, "Loading model")
-        XCTAssertEqual(RuntimeBootstrapState.ready("tabby-2-base ready").summary, "tabby-2-base ready")
+        XCTAssertEqual(RuntimeBootstrapState.ready("Cotabby Base ready").summary, "Cotabby Base ready")
         XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").summary, "Missing model file")
     }
 
@@ -325,7 +407,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertNil(RuntimeBootstrapState.idle.failureDetail)
         XCTAssertNil(RuntimeBootstrapState.starting("Locating runtime").failureDetail)
         XCTAssertNil(RuntimeBootstrapState.loading("Loading model").failureDetail)
-        XCTAssertNil(RuntimeBootstrapState.ready("tabby-2-base ready").failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.ready("Cotabby Base ready").failureDetail)
     }
 
     func test_runtimeModelOption_keepsRawFilenameAsIdentityButAliasesDisplayName() {
@@ -336,7 +418,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
 
         XCTAssertEqual(option.id, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
         XCTAssertEqual(option.actualModelName, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
-        XCTAssertEqual(option.displayName, "tabby-2-nano")
+        XCTAssertEqual(option.displayName, "Cotabby Nano")
     }
 
     func test_downloadableRuntimeModel_defaultsLeaveValidationMetadataEmpty() throws {

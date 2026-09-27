@@ -9,7 +9,7 @@ import Logging
 ///
 /// We deliberately downsample very large screenshots before OCR. The goal is not archival fidelity;
 /// it is bounded semantic extraction for autocomplete context. This pass favors useful text
-/// recovery over minimum latency because the output is captured once per focused field.
+/// recovery over minimum latency because refresh runs independently of prediction generation.
 
 struct ExtractedScreenText: Sendable {
     let text: String
@@ -90,7 +90,11 @@ struct ScreenTextExtractor: ScreenTextExtracting {
     /// Performs OCR asynchronously so the main actor is not blocked by Vision processing.
     func extractText(from image: CGImage) async throws -> ExtractedScreenText {
         let startedAt = Date()
-        let preparedImage = downsampledImageIfNeeded(image)
+        // Resizing a full Retina window is CPU work too; do not do it on the caller's main actor.
+        let preparedImage = await Task.detached(priority: .utility) {
+            downsampledImageIfNeeded(image)
+        }.value
+        try Task.checkCancellation()
         let wasDownsampled = preparedImage.width != image.width || preparedImage.height != image.height
 
         log(
@@ -139,7 +143,9 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                             guard let candidate = observation.topCandidates(1).first else { return nil }
                             let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !trimmed.isEmpty else { return nil }
-                            return OCRTextHygiene.OCRLine(text: trimmed, confidence: candidate.confidence)
+                            return OCRTextHygiene.OCRLine(
+                                text: trimmed, confidence: candidate.confidence, boundingBox: observation.boundingBox
+                            )
                         }
 
                     let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
@@ -171,8 +177,8 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     }
                 }
 
-                // Accurate OCR is slower, but visual context is only captured once per focused
-                // field and the result can materially improve autocomplete relevance. Language
+                // Accurate OCR is slower, but visual context refresh is throttled independently
+                // of typing and the result can materially improve autocomplete relevance. Language
                 // correction is on for the same reason: it cuts garbled recognitions at the
                 // source, which matters because this text conditions the prompt and the
                 // downstream hygiene filters can only drop junk, not repair it.
@@ -198,7 +204,7 @@ struct ScreenTextExtractor: ScreenTextExtracting {
 
     /// Keeps OCR latency bounded on very large Retina windows by scaling the image to a reasonable
     /// max dimension before text recognition.
-    private func downsampledImageIfNeeded(_ image: CGImage) -> CGImage {
+    nonisolated private func downsampledImageIfNeeded(_ image: CGImage) -> CGImage {
         let width = image.width
         let height = image.height
         let largestDimension = max(width, height)

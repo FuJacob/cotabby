@@ -279,6 +279,13 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         )
     }
 
+    func test_userRuntimeDirectoryURL_keepsDevelopmentModelsSeparate() throws {
+        let bundle = try makeBundle(withInfo: ["CFBundleName": "Cotabby Dev"])
+        let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby Dev")
+        XCTAssertEqual(url.lastPathComponent, "LlamaRuntime")
+    }
+
     func test_userRuntimeDirectoryURL_fallsBackToCotabbyFolderWhenBundleNameMissing() throws {
         // A bare directory bundle carries no Info.plist, so CFBundleName resolves to nil and the
         // app-folder name must fall back to "Cotabby" rather than producing a nameless path.

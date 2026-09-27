@@ -31,7 +31,50 @@ final class SuggestionSettingsModelTests: XCTestCase {
         SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
     }
 
+    /// @Published sends before the facade setter returns. Observing the emitted snapshot catches
+    /// accidentally reading the old property value instead of carrying the publisher's input.
+    func test_predictAheadDefaultsOnAndPublishesPersistsAndResetsTheLiveChoice() {
+        let model = makeModel()
+        var values: [Bool] = []
+        let subscription = model.snapshotPublisher.sink { values.append($0.predictAheadWhileTyping) }
+        defer { subscription.cancel() }
+        XCTAssertTrue(model.predictAheadWhileTyping)
+        XCTAssertEqual(values, [true])
+
+        model.setPredictAheadWhileTyping(false)
+        model.setPredictAheadWhileTyping(false)
+        XCTAssertEqual(values, [true, false])
+        XCTAssertFalse(model.domainSettings.completion.predictAheadWhileTyping)
+        XCTAssertFalse(model.snapshot.predictAheadWhileTyping)
+        XCTAssertFalse(makeModel().predictAheadWhileTyping)
+
+        model.resetToDefaults()
+        XCTAssertEqual(values.last, true)
+        XCTAssertTrue(model.predictAheadWhileTyping)
+        XCTAssertTrue(makeModel().predictAheadWhileTyping)
+    }
+
     // MARK: - Setter persistence round-trip
+
+    func test_debugOverlaysDefaultOffPublishPersistAndResetWithoutChangingInference() {
+        let model = makeModel()
+        let inferenceSettings = model.snapshot
+        var values: [Bool] = []
+        let subscription = model.$showDevelopmentDebugOverlays.sink { values.append($0) }
+        defer { subscription.cancel() }
+        XCTAssertFalse(model.showDevelopmentDebugOverlays)
+
+        model.setShowDevelopmentDebugOverlays(true)
+        model.setShowDevelopmentDebugOverlays(true)
+        XCTAssertEqual(values, [false, true])
+        XCTAssertTrue(model.domainSettings.presentation.showDevelopmentDebugOverlays)
+        XCTAssertTrue(makeModel().showDevelopmentDebugOverlays)
+        XCTAssertEqual(model.snapshot, inferenceSettings)
+
+        model.resetToDefaults()
+        XCTAssertEqual(values.last, false)
+        XCTAssertFalse(makeModel().showDevelopmentDebugOverlays)
+    }
 
     func test_setters_persistThroughStoreAndReloadInAFreshModel() {
         let model = makeModel()
@@ -60,6 +103,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setMenuBarWordCountVisible(false)
             model.setMirrorPreference(.alwaysMirror)
             model.setMultiLineEnabled(true)
+            model.setSuggestWithinWords(false)
+            model.setShowFollowingWords(false)
             model.setEmojiPickerEnabled(false)
             model.setMacroExpansionEnabled(false)
             model.setPreferredEmojiSkinTone(.mediumDark)
@@ -107,6 +152,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(reloaded.isMenuBarWordCountVisible)
         XCTAssertEqual(reloaded.mirrorPreference, .alwaysMirror)
         XCTAssertTrue(reloaded.isMultiLineEnabled)
+        XCTAssertFalse(reloaded.suggestWithinWords)
+        XCTAssertFalse(reloaded.showFollowingWords)
         XCTAssertFalse(reloaded.isEmojiPickerEnabled)
         XCTAssertFalse(reloaded.isMacroExpansionEnabled)
         XCTAssertEqual(reloaded.preferredEmojiSkinTone, .mediumDark)
@@ -173,6 +220,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setMenuBarWordCountVisible(false)
         model.setMirrorPreference(.alwaysMirror)
         model.setMultiLineEnabled(true)
+        model.setSuggestWithinWords(false)
+        model.setShowFollowingWords(false)
         model.setEmojiPickerEnabled(false)
         model.setMacroExpansionEnabled(false)
         model.setPreferredEmojiSkinTone(.mediumDark)
@@ -180,6 +229,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setAutoAcceptTrailingPunctuation(false)
         model.setAddSpaceAfterAccept(true)
         model.setStreamSuggestionsWhileGenerating(true)
+        model.setPredictAheadWhileTyping(false)
         model.setAcceptanceGranularity(.phrase)
         model.setSuggestInIntegratedTerminals(true)
         model.setShowIndicator(false)
@@ -227,6 +277,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.isMenuBarWordCountVisible, pristine.isMenuBarWordCountVisible)
         XCTAssertEqual(model.mirrorPreference, pristine.mirrorPreference)
         XCTAssertEqual(model.isMultiLineEnabled, pristine.isMultiLineEnabled)
+        XCTAssertEqual(model.suggestWithinWords, pristine.suggestWithinWords)
+        XCTAssertEqual(model.showFollowingWords, pristine.showFollowingWords)
         XCTAssertEqual(model.isEmojiPickerEnabled, pristine.isEmojiPickerEnabled)
         XCTAssertEqual(model.isMacroExpansionEnabled, pristine.isMacroExpansionEnabled)
         XCTAssertEqual(model.preferredEmojiSkinTone, pristine.preferredEmojiSkinTone)
@@ -234,6 +286,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.autoAcceptTrailingPunctuation, pristine.autoAcceptTrailingPunctuation)
         XCTAssertEqual(model.addSpaceAfterAccept, pristine.addSpaceAfterAccept)
         XCTAssertEqual(model.streamSuggestionsWhileGenerating, pristine.streamSuggestionsWhileGenerating)
+        XCTAssertEqual(model.predictAheadWhileTyping, pristine.predictAheadWhileTyping)
         XCTAssertEqual(model.acceptanceGranularity, pristine.acceptanceGranularity)
         XCTAssertEqual(model.suggestInIntegratedTerminals, pristine.suggestInIntegratedTerminals)
         XCTAssertEqual(model.showIndicator, pristine.showIndicator)
@@ -554,7 +607,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     func test_shortcutActionDisplayNames_coverAllActions() {
         XCTAssertEqual(ShortcutAction.acceptWord.displayName, "Accept Word")
         XCTAssertEqual(ShortcutAction.acceptEntireSuggestion.displayName, "Accept Entire Suggestion")
-        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle Tabby")
+        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle Cotabby")
     }
 
     // MARK: - Normalization funnels
@@ -708,6 +761,49 @@ final class SuggestionSettingsModelTests: XCTestCase {
     }
 
     // MARK: - Snapshot publisher
+
+    func test_suggestWithinWords_publishesLivePolicyAndResetWithoutDuplicateEmissions() {
+        let model = makeModel()
+        var snapshots: [SuggestionSettingsSnapshot] = []
+        let subscription = model.snapshotPublisher.sink { snapshots.append($0) }
+        defer { subscription.cancel() }
+
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true])
+        model.setSuggestWithinWords(false)
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true, false])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertFalse(model.domainSettings.completion.suggestWithinWords)
+
+        model.setSuggestWithinWords(false)
+        XCTAssertEqual(snapshots.count, 2, "A repeated toggle value must not restart suggestion work")
+
+        model.resetToDefaults()
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true, false, true])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertTrue(makeModel().suggestWithinWords)
+    }
+
+    func test_showFollowingWords_publishesLivePolicyAndResetWithoutDuplicateEmissions() {
+        let model = makeModel()
+        var snapshots: [SuggestionSettingsSnapshot] = []
+        let subscription = model.snapshotPublisher.sink { snapshots.append($0) }
+        defer { subscription.cancel() }
+
+        XCTAssertEqual(snapshots.map(\.showFollowingWords), [true])
+        model.setShowFollowingWords(false)
+        XCTAssertEqual(snapshots.map(\.showFollowingWords), [true, false])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertFalse(model.domainSettings.completion.showFollowingWords)
+        XCTAssertTrue(model.snapshot.suggestWithinWords, "Preview length must not change generation timing")
+
+        model.setShowFollowingWords(false)
+        XCTAssertEqual(snapshots.count, 2, "A repeated toggle value must not restart suggestion work")
+
+        model.resetToDefaults()
+        XCTAssertEqual(snapshots.map(\.showFollowingWords), [true, false, true])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertTrue(makeModel().showFollowingWords)
+    }
 
     func test_snapshotPublisher_emitsCurrentStateThenDistinctChangesOnly() {
         let model = makeModel()

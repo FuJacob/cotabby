@@ -42,6 +42,18 @@ final class BrowserAppDetectorTests: XCTestCase {
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
     }
 
+    func testChatGPTCodexUsesEditorRecoveryWithoutBrowserClassification() {
+        // The installed app is named ChatGPT but uses the Codex bundle identity. Recovery must
+        // follow that identity while unrelated OpenAI apps stay outside the explicit allowlist.
+        for bundleIdentifier in ["com.openai.codex", "COM.OPENAI.CODEX"] {
+            XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: bundleIdentifier))
+            XCTAssertTrue(BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: bundleIdentifier))
+            XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier))
+        }
+        XCTAssertFalse(BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.openai.other"))
+        XCTAssertFalse(BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.openai.codex.helper"))
+    }
+
     func testNeedsPrimingForChromiumAndElectronOnly() {
         XCTAssertTrue(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.google.Chrome"))

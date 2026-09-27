@@ -1,0 +1,18 @@
+SUITE (screen): 1337 phrases, next-word 37.50% (2789/7437), coverage 99.99%, precision 37.51%
+Equal-category next-word score: 37.67%
+conversation: 191 phrases, next-word 42.80% (401/937), coverage 100.00%, precision 42.80%
+entertainment: 191 phrases, next-word 33.43% (356/1065), coverage 100.00%, precision 33.43%
+everyday: 191 phrases, next-word 37.07% (384/1036), coverage 100.00%, precision 37.07%
+science: 191 phrases, next-word 46.20% (486/1052), coverage 100.00%, precision 46.20%
+technology: 191 phrases, next-word 31.48% (356/1131), coverage 99.91%, precision 31.50%
+travel: 191 phrases, next-word 35.90% (396/1103), coverage 100.00%, precision 35.90%
+work: 191 phrases, next-word 36.84% (410/1113), coverage 100.00%, precision 36.84%
+WITHOUT SCREEN: 1337 phrases, next-word 31.01% (2306/7437), coverage 99.97%, precision 31.02%
+Screen-context lift: +6.49 percentage points; helped 813, harmed 330 word checkpoints
+  conversation lift +9.50 pp
+  entertainment lift +6.95 pp
+  everyday lift +9.36 pp
+  science lift +0.76 pp
+  technology lift +5.48 pp
+  travel lift +6.53 pp
+  work lift +7.28 pp

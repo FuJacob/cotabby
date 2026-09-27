@@ -14,7 +14,9 @@ struct SuggestionResult: Equatable, Sendable {
     /// initializer default keeps existing call sites compiling unchanged.
     let suppressionReason: String?
 
-    init(
+    // This immutable Sendable value is also constructed by pure candidate-reconciliation rules.
+    // Construction needs no UI actor; engine delivery and presentation remain main-actor owned.
+    nonisolated init(
         generation: UInt64,
         rawText: String,
         text: String,

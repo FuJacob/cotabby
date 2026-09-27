@@ -2,11 +2,11 @@ import XCTest
 @testable import Cotabby
 
 final class OnboardingTemplateFeatureListTests: XCTestCase {
-    func testQuickShowsShortLengthAndFastModeOnAndClipboardOff() {
+    func testQuickShowsShortLengthAndScreenContextOnAndClipboardOff() {
         let rows = OnboardingTemplateFeatureList.rows(for: .quick)
         XCTAssertEqual(rows.map(\.title), [
             "Suggestion length",
-            "Fast mode (skip screen context)",
+            "Use screen context",
             "Clipboard context"
         ])
         XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.quick.wordCountPreset.displayLabel))
@@ -14,17 +14,17 @@ final class OnboardingTemplateFeatureListTests: XCTestCase {
         XCTAssertEqual(rows[2].value, .disabled)
     }
 
-    func testEverydayShowsMediumLengthFastModeOffAndClipboardOn() {
+    func testEverydayShowsMediumLengthScreenContextOnAndClipboardOn() {
         let rows = OnboardingTemplateFeatureList.rows(for: .everyday)
         XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.everyday.wordCountPreset.displayLabel))
-        XCTAssertEqual(rows[1].value, .disabled)
+        XCTAssertEqual(rows[1].value, .enabled)
         XCTAssertEqual(rows[2].value, .enabled)
     }
 
-    func testPowerfulShowsLongLengthFastModeOffAndClipboardOn() {
+    func testPowerfulShowsLongLengthScreenContextOnAndClipboardOn() {
         let rows = OnboardingTemplateFeatureList.rows(for: .powerful)
         XCTAssertEqual(rows[0].value, .detail(OnboardingTemplate.powerful.wordCountPreset.displayLabel))
-        XCTAssertEqual(rows[1].value, .disabled)
+        XCTAssertEqual(rows[1].value, .enabled)
         XCTAssertEqual(rows[2].value, .enabled)
     }
 }

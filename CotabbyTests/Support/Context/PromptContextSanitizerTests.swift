@@ -125,11 +125,12 @@ final class PromptContextSanitizerTests: XCTestCase {
 
     func test_sanitizeOCR_preservesUsefulTechnicalAndUserContext() {
         let input = """
-        Cotabby PR API context needs GeneralPaneView.swift normalizedBundleIdentifier jane@example.com
+        Cotabby CoHamster PR API context needs GeneralPaneView.swift normalizedBundleIdentifier jane@example.com
         """
 
         let result = PromptContextSanitizer.sanitizeOCR(input)
 
+        XCTAssertTrue(result.contains("CoHamster"))
         XCTAssertTrue(result.contains("Cotabby"))
         XCTAssertTrue(result.contains("PR"))
         XCTAssertTrue(result.contains("API"))

@@ -10,9 +10,21 @@ import XCTest
 final class SuggestionCoordinatorPredictionTests: XCTestCase {
     private var rigs: [CoordinatorRig] = []
 
-    override func tearDown() {
-        rigs.removeAll()
-        super.tearDown()
+    override func tearDown() async throws {
+        await MainActor.run {
+            // The shared rig factory retains the graph for the macOS 15 deinit workaround.
+            // Stop its work and detach callbacks before releasing this test's references.
+            for rig in rigs {
+                rig.coordinator.stop()
+                // These lifetime subscriptions normally end at deinit; retained fixtures need explicit cancellation.
+                rig.coordinator.cancellables.removeAll()
+                XCTAssertNil(rig.inputMonitor.onEvent)
+                XCTAssertNil(rig.overlayController.onStateChange)
+                XCTAssertNil(rig.visualContext.refreshContextProvider)
+            }
+            rigs.removeAll()
+        }
+        try await super.tearDown()
     }
 
     private func retained(_ rig: CoordinatorRig) -> CoordinatorRig {
@@ -179,7 +191,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_typoGate_suppressesGenerationForAMisspelledCurrentWord() async {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw"),
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
                 suppressCompletionsOnTypo: true
@@ -197,7 +209,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_typoGate_offersACorrectionSessionInsteadOfGenerating() async {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve"),
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
                 suppressCompletionsOnTypo: true,
@@ -210,7 +222,8 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             rig.interactionState.activeSession?.kind.isCorrection == true
         }
 
-        XCTAssertTrue(rig.engine.requests.isEmpty, "Corrections are native; no model generation runs")
+        XCTAssertTrue(rig.engine.requests.allSatisfy { $0.prefixText == "I typed receive " },
+            "The native correction stays visible while its next words are prepared from corrected text.")
         guard case .ready = rig.coordinator.state else {
             return XCTFail("A correction offer should present as ready, got \(rig.coordinator.state)")
         }
@@ -233,7 +246,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
         XCTAssertEqual(rig.inserter.replacements.count, 1)
         XCTAssertEqual(rig.coordinator.state, .idle)
-        XCTAssertTrue(rig.engine.requests.isEmpty)
+        XCTAssertTrue(rig.engine.requests.allSatisfy { $0.prefixText == "I typed receive " })
     }
 
     // MARK: - Environment reconciliation
@@ -305,7 +318,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_reconcileActiveSession_correctionSurvivesUnchangedFieldAndDropsOnEdit() {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve")
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve ")
         ))
         let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
         _ = rig.interactionState.startSession(

@@ -10,9 +10,21 @@ import XCTest
 final class SuggestionCoordinatorInputTests: XCTestCase {
     private var rigs: [CoordinatorRig] = []
 
-    override func tearDown() {
-        rigs.removeAll()
-        super.tearDown()
+    override func tearDown() async throws {
+        await MainActor.run {
+            // The shared rig factory retains the graph for the macOS 15 deinit workaround.
+            // Stop its work and detach callbacks before releasing this test's references.
+            for rig in rigs {
+                rig.coordinator.stop()
+                // These lifetime subscriptions normally end at deinit; retained fixtures need explicit cancellation.
+                rig.coordinator.cancellables.removeAll()
+                XCTAssertNil(rig.inputMonitor.onEvent)
+                XCTAssertNil(rig.overlayController.onStateChange)
+                XCTAssertNil(rig.visualContext.refreshContextProvider)
+            }
+            rigs.removeAll()
+        }
+        try await super.tearDown()
     }
 
     private func retained(_ rig: CoordinatorRig) -> CoordinatorRig {

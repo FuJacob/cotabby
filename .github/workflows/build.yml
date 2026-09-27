@@ -41,6 +41,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Prepare matching inference dependency
+        run: scripts/prepare_cotabby_workspace.sh
+
       - name: Toolchain info
         run: |
           xcodebuild -version
@@ -51,7 +54,9 @@ jobs:
       - name: Resolve Swift package dependencies
         run: |
           xcodebuild \
-            -project Cotabby.xcodeproj \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -scheme Cotabby \
+            -derivedDataPath build/DerivedData \
             -resolvePackageDependencies
 
       - name: Verify Sparkle version pin
@@ -72,7 +77,7 @@ jobs:
           pbxproj_version="$(echo "${sparkle_block}" | grep -A1 'kind = exactVersion' | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
           resolved_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('build/cotabby-dependencies/Cotabby.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('sparkle not found in Package.resolved. Available: ' + ', '.join(sorted(pins.keys())), file=sys.stderr)
@@ -99,9 +104,14 @@ jobs:
       - name: Build
         run: |
           xcodebuild \
-            -project Cotabby.xcodeproj \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
             -scheme Cotabby \
             -configuration Debug \
             -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData

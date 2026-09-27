@@ -3,7 +3,7 @@ import Foundation
 /// File overview:
 /// Owns the mutable interaction state that sits between Accessibility snapshots and a live
 /// suggestion session. This includes the buffered focused-input context, the active suggestion
-/// session, and the AX-lag sentinel used after partial Tab acceptance.
+/// session, and the AX-lag sentinels used after partial acceptance or matching typed input.
 ///
 /// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
 /// not store every mutable implementation detail itself. This type becomes the home for that
@@ -14,6 +14,9 @@ final class SuggestionInteractionState {
 
     private(set) var activeSession: ActiveSuggestionSession?
     private(set) var pendingInsertionConsumedCount: Int?
+    /// Typed input only tolerates an older matching prefix. It must not inherit the broader
+    /// synthetic-insertion tolerance for temporarily inconsistent AX prefix/suffix slices.
+    private var pendingTypedConsumedRange: Range<Int>?
 
     init(contextBuffer: ContextBuffer? = nil) {
         // Default argument evaluation happens before entering the actor-isolated initializer body,
@@ -26,10 +29,10 @@ final class SuggestionInteractionState {
     }
 
     /// Exposes the higher-level meaning of `pendingInsertionConsumedCount` without leaking the
-    /// sentinel's storage detail to the coordinator. When this is true, Cotabby has already inserted
-    /// suggestion text and is waiting for Accessibility to publish a matching live snapshot.
+    /// sentinel's storage detail to the coordinator. When this is true, accepted or directly typed
+    /// suggestion text has advanced the ghost and Accessibility has not published it yet.
     var isAwaitingPostInsertionSync: Bool {
-        pendingInsertionConsumedCount != nil
+        pendingInsertionConsumedCount != nil || pendingTypedConsumedRange != nil
     }
 
     func materializeContext(from snapshot: FocusedInputSnapshot) -> FocusedInputContext {
@@ -39,6 +42,7 @@ final class SuggestionInteractionState {
     func clearSuggestion() {
         activeSession = nil
         pendingInsertionConsumedCount = nil
+        pendingTypedConsumedRange = nil
     }
 
     func resetAll() {
@@ -48,6 +52,8 @@ final class SuggestionInteractionState {
 
     func startSession(
         fullText: String,
+        initialVisibleCharacterCount: Int? = nil,
+        showFollowingWords: Bool = true,
         liveContext: FocusedInputContext,
         latency: TimeInterval,
         kind: SuggestionKind = .continuation
@@ -55,23 +61,42 @@ final class SuggestionInteractionState {
         let session = ActiveSuggestionSession(
             baseContext: liveContext,
             fullText: fullText,
+            initialVisibleCharacterCount: initialVisibleCharacterCount,
+            showFollowingWords: showFollowingWords,
             latency: latency,
             kind: kind
         )
         activeSession = session
         pendingInsertionConsumedCount = nil
+        pendingTypedConsumedRange = nil
         return session
     }
 
-    /// Uses process-level identity instead of AX element identity because Chrome recycles
-    /// AX node tokens between polls, making `CFHash`-based `elementIdentifier` unstable.
-    /// Intra-process field switches are caught downstream by content/text guards.
+    /// Adds a monotonic prediction extension without restarting an interaction already in flight.
+    /// The coordinator captures the expected session before async lookahead; equality rejects an
+    /// answer for an old anchor or consumed position. The existing AX-publication sentinels remain
+    /// valid because no characters before the extended suffix change.
+    func extendPrediction(
+        fullText: String,
+        expectedSession: ActiveSuggestionSession
+    ) -> ActiveSuggestionSession? {
+        guard let activeSession,
+              activeSession == expectedSession,
+              let extendedSession = activeSession.extendingPrediction(to: fullText) else {
+            return nil
+        }
+        self.activeSession = extendedSession
+        return extendedSession
+    }
+
+    /// A conversation switch invalidates work even when both composers contain identical text.
+    /// The session key tolerates AX wrapper churn while retaining the tracker's navigation signal.
     func hasFocusedElementChanged(comparedTo focusedContext: FocusedInputSnapshot) -> Bool {
-        guard let currentContext else {
+        guard let currentContext = currentContext ?? activeSession?.baseContext else {
             return false
         }
 
-        return currentContext.processIdentifier != focusedContext.processIdentifier
+        return currentContext.sessionIdentity != focusedContext.sessionIdentity
     }
 
     /// Reconciles the currently active session against the latest AX snapshot and stores the
@@ -87,11 +112,13 @@ final class SuggestionInteractionState {
         switch SuggestionSessionReconciler.reconcile(
             session: activeSession,
             with: liveContext,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount
+            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+            pendingTypedConsumedRange: pendingTypedConsumedRange
         ) {
         case let .valid(reconciledSession, advancement, nextPendingInsertionConsumedCount):
             self.activeSession = reconciledSession
             pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
+            clearPublishedTypedInput(in: liveContext, session: reconciledSession)
             return .valid(
                 liveContext: liveContext,
                 session: reconciledSession,
@@ -192,7 +219,8 @@ final class SuggestionInteractionState {
             switch SuggestionSessionReconciler.reconcile(
                 session: activeSession,
                 with: liveContext,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount
+                pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+                pendingTypedConsumedRange: pendingTypedConsumedRange
             ) {
             case .invalid(let reason):
                 return SessionValidation(session: nil, failureReason: reason)
@@ -200,10 +228,11 @@ final class SuggestionInteractionState {
             case let .valid(reconciledSession, _, nextPendingInsertionConsumedCount):
                 self.activeSession = reconciledSession
                 pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
+                clearPublishedTypedInput(in: liveContext, session: reconciledSession)
                 sessionForAcceptance = reconciledSession
             }
         } else {
-            guard liveContext.processIdentifier == activeSession.baseContext.processIdentifier else {
+            guard liveContext.sessionIdentity == activeSession.baseContext.sessionIdentity else {
                 return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
             }
 
@@ -214,6 +243,20 @@ final class SuggestionInteractionState {
             return SessionValidation(
                 session: nil,
                 failureReason: "Key passed through because no remaining suggestion text was available."
+            )
+        }
+
+        // AX may reveal a just-typed word before its key event has advanced the ghost. Reconciliation
+        // can then cross a presentation boundary and expose a new buffered word. That text was not
+        // in the ghost the user accepted, so this key must not silently commit it. A normal advance
+        // within the same visible offer remains acceptable because its tail is still that offer's
+        // exact suffix.
+        let reconciledAdvance = sessionForAcceptance.consumedCharacterCount - activeSession.consumedCharacterCount
+        let previouslyOfferedTail = String(activeSession.remainingText.dropFirst(max(reconciledAdvance, 0)))
+        guard sessionForAcceptance.remainingText == previouslyOfferedTail else {
+            return SessionValidation(
+                session: nil,
+                failureReason: "Key passed through because the next buffered word has not been shown yet."
             )
         }
 
@@ -228,6 +271,9 @@ final class SuggestionInteractionState {
     ) -> SuggestionAcceptedChunkProgress {
         let advancedSession = session.advancing(by: acceptedChunk.count)
         pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
+        // The new synthetic insert now owns publication of the entire consumed prefix, including
+        // any matching characters typed immediately before this accept.
+        pendingTypedConsumedRange = nil
 
         if advancedSession.isExhausted {
             pendingInsertionConsumedCount = nil
@@ -255,7 +301,26 @@ final class SuggestionInteractionState {
         }
 
         self.activeSession = advancedSession
+        if pendingInsertionConsumedCount != nil {
+            // A matching key can arrive before a preceding Tab insert publishes. Keep that existing
+            // insertion window aimed at the latest consumed prefix instead of disabling it merely
+            // because the user typed one more expected character.
+            pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
+        } else {
+            let firstUnpublishedCount = pendingTypedConsumedRange?.lowerBound ?? activeSession.consumedCharacterCount
+            pendingTypedConsumedRange = firstUnpublishedCount..<advancedSession.consumedCharacterCount
+        }
         return advancedSession
+    }
+
+    /// Retires typed-input tolerance as soon as AX contains the expected prefix. Later deletion of
+    /// those letters is then a real edit again, not an indefinitely tolerated publication delay.
+    private func clearPublishedTypedInput(in context: FocusedInputContext, session: ActiveSuggestionSession) {
+        guard let count = pendingTypedConsumedRange?.upperBound else { return }
+        let expectedPrefix = session.baseContext.precedingText + String(session.fullText.prefix(count))
+        if context.precedingText.hasPrefix(expectedPrefix) {
+            pendingTypedConsumedRange = nil
+        }
     }
 }
 

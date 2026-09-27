@@ -4,7 +4,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DERIVED_DATA="/tmp/CotabbyDerivedData"
+# This invocation owns this directory; cleanup must never remove another build's products.
+DERIVED_DATA=$(mktemp -d "${TMPDIR:-/tmp}/cotabby-test-dmg.XXXXXX")
+trap 'rm -rf "$DERIVED_DATA"' EXIT
 APP_PATH="$DERIVED_DATA/Build/Products/Debug/Cotabby.app"
 OUTPUT_PATH="/tmp/Cotabby-test.dmg"
 BACKGROUND="$REPO_ROOT/assets/release/dmg_background.png"
@@ -28,8 +30,9 @@ fi
 # Build the app if the bundle is missing.
 if [ ! -d "$APP_PATH" ]; then
     echo "Cotabby.app not found, building..."
+    "$REPO_ROOT/scripts/prepare_cotabby_workspace.sh"
     xcodebuild \
-        -project "$REPO_ROOT/Cotabby.xcodeproj" \
+        -workspace "$REPO_ROOT/build/cotabby-dependencies/Cotabby.xcworkspace" \
         -scheme Cotabby \
         -configuration Debug \
         -derivedDataPath "$DERIVED_DATA" \

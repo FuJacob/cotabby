@@ -3,7 +3,8 @@ import XCTest
 
 /// Locks in the two invariants of surface conditioning: omission beats noise (code editors,
 /// terminals, and anonymous generic apps get no section at all), and everything user-derived
-/// (titles, placeholders, URLs) is sanitized before it can reach a prompt.
+/// (titles, placeholders, URLs) is sanitized before it can reach a prompt. Compact labels must
+/// preserve the available facts and stable field order without adding absent metadata.
 final class SurfaceContextComposerTests: XCTestCase {
     private func compose(
         applicationName: String = "Mail",
@@ -25,6 +26,17 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
     }
 
+    func testBasePrefaceKeepsDocumentFactsAndSubjectFieldWithoutSoftwareBranding() {
+        let surface = SurfaceContext(surfaceClass: .email, applicationName: "Mail",
+            windowTitle: "Budget review", domain: nil, fieldPlaceholder: "Subject")
+        XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: surface),
+                       ["Format: email; Title: Budget review; Field: Subject."])
+        let generic = SurfaceContext(surfaceClass: .other, applicationName: "ChatGPT",
+            windowTitle: "ChatGPT", domain: nil, fieldPlaceholder: "Message")
+        XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: generic), ["Format: text."])
+        XCTAssertTrue(SurfaceContextComposer.prefaceLines(for: generic)[0].contains("App: ChatGPT"))
+    }
+
     // MARK: - Class gating
 
     func testCodeEditorsGetNoSurfaceContext() {
@@ -41,7 +53,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         XCTAssertNil(compose(applicationName: "SomeApp", bundleIdentifier: "com.example.someapp"))
     }
 
-    func testGenericAppWithTitleIsIncluded() {
+    func testGenericAppWithTitleIsIncluded() throws {
         let surface = compose(
             applicationName: "Bear",
             bundleIdentifier: "net.shinyfrog.bear",
@@ -49,6 +61,10 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
         XCTAssertEqual(surface?.surfaceClass, .other)
         XCTAssertEqual(surface?.windowTitle, "Travel plans")
+        XCTAssertEqual(
+            SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
+            ["Format: text; App: Bear; Title: Travel plans."]
+        )
     }
 
     // MARK: - Preface lines
@@ -57,7 +73,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         let surface = compose(windowTitle: "Re: Q3 budget review")
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["An email being written in Mail.", "The window is titled \"Re: Q3 budget review\"."]
+            ["Format: email; App: Mail; Title: Re: Q3 budget review."]
         )
     }
 
@@ -69,7 +85,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["A chat message being typed in Slack.", "The text field is labeled \"Message #design\"."]
+            ["Format: chat; App: Slack; Field: Message #design."]
         )
     }
 
@@ -81,8 +97,56 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["Text being typed on notion.so in Google Chrome."]
+            ["Format: web text; App: Google Chrome; Domain: notion.so."]
         )
+    }
+
+    func testCompactPrefacePreservesAllSanitizedBrowserFacts() throws {
+        let surface = try XCTUnwrap(compose(
+            applicationName: "  Google   Chrome  ",
+            bundleIdentifier: "com.google.Chrome",
+            windowTitle: "Planning \"notes\" - Google Chrome",
+            focusedURLString: "https://www.docs.example.com/private-draft?token=secret#section",
+            fieldPlaceholder: "  Add   a comment  "
+        ))
+        XCTAssertEqual(
+            SurfaceContextComposer.prefaceLines(for: surface),
+            ["Format: web text; App: Google Chrome; Domain: docs.example.com; Title: Planning notes; Field: Add a comment."]
+        )
+    }
+
+    func testBrowserWithoutOptionalFactsKeepsOnlyFormatAndApp() throws {
+        let surface = try XCTUnwrap(compose(
+            applicationName: "Safari", bundleIdentifier: "com.apple.Safari"
+        ))
+        XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: surface), ["Format: web text; App: Safari."])
+    }
+
+    func testNonBrowserSurfacesKeepOriginalDomainOmission() {
+        // SurfaceContext is shared with the Foundation Models renderer and may carry a host for
+        // any app. Compact formatting must preserve the base preface's browser-only domain scope.
+        for surfaceClass in [AppSurfaceClass.email, .chat, .other] {
+            let surface = SurfaceContext(
+                surfaceClass: surfaceClass, applicationName: "SomeApp", windowTitle: "Draft",
+                domain: "private.example.com", fieldPlaceholder: "Message"
+            )
+            let preface = SurfaceContextComposer.prefaceLines(for: surface).joined(separator: " ")
+            XCTAssertFalse(preface.contains("Domain:"))
+            XCTAssertFalse(preface.contains("private.example.com"))
+            XCTAssertTrue(preface.contains("App: SomeApp; Title: Draft; Field: Message."))
+        }
+    }
+
+    func testExcludedSurfaceValuesCannotRenderMetadata() {
+        // The value type is shared across renderers and can be constructed without compose().
+        // Protect omission at this rendering boundary as well as at focus metadata composition.
+        for surfaceClass in [AppSurfaceClass.codeEditor, .terminal] {
+            let surface = SurfaceContext(
+                surfaceClass: surfaceClass, applicationName: "Editor", windowTitle: "Project",
+                domain: "example.com", fieldPlaceholder: "Command"
+            )
+            XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: surface), [])
+        }
     }
 
     // MARK: - Sanitization

@@ -1,0 +1,20 @@
+{
+  "characterValidation": {
+    "estimatedPairSeconds": 7500,
+    "pairedPredictionsPerRun": 54732,
+    "perCategory": 150,
+    "phraseCount": 1050,
+    "seed": 42,
+    "split": "all",
+    "workers": 3
+  },
+  "integrationValidation": "Compare only the frozen finalist against the existing main behavior once source inputs are stable. Distinguish these combined-code results from controlled frozen-worktree results; never overwrite unrelated changes.",
+  "latencyValidation": {
+    "screenPerCategory": 20,
+    "seed": 12648430,
+    "split": "screen",
+    "workers": 1
+  },
+  "reason": "Budget measured throughput for broad partial-word coverage while reserving one-worker latency, a separate baseline/finalist integration comparison on concurrent main changes, and final cleanup. No character results examined.",
+  "registeredUTC": "2026-09-17T06:37:09.696470+00:00"
+}

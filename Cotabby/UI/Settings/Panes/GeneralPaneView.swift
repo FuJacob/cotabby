@@ -27,16 +27,6 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.enableGlobally)
 
-                Toggle(isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding) {
-                    SettingsRowLabel(
-                        title: "Fast Mode",
-                        description: fastModeDescription,
-                        systemImage: "bolt.fill"
-                    )
-                }
-                .disabled(fastModeForcedOn)
-                .settingsItem(.fastMode)
-
                 // Backed by `SMAppService.mainApp` via the LaunchAtLogin package, which owns the
                 // observable for the login-item status and refreshes the toggle if the user changes
                 // it in System Settings while Cotabby is open.
@@ -55,6 +45,16 @@ struct GeneralPaneView: View {
             // acceptance toggles that used to live here now sit with Writing, next to the other
             // controls that shape inserted text.
             Section("Context") {
+                Toggle(isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Use screen context",
+                        description: screenContextDescription,
+                        systemImage: "text.viewfinder"
+                    )
+                }
+                .disabled(screenContextUnavailable)
+                .settingsItem(.useScreenContext)
+
                 Toggle(isOn: clipboardContextEnabledBinding) {
                     SettingsRowLabel(
                         title: "Include Clipboard Context",
@@ -67,7 +67,8 @@ struct GeneralPaneView: View {
                 Toggle(isOn: surfaceContextEnabledBinding) {
                     SettingsRowLabel(
                         title: "Include App Context",
-                        description: "Let suggestions know which app and window you are typing in. Everything stays on this Mac.",
+                        description: "Include the app and window name in suggestions. " +
+                            "With an endpoint selected, this context is sent to that server.",
                         systemImage: "macwindow"
                     )
                 }
@@ -75,6 +76,36 @@ struct GeneralPaneView: View {
             }
 
             Section("Suggestions") {
+                Toggle(isOn: predictAheadWhileTypingBinding) {
+                    SettingsRowLabel(
+                        title: "Predict Ahead While Typing",
+                        description: "Keep on-device predictions ready as you type, then show matching suggestions " +
+                            "when you pause. May use more power. Applies to Apple Intelligence and Open Source models.",
+                        systemImage: "bolt.horizontal.circle"
+                    )
+                }
+                .settingsItem(.predictAheadWhileTyping)
+
+                Toggle(isOn: suggestWithinWordsBinding) {
+                    SettingsRowLabel(
+                        title: "Suggest while typing a word",
+                        description: "Show new suggestions before you finish a word. Turn off to wait for a space " +
+                            "or punctuation. Suggestions already on screen still follow your typing.",
+                        systemImage: "text.cursor"
+                    )
+                }
+                .settingsItem(.suggestWithinWords)
+
+                Toggle(isOn: showFollowingWordsBinding) {
+                    SettingsRowLabel(
+                        title: "Show following words",
+                        description: "Preview the phrase after the current word. Turn off to see one word at a time; " +
+                            "the next words stay ready as you finish typing or accept each word.",
+                        systemImage: "text.word.spacing"
+                    )
+                }
+                .settingsItem(.showFollowingWords)
+
                 Toggle(isOn: multiLineEnabledBinding) {
                     SettingsRowLabel(
                         title: "Allow Multi-line Suggestions",
@@ -95,6 +126,23 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.inlineMacros)
             }
+
+            #if DEBUG
+            Section("Development") {
+                Toggle(isOn: Binding(
+                    get: { suggestionSettings.showDevelopmentDebugOverlays },
+                    set: { suggestionSettings.setShowDevelopmentDebugOverlays($0) }
+                )) {
+                    SettingsRowLabel(
+                        title: "Show Development Debug Overlays",
+                        description: "Show caret and field outlines, focus polling, and screen-context status. " +
+                            "Changes apply immediately.",
+                        systemImage: "ladybug"
+                    )
+                }
+                .settingsItem(.developmentDebugOverlays)
+            }
+            #endif
 
             Section("Help") {
                 LabeledContent {
@@ -164,33 +212,55 @@ struct GeneralPaneView: View {
         )
     }
 
-    private var fastModeEnabledBinding: Binding<Bool> {
+    /// Keep the positive UI control compatible with the existing inverse stored preference.
+    private var screenContextEnabledBinding: Binding<Bool> {
         Binding(
-            get: { suggestionSettings.isFastModeEnabled },
-            set: { suggestionSettings.setFastModeEnabled($0) }
+            get: { !suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled(!$0) }
         )
     }
 
-    /// Fast Mode is forced on and locked while Screen Recording is unavailable (visual context can't
-    /// run without it). The stored preference is left untouched so it returns when the permission is
-    /// granted.
-    private var fastModeForcedOn: Bool {
+    /// Permission availability changes the displayed state without overwriting the user's choice.
+    /// Granting Screen Recording restores that choice through the settings model.
+    private var screenContextUnavailable: Bool {
         !permissionManager.screenRecordingGranted
     }
 
-    private var fastModeDescription: String {
-        if fastModeForcedOn {
-            return "Forced on because Screen Recording is off. Suggestions rely only on the text " +
-                "you've typed; grant Screen Recording to add visual context."
+    private var screenContextDescription: String {
+        if screenContextUnavailable {
+            return "Unavailable while Screen Recording is off. Grant permission to help suggestions " +
+                "understand surrounding text."
         }
-        return "Skip the screenshot-based context step for faster suggestions. " +
-            "Suggestions rely only on the text you've typed."
+        return "Help suggestions understand surrounding text using screenshots of the focused window."
     }
 
     private var multiLineEnabledBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    // This view only edits the settings facade. Its snapshot publisher cancels obsolete work
+    // immediately when the toggle changes, so the coordinator never keeps a disabled prediction.
+    private var predictAheadWhileTypingBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.predictAheadWhileTyping },
+            set: { suggestionSettings.setPredictAheadWhileTyping($0) }
+        )
+    }
+
+    private var suggestWithinWordsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.suggestWithinWords },
+            set: { suggestionSettings.setSuggestWithinWords($0) }
+        )
+    }
+
+    private var showFollowingWordsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showFollowingWords },
+            set: { suggestionSettings.setShowFollowingWords($0) }
         )
     }
 

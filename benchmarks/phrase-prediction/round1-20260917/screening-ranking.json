@@ -1,0 +1,946 @@
+{
+  "allExpectedCandidatesComplete": true,
+  "baseline": {
+    "id": "screen-baseline",
+    "inferenceSeed": 42,
+    "none": {
+      "accuracy": 0.2701298701298701,
+      "checkpoints": 770,
+      "correct": 208,
+      "coverage": 1,
+      "errors": 0,
+      "latencyP50Milliseconds": 158.8545,
+      "latencyP95Milliseconds": 458.665833,
+      "precisionWhenShown": 0.2701298701298701,
+      "shown": 770
+    },
+    "promptID": "original",
+    "reportSHA256": "480844d21ddfeccefca61983c682445bc6a9858885454c9da17db1f8ed6b5ab9",
+    "sampling": {
+      "confidenceFloor": "-inf",
+      "minP": "0.08",
+      "repetitionPenalty": "1.05",
+      "stopAtArgmaxEOG": "true",
+      "temperature": "0.1",
+      "topK": "20",
+      "topP": "0.7"
+    },
+    "screen": {
+      "accuracy": 0.35194805194805195,
+      "checkpoints": 770,
+      "correct": 271,
+      "coverage": 1,
+      "errors": 0,
+      "latencyP50Milliseconds": 129.611584,
+      "latencyP95Milliseconds": 335.181792,
+      "precisionWhenShown": 0.35194805194805195,
+      "shown": 770
+    },
+    "workerCount": 3
+  },
+  "completedErrorFreeCandidateCount": 20,
+  "excludedFromCandidateRanking": [
+    "screen-baseline",
+    "screen-isolated-baseline"
+  ],
+  "expectedCandidateCount": 20,
+  "invalidCandidates": {},
+  "leaderComparison": {
+    "accuracyDeltaIntervals": {
+      "contextLift": [
+        -0.04221635883905013,
+        0.01666666666666667
+      ],
+      "none/conversation": [
+        0.0,
+        0.08823529411764706
+      ],
+      "none/entertainment": [
+        -0.08035714285714286,
+        0.0784313725490196
+      ],
+      "none/everyday": [
+        0.0,
+        0.12727272727272726
+      ],
+      "none/science": [
+        0.0,
+        0.08108108108108109
+      ],
+      "none/suite": [
+        0.01174934725848564,
+        0.05867014341590613
+      ],
+      "none/technology": [
+        -0.09009009009009009,
+        0.06481481481481481
+      ],
+      "none/travel": [
+        0.01694915254237288,
+        0.13559322033898305
+      ],
+      "none/work": [
+        -0.009009009009009009,
+        0.08035714285714286
+      ],
+      "screen/conversation": [
+        0.0,
+        0.09
+      ],
+      "screen/entertainment": [
+        -0.01818181818181818,
+        0.07339449541284404
+      ],
+      "screen/everyday": [
+        -0.0196078431372549,
+        0.11428571428571428
+      ],
+      "screen/science": [
+        -0.03418803418803419,
+        0.061855670103092786
+      ],
+      "screen/suite": [
+        0.0025477707006369425,
+        0.042746113989637305
+      ],
+      "screen/technology": [
+        -0.06086956521739131,
+        0.041666666666666664
+      ],
+      "screen/travel": [
+        -0.01694915254237288,
+        0.12605042016806722
+      ],
+      "screen/work": [
+        -0.036036036036036036,
+        0.03333333333333333
+      ]
+    },
+    "baselineSHA256": "480844d21ddfeccefca61983c682445bc6a9858885454c9da17db1f8ed6b5ab9",
+    "bootstrapSamples": 20000,
+    "bootstrapSeed": 1337,
+    "candidateID": "screen-P2-H",
+    "candidateSHA256": "b619b3684f02b3a069c5356f8975c42ddf172a7c84485d676b72a0179994efb1",
+    "limitations": [
+      "Intervals are descriptive fixture uncertainty, not runtime repeatability or proof of general writing improvement.",
+      "Screening several candidates introduces selection bias; validate finalists on an untouched subset.",
+      "Raw-output correctness is approximate Python diagnostics; Swift report scores remain authoritative.",
+      "Latency with parallel workers includes contention; use matching one-worker runs for interactive latency."
+    ],
+    "noneDelta": {
+      "accuracy": 0.03506493506493508,
+      "correct": 27,
+      "coverage": -0.0012987012987012436,
+      "latencyP50Milliseconds": 21.188542000000012,
+      "latencyP95Milliseconds": 37.61058399999996,
+      "precisionWhenShown": 0.035461807373380894,
+      "transitions": {
+        "improved": 50,
+        "pairedObservationsAvailable": 770,
+        "regressed": 23
+      }
+    },
+    "path": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/screening-leader-comparison.json",
+    "screenDelta": {
+      "accuracy": 0.022077922077922085,
+      "correct": 17,
+      "coverage": 0,
+      "latencyP50Milliseconds": 12.92025000000001,
+      "latencyP95Milliseconds": 54.353125000000034,
+      "precisionWhenShown": 0.022077922077922085,
+      "transitions": {
+        "improved": 35,
+        "pairedObservationsAvailable": 770,
+        "regressed": 18
+      }
+    }
+  },
+  "pendingCandidates": [],
+  "ranking": [
+    {
+      "id": "screen-P2-H",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3051948051948052,
+        "checkpoints": 770,
+        "correct": 235,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 180.043042,
+        "latencyP95Milliseconds": 496.276417,
+        "precisionWhenShown": 0.305591677503251,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 1,
+      "reportSHA256": "b619b3684f02b3a069c5356f8975c42ddf172a7c84485d676b72a0179994efb1",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.37402597402597404,
+        "checkpoints": 770,
+        "correct": 288,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 142.531834,
+        "latencyP95Milliseconds": 389.534917,
+        "precisionWhenShown": 0.37402597402597404,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-B",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3168831168831169,
+        "checkpoints": 770,
+        "correct": 244,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 178.037542,
+        "latencyP95Milliseconds": 529.507417,
+        "precisionWhenShown": 0.31729518855656696,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 2,
+      "reportSHA256": "0242c44e4fdd1e4c854414d45b964861ec1d716f698631412e44062a84f17519",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.37272727272727274,
+        "checkpoints": 770,
+        "correct": 287,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 143.614708,
+        "latencyP95Milliseconds": 381.964708,
+        "precisionWhenShown": 0.37272727272727274,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-E",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3090909090909091,
+        "checkpoints": 770,
+        "correct": 238,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 181.083833,
+        "latencyP95Milliseconds": 522.041583,
+        "precisionWhenShown": 0.3094928478543563,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 3,
+      "reportSHA256": "ab6ab3843064f15614ee6fd65eb1805a32ca205fbd38ef7610a66805a1e96127",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.37272727272727274,
+        "checkpoints": 770,
+        "correct": 287,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 136.461208,
+        "latencyP95Milliseconds": 377.257167,
+        "precisionWhenShown": 0.37272727272727274,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-F",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3077922077922078,
+        "checkpoints": 770,
+        "correct": 237,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 198.946542,
+        "latencyP95Milliseconds": 559.366208,
+        "precisionWhenShown": 0.3081924577373212,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 4,
+      "reportSHA256": "13a2c939383072fae5fe332246f722ecaea01eea73d0ac1a3f64e37ea3f8a9c6",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.37012987012987014,
+        "checkpoints": 770,
+        "correct": 285,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 157.119916,
+        "latencyP95Milliseconds": 407.509333,
+        "precisionWhenShown": 0.37012987012987014,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-C",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3142857142857143,
+        "checkpoints": 770,
+        "correct": 242,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 174.529042,
+        "latencyP95Milliseconds": 455.37025,
+        "precisionWhenShown": 0.31469440832249673,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 5,
+      "reportSHA256": "a552c39612b7236d5164869347bf23918d0127f0950b6258ece2ccaf30428f2d",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36883116883116884,
+        "checkpoints": 770,
+        "correct": 284,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 134.883,
+        "latencyP95Milliseconds": 346.589625,
+        "precisionWhenShown": 0.36883116883116884,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3012987012987013,
+        "checkpoints": 770,
+        "correct": 232,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 180.576417,
+        "latencyP95Milliseconds": 497.024,
+        "precisionWhenShown": 0.3016905071521456,
+        "shown": 769
+      },
+      "promptID": "P2",
+      "rank": 6,
+      "reportSHA256": "900ffbc5269a9bb6b3fd3948aa33ee8d0d6d2e9c3269ec8be4b07d533b0d94a3",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36753246753246754,
+        "checkpoints": 770,
+        "correct": 283,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 135.296416,
+        "latencyP95Milliseconds": 355.933125,
+        "precisionWhenShown": 0.36753246753246754,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P3",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2818181818181818,
+        "checkpoints": 770,
+        "correct": 217,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 126.230291,
+        "latencyP95Milliseconds": 341.631875,
+        "precisionWhenShown": 0.2818181818181818,
+        "shown": 770
+      },
+      "promptID": "P3",
+      "rank": 7,
+      "reportSHA256": "d4e513635ead51d1e18b6248d6d5050180d61120b4c7af8b06358d7a35350476",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36623376623376624,
+        "checkpoints": 770,
+        "correct": 282,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 129.113417,
+        "latencyP95Milliseconds": 330.492333,
+        "precisionWhenShown": 0.36623376623376624,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P4",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3090909090909091,
+        "checkpoints": 770,
+        "correct": 238,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 144.206875,
+        "latencyP95Milliseconds": 405.215375,
+        "precisionWhenShown": 0.3090909090909091,
+        "shown": 770
+      },
+      "promptID": "P4",
+      "rank": 8,
+      "reportSHA256": "91d28c6e2ad94bb2edc2885fec8dac03eb733e4d1afcfe3f644fdb95614f34f8",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36363636363636365,
+        "checkpoints": 770,
+        "correct": 280,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 134.861875,
+        "latencyP95Milliseconds": 343.75025,
+        "precisionWhenShown": 0.36363636363636365,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-G",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3064935064935065,
+        "checkpoints": 770,
+        "correct": 236,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 150.127584,
+        "latencyP95Milliseconds": 458.20875,
+        "precisionWhenShown": 0.3064935064935065,
+        "shown": 770
+      },
+      "promptID": "P2",
+      "rank": 9,
+      "reportSHA256": "6f4db042cb54656f1ba9ad09408d0faf94ac75588a39e9e5ffd3afc3e556812e",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36363636363636365,
+        "checkpoints": 770,
+        "correct": 280,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 125.779333,
+        "latencyP95Milliseconds": 336.641792,
+        "precisionWhenShown": 0.36363636363636365,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-A",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.312987012987013,
+        "checkpoints": 770,
+        "correct": 241,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 147.119292,
+        "latencyP95Milliseconds": 417.545375,
+        "precisionWhenShown": 0.312987012987013,
+        "shown": 770
+      },
+      "promptID": "P2",
+      "rank": 10,
+      "reportSHA256": "c9d4fcd48a280d575e94e1d3ee11879b500f7bcb9f18588e6fa7bb75de4e5978",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36233766233766235,
+        "checkpoints": 770,
+        "correct": 279,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 123.006917,
+        "latencyP95Milliseconds": 298.701125,
+        "precisionWhenShown": 0.36233766233766235,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P2-D",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.3103896103896104,
+        "checkpoints": 770,
+        "correct": 239,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 162.653542,
+        "latencyP95Milliseconds": 484.456,
+        "precisionWhenShown": 0.3103896103896104,
+        "shown": 770
+      },
+      "promptID": "P2",
+      "rank": 11,
+      "reportSHA256": "6c47d7387800f8291ca15922b55a9aa7790ca75265e37a88af7cb1ca28843e74",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36233766233766235,
+        "checkpoints": 770,
+        "correct": 279,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 140.01075,
+        "latencyP95Milliseconds": 358.009042,
+        "precisionWhenShown": 0.36233766233766235,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-B",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.274025974025974,
+        "checkpoints": 770,
+        "correct": 211,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 165.884417,
+        "latencyP95Milliseconds": 493.810875,
+        "precisionWhenShown": 0.274025974025974,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 12,
+      "reportSHA256": "b0e6ce73827014850dd54cb4541419de90e32fb728cfbf762303d6e7da0d8706",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.36103896103896105,
+        "checkpoints": 770,
+        "correct": 278,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 137.729041,
+        "latencyP95Milliseconds": 349.050584,
+        "precisionWhenShown": 0.36103896103896105,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-E",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2714285714285714,
+        "checkpoints": 770,
+        "correct": 209,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 174.570166,
+        "latencyP95Milliseconds": 498.325833,
+        "precisionWhenShown": 0.2714285714285714,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 13,
+      "reportSHA256": "bf4b76518180aeb6d6314b7d8c96dc270cb37b4e8ac541d11c8a4a08369c39c8",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.35324675324675325,
+        "checkpoints": 770,
+        "correct": 272,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 142.646334,
+        "latencyP95Milliseconds": 358.316958,
+        "precisionWhenShown": 0.35324675324675325,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-H",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2779220779220779,
+        "checkpoints": 770,
+        "correct": 214,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 170.375833,
+        "latencyP95Milliseconds": 536.777625,
+        "precisionWhenShown": 0.2779220779220779,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 14,
+      "reportSHA256": "9ef06025e2866f16209acd000bdeef14814c0e97044113cf89108b565ebb6b80",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.025",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.35194805194805195,
+        "checkpoints": 770,
+        "correct": 271,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 138.115917,
+        "latencyP95Milliseconds": 353.081959,
+        "precisionWhenShown": 0.35194805194805195,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-A",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.274025974025974,
+        "checkpoints": 770,
+        "correct": 211,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 144.309125,
+        "latencyP95Milliseconds": 471.750541,
+        "precisionWhenShown": 0.274025974025974,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 15,
+      "reportSHA256": "a996b1bd2c38a2953612dfbcd5cce0ec3017f55fb9e1e8b1b80b16bbe9c565c7",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.35064935064935066,
+        "checkpoints": 770,
+        "correct": 270,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 130.039417,
+        "latencyP95Milliseconds": 348.6225,
+        "precisionWhenShown": 0.35064935064935066,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-C",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.261038961038961,
+        "checkpoints": 770,
+        "correct": 201,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 179.281833,
+        "latencyP95Milliseconds": 489.759875,
+        "precisionWhenShown": 0.261038961038961,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 16,
+      "reportSHA256": "427dcf9324885d3e824f07c42915ed28ee0badd3d096281162ec4c62031afdc3",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.0",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.35064935064935066,
+        "checkpoints": 770,
+        "correct": 270,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 146.391042,
+        "latencyP95Milliseconds": 379.741542,
+        "precisionWhenShown": 0.35064935064935066,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-D",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2766233766233766,
+        "checkpoints": 770,
+        "correct": 213,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 142.970583,
+        "latencyP95Milliseconds": 446.936625,
+        "precisionWhenShown": 0.2766233766233766,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 17,
+      "reportSHA256": "d5ba13f459bf495351f1c4447dd348c19b088756104e8cb6804b20b86b476439",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.34675324675324676,
+        "checkpoints": 770,
+        "correct": 267,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 127.766375,
+        "latencyP95Milliseconds": 327.427583,
+        "precisionWhenShown": 0.3472041612483745,
+        "shown": 769
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-F",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2623376623376623,
+        "checkpoints": 770,
+        "correct": 202,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 186.08225,
+        "latencyP95Milliseconds": 511.678042,
+        "precisionWhenShown": 0.2623376623376623,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 18,
+      "reportSHA256": "1b807f8f408fbffc627548fcec994aaad56848bee443edf38791d47761ab8e85",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.05",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.34675324675324676,
+        "checkpoints": 770,
+        "correct": 267,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 148.292875,
+        "latencyP95Milliseconds": 366.249833,
+        "precisionWhenShown": 0.34675324675324676,
+        "shown": 770
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-G",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2818181818181818,
+        "checkpoints": 770,
+        "correct": 217,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 145.99,
+        "latencyP95Milliseconds": 442.04775,
+        "precisionWhenShown": 0.2818181818181818,
+        "shown": 770
+      },
+      "promptID": "original",
+      "rank": 19,
+      "reportSHA256": "ffbd5399b2cd6fc0a7b383b34bc8bb4d85569d156278af37ebda82a05e2f697e",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.0",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.34545454545454546,
+        "checkpoints": 770,
+        "correct": 266,
+        "coverage": 0.9987012987012988,
+        "errors": 0,
+        "latencyP50Milliseconds": 130.368917,
+        "latencyP95Milliseconds": 326.449708,
+        "precisionWhenShown": 0.3459037711313394,
+        "shown": 769
+      },
+      "workerCount": 3
+    },
+    {
+      "id": "screen-P1",
+      "inferenceSeed": 42,
+      "none": {
+        "accuracy": 0.2571428571428571,
+        "checkpoints": 770,
+        "correct": 198,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 210.333584,
+        "latencyP95Milliseconds": 545.574458,
+        "precisionWhenShown": 0.2571428571428571,
+        "shown": 770
+      },
+      "promptID": "P1",
+      "rank": 20,
+      "reportSHA256": "08f7104d42023e472b65301efb266e43bb9558475998cba787d668d8c1f16b63",
+      "sampling": {
+        "confidenceFloor": "-inf",
+        "minP": "0.08",
+        "repetitionPenalty": "1.05",
+        "stopAtArgmaxEOG": "true",
+        "temperature": "0.1",
+        "topK": "20",
+        "topP": "0.7"
+      },
+      "screen": {
+        "accuracy": 0.33506493506493507,
+        "checkpoints": 770,
+        "correct": 258,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 143.810459,
+        "latencyP95Milliseconds": 405.651167,
+        "precisionWhenShown": 0.33506493506493507,
+        "shown": 770
+      },
+      "workerCount": 3
+    }
+  ],
+  "rankingRule": "screen correct descending, then none correct descending; exact ties share rank",
+  "screeningLeaders": [
+    "screen-P2-H"
+  ],
+  "status": "Screening ranking only; this script does not freeze, adopt, or modify a finalist."
+}
