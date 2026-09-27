@@ -64,9 +64,10 @@ new results directory. Existing directories are rejected to protect previous run
 Omit `--model` to use the app runtime's model selection. Nothing is downloaded automatically.
 This currently evaluates the local llama backend, with a fixed sampling seed of 42 and otherwise
 product generation defaults. It requires macOS, Xcode, and the project's usual dependencies.
-For a workspace with a local CotabbyInference checkout, add
-`--workspace build/CotabbyDevelopment.xcworkspace` after creating that workspace through the
-repository's existing setup tooling.
+By default the CLI builds `build/cotabby-dependencies/Cotabby.xcworkspace`, which
+`scripts/prepare_cotabby_workspace.sh` creates. To test a different local CotabbyInference
+checkout, pass `--workspace build/CotabbyDevelopment.xcworkspace` after creating that workspace
+through the repository's existing setup tooling.
 
 The CLI builds Release with testability and `RUN_LLAMA_EVAL`, then supplies configuration through
 an `.xctestrun` file. Ordinary tests do not run inference: both the compile flag and the explicit
@@ -339,5 +340,4 @@ python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
 ```
 
 Cotabby builds require the patched native package. Run `scripts/prepare_cotabby_workspace.sh`
-first, then pass `--workspace build/cotabby-dependencies/Cotabby.xcworkspace` to benchmark build
-commands. The package's pinned revision and patch are shared with release packaging.
+first; benchmark build commands use `build/cotabby-dependencies/Cotabby.xcworkspace` by default. The package's pinned revision and patch are shared with release packaging.

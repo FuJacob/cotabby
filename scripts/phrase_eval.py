@@ -493,7 +493,7 @@ def run(args):
     if args.model and (not args.model.is_file() or args.model.suffix.lower() != ".gguf"):
         raise ValueError("--model must name an existing GGUF file")
     if args.workspace and not args.workspace.exists():
-        raise ValueError("--workspace does not exist")
+        raise ValueError(f"--workspace does not exist: {args.workspace} (run scripts/prepare_cotabby_workspace.sh first)")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = (args.output or ROOT / "build/eval/phrases" / f"{stamp}-{uuid.uuid4().hex[:8]}").resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -788,7 +788,12 @@ def main():
         command.add_argument("--seed", type=int, help="Fixed test sampling seed (1–4294967294); default: 42")
         if name == "run":
             command.add_argument("--model", type=pathlib.Path, help="Local GGUF; defaults to app runtime model")
-            command.add_argument("--workspace", type=pathlib.Path, help="Optional workspace for a local CotabbyInference checkout")
+            # The app needs the pinned, patched CotabbyInference; the bare project resolves the remote
+            # package, which lacks those APIs until the pending upstream change lands.
+            command.add_argument("--workspace", type=pathlib.Path,
+                                 default=ROOT / "build/cotabby-dependencies/Cotabby.xcworkspace",
+                                 help="Workspace with the matching CotabbyInference checkout "
+                                      "(default: the one scripts/prepare_cotabby_workspace.sh creates)")
             command.add_argument("--output", type=pathlib.Path, help="New results directory; never overwrites a previous run")
             command.add_argument("--label", default="baseline")
             command.add_argument("--runtime-checks", action="store_true", help="Also verify cache restoration, cancellation and streamed typing with the selected model")
