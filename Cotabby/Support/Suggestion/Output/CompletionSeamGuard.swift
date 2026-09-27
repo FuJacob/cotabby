@@ -170,11 +170,11 @@ nonisolated enum CompletionSeamGuard {
         if word.first?.isLowercase == true, word.count >= minimumSeamWordLength, assessment == .correctableTypo {
             // Instruction-tuned models sometimes omit the separator after a complete word:
             // `up` + `and ...` became `upand` and hid an otherwise useful prediction. Repair only
-            // plain-letter words that are BOTH known independently and whose join is a confirmed
-            // typo. Valid joins (`car` + `pet`), unknown vocabulary, and lexical connectors keep
+            // whole words that are BOTH known independently and whose join is a confirmed typo.
+            // Valid joins (`car` + `pet`), unknown vocabulary, and contraction fragments keep
             // their original semantics. The streaming boundary check above ensures `an` cannot
             // authorize a space before the model finishes generating `and`.
-            if prefix.allSatisfy(\.isLetter), ending.allSatisfy(\.isLetter),
+            if isWholeWord(prefix), isWholeWord(ending),
                spellingAssessment(prefix) == .known,
                spellingAssessment(String(ending)) == .known {
                 return .show(text: " " + completion, wordOnly: false)
@@ -187,6 +187,15 @@ nonisolated enum CompletionSeamGuard {
         // Unknown names and vocabulary still get the conservative ending-only presentation.
         let wordOnly = assessment != .known
         return .show(text: wordOnly ? String(ending) : completion, wordOnly: wordOnly)
+    }
+
+    /// A word that separator repair may stand on its own: letters, optionally joined by internal
+    /// apostrophes or hyphens. Contractions are common sentence openers (`that` + `we've ...`
+    /// arrived from Apple Intelligence with no space), but a connector at either edge (`'t`,
+    /// `don'`) marks a fragment of the word being spelled, so `don` + `'t` is never split.
+    private static func isWholeWord<S: StringProtocol>(_ token: S) -> Bool {
+        guard token.first?.isLetter == true, token.last?.isLetter == true else { return false }
+        return token.allSatisfy { $0.isLetter || CaretWordContext.isConnector($0) }
     }
 
     // MARK: - Junk punctuation runs

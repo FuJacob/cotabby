@@ -150,6 +150,30 @@ final class CompletionSeamGuardTests: XCTestCase {
             precedingText: "don", completion: "'t go", isFinal: true,
             spellingAssessment: { $0 == "don't" ? .correctableTypo : .known }
         ), .suppress(.seamMisspelling(word: "don't")))
+        // A trailing apostrophe is still the contraction being typed, not a finished word.
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "they said don'", completion: "t go", isFinal: true,
+            spellingAssessment: { ["don'", "t"].contains($0) ? .known : .correctableTypo }
+        ), .suppress(.seamMisspelling(word: "don't")))
+    }
+
+    func testSeparatorRepairTreatsWholeContractionsAsWords() {
+        // Apple Intelligence answered `we've decided ...` after "... know that" with no space.
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "let you know that", completion: "we've decided to move forward", isFinal: true,
+            spellingAssessment: { ["that", "we've"].contains($0) ? .known : .correctableTypo }
+        ), .show(text: " we've decided to move forward", wordOnly: false))
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "I think it’s", completion: "going to be fine", isFinal: true,
+            spellingAssessment: { ["it’s", "going"].contains($0) ? .known : .correctableTypo }
+        ), .show(text: " going to be fine", wordOnly: false))
+        // Streaming still waits until the contraction is complete and followed by a boundary.
+        for partial in ["we'", "we've"] {
+            XCTAssertEqual(CompletionSeamGuard.presentation(
+                precedingText: "know that", completion: partial, isFinal: false,
+                spellingAssessment: { ["that", "we've"].contains($0) ? .known : .correctableTypo }
+            ), .wait)
+        }
     }
 
     func testMisspelledSeamWordIsSuppressed() {
