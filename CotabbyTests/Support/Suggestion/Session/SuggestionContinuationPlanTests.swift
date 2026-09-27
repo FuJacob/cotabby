@@ -56,6 +56,41 @@ final class SuggestionContinuationPlanTests: XCTestCase {
         XCTAssertEqual(emojiPlan.targetSnapshot.selection.location, 5)
     }
 
+    func testLongFieldWindowThatSlidesAfterTheEditStillMatchesItsTarget() throws {
+        // Focus capture keeps a fixed number of UTF-16 units before the caret in long fields.
+        let windowLength = 64
+        func window(_ document: String) -> FocusedInputSnapshot {
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: String(document.suffix(windowLength)),
+                                                     trailingText: "Best,", selection: NSRange(location: 5_000, length: 0))
+        }
+        let earlier = String(repeating: "lorem ipsum ", count: 20)
+
+        // A longer word pushes the window's first character out.
+        let lengthening = try XCTUnwrap(correctionPlan(in: window(earlier + "One more wrd "), typo: "wrd", fix: "word"))
+        XCTAssertTrue(lengthening.matchesTarget(window(earlier + "One more word ")))
+        // A shorter word pulls an earlier character in.
+        let shortening = try XCTUnwrap(correctionPlan(in: window(earlier + "Wait untill "), typo: "untill", fix: "until"))
+        XCTAssertTrue(shortening.matchesTarget(window(earlier + "Wait until ")))
+        // A word ending that the user commits with their own space slides the window too.
+        let ending = try XCTUnwrap(SuggestionContinuationPlan.completing("le", in: window(earlier + "Please schedu")))
+        XCTAssertTrue(ending.matchesTarget(window(earlier + "Please schedule")))
+        XCTAssertTrue(ending.matchesTargetWithJoiningSeparator(window(earlier + "Please schedule ")))
+
+        // Anything else near the caret, a truncated window, or changed text after it still fails.
+        XCTAssertFalse(lengthening.matchesTarget(window(earlier + "One more words ")))
+        XCTAssertFalse(lengthening.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "word ", trailingText: "Best,", selection: NSRange(location: 5_000, length: 0))))
+        XCTAssertFalse(lengthening.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: String((earlier + "One more word ").suffix(windowLength)), trailingText: "Regards,",
+            selection: NSRange(location: 5_000, length: 0))))
+    }
+
+    private func correctionPlan(in source: FocusedInputSnapshot, typo: String, fix: String) -> SuggestionContinuationPlan? {
+        TypoCorrectionReplacementPlanner.plan(precedingText: source.precedingText, expectedTypo: typo,
+                                              correctedWord: fix, requiresTrailingSpace: true)
+            .flatMap { SuggestionContinuationPlan.correcting($0, in: source) }
+    }
+
     func testInvalidReplacementAndUnsafeContextsFailClosed() {
         let source = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "A 🐈")
         for length in [-1, 0, 1, 5] {

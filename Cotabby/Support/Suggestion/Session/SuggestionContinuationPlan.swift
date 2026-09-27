@@ -45,13 +45,30 @@ nonisolated struct SuggestionContinuationPlan: Equatable, Sendable {
     }
 
     func matchesTarget(_ snapshot: FocusedInputSnapshot) -> Bool {
-        Self.matches(snapshot, expected: targetSnapshot)
+        Self.matches(snapshot, expected: targetSnapshot) || matchesShiftedWindow(snapshot, expected: targetSnapshot)
     }
 
     /// The user or auto-space preference may commit the boundary we originally added only to the
     /// request. This is the sole accepted target variation; callers then consume its leading space.
     func matchesTargetWithJoiningSeparator(_ snapshot: FocusedInputSnapshot) -> Bool {
-        !joiningSeparator.isEmpty && Self.matches(snapshot, expected: requestSnapshot)
+        !joiningSeparator.isEmpty
+            && (Self.matches(snapshot, expected: requestSnapshot) || matchesShiftedWindow(snapshot, expected: requestSnapshot))
+    }
+
+    /// Long fields expose only a fixed window of text before the caret, so an edit that changes
+    /// length slides that window: a longer word pushes text out of its front, a shorter one pulls
+    /// earlier text in. Accept that shape without the exact signature, but only when one window
+    /// ends with the other, the live window is at least as long as the source window (nothing near
+    /// the caret was deleted), and everything after the caret is unchanged. The window location is
+    /// not compared because a host can report it relative to the window or to the whole document.
+    private func matchesShiftedWindow(_ snapshot: FocusedInputSnapshot, expected: FocusedInputSnapshot) -> Bool {
+        let live = snapshot.precedingText
+        return Self.sameFocusedField(snapshot, expected)
+            && snapshot.selection.length == expected.selection.length
+            && snapshot.isSecure == expected.isSecure
+            && snapshot.trailingText == expected.trailingText
+            && live.utf16.count >= sourceSnapshot.precedingText.utf16.count
+            && (expected.precedingText.hasSuffix(live) || live.hasSuffix(expected.precedingText))
     }
 
     /// Converts request-relative output back into text that may follow the actual committed edit.
