@@ -580,47 +580,56 @@ final class HostBaselineCalibrator {
 
     private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
-        CotabbyLogger.suggestion.debug(
-            "Host baseline calibration",
-            metadata: [
-                "stage": .string("baseline-calibration"),
-                "outcome": .string(analysis.baselineAccepted ? "measured" : "rejected"),
-                "body_rows": .stringConvertible(analysis.bodyRows),
-                "measured": .stringConvertible(Double(analysis.baselineOffset)),
-                "policy": .stringConvertible(Double(request.policyOffset)),
-                "caret_h": .stringConvertible(Double(request.caretRect.height)),
-                "line_top": .stringConvertible(request.key.lineTop),
-                "analysis_ms": .stringConvertible(elapsedMilliseconds)
-            ]
-        )
+        // Typed locals and an annotated literal keep these within what Xcode 26.3 type-checks.
+        let measured = Double(analysis.baselineOffset)
+        let policy = Double(request.policyOffset)
+        let caretHeight = Double(request.caretRect.height)
+        let baselineMetadata: Logger.Metadata = [
+            "stage": .string("baseline-calibration"),
+            "outcome": .string(analysis.baselineAccepted ? "measured" : "rejected"),
+            "body_rows": .stringConvertible(analysis.bodyRows),
+            "measured": .stringConvertible(measured),
+            "policy": .stringConvertible(policy),
+            "caret_h": .stringConvertible(caretHeight),
+            "line_top": .stringConvertible(request.key.lineTop),
+            "analysis_ms": .stringConvertible(elapsedMilliseconds)
+        ]
+        CotabbyLogger.suggestion.debug("Host baseline calibration", metadata: baselineMetadata)
         guard analysis.typefaceAttempted else { return }
         // Pulled out of the literal below: a dozen interpolated entries in one dictionary is more
         // than the type checker resolves in reasonable time.
         let best = analysis.typefaceRanking.first
         let second = analysis.typefaceRanking.dropFirst().first
         let secondLabel = second.map { "\($0.familyName)@\($0.pointSize)" } ?? ""
-        let advanceScale = Double(analysis.typefaceMatch?.advanceScale ?? 1)
-        CotabbyLogger.suggestion.debug(
-            "Host typeface match",
-            metadata: [
-                "advance_scale": .stringConvertible(advanceScale),
-                "stage": .string("typeface-match"),
-                "outcome": .string(analysis.typefaceMatch == nil ? "none" : "matched"),
-                "font": .string(analysis.typefaceMatch?.fontName ?? ""),
-                "score": .stringConvertible(analysis.typefaceMatch?.score ?? 0),
-                "runner_up": .stringConvertible(analysis.typefaceMatch?.runnerUpScore ?? 0),
-                "system_score": .stringConvertible(analysis.typefaceMatch?.systemScore ?? -1),
-                "size": .stringConvertible(Double(request.pointSize)),
-                "size_fit": .stringConvertible(Double(analysis.typefaceMatch?.pointSize ?? 0)),
-                "best_font": .string(best?.fontName ?? ""),
-                "best_size": .stringConvertible(Double(best?.pointSize ?? 0)),
-                "best_score": .stringConvertible(best?.score ?? 0),
-                "second": .string(secondLabel),
-                "text_len": .stringConvertible(request.lineText?.count ?? 0),
-                "host_fonts": .stringConvertible(request.hostFontNames.count),
-                "analysis_ms": .stringConvertible(elapsedMilliseconds)
-            ]
-        )
+        let match = analysis.typefaceMatch
+        let advanceScale = Double(match?.advanceScale ?? 1)
+        let score: Double = match?.score ?? 0
+        let runnerUp: Double = match?.runnerUpScore ?? 0
+        let systemScore: Double = match?.systemScore ?? -1
+        let size = Double(request.pointSize)
+        let sizeFit = Double(match?.pointSize ?? 0)
+        let bestSize = Double(best?.pointSize ?? 0)
+        let bestScore: Double = best?.score ?? 0
+        let textLength: Int = request.lineText?.count ?? 0
+        let matchMetadata: Logger.Metadata = [
+            "advance_scale": .stringConvertible(advanceScale),
+            "stage": .string("typeface-match"),
+            "outcome": .string(match == nil ? "none" : "matched"),
+            "font": .string(match?.fontName ?? ""),
+            "score": .stringConvertible(score),
+            "runner_up": .stringConvertible(runnerUp),
+            "system_score": .stringConvertible(systemScore),
+            "size": .stringConvertible(size),
+            "size_fit": .stringConvertible(sizeFit),
+            "best_font": .string(best?.fontName ?? ""),
+            "best_size": .stringConvertible(bestSize),
+            "best_score": .stringConvertible(bestScore),
+            "second": .string(secondLabel),
+            "text_len": .stringConvertible(textLength),
+            "host_fonts": .stringConvertible(request.hostFontNames.count),
+            "analysis_ms": .stringConvertible(elapsedMilliseconds)
+        ]
+        CotabbyLogger.suggestion.debug("Host typeface match", metadata: matchMetadata)
     }
 
     enum CalibrationError: Error {

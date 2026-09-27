@@ -147,10 +147,13 @@ enum InkCaretAnalyzer {
         for row in 0..<height {
             for column in 0..<width {
                 let pixel = bitmap.pixel(column: column, row: row)
-                let maxChannel = max(pixel.red, pixel.green, pixel.blue)
-                let minChannel = min(pixel.red, pixel.green, pixel.blue)
-                let saturation = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
-                if abs(luminance[row * width + column] - background) > inkContrast, saturation < maximumSaturation {
+                let maxChannel: Double = max(pixel.red, pixel.green, pixel.blue)
+                let minChannel: Double = min(pixel.red, pixel.green, pixel.blue)
+                let saturation: Double = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
+                // Typed locals: Xcode 26.3 found the combined comparison ambiguous.
+                let contrast: Double = abs(luminance[row * width + column] - background)
+                let isUnsaturated: Bool = saturation < Self.maximumSaturation
+                if contrast > Self.inkContrast, isUnsaturated {
                     ink[row * width + column] = true
                     rowInk[row] += 1
                 }

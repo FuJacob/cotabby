@@ -76,28 +76,39 @@ enum HostTextMetricsProbe {
             linePitchIsFromParagraphBox: line?.pitch == nil && markerLine?.pitch != nil && markerLine?.pitchFromParagraph == true
         )
         if CotabbyLogger.focus.logLevel <= .debug {
-            CotabbyLogger.focus.debug(
-                "Host text metrics probe",
-                metadata: [
-                    "stage": .string("host-metrics-probe"),
-                    "sample": .string(sample?.text ?? ""),
-                    "sample_w": .stringConvertible(Double(sample?.width ?? 0)),
-                    "sample_h": .stringConvertible(Double(sample?.height ?? 0)),
-                    "sample_rejected": .string(sample?.rejection ?? ""),
-                    "line_known": .stringConvertible(line != nil || markerLine != nil),
-                    "line_source": .string(line != nil ? "line-api" : (markerLine != nil ? "text-marker" : "")),
-                    "line_rect": .string((line?.rect ?? markerLine?.rect).map(Self.describe) ?? ""),
-                    "line_pitch": .stringConvertible(Double(knownPitch ?? scannedPitch ?? 0)),
-                    "pitch_source": .string(
-                        line?.pitch != nil ? "line-api" : (markerLine?.pitch != nil
-                            ? (markerLine?.pitchFromParagraph == true ? "paragraph-box" : "text-marker")
-                            : (scannedPitch != nil ? "scan" : ""))
-                    ),
-                    "anchor": .string(input.anchorFrame.map(Self.describe) ?? ""),
-                    "caret": .stringConvertible(input.caretLocation),
-                    "caret_h": .stringConvertible(Double(input.caretHeight))
-                ]
-            )
+            // Typed pieces first: Xcode 26.3 could not type-check the literal with the optional
+            // chains and conversions inlined into it.
+            let sampleWidth = Double(sample?.width ?? 0)
+            let sampleHeight = Double(sample?.height ?? 0)
+            let lineSource: String = line != nil ? "line-api" : (markerLine != nil ? "text-marker" : "")
+            let lineRect: String = (line?.rect ?? markerLine?.rect).map(Self.describe) ?? ""
+            let linePitch = Double(knownPitch ?? scannedPitch ?? 0)
+            let pitchSource: String
+            if line?.pitch != nil {
+                pitchSource = "line-api"
+            } else if markerLine?.pitch != nil {
+                pitchSource = markerLine?.pitchFromParagraph == true ? "paragraph-box" : "text-marker"
+            } else {
+                pitchSource = scannedPitch != nil ? "scan" : ""
+            }
+            let anchor: String = input.anchorFrame.map(Self.describe) ?? ""
+            let caretHeight = Double(input.caretHeight)
+            let metadata: Logger.Metadata = [
+                "stage": .string("host-metrics-probe"),
+                "sample": .string(sample?.text ?? ""),
+                "sample_w": .stringConvertible(sampleWidth),
+                "sample_h": .stringConvertible(sampleHeight),
+                "sample_rejected": .string(sample?.rejection ?? ""),
+                "line_known": .stringConvertible(line != nil || markerLine != nil),
+                "line_source": .string(lineSource),
+                "line_rect": .string(lineRect),
+                "line_pitch": .stringConvertible(linePitch),
+                "pitch_source": .string(pitchSource),
+                "anchor": .string(anchor),
+                "caret": .stringConvertible(input.caretLocation),
+                "caret_h": .stringConvertible(caretHeight)
+            ]
+            CotabbyLogger.focus.debug("Host text metrics probe", metadata: metadata)
         }
         guard !metrics.isEmpty else { return nil }
         return metrics

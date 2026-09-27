@@ -706,19 +706,20 @@ final class OverlayController: SuggestionOverlayControlling {
         )
         hostAdvanceFits[identity] = fit
         guard let adopted, CotabbyLogger.suggestion.logLevel <= .debug else { return }
-        CotabbyLogger.suggestion.debug(
-            "Host advance fit adopted",
-            metadata: [
-                "stage": .string("advance-fit"),
-                "identity": .stringConvertible(identity),
-                "font": .string(hostFace.fontName),
-                "assumed_size": .stringConvertible(Double(hostFace.pointSize)),
-                "fitted_size": .stringConvertible(Double(adopted.pointSize)),
-                "span": .stringConvertible(Double(adopted.span)),
-                "captures": .stringConvertible(adopted.captures),
-                "refinements": .stringConvertible(fit.refinements)
-            ]
-        )
+        let assumedSize = Double(hostFace.pointSize)
+        let fittedSize = Double(adopted.pointSize)
+        let span = Double(adopted.span)
+        let metadata: Logger.Metadata = [
+            "stage": .string("advance-fit"),
+            "identity": .stringConvertible(identity),
+            "font": .string(hostFace.fontName),
+            "assumed_size": .stringConvertible(assumedSize),
+            "fitted_size": .stringConvertible(fittedSize),
+            "span": .stringConvertible(span),
+            "captures": .stringConvertible(adopted.captures),
+            "refinements": .stringConvertible(fit.refinements)
+        ]
+        CotabbyLogger.suggestion.debug("Host advance fit adopted", metadata: metadata)
     }
 
     /// The reported CSS size and zoom ladder a web field's pixel-matched size snaps to (see
@@ -853,20 +854,19 @@ final class OverlayController: SuggestionOverlayControlling {
                 : GhostFontResolver.familyFits(family, sample: sample.text, width: sample.width, size: size)
         }
         typefaceEvidence[identity] = evidence
-        CotabbyLogger.suggestion.debug(
-            "Typeface evidence",
-            metadata: [
-                "stage": .string("typeface-evidence"),
-                "identity": .stringConvertible(identity),
-                "sample": .string(String(sample.text.prefix(32))),
-                "resolver_family": .string(resolution.font.familyName ?? "-"),
-                "resolver_provenance": .string(resolution.provenance.rawValue),
-                "host_font": .string(geometry.resolvedFieldStyle?.fontName ?? geometry.resolvedFieldStyle?.fontFamily ?? "-"),
-                "samples": .stringConvertible(evidence.samples.count),
-                "adopted": .string(evidence.adoptedFamily ?? "-"),
-                "verdict": .string("\(verdict)")
-            ]
-        )
+        let hostFont: String = geometry.resolvedFieldStyle?.fontName ?? geometry.resolvedFieldStyle?.fontFamily ?? "-"
+        let evidenceMetadata: Logger.Metadata = [
+            "stage": .string("typeface-evidence"),
+            "identity": .stringConvertible(identity),
+            "sample": .string(String(sample.text.prefix(32))),
+            "resolver_family": .string(resolution.font.familyName ?? "-"),
+            "resolver_provenance": .string(resolution.provenance.rawValue),
+            "host_font": .string(hostFont),
+            "samples": .stringConvertible(evidence.samples.count),
+            "adopted": .string(evidence.adoptedFamily ?? "-"),
+            "verdict": .string("\(verdict)")
+        ]
+        CotabbyLogger.suggestion.debug("Typeface evidence", metadata: evidenceMetadata)
         return Self.settledResolution(for: verdict, replacing: resolution, systemFamily: systemFamily, size: size, evidence: evidence)
     }
 
@@ -936,19 +936,20 @@ final class OverlayController: SuggestionOverlayControlling {
     /// makes of the same text, so a ghost sized from a bad sample can be traced to the sample.
     private static func logAdoptedWidthSample(_ sample: TypefaceEvidence.Sample, font: NSFont, identity: UInt64) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
-        CotabbyLogger.suggestion.debug(
-            "Width sample adopted",
-            metadata: [
-                "stage": .string("width-sample"),
-                "identity": .stringConvertible(identity),
-                "sample": .string(String(sample.text.prefix(40))),
-                "chars": .stringConvertible(sample.text.count),
-                "host_width": .stringConvertible(Double(sample.width)),
-                "font": .string(font.fontName),
-                "font_size": .stringConvertible(Double(font.pointSize)),
-                "font_width": .stringConvertible(Double(GhostFontResolver.width(of: sample.text, font: font)))
-            ]
-        )
+        let hostWidth = Double(sample.width)
+        let fontSize = Double(font.pointSize)
+        let fontWidth = Double(GhostFontResolver.width(of: sample.text, font: font))
+        let metadata: Logger.Metadata = [
+            "stage": .string("width-sample"),
+            "identity": .stringConvertible(identity),
+            "sample": .string(String(sample.text.prefix(40))),
+            "chars": .stringConvertible(sample.text.count),
+            "host_width": .stringConvertible(hostWidth),
+            "font": .string(font.fontName),
+            "font_size": .stringConvertible(fontSize),
+            "font_width": .stringConvertible(fontWidth)
+        ]
+        CotabbyLogger.suggestion.debug("Width sample adopted", metadata: metadata)
     }
 
     /// The host's measured width sample for this geometry, when it has one.
@@ -1613,21 +1614,24 @@ final class OverlayController: SuggestionOverlayControlling {
         panelFrame: CGRect
     ) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
-        CotabbyLogger.suggestion.debug(
-            "Mirror card presented",
-            metadata: [
-                "stage": .string("overlay-present"),
-                "mode": .string("mirror"),
-                "mirror_reason": .string(reason.rawValue),
-                "caret_x": .stringConvertible(Double(geometry.caretRect.minX)),
-                "caret_top": .stringConvertible(Double(geometry.caretRect.maxY)),
-                "caret_h": .stringConvertible(Double(geometry.caretRect.height)),
-                "caret_quality": .string(geometry.caretQuality.label),
-                "trailing_content": .stringConvertible(geometry.hasTrailingContent),
-                "panel_x": .stringConvertible(Double(panelFrame.minX)),
-                "panel_y": .stringConvertible(Double(panelFrame.minY))
-            ]
-        )
+        let caretX = Double(geometry.caretRect.minX)
+        let caretTop = Double(geometry.caretRect.maxY)
+        let caretHeight = Double(geometry.caretRect.height)
+        let panelX = Double(panelFrame.minX)
+        let panelY = Double(panelFrame.minY)
+        let metadata: Logger.Metadata = [
+            "stage": .string("overlay-present"),
+            "mode": .string("mirror"),
+            "mirror_reason": .string(reason.rawValue),
+            "caret_x": .stringConvertible(caretX),
+            "caret_top": .stringConvertible(caretTop),
+            "caret_h": .stringConvertible(caretHeight),
+            "caret_quality": .string(geometry.caretQuality.label),
+            "trailing_content": .stringConvertible(geometry.hasTrailingContent),
+            "panel_x": .stringConvertible(panelX),
+            "panel_y": .stringConvertible(panelY)
+        ]
+        CotabbyLogger.suggestion.debug("Mirror card presented", metadata: metadata)
     }
 
     private func logInlineDeclined(

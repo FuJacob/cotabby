@@ -80,8 +80,8 @@ enum InkBaselineAnalyzer {
                 let pixel = bitmap.pixel(column: column, row: row)
                 let index = row * width + column
                 luminance[index] = pixel.luminance
-                let maxChannel = max(pixel.red, pixel.green, pixel.blue)
-                let minChannel = min(pixel.red, pixel.green, pixel.blue)
+                let maxChannel: Double = max(pixel.red, pixel.green, pixel.blue)
+                let minChannel: Double = min(pixel.red, pixel.green, pixel.blue)
                 saturation[index] = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
             }
         }
@@ -91,7 +91,10 @@ enum InkBaselineAnalyzer {
             var count = 0
             for column in 0..<width {
                 let index = row * width + column
-                if abs(luminance[index] - background) > inkContrast, saturation[index] < maximumSaturation {
+                // Typed locals: Xcode 26.3 found the combined comparison ambiguous.
+                let contrast: Double = abs(luminance[index] - background)
+                let isUnsaturated: Bool = saturation[index] < Self.maximumSaturation
+                if contrast > Self.inkContrast, isUnsaturated {
                     count += 1
                 }
             }
