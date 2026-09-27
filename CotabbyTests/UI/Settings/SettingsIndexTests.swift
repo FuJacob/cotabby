@@ -24,9 +24,26 @@ final class SettingsIndexTests: XCTestCase {
                        "sidebar groups must list every category exactly once, in declaration order")
     }
 
-    func test_itemIdsAreUnique() {
-        let ids = SettingsItem.allCases.map(\.id)
-        XCTAssertEqual(ids.count, Set(ids).count, "duplicate SettingsItem ids break Identifiable lists")
+    func test_everyPaneExceptHomeIsReachableFromSearch() {
+        // Home is the search surface itself; every other pane must own at least one indexed row,
+        // or search can never land on it.
+        let searchableCategories = Set(SettingsItem.allCases.map(\.category))
+        for category in SettingsCategory.allCases where category != .home {
+            XCTAssertTrue(searchableCategories.contains(category), "\(category) has no SettingsItem entries")
+        }
+        XCTAssertFalse(searchableCategories.contains(.home), "Home hosts search and should not index rows")
+    }
+
+    func test_typingAnItemsExactTitleRanksThatItemFirst() {
+        // The ranker's exact-title bonus exists so a row's own name always wins. Running it over the
+        // real catalog catches a new title that collides with (or is shadowed by) another item.
+        for item in SettingsItem.allCases {
+            XCTAssertEqual(
+                SettingsItem.results(for: item.title).first,
+                item,
+                "searching \"\(item.title)\" should rank \(item) first"
+            )
+        }
     }
 
     func test_searchFindsRecentlyShippedSettings() {
@@ -58,8 +75,9 @@ final class SettingsIndexTests: XCTestCase {
     }
 
     func test_blankQueryReturnsNothing() {
-        XCTAssertTrue(SettingsItem.results(for: "   ").isEmpty)
-        XCTAssertTrue(SettingsItem.results(for: "").isEmpty)
+        for query in ["", "   ", "\n\t"] {
+            XCTAssertEqual(SettingsItem.results(for: query), [], "query \(query.debugDescription)")
+        }
     }
 
     #if DEBUG

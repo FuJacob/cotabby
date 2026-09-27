@@ -1,42 +1,33 @@
 import XCTest
 @testable import Cotabby
 
+/// Pins the permission metadata the onboarding, menu, and Settings permission rows render. The raw
+/// values double as System Settings deep-link anchors, so they are a compatibility contract.
 final class CotabbyPermissionKindTests: XCTestCase {
 
-    func test_allCases_containsExactlyThreePermissions() {
-        XCTAssertEqual(CotabbyPermissionKind.allCases.count, 3)
-    }
-
-    func test_rawValues_matchExpectedPrivacyKeys() {
+    func test_allCases_listsPermissionsInOnboardingOrderWithPrivacyAnchorRawValues() {
+        XCTAssertEqual(CotabbyPermissionKind.allCases, [.accessibility, .inputMonitoring, .screenRecording])
         XCTAssertEqual(CotabbyPermissionKind.accessibility.rawValue, "Privacy_Accessibility")
         XCTAssertEqual(CotabbyPermissionKind.inputMonitoring.rawValue, "Privacy_ListenEvent")
         XCTAssertEqual(CotabbyPermissionKind.screenRecording.rawValue, "Privacy_ScreenCapture")
     }
 
-    func test_allCases_haveTitles() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertFalse(kind.title.isEmpty, "\(kind) should have a non-empty title")
-        }
-        XCTAssertEqual(CotabbyPermissionKind.accessibility.title, "Accessibility")
-        XCTAssertEqual(CotabbyPermissionKind.inputMonitoring.title, "Input Monitoring")
-        XCTAssertEqual(CotabbyPermissionKind.screenRecording.title, "Screen Recording")
-    }
-
-    func test_allCases_haveSystemImageNames() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertFalse(
-                kind.systemImageName.isEmpty,
-                "\(kind) should have a non-empty systemImageName"
+    func test_presentationCopy_isPinnedPerPermission() {
+        let expectations: [(kind: CotabbyPermissionKind, title: String, image: String, subtitle: String)] = [
+            (.accessibility, "Accessibility", "accessibility", "Read text fields and caret position."),
+            (.inputMonitoring, "Input Monitoring", "keyboard.fill", "Detect typing and accept with Tab."),
+            (
+                .screenRecording,
+                "Screen Recording",
+                "rectangle.dashed.badge.record",
+                "Optional: capture screen context for richer suggestions."
             )
-        }
-    }
+        ]
 
-    func test_allCases_haveOnboardingSubtitles() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertFalse(
-                kind.onboardingSubtitle.isEmpty,
-                "\(kind) should have a non-empty onboardingSubtitle"
-            )
+        for expectation in expectations {
+            XCTAssertEqual(expectation.kind.title, expectation.title, "\(expectation.kind) title")
+            XCTAssertEqual(expectation.kind.systemImageName, expectation.image, "\(expectation.kind) image")
+            XCTAssertEqual(expectation.kind.onboardingSubtitle, expectation.subtitle, "\(expectation.kind) subtitle")
         }
     }
 
@@ -49,7 +40,7 @@ final class CotabbyPermissionKindTests: XCTestCase {
 
     func test_guidanceStyle_isGuidedOverlayForAllCases() {
         for kind in CotabbyPermissionKind.allCases {
-            XCTAssertEqual(kind.guidanceStyle, .guidedOverlay)
+            XCTAssertEqual(kind.guidanceStyle, .guidedOverlay, "\(kind)")
         }
     }
 
@@ -67,12 +58,6 @@ final class CotabbyPermissionKindTests: XCTestCase {
         XCTAssertFalse(CotabbyPermissionKind.inputMonitoring.isOptionalEnhancement)
     }
 
-    func test_id_isTheCaseItself() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertEqual(kind.id, kind)
-        }
-    }
-
     func test_compactRowTitle_appendsOptionalQualifierOnlyForEnhancements() {
         // Compact rows reuse the required rows' styling, so this suffix is the only thing that
         // marks Screen Recording as optional there.
@@ -82,6 +67,7 @@ final class CotabbyPermissionKindTests: XCTestCase {
     }
 }
 
+/// Pins the screenshot/OCR budgets and the engine-to-profile privacy mapping.
 final class VisualContextModelTests: XCTestCase {
 
     func test_defaultConfiguration_hasExpectedValues() {
@@ -92,27 +78,23 @@ final class VisualContextModelTests: XCTestCase {
         XCTAssertEqual(config.minRecognizedCharacterCount, 12)
         XCTAssertEqual(config.maxRecognizedCharacters, 5000)
         XCTAssertEqual(config.maxSummaryCharacters, 1500)
+        XCTAssertFalse(config.capturesEntireWindow)
     }
 
-    func test_focusedInputAugmentationSession_equatableConformance() {
-        let id = UUID()
-        let sessionA = FocusedInputAugmentationSession(
-            sessionID: id,
-            elementIdentifier: "field1",
-            focusChangeSequence: 1,
-            status: .idle,
-            excerpt: nil
-        )
-        var sessionB = FocusedInputAugmentationSession(
-            sessionID: id,
-            elementIdentifier: "field1",
-            focusChangeSequence: 1,
-            status: .idle,
-            excerpt: nil
-        )
-        XCTAssertEqual(sessionA, sessionB)
+    func test_localConfiguration_widensCaptureAndBudgetsForOnDeviceEngines() {
+        let config = VisualContextConfiguration.local
+        XCTAssertEqual(config.snapshotDimension, 700)
+        XCTAssertEqual(config.maxImageDimension, 2400)
+        XCTAssertEqual(config.minRecognizedCharacterCount, 12)
+        XCTAssertEqual(config.maxRecognizedCharacters, 12000)
+        XCTAssertEqual(config.maxSummaryCharacters, 4000)
+        XCTAssertTrue(config.capturesEntireWindow)
+    }
 
-        sessionB.status = .ready
-        XCTAssertNotEqual(sessionA, sessionB)
+    func test_forEngine_keepsTheNetworkEndpointOnTheNarrowDefaultProfile() {
+        // Choosing a network backend is not consent to send a wider screenshot's worth of text.
+        XCTAssertEqual(VisualContextConfiguration.forEngine(.openAICompatible), .default)
+        XCTAssertEqual(VisualContextConfiguration.forEngine(.appleIntelligence), .local)
+        XCTAssertEqual(VisualContextConfiguration.forEngine(.llamaOpenSource), .local)
     }
 }

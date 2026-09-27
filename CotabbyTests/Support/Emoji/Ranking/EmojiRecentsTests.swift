@@ -3,6 +3,9 @@ import XCTest
 
 /// Tests for the bare-`:` suggestion builder: recents first, popularity-padded, de-duplicated and
 /// resolved against the catalog.
+///
+/// The padding window is `limit * 3` aliases of `EmojiPopularity.ordered`, so expectations below are
+/// derived from list positions: joy = 0, heart = 1, rocket = 25, unicorn is far past the window.
 final class EmojiRecentsTests: XCTestCase {
     private func entry(_ glyph: String, _ alias: String) -> EmojiEntry {
         EmojiEntry(glyph: glyph, name: alias, aliases: [alias], keywords: [])
@@ -11,37 +14,54 @@ final class EmojiRecentsTests: XCTestCase {
     private func sampleCatalog() -> EmojiCatalog {
         EmojiCatalog(entries: [
             entry("😀", "grinning"),   // not in the popularity prior
-            entry("😂", "joy"),        // popular
-            entry("❤️", "heart"),      // popular
-            entry("🚀", "rocket"),     // popular
-            entry("🦄", "unicorn")     // popular (animals section)
+            entry("😂", "joy"),        // popularity rank 0
+            entry("❤️", "heart"),      // popularity rank 1
+            entry("🚀", "rocket"),     // popularity rank 25
+            entry("🦄", "unicorn")     // popular, but far outside a small padding window
         ])
+    }
+
+    private func glyphs(_ usage: EmojiUsageSnapshot, limit: Int) -> [String] {
+        EmojiRecents.suggestions(usage: usage, catalog: sampleCatalog(), limit: limit).map(\.glyph)
     }
 
     func test_recentsLeadInOrderThenPopularityPads() {
         let usage = EmojiUsageSnapshot(recentAliases: ["unicorn", "grinning"], frequency: [:])
-        let glyphs = EmojiRecents.suggestions(usage: usage, catalog: sampleCatalog(), limit: 10).map { $0.glyph }
 
-        XCTAssertEqual(Array(glyphs.prefix(2)), ["🦄", "😀"])   // recents first, most-recent first
-        XCTAssertTrue(glyphs.contains("😂"))                    // joy padded in from the popularity prior
-        XCTAssertEqual(glyphs.count, Set(glyphs).count)         // no duplicates
+        // Recents (most recent first), then the prior's first 30 aliases that exist in the catalog.
+        XCTAssertEqual(glyphs(usage, limit: 10), ["🦄", "😀", "😂", "❤️", "🚀"])
     }
 
-    func test_emptyUsageFallsBackToPopularityAndDropsUnpopular() {
-        let glyphs = EmojiRecents.suggestions(usage: .empty, catalog: sampleCatalog(), limit: 10).map { $0.glyph }
+    func test_emptyUsageUsesOnlyThePopularityWindow() {
+        // grinning is neither recent nor popular; unicorn is popular but outside the 30-alias window.
+        XCTAssertEqual(glyphs(.empty, limit: 10), ["😂", "❤️", "🚀"])
+    }
 
-        XCTAssertTrue(glyphs.contains("😂"))    // joy is in the popularity prior
-        XCTAssertFalse(glyphs.contains("😀"))   // grinning is neither recent nor popular
+    func test_paddingWindowScalesWithLimit() {
+        // limit 5 pads from the first 15 aliases, which reach joy and heart but not rocket (25).
+        XCTAssertEqual(glyphs(.empty, limit: 5), ["😂", "❤️"])
     }
 
     func test_unresolvableRecentAliasIsSkipped() {
         let usage = EmojiUsageSnapshot(recentAliases: ["not_in_catalog", "joy"], frequency: [:])
-        let glyphs = EmojiRecents.suggestions(usage: usage, catalog: sampleCatalog(), limit: 5).map { $0.glyph }
 
-        XCTAssertEqual(glyphs.first, "😂")   // the unresolvable alias is skipped, joy leads
+        XCTAssertEqual(glyphs(usage, limit: 5), ["😂", "❤️"])
+    }
+
+    func test_recentThatIsAlsoPopularAppearsOnceAtItsRecentPosition() {
+        // Dedup is case-insensitive, so a stored "HEART" recent suppresses the prior's "heart".
+        let usage = EmojiUsageSnapshot(recentAliases: ["HEART"], frequency: [:])
+
+        XCTAssertEqual(glyphs(usage, limit: 10), ["❤️", "😂", "🚀"])
     }
 
     func test_limitIsRespected() {
-        XCTAssertEqual(EmojiRecents.suggestions(usage: .empty, catalog: sampleCatalog(), limit: 2).count, 2)
+        XCTAssertEqual(glyphs(.empty, limit: 2), ["😂", "❤️"])
+        XCTAssertEqual(glyphs(EmojiUsageSnapshot(recentAliases: ["unicorn", "grinning"], frequency: [:]), limit: 1), ["🦄"])
+    }
+
+    func test_nonPositiveLimitReturnsNothing() {
+        XCTAssertTrue(glyphs(.empty, limit: 0).isEmpty)
+        XCTAssertTrue(glyphs(.empty, limit: -1).isEmpty)
     }
 }

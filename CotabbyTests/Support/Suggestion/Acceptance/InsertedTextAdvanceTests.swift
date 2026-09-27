@@ -102,6 +102,29 @@ final class InsertedTextAdvanceTests: XCTestCase {
         XCTAssertNil(InsertedTextAdvance.width(of: "", observedCharWidth: 7.5, style: style))
     }
 
+    func test_width_observedCharWidthScalesByUTF16LengthAndIgnoresNonPositiveWidths() throws {
+        // The run-frame measurement is multiplied by the NSString (UTF-16) length, so a surrogate
+        // pair counts as two measured units.
+        XCTAssertEqual(
+            try XCTUnwrap(InsertedTextAdvance.width(of: "🎉", observedCharWidth: 5, style: nil)),
+            10,
+            accuracy: 0.001
+        )
+
+        // A zero or negative measurement is unusable and must fall through to the resolved font
+        // rather than reporting zero caret travel.
+        let style = ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 12, colorHex: nil)
+        let viaFont = try XCTUnwrap(InsertedTextAdvance.width(of: " world", style: style))
+        for unusable: CGFloat in [0, -3] {
+            XCTAssertEqual(
+                try XCTUnwrap(InsertedTextAdvance.width(of: " world", observedCharWidth: unusable, style: style)),
+                viaFont,
+                accuracy: 0.001
+            )
+            XCTAssertNil(InsertedTextAdvance.width(of: " world", observedCharWidth: unusable, style: nil))
+        }
+    }
+
     func test_width_refusesUnusableInputs() {
         XCTAssertNil(InsertedTextAdvance.width(of: "", style: ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 12, colorHex: nil)))
         XCTAssertNil(InsertedTextAdvance.width(of: " world", style: nil))

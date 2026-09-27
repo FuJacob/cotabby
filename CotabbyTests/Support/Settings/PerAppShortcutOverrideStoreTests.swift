@@ -41,13 +41,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
 
     func test_clearingBothActions_keepsTrackedAppWithInheritedBindings() throws {
         let model = makeModel()
-        model.setPerAppAcceptKey(
-            bundleIdentifier: "com.apple.notes",
-            displayName: "Notes",
-            keyCode: 49,
-            modifiers: [],
-            label: "Space"
-        )
+        setNotesSpaceAcceptKey(on: model)
         model.setPerAppFullAcceptKey(
             bundleIdentifier: "com.apple.notes",
             displayName: "Notes",
@@ -66,13 +60,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
 
     func test_removePerAppOverride_dropsRow() {
         let model = makeModel()
-        model.setPerAppAcceptKey(
-            bundleIdentifier: "com.apple.notes",
-            displayName: "Notes",
-            keyCode: 49,
-            modifiers: [],
-            label: "Space"
-        )
+        setNotesSpaceAcceptKey(on: model)
 
         model.removePerAppOverride(bundleIdentifier: "com.apple.notes")
 
@@ -107,13 +95,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
 
     func test_setPerAppAcceptKey_replacesExistingBundle() {
         let model = makeModel()
-        model.setPerAppAcceptKey(
-            bundleIdentifier: "com.apple.notes",
-            displayName: "Notes",
-            keyCode: 49,
-            modifiers: [],
-            label: "Space"
-        )
+        setNotesSpaceAcceptKey(on: model)
         model.setPerAppAcceptKey(
             bundleIdentifier: "com.apple.notes",
             displayName: "Notes",
@@ -157,6 +139,17 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
         XCTAssertEqual(
             restored.fullAcceptance,
             .init(keyCode: 36, modifiers: [.command], label: "⌘Return")
+        )
+    }
+
+    /// The common starting point: Notes tracked with a plain Space accept binding.
+    private func setNotesSpaceAcceptKey(on model: SuggestionSettingsModel) {
+        model.setPerAppAcceptKey(
+            bundleIdentifier: "com.apple.notes",
+            displayName: "Notes",
+            keyCode: 49,
+            modifiers: [],
+            label: "Space"
         )
     }
 

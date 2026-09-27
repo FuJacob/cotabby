@@ -19,6 +19,15 @@ final class GhostHostScaleTrackerTests: XCTestCase {
         XCTAssertEqual(tracker.scale(forFocusSessionKey: 1), 2)
     }
 
+    func test_queryingAnotherFieldNeverSeesThisFieldsScale() {
+        // Lookups are keyed too: asking for a different field does not reset or leak the session.
+        var tracker = GhostHostScaleTracker()
+        tracker.record(2, focusSessionKey: 1)
+
+        XCTAssertNil(tracker.scale(forFocusSessionKey: 2))
+        XCTAssertEqual(tracker.scale(forFocusSessionKey: 1), 2)
+    }
+
     func test_aRenderThatCouldNotMeasureKeepsTheEarlierScale() {
         // A precise caret whose typeface had not loaded yet yields no scale; that must not erase
         // the zoom a previous render learned.

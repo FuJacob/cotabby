@@ -1,6 +1,9 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for choosing one enabled spelling dictionary from surrounding text. Recognizer-backed cases
+/// use clearly monolingual samples; the confidence rule itself is tested through the pure
+/// `confidentLanguage(from:)` seam so it does not depend on Natural Language model drift.
 final class SpellingLanguageResolverTests: XCTestCase {
     private let resolver = SpellingLanguageResolver()
 
@@ -64,6 +67,19 @@ final class SpellingLanguageResolverTests: XCTestCase {
                 from: [.english: 0.46, .italian: 0.24, .spanish: 0.18]
             )
         )
+    }
+
+    func test_confidenceThresholdIsInclusive() {
+        XCTAssertEqual(SpellingLanguageResolver.confidentLanguage(from: [.german: 0.55, .english: 0.45]), .german)
+        XCTAssertNil(SpellingLanguageResolver.confidentLanguage(from: [.german: 0.549, .english: 0.451]))
+    }
+
+    func test_noScoresMeansNoLanguage() {
+        XCTAssertNil(SpellingLanguageResolver.confidentLanguage(from: [:]))
+    }
+
+    func test_singleEnabledLanguageWinsEvenWithoutAnyText() {
+        XCTAssertEqual(resolver.resolve(precedingText: "", currentWord: "", enabledLanguages: [.hebrew]), .hebrew)
     }
 
     func test_emptyContextWithMultipleEnabledLanguagesReturnsNil() {

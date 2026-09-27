@@ -55,8 +55,21 @@ final class BrowserDomainTests: XCTestCase {
         XCTAssertTrue(BrowserDomain.isHostDisabled("bank.com", disabledDomains: ["www.bank.com"]))
     }
 
+    func test_isHostDisabled_childEntryDoesNotCoverItsParent() {
+        // Disabling one subdomain must not switch off the whole site.
+        XCTAssertFalse(BrowserDomain.isHostDisabled("bank.com", disabledDomains: ["mail.bank.com"]))
+        XCTAssertTrue(BrowserDomain.isHostDisabled("a.mail.bank.com", disabledDomains: ["mail.bank.com"]))
+    }
+
+    func test_isHostDisabled_toleratesWhitespaceCaseAndBlankEntries() {
+        XCTAssertTrue(BrowserDomain.isHostDisabled("bank.com", disabledDomains: ["  BANK.com  "]))
+        XCTAssertTrue(BrowserDomain.isHostDisabled("bank.com", disabledDomains: ["", "   ", "bank.com"]))
+        XCTAssertFalse(BrowserDomain.isHostDisabled("bank.com", disabledDomains: ["", "   "]))
+    }
+
     func test_isHostDisabled_falseForEmptyInputs() {
         XCTAssertFalse(BrowserDomain.isHostDisabled(nil, disabledDomains: ["bank.com"]))
+        XCTAssertFalse(BrowserDomain.isHostDisabled("", disabledDomains: ["bank.com"]))
         XCTAssertFalse(BrowserDomain.isHostDisabled("bank.com", disabledDomains: []))
         XCTAssertFalse(BrowserDomain.isHostDisabled("other.com", disabledDomains: ["bank.com"]))
     }

@@ -24,6 +24,26 @@ final class FocusCapabilityResolverTests: XCTestCase {
         XCTAssertFalse(evaluation.hasFullCapabilities)
     }
 
+    func test_evaluate_fullyCapableCandidateHasNoGapsAndMaxCapabilityScore() {
+        let evaluation = FocusCapabilityResolver.evaluate(
+            CotabbyTestFixtures.focusCapabilityCandidate(editableHintScore: 11)
+        )
+
+        XCTAssertEqual(evaluation.missingCapabilities, [])
+        XCTAssertTrue(evaluation.hasFullCapabilities)
+        XCTAssertEqual(evaluation.score, 411)
+    }
+
+    func test_evaluate_anyMissingCapabilityOutweighsTheLargestEditableHint() {
+        // Capabilities are worth 100 each while the hint tops out at 11 (explicit flag + known role),
+        // so a fully capable candidate always outranks one missing a capability.
+        let complete = FocusCapabilityResolver.evaluate(CotabbyTestFixtures.focusCapabilityCandidate())
+        let gapped = FocusCapabilityResolver.evaluate(
+            CotabbyTestFixtures.focusCapabilityCandidate(editableHintScore: 11, hasCaretBounds: false)
+        )
+        XCTAssertGreaterThan(complete.score, gapped.score)
+    }
+
     func test_evaluate_scoresAvailableCapabilitiesBeforeEditableHint() {
         let candidate = CotabbyTestFixtures.focusCapabilityCandidate(
             editableHintScore: 7,

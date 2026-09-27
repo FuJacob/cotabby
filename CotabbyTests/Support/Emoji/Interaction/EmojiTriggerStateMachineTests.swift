@@ -120,6 +120,30 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         XCTAssertFalse(sut.isCapturing)
     }
 
+    func test_terminatorIsRememberedAsTheBoundaryForTheNextColon() {
+        // Whitespace ends capture at a boundary, so `:sm :` reopens; punctuation does not, so a
+        // following `:` (as in `:sm.:`) is treated like any mid-token colon.
+        var afterSpace = EmojiTriggerStateMachine()
+        open(&afterSpace)
+        type("sm ", into: &afterSpace)
+        XCTAssertEqual(afterSpace.reduce(.character(":"), selectableMatchCount: 0).actions, [.open(query: "")])
+
+        var afterPunctuation = EmojiTriggerStateMachine()
+        open(&afterPunctuation)
+        type("sm", into: &afterPunctuation)
+        XCTAssertEqual(afterPunctuation.reduce(.character("."), selectableMatchCount: 0).actions, [.cancel])
+        XCTAssertEqual(afterPunctuation.state, .idle(previousCharacter: "."))
+        XCTAssertEqual(afterPunctuation.reduce(.character(":"), selectableMatchCount: 0), .ignored)
+    }
+
+    func test_underscoreAndHyphenExtendQuery() {
+        var sut = EmojiTriggerStateMachine()
+        open(&sut)
+        type("thumbs_up-", into: &sut)
+
+        XCTAssertEqual(sut.state, .capturing(query: "thumbs_up-"))
+    }
+
     // MARK: - Navigation
 
     func test_navigate_withMatches_consumesAndMoves() {
@@ -131,7 +155,8 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
 
         XCTAssertEqual(output.actions, [.moveSelection(.down)])
         XCTAssertTrue(output.consumesKey)
-        XCTAssertTrue(sut.isCapturing)
+        // Moving the selection leaves the typed query untouched.
+        XCTAssertEqual(sut.state, .capturing(query: "s"))
     }
 
     func test_navigate_withoutMatches_cancelsAndPassesThrough() {

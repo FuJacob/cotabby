@@ -29,6 +29,19 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
         XCTAssertEqual(size.height, EmojiPickerMetrics.queryRowHeight + EmojiPickerMetrics.ribbonRowHeight)
     }
 
+    func test_contentSize_hugsCellsBetweenTheFloorAndTheCap() {
+        let height = EmojiPickerMetrics.queryRowHeight + EmojiPickerMetrics.ribbonRowHeight
+        // One cell (30 + 2*8 insets = 46pt) is narrower than the floor, so the floor wins.
+        XCTAssertEqual(EmojiPickerMetrics.contentSize(matchCount: 1), CGSize(width: EmojiPickerMetrics.minWidth, height: height))
+        // Five cells: 5*30 + 4*2 spacing + 2*8 insets = 174pt, above the floor.
+        XCTAssertEqual(EmojiPickerMetrics.contentSize(matchCount: 5), CGSize(width: 174, height: height))
+        // Exactly at the cap and beyond it produce the same width (the ribbon scrolls).
+        XCTAssertEqual(
+            EmojiPickerMetrics.contentSize(matchCount: EmojiPickerMetrics.maxVisibleCells),
+            EmojiPickerMetrics.contentSize(matchCount: 20)
+        )
+    }
+
     func test_frame_sitsBelowCaretWhenItFits() {
         let caret = CGRect(x: 200, y: 400, width: 2, height: 16)
         let size = EmojiPickerMetrics.contentSize(matchCount: 5)
@@ -47,6 +60,30 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
 
         XCTAssertEqual(frame.origin.y, caret.maxY + EmojiPickerPanelLayout.caretGap)
         XCTAssertLessThanOrEqual(frame.maxY, visibleFrame.maxY)
+    }
+
+    func test_frame_tinyScreenPinsToTheBottomEdge() {
+        // Neither below nor above fits a 50pt-tall visible frame, so the panel is kept on-screen
+        // starting at the bottom edge rather than hanging off it.
+        let tinyFrame = CGRect(x: 0, y: 0, width: 400, height: 50)
+        let caret = CGRect(x: 10, y: 20, width: 2, height: 16)
+        let size = EmojiPickerMetrics.contentSize(matchCount: 3)
+
+        let frame = EmojiPickerPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: tinyFrame)
+
+        XCTAssertEqual(frame.origin.y, tinyFrame.minY)
+        XCTAssertEqual(frame.size, size)
+    }
+
+    func test_frame_respectsANonZeroScreenOrigin() {
+        // A secondary display to the left has negative x; clamping is relative to that frame.
+        let secondary = CGRect(x: -1200, y: 0, width: 1200, height: 800)
+        let caret = CGRect(x: -1250, y: 400, width: 2, height: 16)
+        let size = EmojiPickerMetrics.contentSize(matchCount: 3)
+
+        let frame = EmojiPickerPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: secondary)
+
+        XCTAssertEqual(frame.minX, secondary.minX)
     }
 
     func test_frame_clampsToRightEdge() {

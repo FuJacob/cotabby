@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Tests for the emoji picker value models: match identity under variant overrides, alias
-/// fallbacks, and the skin-tone / gender settings copy and sample glyphs.
+/// Tests for the emoji picker value models: match identity under variant overrides and the
+/// skin-tone / gender modifiers, settings copy, and sample glyphs.
 final class EmojiPickerModelsTests: XCTestCase {
     func test_emojiMatch_defaultsDisplayGlyphToEntryGlyphAndUsesItAsIdentity() {
         let match = EmojiMatch(entry: makeEntry())
@@ -33,6 +33,13 @@ final class EmojiPickerModelsTests: XCTestCase {
         XCTAssertEqual(EmojiSkinTone.dark.displayName, "Dark")
     }
 
+    func test_emojiSkinTone_modifiersAreTheFitzpatrickScalarsInLightToDarkOrder() {
+        XCTAssertEqual(
+            EmojiSkinTone.allCases.map(\.modifier),
+            [nil, "\u{1F3FB}", "\u{1F3FC}", "\u{1F3FD}", "\u{1F3FE}", "\u{1F3FF}"]
+        )
+    }
+
     func test_emojiSkinTone_sampleGlyphAppendsModifierAndNeutralKeepsVariationSelector() throws {
         // Without U+FE0F the neutral victory hand can render as the plain text symbol.
         XCTAssertEqual(EmojiSkinTone.neutral.sampleGlyph, "\u{270C}\u{FE0F}")
@@ -55,11 +62,11 @@ final class EmojiPickerModelsTests: XCTestCase {
         XCTAssertEqual(EmojiGender.female.sampleGlyph, "\u{1F469}")
     }
 
-    private func makeEntry(aliases: [String] = ["wave"]) -> EmojiEntry {
+    private func makeEntry() -> EmojiEntry {
         EmojiEntry(
             glyph: "\u{1F44B}",
             name: "waving hand",
-            aliases: aliases,
+            aliases: ["wave"],
             keywords: ["hello"]
         )
     }

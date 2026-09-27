@@ -4,99 +4,88 @@ import XCTest
 
 /// Tests for `DeepGeometryWalkThrottle`, which collapses the per-keystroke deep caret BFS to at most
 /// one walk per interval while focus stays in one field. The walk itself reaches into the live AX
-/// tree, but the throttle's caching decision is pure once `now` is injected, so it is verified here
-/// without any AX dependency. This is net-new coverage: the throttle had no unit test before it was
-/// extracted from `FocusSnapshotResolver`.
+/// tree, but the throttle's caching decision is pure once `now` is injected.
 @MainActor
 final class DeepGeometryWalkThrottleTests: XCTestCase {
-
-    // Run `async` (without awaiting) to match the other app-hosted tests: a synchronous @MainActor
-    // test blocks the main actor while the host app finishes its own startup.
-
-    func test_result_runsWalkOnFirstCall() async {
-        let throttle = DeepGeometryWalkThrottle()
-        var calls = 0
-
-        let result = throttle.result(focusChangeSequence: 1, interval: 0.1, now: Self.base) {
-            calls += 1
-            return Self.makeResult(10)
-        }
-
-        XCTAssertEqual(calls, 1)
-        XCTAssertEqual(result?.rect.minX, 10)
-    }
-
-    func test_result_reusesCachedResultWithinInterval() async {
-        let throttle = DeepGeometryWalkThrottle()
-        var calls = 0
-        _ = throttle.result(focusChangeSequence: 1, interval: 0.1, now: Self.base) {
-            calls += 1
-            return Self.makeResult(10)
-        }
-
-        // Same field (sequence) 50ms later, inside the 100ms window: cached, walk not re-run.
-        let result = throttle.result(
-            focusChangeSequence: 1,
-            interval: 0.1,
-            now: Self.base.addingTimeInterval(0.05)
-        ) {
-            calls += 1
-            return Self.makeResult(20)
-        }
-
-        XCTAssertEqual(calls, 1)
-        XCTAssertEqual(result?.rect.minX, 10)
-    }
-
-    func test_result_rewalksAfterIntervalElapses() async {
-        let throttle = DeepGeometryWalkThrottle()
-        var calls = 0
-        _ = throttle.result(focusChangeSequence: 1, interval: 0.1, now: Self.base) {
-            calls += 1
-            return Self.makeResult(10)
-        }
-
-        // Same field, 150ms later: the window has elapsed, so the walk re-runs.
-        let result = throttle.result(
-            focusChangeSequence: 1,
-            interval: 0.1,
-            now: Self.base.addingTimeInterval(0.15)
-        ) {
-            calls += 1
-            return Self.makeResult(20)
-        }
-
-        XCTAssertEqual(calls, 2)
-        XCTAssertEqual(result?.rect.minX, 20)
-    }
-
-    func test_result_rewalksImmediatelyOnSequenceChange() async {
-        let throttle = DeepGeometryWalkThrottle()
-        var calls = 0
-        _ = throttle.result(focusChangeSequence: 1, interval: 0.1, now: Self.base) {
-            calls += 1
-            return Self.makeResult(10)
-        }
-
-        // A different sequence is a real field switch: re-walk immediately even inside the window.
-        let result = throttle.result(
-            focusChangeSequence: 2,
-            interval: 0.1,
-            now: Self.base.addingTimeInterval(0.01)
-        ) {
-            calls += 1
-            return Self.makeResult(20)
-        }
-
-        XCTAssertEqual(calls, 2)
-        XCTAssertEqual(result?.rect.minX, 20)
-    }
-
-    // MARK: - helpers
-
     private static let base = Date(timeIntervalSinceReferenceDate: 0)
+    private static let interval: TimeInterval = 0.1
 
-    private static func makeResult(_ originX: CGFloat) -> CaretGeometryResult {
-        CaretGeometryResult(rect: CGRect(x: originX, y: 0, width: 1, height: 1), quality: .exact)
+    /// Owns one throttle plus a count of how many times its walk actually ran.
+    @MainActor
+    private struct Harness {
+        let throttle: DeepGeometryWalkThrottle
+        var walkCount = 0
+
+        /// Asks for a result `offset` seconds after `base`; a walk, if it runs, returns a rect whose
+        /// `minX` is `walkX`, so the caller can tell a fresh walk from a cached one.
+        mutating func result(sequence: UInt64, at offset: TimeInterval, walkX: CGFloat?) -> CGFloat? {
+            var didWalk = false
+            let minX = throttle.result(
+                focusChangeSequence: sequence,
+                interval: DeepGeometryWalkThrottleTests.interval,
+                now: DeepGeometryWalkThrottleTests.base.addingTimeInterval(offset)
+            ) {
+                didWalk = true
+                return walkX.map { CaretGeometryResult(rect: CGRect(x: $0, y: 0, width: 1, height: 1), quality: .exact) }
+            }?.rect.minX
+            if didWalk { walkCount += 1 }
+            return minX
+        }
+    }
+
+    private func makeHarness() -> Harness {
+        Harness(throttle: DeepGeometryWalkThrottle())
+    }
+
+    func test_firstCallWalks() {
+        var h = makeHarness()
+        XCTAssertEqual(h.result(sequence: 1, at: 0, walkX: 10), 10)
+        XCTAssertEqual(h.walkCount, 1)
+    }
+
+    func test_reusesResultWithinIntervalForTheSameField() {
+        var h = makeHarness()
+        _ = h.result(sequence: 1, at: 0, walkX: 10)
+
+        XCTAssertEqual(h.result(sequence: 1, at: 0.05, walkX: 20), 10)
+        XCTAssertEqual(h.walkCount, 1)
+    }
+
+    /// A walk that found nothing is still an answer: re-walking every keystroke for a field with no
+    /// deep caret source is exactly the CPU cost the throttle exists to remove.
+    func test_reusesANilResultWithinInterval() {
+        var h = makeHarness()
+        XCTAssertNil(h.result(sequence: 1, at: 0, walkX: nil))
+
+        XCTAssertNil(h.result(sequence: 1, at: 0.05, walkX: 20))
+        XCTAssertEqual(h.walkCount, 1)
+    }
+
+    func test_rewalksOnceTheIntervalHasFullyElapsed() {
+        var h = makeHarness()
+        _ = h.result(sequence: 1, at: 0, walkX: 10)
+
+        // The window is half-open: exactly one interval later is already stale.
+        XCTAssertEqual(h.result(sequence: 1, at: Self.interval, walkX: 20), 20)
+        XCTAssertEqual(h.walkCount, 2)
+    }
+
+    func test_rewalksImmediatelyOnSequenceChange() {
+        var h = makeHarness()
+        _ = h.result(sequence: 1, at: 0, walkX: 10)
+
+        XCTAssertEqual(h.result(sequence: 2, at: 0.01, walkX: 20), 20)
+        XCTAssertEqual(h.walkCount, 2)
+    }
+
+    /// Only the latest field is remembered, so returning to an earlier field walks again rather than
+    /// serving geometry measured before the other field was focused.
+    func test_returningToAnEarlierFieldRewalks() {
+        var h = makeHarness()
+        _ = h.result(sequence: 1, at: 0, walkX: 10)
+        _ = h.result(sequence: 2, at: 0.01, walkX: 20)
+
+        XCTAssertEqual(h.result(sequence: 1, at: 0.02, walkX: 30), 30)
+        XCTAssertEqual(h.walkCount, 3)
     }
 }

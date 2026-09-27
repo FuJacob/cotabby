@@ -4,7 +4,8 @@ import XCTest
 
 /// Locks the acceptance-preparation guards in `SuggestionInteractionState` that the coordinator
 /// suites cannot reach: each one is the difference between Tab inserting text and Tab leaking
-/// through to the host as a focus-moving keystroke.
+/// through to the host as a focus-moving keystroke. Also covers the field-change and reset rules
+/// the coordinator uses to discard work for a conversation the user already left.
 @MainActor
 final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
     /// Production @MainActor class instances are quarantined against the back-deploy deinit shim.
@@ -318,6 +319,70 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
             return XCTFail("Extending a prediction must preserve pending Tab insertion")
         }
         XCTAssertEqual(kept, extended)
+    }
+
+    // MARK: - Field identity and reset
+
+    func test_hasFocusedElementChanged_isFalseBeforeAnyContextOrSession() {
+        XCTAssertFalse(makeState().hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot()))
+    }
+
+    func test_hasFocusedElementChanged_tracksSessionIdentityNotAXWrapperChurn() {
+        let state = makeState()
+        _ = state.materializeContext(from: CotabbyTestFixtures.focusedInputSnapshot())
+
+        let cases: [(FocusedInputSnapshot, Bool, String)] = [
+            (CotabbyTestFixtures.focusedInputSnapshot(), false, "same field"),
+            (CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "new-wrapper"), false, "wrapper refresh"),
+            (CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), true, "real focus change"),
+            (CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Other chat"), true, "reused composer, new chat")
+        ]
+        for (snapshot, expected, label) in cases {
+            XCTAssertEqual(state.hasFocusedElementChanged(comparedTo: snapshot), expected, label)
+        }
+    }
+
+    /// A session started from a context that never went through the buffer still anchors the
+    /// comparison, so a stale session cannot be kept alive just because no snapshot was buffered.
+    func test_hasFocusedElementChanged_fallsBackToTheSessionBaseContext() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        _ = state.startSession(
+            fullText: " world",
+            liveContext: FocusedInputContext(snapshot: snapshot, generation: 1),
+            latency: 0
+        )
+        XCTAssertNil(state.currentContext)
+
+        XCTAssertFalse(state.hasFocusedElementChanged(comparedTo: snapshot))
+        XCTAssertTrue(state.hasFocusedElementChanged(
+            comparedTo: CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2)
+        ))
+    }
+
+    func test_resetAllDropsSessionContextAndSentinelsAndAdvancesTheGeneration() throws {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let context = state.materializeContext(from: snapshot)
+        let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
+        _ = try XCTUnwrap(state.advanceIfTypedCharactersMatch(" ", expectedSession: session))
+        XCTAssertTrue(state.isAwaitingPostInsertionSync)
+
+        state.resetAll()
+
+        XCTAssertNil(state.activeSession)
+        XCTAssertNil(state.currentContext)
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
+        // Identical text after a reset is still a new generation, so pre-reset results are stale.
+        XCTAssertGreaterThan(state.materializeContext(from: snapshot).generation, context.generation)
+    }
+
+    func test_extendPredictionWithoutAnActiveSessionIsRejected() {
+        let state = makeState()
+        let orphan = CotabbyTestFixtures.activeSession(fullText: " world")
+
+        XCTAssertNil(state.extendPrediction(fullText: " world again", expectedSession: orphan))
+        XCTAssertNil(state.activeSession)
     }
 
     func test_predictionExtensionRejectsRevisionsAndAnOutdatedExpectedSession() throws {

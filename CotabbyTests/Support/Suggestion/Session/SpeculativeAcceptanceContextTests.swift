@@ -34,6 +34,32 @@ final class SpeculativeAcceptanceContextTests: XCTestCase {
         XCTAssertEqual(optimistic.contentSignature, published.contentSignature)
     }
 
+    func testReplacementSwapsTheSuffixAndRecomputesTheCaretInUTF16() throws {
+        let base = CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Say teh ", trailingText: " now", selection: NSRange(location: 40, length: 0)
+        )
+        let optimistic = try XCTUnwrap(SpeculativeAcceptanceContext.optimisticSnapshot(
+            after: base, replacing: TypoCorrectionReplacement(deletingUTF16Count: 4, replacementText: "the 🐈 ")
+        ))
+
+        XCTAssertEqual(optimistic.precedingText, "Say the 🐈 ")
+        // 40 - 4 deleted + 7 inserted units ("the " is 4, the emoji is 2, the space is 1).
+        XCTAssertEqual(optimistic.selection, NSRange(location: 43, length: 0))
+        XCTAssertEqual(optimistic.trailingText, " now")
+        XCTAssertEqual(optimistic.elementIdentifier, base.elementIdentifier)
+    }
+
+    func testReplacementFailsClosedWhenTheDeletionReachesPastTheReportedCaret() {
+        // AX can report a caret location smaller than the captured prefix; a delete longer than that
+        // location cannot describe an edit the insertion boundary can actually make.
+        let base = CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Say teh ", selection: NSRange(location: 3, length: 0)
+        )
+        XCTAssertNil(SpeculativeAcceptanceContext.optimisticSnapshot(
+            after: base, replacing: TypoCorrectionReplacement(deletingUTF16Count: 4, replacementText: "the ")
+        ))
+    }
+
     func testSignatureDiffersWhenHostTransformedTheText() {
         let base = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
         let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(after: base, inserting: " world")

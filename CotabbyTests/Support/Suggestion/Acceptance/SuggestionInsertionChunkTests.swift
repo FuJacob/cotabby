@@ -1,273 +1,150 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Covers the accept-time text shaping in `SuggestionSessionReconciler`: how an acceptance chunk's
+/// leading whitespace is reconciled against the live field, how the opt-in trailing space is added,
+/// and how accepted words are counted for metrics.
 final class SuggestionInsertionChunkTests: XCTestCase {
-    func test_insertionChunk_dropsLeadingSpaceWhenPrecedingTextAlreadyEndsInWhitespace() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are "),
-            "you"
-        )
+    private struct ChunkCase {
+        let chunk: String
+        let preceding: String
+        let expected: String
+        let reason: String
     }
 
-    func test_insertionChunk_keepsLeadingSpaceWhenPrecedingTextHasNoTrailingWhitespace() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are"),
-            " you"
-        )
+    // MARK: - insertionChunk(forAcceptedChunk:precedingText:)
+
+    func test_insertionChunk_dropsLeadingHorizontalWhitespaceWhenFieldAlreadyEndsInIt() {
+        let cases = [
+            ChunkCase(chunk: " you", preceding: "How are ", expected: "you",
+                      reason: "field space plus chunk space must not stack"),
+            ChunkCase(chunk: "  you", preceding: "How are ", expected: "you",
+                      reason: "the reported 'bunch of spaces' case: the whole leading run collapses"),
+            ChunkCase(chunk: " you", preceding: "How are\t", expected: "you",
+                      reason: "a tab is horizontal boundary whitespace"),
+            ChunkCase(chunk: " you", preceding: "How are\u{00A0}", expected: "you",
+                      reason: "Mail publishes a typed space as NBSP, which is still horizontal whitespace"),
+            ChunkCase(chunk: " ", preceding: "Hello ", expected: "",
+                      reason: "a whitespace-only chunk against a field space types nothing"),
+            ChunkCase(chunk: "\nnext", preceding: "first ", expected: "\nnext",
+                      reason: "the drop predicate mirrors the guard, so a structural leading newline survives")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: testCase.chunk, precedingText: testCase.preceding),
+                testCase.expected,
+                testCase.reason
+            )
+        }
     }
 
-    func test_insertionChunk_collapsesAWholeLeadingRunAgainstFieldWhitespace() {
-        // The reported "bunch of spaces" case: a field that already ends in a space plus a chunk
-        // carrying its own leading space(s) must not stack them.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "  you", precedingText: "How are "),
-            "you"
-        )
+    /// Trust-the-model: when the field does not end in horizontal whitespace, the chunk is typed
+    /// verbatim. A genuine new word arrives with the model's own leading space; when the model
+    /// omits it the words glue, which is exactly what the ghost text showed, so accept stays WYSIWYG.
+    func test_insertionChunk_typesChunkVerbatimWhenFieldDoesNotEndInHorizontalWhitespace() {
+        let cases = [
+            ChunkCase(chunk: " you", preceding: "How are", expected: " you",
+                      reason: "the model's leading space is the real word boundary"),
+            ChunkCase(chunk: " are", preceding: "How are you", expected: " are",
+                      reason: "mid-suggestion inter-word space survives"),
+            ChunkCase(chunk: " you", preceding: "", expected: " you",
+                      reason: "an empty field has no whitespace to reconcile against"),
+            ChunkCase(chunk: "World", preceding: "", expected: "World",
+                      reason: "no boundary is synthesized at the start of an empty field"),
+            ChunkCase(chunk: " you", preceding: "line\n", expected: " you",
+                      reason: "a newline is not horizontal whitespace"),
+            ChunkCase(chunk: "World", preceding: "line\n", expected: "World",
+                      reason: "no indent space is synthesized after a line break"),
+            ChunkCase(chunk: "noon", preceding: "after", expected: "noon",
+                      reason: "issue #621: 'after' + 'noon' must glue into 'afternoon'"),
+            ChunkCase(chunk: "World", preceding: "Hello", expected: "World",
+                      reason: "no boundary is synthesized between letters"),
+            ChunkCase(chunk: "abc", preceding: "123", expected: "abc",
+                      reason: "no boundary is synthesized across a digit/letter seam"),
+            ChunkCase(chunk: "1st", preceding: "Hello", expected: "1st",
+                      reason: "no boundary is synthesized across a letter/digit seam"),
+            ChunkCase(chunk: ".", preceding: "Hello", expected: ".",
+                      reason: "sentence punctuation hugs the prior word"),
+            ChunkCase(chunk: "'s", preceding: "John", expected: "'s",
+                      reason: "a possessive hugs the prior word"),
+            ChunkCase(chunk: ", more", preceding: "first", expected: ", more",
+                      reason: "a list continuation hugs the prior word"),
+            ChunkCase(chunk: "World", preceding: "Hello (", expected: "World",
+                      reason: "opening punctuation in the prefix is hugged, not separated")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: testCase.chunk, precedingText: testCase.preceding),
+                testCase.expected,
+                testCase.reason
+            )
+        }
     }
 
-    func test_insertionChunk_leavesChunkUntouchedWhenItHasNoLeadingWhitespace() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "you", precedingText: "How are "),
-            "you"
-        )
+    // MARK: - insertionChunkAppendingTrailingSpace(_:)
+
+    func test_insertionChunkAppendingTrailingSpace_appendsOnlyAfterAFinishedSpaceDelimitedWord() {
+        let cases: [(chunk: String, expected: String, reason: String)] = [
+            ("hello", "hello ", "a finished word gets the convenience space"),
+            ("section 12", "section 12 ", "a trailing digit is a finished word"),
+            ("done.", "done.", "trailing punctuation already marks the boundary"),
+            ("really?!", "really?!", "a trailing punctuation run already marks the boundary"),
+            ("(yes)", "(yes)", "a closing bracket already marks the boundary"),
+            ("hello ", "hello ", "existing whitespace is not doubled"),
+            ("資料", "資料", "space-less scripts never separate words with spaces"),
+            ("", "", "an empty chunk stays empty")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace(testCase.chunk),
+                testCase.expected,
+                testCase.reason
+            )
+        }
     }
 
-    func test_insertionChunk_treatsTabAsBoundaryWhitespaceButNotNewline() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are\t"),
-            "you"
-        )
-        // Newlines are not horizontal whitespace, so a leading space after a line break is kept.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "line\n"),
-            " you"
-        )
+    // MARK: - acceptanceChunkConsumingTrailingSpace(_:remainingText:)
+
+    func test_acceptanceChunkConsumingTrailingSpace_takesOnlyTheModelsOwnHorizontalWhitespace() {
+        let cases: [(chunk: String, remaining: String, expected: String, reason: String)] = [
+            ("world", "world how are you", "world ", "the following space lands with this accept"),
+            (" world", " world how", " world ", "leading whitespace from the chunker is kept"),
+            ("world", "world\t  how", "world\t  ", "the whole horizontal run is consumed"),
+            ("world", "world", "world", "end of suggestion: the exhaustion-time append covers it"),
+            ("line", "line\nnext", "line", "a newline must not be swallowed as a space"),
+            ("world", "world, how", "world", "punctuation stays attached to the model's layout"),
+            ("done.", "done. next", "done.", "a chunk ending in punctuation is not a finished word"),
+            ("資料", "資料 です", "資料", "space-less scripts never take even a stray following space"),
+            ("world", "world\u{00A0}how", "world", "only ASCII space and tab are consumed, not NBSP")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace(
+                    testCase.chunk, remainingText: testCase.remaining
+                ),
+                testCase.expected,
+                testCase.reason
+            )
+        }
     }
 
-    func test_insertionChunk_preservesInterWordSpaceMidSuggestion() {
-        // After "you" was already inserted, the field ends in a word, so the next chunk's space
-        // is the real boundary and must survive.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " are", precedingText: "How are you"),
-            " are"
-        )
-    }
-
-    func test_insertionChunk_returnsChunkUnchangedForEmptyPrecedingText() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: ""),
-            " you"
-        )
-    }
-
-    func test_insertionChunk_continuesPartialWordWhenModelOmitsLeadingSpace() {
-        // Regression for issue #621 ("after" -> "afternoon" committing as "after noon"): the caret
-        // sits at the end of a partial word and the model continues it with no leading space. We type
-        // the continuation verbatim so it glues into one word instead of synthesizing a boundary.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "noon", precedingText: "after"),
-            "noon"
-        )
-    }
-
-    func test_insertionChunk_trustsModelAndDoesNotSynthesizeBoundary() {
-        // Trust-the-model: when the chunk has no leading space and the field ends in a word
-        // character, we no longer insert one. A genuine new word arrives with the model's own leading
-        // space (see `keepsLeadingSpaceWhenPrecedingTextHasNoTrailingWhitespace`); when the model
-        // omits it the words glue, which is exactly what the ghost text showed, so accept stays
-        // WYSIWYG.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "Hello"),
-            "World"
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "world", precedingText: "the"),
-            "world"
-        )
-    }
-
-    func test_insertionChunk_doesNotSynthesizeBoundaryAcrossDigitWordBoundary() {
-        // Same trust-the-model contract across a digit/letter boundary: no synthesized separator, so
-        // the model decides whether "123" continues into "abc" or stands apart.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "abc", precedingText: "123"),
-            "abc"
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "1st", precedingText: "Hello"),
-            "1st"
-        )
-    }
-
-    func test_insertionChunk_doesNotAddBoundarySpaceWhenChunkStartsWithPunctuation() {
-        // Punctuation-leading chunks ("." closes a sentence, "'s" is a possessive, "," is a list
-        // continuation) intentionally attach to the prior word without a separator.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: ".", precedingText: "Hello"),
-            "."
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "'s", precedingText: "John"),
-            "'s"
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: ", more", precedingText: "first"),
-            ", more"
-        )
-    }
-
-    func test_insertionChunk_doesNotAddBoundarySpaceAfterPunctuation() {
-        // Opening punctuation in the prefix means the chunk should hug it, not be separated from it.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "Hello ("),
-            "World"
-        )
-    }
-
-    func test_insertionChunk_doesNotAddBoundarySpaceAfterNewline() {
-        // A line break is a hard boundary on its own; we should not synthesize an indent space here.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "line\n"),
-            "World"
-        )
-    }
-
-    func test_insertionChunk_doesNotAddBoundarySpaceWhenPrecedingTextIsEmpty() {
-        // At the very start of an empty field there is no last word to glue onto.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: ""),
-            "World"
-        )
-    }
-
-    func test_insertionChunk_dropsLeadingHorizontalWhitespaceButNotLeadingNewline() {
-        // The drop predicate must mirror the guard's horizontal-whitespace definition, so a chunk
-        // whose first character is a newline survives even when the field ends in a space — keeping
-        // the structural line break the suggestion was authored with.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "\nnext", precedingText: "first "),
-            "\nnext"
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_appendsAfterFinishedWord() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("hello"),
-            "hello "
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_appendsAfterTrailingDigit() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("section 12"),
-            "section 12 "
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_skipsWhenEndingInPunctuation() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("done."),
-            "done."
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("really?!"),
-            "really?!"
-        )
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("(yes)"),
-            "(yes)"
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_skipsWhenAlreadyEndingInWhitespace() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("hello "),
-            "hello "
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_skipsForSpacelessScript() {
-        // CJK glyphs are letters, but their scripts never separate words with spaces, so a trailing
-        // space would be wrong. The space-less-script guard suppresses it.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("資料"),
-            "資料"
-        )
-    }
-
-    func test_insertionChunkAppendingTrailingSpace_leavesEmptyChunkUntouched() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace(""),
-            ""
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_takesFollowingSpaceAfterWord() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world how are you"),
-            "world "
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_keepsLeadingWhitespaceAndTakesFollowingSpace() {
-        // nextAcceptanceChunk returns leading whitespace with the token, so the extension must keep it
-        // and still consume the space that follows the word.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace(" world", remainingText: " world how"),
-            " world "
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_takesWholeHorizontalRun() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world\t  how"),
-            "world\t  "
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_noFollowingWhitespaceLeavesChunkUntouched() {
-        // End of the suggestion: nothing to consume here — the exhaustion-time append covers it.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world"),
-            "world"
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_doesNotCrossNewline() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("line", remainingText: "line\nnext"),
-            "line"
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_doesNotConsumeBeforePunctuation() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world, how"),
-            "world"
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_skipsWhenChunkEndsInPunctuation() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("done.", remainingText: "done. next"),
-            "done."
-        )
-    }
-
-    func test_acceptanceChunkConsumingTrailingSpace_skipsForSpacelessScript() {
-        // CJK scripts do not separate words with spaces, so even a stray following space is not taken.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("資料", remainingText: "資料 です"),
-            "資料"
-        )
-    }
+    // MARK: - acceptedWordCount(in:)
 
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
-        let count = SuggestionSessionReconciler.acceptedWordCount(
-            in: "hello, !!! world 123 --"
-        )
-
-        XCTAssertEqual(count, 3)
+        let cases: [(text: String, expected: Int)] = [
+            ("hello, !!! world 123 --", 3),
+            ("", 0),
+            ("   \n\t", 0),
+            ("first\nsecond\tthird", 3),
+            ("資料 です", 2),
+            ("don't state-of-the-art", 2)
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.acceptedWordCount(in: testCase.text),
+                testCase.expected,
+                testCase.text.debugDescription
+            )
+        }
     }
 }

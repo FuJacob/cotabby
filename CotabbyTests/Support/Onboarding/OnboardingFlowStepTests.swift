@@ -23,15 +23,10 @@ final class OnboardingFlowStepTests: XCTestCase {
         XCTAssertFalse(WelcomeStep.done < .welcome)
     }
 
-    func test_progressIndices_coverOneThroughTotalExactlyOnce() {
-        let indices = WelcomeStep.allCases.compactMap(\.progressIndex)
-
-        XCTAssertEqual(indices, Array(1...WelcomeStep.totalProgressSteps))
-    }
-
-    func test_terminalSteps_sitOutsideTheCountedFlow() {
-        XCTAssertNil(WelcomeStep.welcome.progressIndex)
-        XCTAssertNil(WelcomeStep.done.progressIndex)
+    func test_progressIndices_countOnlyTheMiddleStepsInOrder() {
+        // Intro and outro sit outside the counted flow; the middle steps number 1...total.
+        XCTAssertEqual(WelcomeStep.allCases.map(\.progressIndex), [nil, 1, 2, 3, 4, nil])
+        XCTAssertEqual(WelcomeStep.allCases.compactMap(\.progressIndex).count, WelcomeStep.totalProgressSteps)
     }
 
     func test_windowWidth_isConstantAcrossEveryStep() {
@@ -41,10 +36,8 @@ final class OnboardingFlowStepTests: XCTestCase {
         }
     }
 
-    func test_windowHeights_areAlwaysPositive() {
-        for step in WelcomeStep.allCases {
-            XCTAssertGreaterThan(step.preferredWindowSize.height, 0)
-        }
+    func test_windowHeights_matchTheProductChosenTargets() {
+        XCTAssertEqual(WelcomeStep.allCases.map(\.preferredWindowSize.height), [640, 600, 720, 620, 580, 740])
     }
 
     func test_resumeFallback_outOfRangeIndicesFailToInitialize() {

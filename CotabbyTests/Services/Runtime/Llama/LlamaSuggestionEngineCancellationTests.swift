@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import XCTest
 @testable import Cotabby
@@ -134,46 +133,7 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
     }
 
     private func makeRequest(prompt: String) -> SuggestionRequest {
-        let snapshot = FocusedInputSnapshot(
-            applicationName: "TestApp",
-            bundleIdentifier: "com.example.TestApp",
-            processIdentifier: 123,
-            elementIdentifier: "field",
-            role: "AXTextField",
-            subrole: nil,
-            caretRect: .zero,
-            inputFrameRect: nil,
-            caretSource: "test",
-            caretQuality: .exact,
-            observedCharWidth: nil,
-            precedingText: prompt,
-            trailingText: "",
-            selection: NSRange(location: prompt.count, length: 0),
-            isSecure: false
-        )
-        let context = FocusedInputContext(snapshot: snapshot, generation: 1)
-
-        return SuggestionRequest(
-            context: context,
-            prefixText: prompt,
-            prompt: prompt,
-            generation: context.generation,
-            maxPredictionTokens: 8,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
-            maxSuffixCharacters: 192,
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: [],
-            languageInstruction: nil,
-            clipboardContext: nil,
-            visualContextSummary: nil,
-            isMultiLineEnabled: false
-        )
+        CotabbyTestFixtures.suggestionRequest(prefixText: prompt, prompt: prompt)
     }
 }
 

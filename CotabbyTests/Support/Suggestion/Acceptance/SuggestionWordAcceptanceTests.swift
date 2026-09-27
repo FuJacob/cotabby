@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Word-granularity Tab acceptance: which slice of the visible tail one accept commits, including
+/// the trailing-punctuation setting and ICU segmentation for space-less scripts.
 final class SuggestionWordAcceptanceTests: XCTestCase {
     func test_nextAcceptanceChunk_includesLeadingWhitespaceAndNextVisibleToken() {
         XCTAssertEqual(
@@ -21,15 +22,28 @@ final class SuggestionWordAcceptanceTests: XCTestCase {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: ""), "")
     }
 
-    func test_nextAcceptanceChunk_defaultsToAcceptingTrailingPunctuation() {
+    func test_nextAcceptanceChunk_keepsTrailingPunctuationByDefaultAndWhenAutoAcceptEnabled() {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?"), "you?")
-    }
-
-    func test_nextAcceptanceChunk_keepsTrailingPunctuationWhenAutoAcceptEnabled() {
         XCTAssertEqual(
             SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?", autoAcceptTrailingPunctuation: true),
             "you?"
         )
+    }
+
+    /// Leading whitespace is scanned with `Character.isWhitespace`, so newlines ride with the next
+    /// token (phrase mode cuts them separately), and a whitespace-only tail is accepted whole rather
+    /// than returning an empty chunk that would stall the acceptance loop.
+    func test_nextAcceptanceChunk_leadingNewlinesAndWhitespaceOnlyTails() {
+        for flag in [true, false] {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.nextAcceptanceChunk(from: "\n\nbody text", autoAcceptTrailingPunctuation: flag),
+                "\n\nbody"
+            )
+            XCTAssertEqual(
+                SuggestionSessionReconciler.nextAcceptanceChunk(from: "  \t", autoAcceptTrailingPunctuation: flag),
+                "  \t"
+            )
+        }
     }
 
     func test_nextAcceptanceChunk_splitsTrailingPunctuationWhenAutoAcceptDisabled() {
@@ -106,30 +120,15 @@ final class SuggestionWordAcceptanceTests: XCTestCase {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "world 你好"), "world")
     }
 
-    func test_nextAcceptanceChunk_segmentsChineseBelowWholeLength() {
+    func test_nextAcceptanceChunk_segmentsSpacelessRunsBelowWholeLength() {
         // ICU word segmentation may be per-character or dictionary-based depending on the OS, so this
         // asserts the robust property (accept one segment, not the whole run) rather than a pinned word.
-        let run = "你好世界"
-        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
-        XCTAssertFalse(chunk.isEmpty)
-        XCTAssertTrue(run.hasPrefix(chunk))
-        XCTAssertLessThan(chunk.count, run.count, "a space-less Chinese run must segment, not accept the whole run")
-    }
-
-    func test_nextAcceptanceChunk_segmentsJapaneseRunBelowWholeLength() {
-        let run = "今日はいい天気です"
-        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
-        XCTAssertFalse(chunk.isEmpty)
-        XCTAssertTrue(run.hasPrefix(chunk))
-        XCTAssertLessThan(chunk.count, run.count, "a space-less Japanese run must segment, not accept whole")
-    }
-
-    func test_nextAcceptanceChunk_segmentsThaiRunBelowWholeLength() {
-        let run = "สวัสดีครับ"
-        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
-        XCTAssertFalse(chunk.isEmpty)
-        XCTAssertTrue(run.hasPrefix(chunk))
-        XCTAssertLessThan(chunk.count, run.count, "a space-less Thai run must segment, not accept whole")
+        for run in ["你好世界", "今日はいい天気です", "สวัสดีครับ"] {
+            let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
+            XCTAssertFalse(chunk.isEmpty, run)
+            XCTAssertTrue(run.hasPrefix(chunk), run)
+            XCTAssertLessThan(chunk.count, run.count, "a space-less run must segment, not accept whole: \(run)")
+        }
     }
 
     func test_nextAcceptanceChunk_chineseAcceptanceStaysWithinRunBeforeSpace() {
@@ -147,6 +146,4 @@ final class SuggestionWordAcceptanceTests: XCTestCase {
         XCTAssertTrue("你好世界".hasPrefix(afterSpace))
         XCTAssertLessThan(afterSpace.count, 4, "only the first segment is accepted, not the whole run")
     }
-
-    // MARK: - Phrase chunker
 }

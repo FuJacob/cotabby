@@ -37,4 +37,25 @@ final class InsertionStrategySelectorTests: XCTestCase {
         let nearly = String(repeating: "a", count: InsertionStrategySelector.pasteCharacterThreshold - 1)
         XCTAssertEqual(InsertionStrategySelector.strategy(forChunk: nearly, pasteEnabled: true), .keystroke)
     }
+
+    func test_pasteEnabled_thresholdCountsUserCharactersNotUTF16Units() {
+        // Each emoji is two UTF-16 units, so 79 of them is 158 units. The threshold is about how
+        // much text the user sees, so this stays on the keystroke path.
+        let threshold = InsertionStrategySelector.pasteCharacterThreshold
+        let nearly = String(repeating: "🐈", count: threshold - 1)
+        XCTAssertEqual(InsertionStrategySelector.strategy(forChunk: nearly, pasteEnabled: true), .keystroke)
+        let atThreshold = String(repeating: "🐈", count: threshold)
+        XCTAssertEqual(InsertionStrategySelector.strategy(forChunk: atThreshold, pasteEnabled: true), .paste)
+    }
+
+    func test_pasteEnabled_anyNewlineCharacterCountsAsMultiLine() {
+        // `Character.isNewline` covers carriage returns and CRLF clusters, not just "\n".
+        for chunk in ["a\rb", "a\r\nb", "a\u{2028}b"] {
+            XCTAssertEqual(
+                InsertionStrategySelector.strategy(forChunk: chunk, pasteEnabled: true),
+                .paste,
+                chunk.debugDescription
+            )
+        }
+    }
 }

@@ -3,18 +3,6 @@ import XCTest
 
 /// Replays navigation with identical composer geometry, without depending on a live browser.
 final class FocusedInputPollingSignatureTests: XCTestCase {
-    func test_navigationFactsDistinguishReusedComposer() {
-        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
-        let navigations = [
-            CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/conversation/two"),
-            CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Another conversation"),
-            CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message #another-channel")
-        ]
-        for snapshot in navigations {
-            XCTAssertNotEqual(original, FocusedInputPollingSignature(context: snapshot))
-        }
-    }
-
     func test_sameHostDifferentConversationAndFragmentAreNavigation() {
         let first = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             focusedURLString: "https://chat.example/conversation/one#thread-a"
@@ -56,17 +44,41 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         }
     }
 
-    func test_navigationFactsBreakContinuityEvenWithIdenticalGeometry() {
+    /// Every identity fact must match for continuity, even when the composer geometry is reused
+    /// verbatim (a chat app swapping conversations inside one window is the motivating case).
+    func test_identityFactsDistinguishReusedComposerAndBreakContinuity() {
         let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
-        let navigations = [
-            CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/conversation/two"),
-            CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Another conversation"),
-            CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message #another-channel"),
-            CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456)
+        let changes: [(label: String, snapshot: FocusedInputSnapshot)] = [
+            ("url", CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/conversation/two")),
+            ("window title", CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Another conversation")),
+            ("placeholder", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message #another-channel")),
+            ("pid", CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456)),
+            ("bundle", CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "com.example.Other")),
+            ("role", CotabbyTestFixtures.focusedInputSnapshot(role: "AXTextArea")),
+            ("subrole", CotabbyTestFixtures.focusedInputSnapshot(subrole: "AXSearchField"))
         ]
-        for snapshot in navigations {
-            XCTAssertFalse(FocusedInputPollingSignature(context: snapshot).continuesField(of: original))
+        for (label, snapshot) in changes {
+            let changed = FocusedInputPollingSignature(context: snapshot)
+            XCTAssertNotEqual(original, changed, label)
+            XCTAssertFalse(changed.continuesField(of: original), label)
         }
+    }
+
+    func test_subPointFrameJitterRoundsToTheSameSignature() {
+        // AX frames arrive as floating-point points; rounding keeps half-point jitter from reading as
+        // a different field.
+        let original = signature(frame: CGRect(x: 100, y: 500, width: 400, height: 32))
+        let jittered = signature(frame: CGRect(x: 100.3, y: 499.8, width: 400.2, height: 31.9))
+        XCTAssertEqual(original, jittered)
+        XCTAssertTrue(jittered.continuesField(of: original))
+    }
+
+    func test_geometryAndGeometrylessSnapshotsNeverContinueEachOther() {
+        // Losing (or gaining) the frame switches the anchor kind; the two kinds are never comparable.
+        let withFrame = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let withoutFrame = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(inputFrameRect: nil))
+        XCTAssertFalse(withoutFrame.continuesField(of: withFrame))
+        XCTAssertFalse(withFrame.continuesField(of: withoutFrame))
     }
 
     func test_fieldsWithoutGeometryContinueOnlyWithTheSameElement() {

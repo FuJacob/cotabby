@@ -40,12 +40,13 @@ final class CotabbyDebugOptionsTests: XCTestCase {
         XCTAssertEqual(CotabbyDebugOptions.launchArgument, "-cotabby-debug")
     }
 
-    func test_isEnabled_mirrorsProcessLaunchArguments() {
-        XCTAssertEqual(
-            CotabbyDebugOptions.isEnabled,
-            ProcessInfo.processInfo.arguments.contains(CotabbyDebugOptions.launchArgument),
-            "The debug gate must key off the launch argument and nothing else"
-        )
+    func test_areOverlaysAvailable_isCompiledInOnlyForDebugBuilds() {
+        // The test bundle is compiled in the same configuration as its host app.
+        #if DEBUG
+        XCTAssertTrue(CotabbyDebugOptions.areOverlaysAvailable)
+        #else
+        XCTAssertFalse(CotabbyDebugOptions.areOverlaysAvailable)
+        #endif
     }
 
     func test_log_staysQuietWhenDebugModeIsOff() throws {
@@ -58,29 +59,41 @@ final class CotabbyDebugOptionsTests: XCTestCase {
 
     // MARK: - Verbosity floor precedence
 
-    func test_minimumLogLevel_honorsExplicitEnvironmentOverride() {
-        withEnvironmentValue(Self.levelKey, "warning") {
-            XCTAssertEqual(CotabbyDebugOptions.minimumLogLevel.rawValue, "warning")
-        }
-        withEnvironmentValue(Self.levelKey, "error") {
-            XCTAssertEqual(CotabbyDebugOptions.minimumLogLevel.rawValue, "error")
+    func test_minimumLogLevel_honorsEveryRecognizedOverrideCaseInsensitively() {
+        let cases: [(raw: String, expected: String)] = [
+            ("trace", "trace"),
+            ("debug", "debug"),
+            ("info", "info"),
+            ("notice", "notice"),
+            ("warning", "warning"),
+            ("error", "error"),
+            ("critical", "critical"),
+            ("WARNING", "warning"),
+            ("Debug", "debug")
+        ]
+        for testCase in cases {
+            withEnvironmentValue(Self.levelKey, testCase.raw) {
+                XCTAssertEqual(
+                    CotabbyDebugOptions.minimumLogLevel.rawValue,
+                    testCase.expected,
+                    "COTABBY_LOG_LEVEL=\(testCase.raw)"
+                )
+            }
         }
     }
 
     func test_minimumLogLevel_ignoresUnrecognizedOverride() {
-        withEnvironmentValue(Self.levelKey, "chatty") {
-            let expected = CotabbyDebugOptions.isEnabled ? "trace" : "info"
-            XCTAssertEqual(
-                CotabbyDebugOptions.minimumLogLevel.rawValue,
-                expected,
-                "A bogus override must fall back to the launch-argument default, not crash or stick"
-            )
-        }
-    }
-
-    func test_minimumLogLevel_normalizesOverrideCasing() {
-        withEnvironmentValue(Self.levelKey, "WARNING") {
-            XCTAssertEqual(CotabbyDebugOptions.minimumLogLevel.rawValue, "warning")
+        // A bogus override must fall back to the launch-argument default, not crash or stick.
+        // Whitespace is not trimmed, so a padded value is also unrecognized.
+        let fallback = CotabbyDebugOptions.isEnabled ? "trace" : "info"
+        for raw in ["chatty", "", " warning", "warn"] {
+            withEnvironmentValue(Self.levelKey, raw) {
+                XCTAssertEqual(
+                    CotabbyDebugOptions.minimumLogLevel.rawValue,
+                    fallback,
+                    "COTABBY_LOG_LEVEL=\"\(raw)\""
+                )
+            }
         }
     }
 

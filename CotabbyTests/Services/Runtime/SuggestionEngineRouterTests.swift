@@ -20,6 +20,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let llama: ScriptedEngine
         let endpoint: ScriptedEngine
         let metrics: PerformanceMetricsStore
+        let quality: SuggestionQualityMetricsStore
     }
 
     @MainActor
@@ -49,14 +50,28 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         }
     }
 
+    private var suiteNames: [String] = []
+
+    override func tearDown() {
+        for suiteName in suiteNames {
+            UserDefaults.standard.removePersistentDomain(forName: suiteName)
+        }
+        suiteNames.removeAll()
+        super.tearDown()
+    }
+
+    private func makeDefaults() -> UserDefaults {
+        let suiteName = "cotabby.test.router.\(UUID().uuidString)"
+        suiteNames.append(suiteName)
+        return UserDefaults(suiteName: suiteName)!
+    }
+
     private func makeRig(
         engine: SuggestionEngineKind,
         performanceTracking: Bool = true,
         llamaModelName: String? = "test-model.gguf"
     ) -> Rig {
-        let suiteName = "cotabby.test.router.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults()
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
         settings.selectEngine(engine)
         settings.setPerformanceTrackingEnabled(performanceTracking)
@@ -64,24 +79,26 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let foundation = ScriptedEngine()
         let llama = ScriptedEngine()
         let endpoint = ScriptedEngine()
+        let quality = SuggestionQualityMetricsStore(userDefaults: defaults)
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: foundation,
             llamaEngine: llama,
             performanceMetricsStore: metrics,
-            qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
+            qualityMetricsStore: quality,
             llamaModelNameProvider: { llamaModelName },
             openAICompatibleEngine: endpoint,
             endpointModelNameProvider: { "endpoint-model" }
         )
-        Self.retained.append(contentsOf: [router, settings, metrics] as [AnyObject])
+        Self.retained.append(contentsOf: [router, settings, metrics, quality] as [AnyObject])
         return Rig(
             router: router,
             settings: settings,
             foundation: foundation,
             llama: llama,
             endpoint: endpoint,
-            metrics: metrics
+            metrics: metrics,
+            quality: quality
         )
     }
 
@@ -148,22 +165,107 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
     }
 
     func test_unsupportedLocale_fallbackFailureComposesBothMessages() async {
-        struct LlamaDown: Error {}
         let rig = makeRig(engine: .appleIntelligence)
         rig.foundation.script = { _ in
             throw SuggestionClientError.unsupportedLanguageOrLocale("Locale not supported.")
         }
-        rig.llama.script = { _ in throw LlamaDown() }
+        rig.llama.script = { _ in throw SuggestionClientError.unavailable("No model installed.") }
 
         do {
             _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
             XCTFail("Expected the composed unavailable error")
         } catch let SuggestionClientError.unavailable(message) {
-            XCTAssertTrue(message.contains("Locale not supported."))
-            XCTAssertTrue(message.contains("fallback also failed"))
+            XCTAssertEqual(message, "Locale not supported. Open Source fallback also failed: No model installed.")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+        XCTAssertEqual(rig.quality.counters.generated, 0, "A failed fallback produced no generation")
+    }
+
+    /// Only the locale rejection is a fallback trigger. Any other Apple failure (model still
+    /// downloading, guardrails, cancellation) must surface unchanged without waking the llama path.
+    func test_nonLocaleAppleFailures_propagateWithoutFallback() async {
+        let rig = makeRig(engine: .appleIntelligence)
+        let failures: [SuggestionClientError] = [
+            .unavailable("Model still downloading."),
+            .generationFailed("Guardrail."),
+            .cancelled
+        ]
+
+        for failure in failures {
+            rig.foundation.script = { _ in throw failure }
+            do {
+                _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+                XCTFail("Expected \(failure) to propagate")
+            } catch let error as SuggestionClientError {
+                XCTAssertEqual(error.localizedDescription, failure.localizedDescription)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+
+        XCTAssertTrue(rig.llama.requests.isEmpty)
+        XCTAssertTrue(rig.metrics.entries.isEmpty)
+    }
+
+    func test_qualityCounters_recordEveryFinishedGenerationEvenWithPerformanceTrackingOff() async throws {
+        let rig = makeRig(engine: .llamaOpenSource, performanceTracking: false)
+        rig.llama.script = { request in
+            SuggestionResult(
+                generation: request.generation,
+                rawText: " Hello",
+                text: "",
+                latency: 0.01,
+                suppressionReason: "echo"
+            )
+        }
+
+        _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+        rig.llama.script = { request in
+            SuggestionResult(generation: request.generation, rawText: " ok", text: " ok", latency: 0.01)
+        }
+        _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+
+        XCTAssertEqual(rig.quality.counters.generated, 2)
+        XCTAssertEqual(rig.quality.counters.suppressedByReason, ["echo": 1])
+        XCTAssertTrue(rig.metrics.entries.isEmpty)
+    }
+
+    func test_missingEndpointEngineAndModelName_useUnavailableEngineAndGenericLabel() async throws {
+        let rig = makeRig(engine: .openAICompatible)
+        let defaults = makeDefaults()
+        let metrics = PerformanceMetricsStore(userDefaults: defaults)
+        let bareRouter = SuggestionEngineRouter(
+            suggestionSettings: rig.settings,
+            foundationModelEngine: rig.foundation,
+            llamaEngine: rig.llama,
+            performanceMetricsStore: metrics,
+            qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
+            llamaModelNameProvider: { nil }
+        )
+        Self.retained.append(contentsOf: [bareRouter, metrics] as [AnyObject])
+
+        do {
+            _ = try await bareRouter.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+            XCTFail("Expected the placeholder endpoint engine to be unavailable")
+        } catch let SuggestionClientError.unavailable(message) {
+            XCTAssertEqual(message, "Configure a local OpenAI-compatible endpoint in Settings.")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let labelRouter = SuggestionEngineRouter(
+            suggestionSettings: rig.settings,
+            foundationModelEngine: rig.foundation,
+            llamaEngine: rig.llama,
+            performanceMetricsStore: metrics,
+            qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
+            llamaModelNameProvider: { nil },
+            openAICompatibleEngine: rig.endpoint
+        )
+        Self.retained.append(labelRouter)
+        _ = try await labelRouter.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+        XCTAssertEqual(metrics.entries.first?.modelName, "Local Endpoint")
     }
 
     func test_unsupportedLocale_fallbackCancellationStaysCancellation() async {
@@ -208,20 +310,5 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(rig.foundation.resetCount, 1)
         XCTAssertEqual(rig.llama.resetCount, 1, "Switching engines must not leave stale state behind")
         XCTAssertEqual(rig.endpoint.resetCount, 1)
-    }
-
-    func test_unavailableEngine_throwsItsConfiguredMessage() async {
-        let engine = UnavailableSuggestionEngine(message: "Needs macOS 26.")
-        Self.retained.append(engine)
-
-        do {
-            _ = try await engine.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
-            XCTFail("Expected unavailable error")
-        } catch let SuggestionClientError.unavailable(message) {
-            XCTAssertEqual(message, "Needs macOS 26.")
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
-        await engine.resetCachedGenerationContext()
     }
 }

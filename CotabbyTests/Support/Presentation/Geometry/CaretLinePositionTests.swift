@@ -24,6 +24,14 @@ final class CaretLinePositionTests: XCTestCase {
         XCTAssertTrue(CaretLinePosition.isAtEndOfLine(trailingText: "   "))
     }
 
+    func test_everyUnicodeLineBreakCountsAsEndOfLine() {
+        // `Character.isNewline` covers CRLF (one grapheme), bare CR, and the Unicode line/paragraph
+        // separators, so hosts that publish Windows or rich-text line breaks classify the same way.
+        for trailing in [" \r\nmore", "\rmore", "\u{2028}more", "\u{2029}more"] {
+            XCTAssertTrue(CaretLinePosition.isAtEndOfLine(trailingText: trailing), trailing.debugDescription)
+        }
+    }
+
     func test_sameLineTextIsNotEndOfLine() {
         XCTAssertFalse(CaretLinePosition.isAtEndOfLine(trailingText: " world"))
     }

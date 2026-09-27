@@ -44,39 +44,30 @@ final class StreamedGhostTextPolicyTests: XCTestCase {
         StreamedGhostTextPolicy.completedBufferedPrediction(text, visibleCharacterCount: "world".count)
     }
 
-    func test_firstNonEmptyPartialRenders() {
-        XCTAssertTrue(StreamedGhostTextPolicy.isRenderableExtension(candidate: " wor", currentlyRendered: nil))
-        XCTAssertTrue(StreamedGhostTextPolicy.isRenderableExtension(candidate: " wor", currentlyRendered: ""))
-    }
-
-    func test_emptyCandidateNeverRenders() {
-        XCTAssertFalse(StreamedGhostTextPolicy.isRenderableExtension(candidate: "", currentlyRendered: nil))
-        XCTAssertFalse(StreamedGhostTextPolicy.isRenderableExtension(candidate: "", currentlyRendered: " wor"))
-    }
-
-    func test_strictExtensionRenders() {
-        XCTAssertTrue(
-            StreamedGhostTextPolicy.isRenderableExtension(candidate: " world", currentlyRendered: " wor")
-        )
-    }
-
-    func test_staleShorterPartialIsDropped() {
-        XCTAssertFalse(
-            StreamedGhostTextPolicy.isRenderableExtension(candidate: " wor", currentlyRendered: " world")
-        )
-    }
-
-    func test_equalTextIsDroppedAsRedundant() {
-        XCTAssertFalse(
-            StreamedGhostTextPolicy.isRenderableExtension(candidate: " world", currentlyRendered: " world")
-        )
-    }
-
-    func test_divergentRewriteIsDropped() {
-        // A normalizer can legally rewrite a fragment rather than extend it; the render must wait
-        // for the authoritative final result instead of flickering through rewrites.
-        XCTAssertFalse(
-            StreamedGhostTextPolicy.isRenderableExtension(candidate: " worse idea", currentlyRendered: " world")
-        )
+    func test_renderableExtensionRequiresAStrictlyLongerPrefixExtension() {
+        let cases: [(candidate: String, rendered: String?, expected: Bool, reason: String)] = [
+            (" wor", nil, true, "the first non-empty partial renders"),
+            (" wor", "", true, "an empty rendered string behaves like nothing rendered"),
+            ("", nil, false, "an empty candidate never renders"),
+            ("", " wor", false, "an empty candidate never replaces visible text"),
+            (" world", " wor", true, "a strict extension renders"),
+            (" wor", " world", false, "an older, shorter partial arriving late is dropped"),
+            (" world", " world", false, "equal text is redundant"),
+            // A normalizer can legally rewrite a fragment rather than extend it; the render must wait
+            // for the authoritative final result instead of flickering through rewrites.
+            (" worse idea", " world", false, "a divergent rewrite is dropped"),
+            // Length is measured in user characters: a combining accent merges into the last visible
+            // character, so it does not lengthen the ghost and cannot count as an extension.
+            (" cafe\u{301}", " cafe", false, "a combining mark does not add a character")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                StreamedGhostTextPolicy.isRenderableExtension(
+                    candidate: testCase.candidate, currentlyRendered: testCase.rendered
+                ),
+                testCase.expected,
+                testCase.reason
+            )
+        }
     }
 }

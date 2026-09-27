@@ -3,9 +3,26 @@ import XCTest
 
 /// Tests for the curated intent/slang overlay that boosts canonical aliases for words people type.
 final class EmojiSynonymCatalogTests: XCTestCase {
-    func test_exactKeyBoostsMappedAliases() {
+    func test_exactKeyBoostsExactlyItsMappedAliases() {
         let boosted = EmojiSynonymCatalog.boostedAliases(for: "lol")
-        XCTAssertTrue(boosted.exact.contains("joy"))
+        XCTAssertEqual(boosted.exact, ["joy", "rofl"])
+        // "lol" is not a proper prefix of any other key.
+        XCTAssertTrue(boosted.prefix.isEmpty)
+    }
+
+    func test_queryIsTrimmedAndCaseFolded() {
+        XCTAssertEqual(EmojiSynonymCatalog.boostedAliases(for: "  LOL ").exact, ["joy", "rofl"])
+    }
+
+    func test_mapKeysAndValuesAreLowercase() {
+        // The query is lowercased before lookup and aliases are compared lowercased, so any
+        // mixed-case entry here would be unreachable.
+        for (key, aliases) in EmojiSynonymCatalog.map {
+            XCTAssertEqual(key, key.lowercased(), key)
+            for alias in aliases {
+                XCTAssertEqual(alias, alias.lowercased(), "\(key) -> \(alias)")
+            }
+        }
     }
 
     func test_prefixKeyBoostsViaPrefix() {

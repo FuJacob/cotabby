@@ -74,6 +74,41 @@ final class ShortcutResolverTests: XCTestCase {
         XCTAssertEqual(resolved, globalFullAccept)
     }
 
+    func test_emptyBundleIdentifierNeverMatchesAnOverride() {
+        // An empty identifier (no resolvable frontmost app) must not match an override that was
+        // somehow stored with an empty identifier.
+        let override = PerAppShortcutOverride(
+            bundleIdentifier: "",
+            displayName: "Unknown",
+            acceptance: binding(49, [], "Space"),
+            fullAcceptance: binding(36, [], "Return")
+        )
+
+        XCTAssertEqual(resolveAccept(bundleIdentifier: "", overrides: [override]), globalAccept)
+        XCTAssertEqual(resolveFullAccept(bundleIdentifier: "", overrides: [override]), globalFullAccept)
+    }
+
+    func test_firstMatchingOverrideWinsEvenWhenItLacksTheRequestedBinding() {
+        // Lookup stops at the first entry for the bundle; a later duplicate is never consulted,
+        // so the first entry's missing word-accept binding falls through to the global binding.
+        let first = makeOverride(fullAcceptance: binding(36, [.command], "⌘Return"))
+        let duplicate = makeOverride(
+            acceptance: binding(49, [.shift], "⇧Space"),
+            fullAcceptance: binding(50, [.option], "⌥`")
+        )
+
+        XCTAssertEqual(resolveAccept(overrides: [first, duplicate]), globalAccept)
+        XCTAssertEqual(
+            resolveFullAccept(overrides: [first, duplicate]),
+            .init(keyCode: 36, modifiers: [.command], label: "⌘Return")
+        )
+    }
+
+    func test_overrideWithNoBindingsUsesGlobalForBothActions() {
+        XCTAssertEqual(resolveAccept(overrides: [makeOverride()]), globalAccept)
+        XCTAssertEqual(resolveFullAccept(overrides: [makeOverride()]), globalFullAccept)
+    }
+
     private var globalAccept: ShortcutResolver.ResolvedBinding {
         .init(keyCode: 48, modifiers: [], label: "Tab")
     }

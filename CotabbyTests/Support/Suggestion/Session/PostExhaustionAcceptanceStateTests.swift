@@ -54,4 +54,39 @@ final class PostExhaustionAcceptanceStateTests: XCTestCase {
         XCTAssertFalse(emptyState.consumeQueuedAccept())
         XCTAssertFalse(emptyState.needsRelease)
     }
+
+    func test_consumeInvalidatesTheCapturedBackstopAndClosesTheWindowForLaterPresses() {
+        var state = PostExhaustionAcceptanceState()
+        let generation = state.arm()
+        state.queueAcceptIfArmed()
+
+        XCTAssertTrue(state.consumeQueuedAccept())
+
+        // The timeout scheduled by `arm()` is now stale, so it cannot release Tab ownership twice.
+        XCTAssertFalse(state.ownsBackstop(generation: generation))
+        // A press after the regenerated accept belongs to the host, not to a closed window.
+        XCTAssertFalse(state.queueAcceptIfArmed())
+        // And consuming again cannot replay the single queued accept.
+        XCTAssertFalse(state.consumeQueuedAccept())
+    }
+
+    func test_consumeWithoutAnArmedWindowNeverOwesAnAccept() {
+        var state = PostExhaustionAcceptanceState()
+        XCTAssertFalse(state.queueAcceptIfArmed())
+        XCTAssertFalse(state.needsRelease)
+        XCTAssertFalse(state.consumeQueuedAccept())
+    }
+
+    func test_generationsAreUniqueAcrossArmAndClearCycles() {
+        // Every arm and every clear bumps the identity, so a timeout captured in any earlier cycle
+        // can never be mistaken for the current one.
+        var state = PostExhaustionAcceptanceState()
+        var seen: Set<UInt64> = [state.backstopGeneration]
+        for _ in 0..<3 {
+            XCTAssertTrue(seen.insert(state.arm()).inserted)
+            state.clear()
+            XCTAssertTrue(seen.insert(state.backstopGeneration).inserted)
+        }
+        XCTAssertEqual(seen.count, 7)
+    }
 }

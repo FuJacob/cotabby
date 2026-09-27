@@ -286,7 +286,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             }
             XCTAssertEqual(session.remainingText, " again")
             XCTAssertEqual(state.activeSession?.remainingText, " again")
-            XCTAssertNotNil(advancement)
+            XCTAssertEqual(advancement?.stage, "session-reconciled")
         }
     }
 
@@ -551,7 +551,7 @@ final class SuggestionCaretPredictionTests: XCTestCase {
         }
     }
 
-    func test_predictedCaretRectStillMovesForwardForEstimatedGeometry() {
+    func test_predictedCaretRectAppliesTheBiasedConservativeShiftForEstimatedGeometry() {
         runOnMainActor {
             let oldRect = CGRect(x: 10, y: 20, width: 2, height: 18)
 
@@ -562,8 +562,39 @@ final class SuggestionCaretPredictionTests: XCTestCase {
                 observedCharWidth: 7
             )
 
-            XCTAssertGreaterThan(predicted.origin.x, oldRect.origin.x)
+            // Coarse AXFrame geometry scales the measured 28pt by 0.91 and the 1.5 upward bias
+            // (38.22pt), which sits between the 21pt floor and the 78pt per-character cap.
+            XCTAssertEqual(predicted.origin.x, 48.22, accuracy: 0.001)
             XCTAssertEqual(predicted.origin.y, oldRect.origin.y)
+            XCTAssertEqual(predicted.size, oldRect.size)
+        }
+    }
+
+    func test_predictedCaretRectFloorsTinyEstimatedShifts() {
+        runOnMainActor {
+            let predicted = SuggestionCoordinator.predictedCaretRect(
+                after: "a",
+                oldCaretRect: CGRect(x: 10, y: 20, width: 2, height: 18),
+                caretQuality: .estimated,
+                observedCharWidth: 2
+            )
+
+            // 2pt * 0.91 * 1.5 is below the 14pt * 1.5 floor, so the floor wins.
+            XCTAssertEqual(predicted.origin.x, 31, accuracy: 0.001)
+        }
+    }
+
+    func test_predictedCaretRectShiftsLeftForRightToLeftText() {
+        runOnMainActor {
+            let predicted = SuggestionCoordinator.predictedCaretRect(
+                after: "abcd",
+                oldCaretRect: CGRect(x: 100, y: 20, width: 2, height: 18),
+                caretQuality: .exact,
+                observedCharWidth: 7,
+                isRightToLeft: true
+            )
+
+            XCTAssertEqual(predicted.origin.x, 72)
         }
     }
 }
@@ -576,7 +607,6 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
     private(set) var showCallCount = 0
     private(set) var lastShownText: String?
     private(set) var lastShownCaretRect: CGRect?
-    private(set) var lastShownGeometry: SuggestionOverlayGeometry?
     private(set) var hideReasons: [String] = []
 
     init(initialState: OverlayState = .hidden(reason: "Overlay idle.")) {
@@ -590,10 +620,8 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
         showCallCount += 1
         lastShownText = text
         lastShownCaretRect = geometry.caretRect
-        lastShownGeometry = geometry
-        // The fake does not run the production policy; it just records the call. Defaulting to
-        // inline keeps existing tests unchanged. Mirror-aware tests inject explicit state via
-        // `initialState:`.
+        // The fake does not run the production render policy; it records the call and reports an
+        // inline panel. Tests that need a specific prior state inject it via `initialState:`.
         state = .visible(text: text, geometry: geometry, mode: .inline)
         onStateChange?(state)
     }

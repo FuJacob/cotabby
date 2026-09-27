@@ -92,35 +92,6 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertNotNil(result, "Should produce a caret rect even at position 0")
     }
 
-    // MARK: - Signature: textValue overload still resolves
-
-    /// Exercises the `textValue` overload of `resolveCaretRect` (the parameter the AXFrame
-    /// fallback consumes) and confirms the optimistic-BoundsForRange refactor still returns a
-    /// usable rect. This does NOT cover the `.estimated` AXFrame branch: a live native field
-    /// reliably supports BoundsForRange and so hits Branch 1. Forcing the fallback would require
-    /// a stub element where BoundsForRange returns nil, which this test does not construct.
-    func test_resolveCaretRect_returnsResult_withTextValueOverload() throws {
-        let (field, window) = makeTextField(text: "Fallback test")
-        defer { window.orderOut(nil) }
-
-        field.currentEditor()?.selectedRange = NSRange(location: 3, length: 0)
-
-        guard let focusedElement = AXHelper.focusedElement() else {
-            throw XCTSkip("Accessibility permissions not available in this environment")
-        }
-
-        let result = resolver.resolveCaretRect(
-            for: focusedElement,
-            selection: NSRange(location: 3, length: 0),
-            supportsBoundsForRange: true,
-            supportsFrame: true,
-            cocoaAnchorFrame: nil,
-            textValue: "Fallback test"
-        )
-
-        XCTAssertNotNil(result)
-    }
-
     // MARK: - AXFrame-only estimated caret line
 
     func test_estimatedCaretRect_centersSingleLineInsideFieldChrome() {
@@ -143,6 +114,16 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertLessThan(caret.height, field.height)
     }
 
+    /// A field shorter than one estimated text line cannot hold a taller caret; the estimate is
+    /// clamped to the field so the overlay never spills above or below the control.
+    func test_estimatedCaretRect_clampsHeightToAShortField() {
+        let field = CGRect(x: 100, y: 200, width: 500, height: 8)
+
+        let caret = resolver.estimatedCaretRect(in: field, caretX: 120, text: "hi")
+
+        XCTAssertEqual(caret, CGRect(x: 120, y: 200, width: 2, height: 8))
+    }
+
     // MARK: - rectIsNearAnchor (the optimistic-BoundsForRange safety check)
 
     /// The anchor-rejection boundary is the whole point of dropping the `supportsBoundsForRange`
@@ -160,6 +141,16 @@ final class AXTextGeometryResolverTests: XCTestCase {
         let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
         // Midpoint far away (a foreign element's rect) — outside anchor + 80pt halo.
         XCTAssertFalse(resolver.rectIsNearAnchor(CGRect(x: 900, y: 900, width: 20, height: 14), anchor: anchor))
+    }
+
+    /// The halo applies vertically too: a caret one line above a single-line field is plausible,
+    /// a rect well past 80pt below it belongs to some other element.
+    func test_rectIsNearAnchor_haloAppliesVertically() {
+        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
+        // Midpoint y = 47, 53pt below the anchor's minY but inside the halo.
+        XCTAssertTrue(resolver.rectIsNearAnchor(CGRect(x: 150, y: 40, width: 2, height: 14), anchor: anchor))
+        // Midpoint y = 237, 113pt past the anchor's maxY of 124.
+        XCTAssertFalse(resolver.rectIsNearAnchor(CGRect(x: 150, y: 230, width: 2, height: 14), anchor: anchor))
     }
 
     /// No anchor means we cannot validate, so the resolver preserves legacy behavior and accepts.

@@ -16,16 +16,11 @@ final class SuggestionAnchorCacheTests: XCTestCase {
         XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello"), " world again")
     }
 
-    func testTypeThroughConsumesPrefix() {
+    func testTypeThroughThenBackspaceRollbackBothResolveFromOneAnchor() {
         var cache = makeCache()
         cache.record(identityKey: 1, precedingText: "Hello", fullText: " world again")
-        XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello wo"), "rld again")
-    }
-
-    func testBackspaceRollbackRestoresEarlierPosition() {
-        var cache = makeCache()
-        cache.record(identityKey: 1, precedingText: "Hello", fullText: " world again")
-        // The user typed " worl", then backspaced twice to "Hello wo".
+        // Typing through " wo" consumes a prefix; backspacing back to "Hello" restores the whole
+        // suggestion. Lookups never consume the entry.
         XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello wo"), "rld again")
         XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello"), " world again")
     }
@@ -86,4 +81,37 @@ final class SuggestionAnchorCacheTests: XCTestCase {
         XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: longPrefix + " and"), " more")
     }
 
+    func testEmptySuggestionIsNeverRecorded() {
+        var cache = makeCache()
+        cache.record(identityKey: 1, precedingText: "Hello", fullText: "")
+        XCTAssertNil(cache.remainder(identityKey: 1, precedingText: "Hello"))
+    }
+
+    func testReRecordingAnIdenticalAnchorRefreshesItsExpiry() {
+        // Duplicates are replaced rather than kept, so the regenerated entry carries the new
+        // timestamp: 200s after the first record but only 100s after the second, it is still live.
+        var cache = makeCache()
+        cache.record(identityKey: 1, precedingText: "Hello", fullText: " world")
+        clock = clock.addingTimeInterval(100)
+        cache.record(identityKey: 1, precedingText: "Hello", fullText: " world")
+        clock = clock.addingTimeInterval(100)
+        XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello"), " world")
+    }
+
+    func testEntryExactlyAtMaxAgeIsStillLive() {
+        // Pruning removes entries strictly older than the cutoff, so the boundary instant survives.
+        var cache = makeCache()
+        cache.record(identityKey: 1, precedingText: "Hello", fullText: " world")
+        clock = clock.addingTimeInterval(SuggestionAnchorCache.maxEntryAge)
+        XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hello"), " world")
+    }
+
+    func testEqualConsumedDepthPrefersTheNewestAnchor() {
+        // Both anchors match "Hi th" at k = 3; the tie goes to the most recently recorded one.
+        var cache = makeCache()
+        cache.record(identityKey: 1, precedingText: "Hi", fullText: " there")
+        clock = clock.addingTimeInterval(1)
+        cache.record(identityKey: 1, precedingText: "Hi", fullText: " there friend")
+        XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: "Hi th"), "ere friend")
+    }
 }

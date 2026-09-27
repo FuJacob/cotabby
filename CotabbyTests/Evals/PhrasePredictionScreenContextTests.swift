@@ -8,8 +8,8 @@ import XCTest
 final class PhrasePredictionScreenContextTests: XCTestCase {
     func testEveryScenarioReachesTheProductionContextBoundaryWithoutItsAnswer() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
+        // Corpus validation is owned by PhrasePredictionScoringTests; this test only needs scenarios.
         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: Data(contentsOf: url))
-        try corpus.validate()
         for phrase in corpus.phrases {
             let scenario = try XCTUnwrap(phrase.scenario)
             let checkpoint = try XCTUnwrap(PhrasePredictionScorer.checkpoints(for: phrase, mode: .word).first)

@@ -110,4 +110,37 @@ final class SentenceBoundaryClassifierTests: XCTestCase {
     func test_endsSentence_falseForIdeographicComma() {
         XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("資料を読み、"))
     }
+
+    /// Abbreviation matching is case-insensitive, so shouted or title-cased forms stay non-terminal.
+    func test_endsSentence_abbreviationsAreCaseInsensitive() {
+        for text in ["Meet Dr.", "See FIG.", "Apples, pears, ETC.", "Acme Inc."] {
+            XCTAssertFalse(SentenceBoundaryClassifier.endsSentence(text), text)
+        }
+    }
+
+    /// Every closer in the set (curly quotes, brackets, braces) is walked past to the terminator.
+    func test_endsSentence_walksPastEveryClosingPunctuationKind() {
+        for text in ["He said \u{2018}done.\u{2019}", "\u{201C}Stop.\u{201D}", "[finished!]", "{ok?}", "(see note.)  "] {
+            XCTAssertTrue(SentenceBoundaryClassifier.endsSentence(text), text)
+        }
+    }
+
+    func test_endsSentence_falseForWhitespaceOrClosersOnly() {
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("   \n"))
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("\")]"))
+    }
+
+    /// Only the character directly before the period is inspected: a period after a closing quote
+    /// has no word to qualify it, so it ends the sentence.
+    func test_isTerminalPeriod_afterClosingQuoteIsTerminal() {
+        let text = "He said \"stop\"."
+        XCTAssertTrue(SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: lastPeriodIndex(in: text)))
+    }
+
+    /// The first period of "U.S. is" qualifies a standalone initial, even mid-text.
+    func test_isTerminalPeriod_initialInsideText() throws {
+        let text = "The U.S. is large"
+        let firstPeriod = try XCTUnwrap(text.firstIndex(of: "."))
+        XCTAssertFalse(SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: firstPeriod))
+    }
 }

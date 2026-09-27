@@ -15,7 +15,10 @@ final class CaretWordContextTests: XCTestCase {
 
     func testCommittedPunctuationIsPreservedOnAcceptance() {
         for delimiter in [" ", ",", "!", "? "] {
-            XCTAssertEqual(CaretWordContext.committedWord(in: "a nmae" + delimiter)?.word, "nmae")
+            XCTAssertEqual(
+                CaretWordContext.committedWord(in: "a nmae" + delimiter),
+                CaretWordContext.CommittedWord(word: "nmae", delimiter: delimiter)
+            )
             XCTAssertEqual(TypoCorrectionReplacementPlanner.plan(
                 precedingText: "a nmae" + delimiter, expectedTypo: "nmae", correctedWord: "name", requiresTrailingSpace: false
             )?.replacementText, "name" + delimiter)
@@ -44,6 +47,38 @@ final class CaretWordContextTests: XCTestCase {
     func testOpeningPunctuationDoesNotBecomePartOfACorrection() {
         for opening in ["(", "\"", "“"] {
             XCTAssertNil(CaretWordContext.committedWord(in: "Try " + opening + "nmae "))
+        }
+    }
+
+    /// Only a single space, optionally preceded by one of `,;:!?`, commits a word. A period is not a
+    /// delimiter here because `example.com` and a sentence end look identical at this boundary.
+    func testCommittedWordDelimiters() {
+        for delimiter in [";", ":", ", ", "; "] {
+            XCTAssertEqual(
+                CaretWordContext.committedWord(in: "a nmae" + delimiter),
+                CaretWordContext.CommittedWord(word: "nmae", delimiter: delimiter),
+                delimiter.debugDescription
+            )
+        }
+        for text in ["a nmae.", "a nmae. ", "a nmae\t", "a nmae\n", "a nmae,,"] {
+            XCTAssertNil(CaretWordContext.committedWord(in: text), text.debugDescription)
+        }
+    }
+
+    func testUnfinishedWordEdges() {
+        let words: [(text: String, expected: String?)] = [
+            ("", nil),
+            ("Hello ", nil),
+            ("I like naïve", "naïve"),
+            ("I don’t", "don’t"),
+            // A trailing connector is still the word being typed (`well-` before `known`).
+            ("a well-", "well-"),
+            ("code abc1", nil),
+            // Hangul syllables are letters but the script is excluded as unspaced text.
+            ("인사 안녕", nil)
+        ]
+        for (text, expected) in words {
+            XCTAssertEqual(CaretWordContext.unfinishedWord(in: text), expected, text.debugDescription)
         }
     }
 }
