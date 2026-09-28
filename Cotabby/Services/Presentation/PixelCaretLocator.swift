@@ -170,6 +170,11 @@ final class PixelCaretLocator {
     private var latestCaptureOrder: [String] = []
     private var inFlight: [String: [@MainActor (Measurement?) -> Void]] = [:]
     private var shareableContent: SCShareableContent?
+
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
+    // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
+    // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
+    nonisolated deinit {}
     private let permissionCheck: () -> Bool
     /// Called on the main actor with every fresh capture's request and measurement (never a cached
     /// or carried-forward one), so the overlay can fit the host's advance from real reads only.

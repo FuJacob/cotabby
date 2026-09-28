@@ -15,6 +15,11 @@ import AppKit
 final class HostZoomLadderResolver {
     private var kinds: [String: HostZoomLadder.Kind?] = [:]
 
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
+    // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
+    // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
+    nonisolated deinit {}
+
     func kind(forBundleIdentifier bundleIdentifier: String?) -> HostZoomLadder.Kind? {
         guard let bundleIdentifier else { return nil }
         if let known = kinds[bundleIdentifier] {

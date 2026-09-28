@@ -149,6 +149,11 @@ final class HostBaselineCalibrator {
 
     private let permissionCheck: () -> Bool
 
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
+    // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
+    // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
+    nonisolated deinit {}
+
     init(permissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() }) {
         self.permissionCheck = permissionCheck
     }

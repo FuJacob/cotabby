@@ -18,6 +18,11 @@ final class DebugForcedSuggestionEngine: SuggestionGenerating {
     private let wrapped: any SuggestionGenerating
     private let userDefaults: UserDefaults
 
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
+    // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
+    // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
+    nonisolated deinit {}
+
     init(wrapping wrapped: any SuggestionGenerating, userDefaults: UserDefaults = .standard) {
         self.wrapped = wrapped
         self.userDefaults = userDefaults

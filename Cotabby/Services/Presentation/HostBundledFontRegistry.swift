@@ -36,6 +36,11 @@ final class HostBundledFontRegistry {
     private var namesByBundle: [String: [String]] = [:]
     private var scanning: Set<String> = []
 
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
+    // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
+    // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
+    nonisolated deinit {}
+
     /// PostScript names of the text faces bundled by the app `bundleIdentifier`, once scanned.
     /// Empty until the scan for that bundle completes (it starts on the first call).
     func candidateFontNames(forBundleIdentifier bundleIdentifier: String?) -> [String] {
