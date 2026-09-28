@@ -429,4 +429,17 @@ final class GhostTextColorPresetTests: XCTestCase {
             )
         }
     }
+
+    /// A text field or combo box lays its text out on one line (an HTML input, Chromium's address
+    /// bar, an NSTextField): measured 2026-09-11, a long ghost's second row was drawn under a Chrome
+    /// text input. A text area, or a web area standing in for an editor, may wrap.
+    func test_focusedInputContext_textFieldsAndComboBoxesAreSingleLine() {
+        func context(role: String) -> FocusedInputContext {
+            FocusedInputContext(snapshot: CotabbyTestFixtures.focusedInputSnapshot(role: role), generation: 1)
+        }
+        XCTAssertTrue(context(role: "AXTextField").isSingleLineField)
+        XCTAssertTrue(context(role: "AXComboBox").isSingleLineField)
+        XCTAssertFalse(context(role: "AXTextArea").isSingleLineField)
+        XCTAssertFalse(context(role: "AXWebArea").isSingleLineField)
+    }
 }

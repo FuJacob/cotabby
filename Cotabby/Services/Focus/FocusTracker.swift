@@ -242,6 +242,26 @@ final class FocusTracker {
         return snapshotChanged || capture.didChangeFocusedInput
     }
 
+    /// A system alert or banner can own the system-wide focused element while the user types into
+    /// the frontmost app (see `SystemUIFocusShadowPolicy`). Ask the frontmost app for its own focused
+    /// element in that case so autocomplete does not vanish for the alert's lifetime; when that
+    /// query fails, the system-wide answer stands as before (and `application` stays nil so the
+    /// owner is resolved from the element, exactly as for any other system-focused element).
+    private func resolvingSystemUIShadow(
+        _ systemFocused: AXUIElement
+    ) -> (element: AXUIElement, application: NSRunningApplication?) {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              SystemUIFocusShadowPolicy.shouldPreferFrontmostApplication(
+                  owningBundleIdentifier: AXHelper.owningApplication(of: systemFocused)?.bundleIdentifier,
+                  frontmostBundleIdentifier: frontmost.bundleIdentifier
+              ),
+              let appFocused = AXHelper.focusedElement(forApplicationPID: frontmost.processIdentifier)
+        else {
+            return (systemFocused, nil)
+        }
+        return (appFocused, frontmost)
+    }
+
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.
     private func captureSnapshot() -> FocusCaptureResult {
         guard permissionProvider() else {
@@ -265,7 +285,9 @@ final class FocusTracker {
             focusedElement = codex.element
             preresolvedApplication = codex.application
         } else if let systemFocused {
-            focusedElement = systemFocused
+            let resolved = resolvingSystemUIShadow(systemFocused)
+            focusedElement = resolved.element
+            preresolvedApplication = resolved.application
             // System focus works here, so we are not in the OOPIF fallback mode; drop any stale
             // hit-test element so it can never shadow a real focus change.
             chromiumHitTestCache = nil

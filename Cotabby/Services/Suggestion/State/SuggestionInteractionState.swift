@@ -286,6 +286,14 @@ final class SuggestionInteractionState {
     }
 
     /// Advances the stored session when the user typed the next expected characters directly.
+    ///
+    /// The advance comes from the key event, which lands before the host publishes the character
+    /// through Accessibility. The next focus poll can therefore still show the field WITHOUT the
+    /// character the session already counts as consumed, and the reconciler would read that as
+    /// the user undoing part of the suggestion (measured in the Claude composer, 2026-09-10: the
+    /// ghost vanished right after "the" was typed through and came back on the next keystroke).
+    /// The same sentinel a Tab insert arms covers this lag: the reconciler tolerates a shorter
+    /// live text until it catches up, then clears it.
     func advanceIfTypedCharactersMatch(
         _ typedCharacters: String,
         expectedSession: ActiveSuggestionSession
@@ -306,7 +314,9 @@ final class SuggestionInteractionState {
             // insertion window aimed at the latest consumed prefix instead of disabling it merely
             // because the user typed one more expected character.
             pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
-        } else {
+        } else if !advancedSession.isExhausted {
+            // An exhausted session is retired on the next reconcile; arming a lag window for it
+            // would only outlive the session it protects.
             let firstUnpublishedCount = pendingTypedConsumedRange?.lowerBound ?? activeSession.consumedCharacterCount
             pendingTypedConsumedRange = firstUnpublishedCount..<advancedSession.consumedCharacterCount
         }

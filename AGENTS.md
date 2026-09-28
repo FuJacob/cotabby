@@ -126,7 +126,23 @@ Focus and geometry live in:
 
 Accessibility data is eventually consistent and app-specific. Browser editors, Electron apps,
 native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
-`focusChangeSequence`, and capability checks unless the change explicitly replaces them.
+`focusChangeSequence`, and capability checks unless the change explicitly replaces them. Known
+shapes worth keeping in mind: CodeMirror (Obsidian) exposes a wrapped paragraph as one static-text
+run plus a single-space spacer run per line, and its value runs paragraphs together with no
+separator, so a paragraph is found from where its run was anchored in the value, never from the
+last line break (`WrappedRunAnchor` hands both that run and a single-line paragraph run to
+`PixelCaretLocator`, which reads the caret from the run's pixels, a one-line run in its own line
+box, and carries it forward by the typed advance while the ghost covers the run);
+Chromium's address bar keeps its inline completion selected after the caret (stripped by the
+resolver and held as the host's marked text, never treated as a user selection) and answers every
+bounds query with a zero rect (the caret comes from its pixels, `PixelCaretLocator`); Mail's compose
+header rows are `AXTextField`s with identifiers `Mail.toField`, `Mail.ccField`, `Mail.subjectField`
+where Tab moves to the next field, so they are blocked (`MailHeaderFieldDetector`), and the body is
+an `AXWebArea` described "message body". A Chromium or Electron host reports its font size in CSS
+pixels and nothing of its zoom (the Claude desktop composer reports 14 and paints 15.4 at 110%),
+and a contenteditable answers no width query: the ghost's size there follows the advance measured
+from the caret's own movement (`CaretAdvanceSampler`), and the faces such a host bundles in its
+own `Contents/Resources` are registered for the pixel match (`HostBundledFontRegistry`).
 
 ## Visual Context And OCR
 
@@ -174,7 +190,13 @@ The Swift generation loop owns the maximum output-token budget.
 
 ## UI And Overlays
 
-- `OverlayController` owns the ghost-text panel lifecycle and positioning.
+- `OverlayController` owns the ghost-text panel lifecycle and positioning. Ghost glyphs are laid
+  out by `GhostTextLayout` in the font `GhostFontResolver` resolves, on the baseline
+  `GhostBaselinePolicy` (or a `HostBaselineCalibrator` measurement) gives, wrapping onto the host's
+  next lines at the measured pitch. A caret with text after it on its line gets the card under the
+  caret instead (`CompletionRenderModePolicy`): a ghost painted over the host's own characters
+  reads as overwriting them. Change those pure helpers and their tests rather than nudging offsets
+  in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
 - `ActivationIndicatorController` owns the optional caret/field-edge indicator.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
@@ -237,6 +259,10 @@ Console.app stream.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
   Chrome focus change (debounced by focused-element identity).
 - Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
+- `~/Library/Logs/<app>/strips/` — every calibration strip the overlay captured, as PNG plus a JSON
+  sidecar (caret column, size, line text), written only while
+  `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES` is set at launch. Replay one
+  through `TypefaceMatcher` offline to see why a face was or was not matched.
 
 **Correlation IDs.** Every prediction gets a `request_id` like `req_a3f9k2lq`, stamped on every log
 line touching that request (coordinator state transitions, router selection, engine generation, LLM
@@ -296,6 +322,52 @@ Use the narrowest meaningful validation first, then broaden if the change touche
 Keep DerivedData in `build/DerivedData`, avoid concurrent builds in the same checkout, and clean
 it after validation. Verify cleanup before reporting completion.
 Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/Cotabby-*`.
+
+```bash
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
+  -derivedDataPath build/DerivedData
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
+  -derivedDataPath build/DerivedData
+```
+
+Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
+directory (already gitignored) instead of accumulating under
+`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a fresh multi-GB module
+cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
+needed, `rm -rf build/DerivedData` before reporting completion.
+
+Two model-backed eval suites measure suggestion quality and are local-only (they need a downloaded
+GGUF and are gated behind the `RUN_LLAMA_EVAL` compile flag). `test_reportEvalSuite` scores ordinary
+continuations; `test_reportRecallSuite` scores whether context the user did not type (earlier field
+text, screen OCR, clipboard) actually reaches the completion. Run either with:
+
+```bash
+xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
+  -only-testing:CotabbyTests/LlamaSuggestionEvalTests/test_reportRecallSuite \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL' \
+  CODE_SIGNING_ALLOWED=NO -configuration Release ENABLE_TESTABILITY=YES \
+  -derivedDataPath build/DerivedData
+```
+
+Quote latency only from a Release build; Debug inflates per-token Swift work by an order of magnitude.
+Any change to prompt content, context budgets, sampling, or the model should be justified with a
+before/after on both suites over identical cases.
+
+The dev app is a SEPARATE target and scheme, `Cotabby Dev` (product `Cotabby Dev.app`). Building the
+`Cotabby` scheme leaves the dev bundle stale, so build the dev app explicitly and confirm the binary
+timestamp moved before testing against it:
+
+```bash
+xcodebuild -project Cotabby.xcodeproj -scheme "Cotabby Dev" -configuration Release \
+  -destination 'platform=macOS' build -derivedDataPath build/DerivedData
+```
+
+Ghost placement changes are verified against the pixels the user sees, not against log counts: type
+a fragment at the end of a field, capture the ghost, accept it, capture the host's own rendering of the
+same words, and compare the two, the ghost's dx/dy in points per line. A placement fix is done when
+every host checked (TextEdit, a Chrome contenteditable, an Obsidian note with one wrapped paragraph and
+with several) stays within about 0.2pt on every line; a change that helps one host and moves another
+is a regression even when its own log counters improve.
 
 Run targeted tests for changed pure logic when available. If validation fails, report the exact
 failure and distinguish a successful build-for-testing step from actual test execution.

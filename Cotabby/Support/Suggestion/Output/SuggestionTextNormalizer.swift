@@ -29,6 +29,18 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     /// Attributed by the engine (the runtime reports it on `LlamaGenerationOutput`), not by the
     /// normalizer, which never sees the withheld text.
     case lowConfidence
+    /// The request was anchored at a word boundary and the model completed a different word than
+    /// the one the user had started (see `WordBoundaryAnchorPolicy`).
+    /// Nothing but punctuation or symbols survived: not a continuation the user can use.
+    case noWordContent
+    /// Closing punctuation offered right after the user typed a space.
+    case punctuationAfterSpace
+    /// Forum/chat UI residue, stray markup, or the model talking back about the prompt.
+    case scaffolding
+    /// A short word sequence looping back to back: the model was stuck.
+    case repetitiveContent
+    /// Most of the completion was lifted verbatim from the text just before the caret.
+    case copiesPrecedingText
 }
 
 /// Outcome of normalizing one raw completion: the ghost text, plus the attributable reason when that
@@ -61,18 +73,7 @@ enum SuggestionTextNormalizer {
         // the reasoning text never reaches the continuation logic below.
         normalized = stripThinkBlocks(normalized)
 
-        for prompt in [request.prompt] + promptEchoCandidates {
-            if !prompt.isEmpty, normalized.hasPrefix(prompt) {
-                normalized.removeFirst(prompt.count)
-                normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
-            }
-        }
-
-        // Apple Intelligence uses a separate instructions channel and a short task prompt, so the
-        // model may echo only the visible prefix text instead of the full prompt payload.
-        if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
-            normalized.removeFirst(request.prefixText.count)
-        }
+        normalized = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
 
         normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
 
@@ -161,7 +162,43 @@ enum SuggestionTextNormalizer {
             )
         }
 
+        // Content shapes that are wrong whenever they appear (see `CompletionContentPolicy`).
+        if let rejection = CompletionContentPolicy.rejection(for: normalized, precedingText: request.context.precedingText) {
+            return SuggestionNormalizationResult(text: "", suppression: suppression(for: rejection))
+        }
+
+        // Hold the suggestion to the user's word-count preset (see `SuggestionLengthPolicy`).
+        if let range = request.wordRange, !request.isMultiLineEnabled {
+            normalized = SuggestionLengthPolicy.trimmed(normalized, minimum: range.lowWords, maximum: range.highWords)
+        }
+
         return SuggestionNormalizationResult(text: normalized, suppression: nil)
+    }
+
+    private static func suppression(for rejection: CompletionContentPolicy.Rejection) -> CompletionSuppressionReason {
+        switch rejection {
+        case .noWordContent: return .noWordContent
+        case .punctuationAfterSpace: return .punctuationAfterSpace
+        case .scaffolding: return .scaffolding
+        case .repetitiveContent: return .repetitiveContent
+        case .copiesPrecedingText: return .copiesPrecedingText
+        }
+    }
+
+    /// Removes an echoed prompt (or, for Apple Intelligence's short task prompt, the echoed visible
+    /// prefix) from the front of the output.
+    private static func strippingPromptEcho(_ text: String, request: SuggestionRequest, promptEchoCandidates: [String]) -> String {
+        var normalized = text
+        for prompt in [request.prompt] + promptEchoCandidates {
+            if !prompt.isEmpty, normalized.hasPrefix(prompt) {
+                normalized.removeFirst(prompt.count)
+                normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
+            }
+        }
+        if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
+            normalized.removeFirst(request.prefixText.count)
+        }
+        return normalized
     }
 
     /// Names the most specific cause of an empty normalization outcome at the safety gate. The gate

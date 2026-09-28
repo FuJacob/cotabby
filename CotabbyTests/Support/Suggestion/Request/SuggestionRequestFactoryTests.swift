@@ -109,7 +109,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     }
 
     func test_truncatedPromptPrefix_preservesSeparatorsWhenWordBudgetDropsOldText() {
-        let retainedText = String(repeating: "word\n\t", count: 149) + "last  \n"
+        // Sized from the shipped word budget so the window binds on words, not characters.
+        let retainedText = String(repeating: "w\n\t", count: SuggestionConfiguration.standard.maxPrefixWords - 1) + "last  \n"
         let text = "discard this " + retainedText
         let prefix = SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard)
         XCTAssertEqual(prefix, retainedText)
@@ -278,7 +279,9 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.visualContextSummary,
             "Calendar window says project review at 3 PM."
         )
-        XCTAssertTrue(result.promptPreview.contains("Casey"))
+        // The writer's name reaches the prompt only where the caret follows a sign-off
+        // (`SignOffCue`); "Hello" is an opening, so the name stays out of the preview.
+        XCTAssertFalse(result.promptPreview.contains("Casey"))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 
@@ -593,6 +596,33 @@ final class SuggestionRequestFactoryTests: XCTestCase {
                 configuration: makeConfiguration(maxPrefixCharacters: 6)
             ),
             "ef ghi"
+        )
+    }
+
+    func test_shouldGenerateSuggestion_declinesACaretInsideAToken() {
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "head", trailingText: "phones"))
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "jane", trailingText: "@example.com"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks", trailingText: ". Bye"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks for", trailingText: ""))
+    }
+
+    func test_buildRequest_carriesTheWordRange() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really ")
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertNotNil(result.request.wordRange)
+    }
+
+    /// Measured 2026-09-11 in a Chrome page modelled on Claude's composer: three paragraphs reached the
+    /// model as "one line. The second paragraph starts here and A third one".
+    func testTheWindowKeepsLineAndParagraphBreaks() {
+        let text = "Hi Sam,\n\nThanks for the update.\nBest"
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard, engine: .llamaOpenSource),
+            text
         )
     }
 }

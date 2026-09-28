@@ -169,7 +169,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             preparation: preparation,
             options: options
         )
-
         // Record only after the entire prompt decoded successfully. Leave generated tokens in
         // native memory until the next request reveals the exact shared prefix to restore. Eagerly
         // restoring this whole prompt would replay its tail now and a second time during reuse.
@@ -414,7 +413,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             if let earlyStop = DecodeStopPolicy.verdict(
                 accumulated: generatedText,
                 tokensGenerated: tokensGenerated,
-                minimumTokens: options.sentenceStopMinimumTokens
+                minimumTokens: options.sentenceStopMinimumTokens,
+                minimumWords: options.sentenceStopMinimumWords
             ) {
                 stopReason = earlyStop.rawValue
                 break

@@ -59,6 +59,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     /// instruction scaffolding ("Task:", "Text before caret:"), then a blank line and the exact
     /// caret prefix last. The surface description leads because it is the strongest situational
     /// cue; the quoted following text sits just before the prefix so the stable head stays cacheable.
+    /// The writer's name is absent: the caret is mid-sentence, not after a sign-off (`SignOffCue`).
     func test_allContext_rendersEverySectionInOrderWithPrefixLast() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "the meeting is at ",
@@ -79,7 +80,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             prompt,
             [
                 "Format: email; App: Mail; Title: Re: Q3.",
-                "Written by Jacob.",
                 "Writing style: terse, warm.",
                 "Write in English.",
                 "Notes the writer keeps in mind: Project Matcha ships in June.",
@@ -141,19 +141,22 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
             applicationName: "Notes",
-            userName: "Jacob",
+            userName: nil,
+            languageInstruction: "Write in English.",
             clipboardContext: "zoom link",
-            contextBudget: 3 + "Written by Jacob.".count
+            contextBudget: 3 + "Write in English.".count
         )
-        XCTAssertEqual(prompt, "Written by Jacob.\n\nabc")
+        XCTAssertEqual(prompt, "Write in English.\n\nabc")
     }
 
-    /// `screenPriority` lets callers rank screen context above persona (default 45 ranks below it).
-    func test_screenPriorityCanOutrankPersonaUnderATightBudget() {
+    /// `screenPriority` lets callers rank screen context above the language line (default 45 ranks
+    /// below it).
+    func test_screenPriorityCanOutrankLanguageUnderATightBudget() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
             applicationName: "Notes",
-            userName: "Jacob",
+            userName: nil,
+            languageInstruction: "Write in English.",
             visualContextSummary: "green",
             contextBudget: 3 + "Nearby on screen: green".count,
             screenPriority: 65
@@ -249,17 +252,18 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     // MARK: - Token budget
 
     /// The opt-in token path budgets in estimated tokens. "abcd" is exactly one estimated token and
-    /// "Written by Jacob." four, so a 1-token budget keeps only the prefix and 5 tokens keeps both.
+    /// "Write in English." four, so a 1-token budget keeps only the prefix and 5 tokens keeps both.
     func test_tokenBudget_fillsPrefixFirstThenContext() {
         let cases: [(tokenBudget: Int, expected: String)] = [
             (1, "abcd"),
-            (5, "Written by Jacob.\n\nabcd")
+            (5, "Write in English.\n\nabcd")
         ]
         for testCase in cases {
             let prompt = BaseCompletionPromptRenderer.prompt(
                 prefixText: "abcd",
                 applicationName: "Notes",
-                userName: "Jacob",
+                userName: nil,
+                languageInstruction: "Write in English.",
                 clipboardContext: "zoom link",
                 tokenBudget: testCase.tokenBudget
             )
@@ -272,23 +276,56 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
             applicationName: "Notes",
-            userName: "Casey",
+            userName: nil,
+            languageInstruction: "Write in English.",
             tokenBudget: 100
         )
-        XCTAssertEqual(prompt, "Written by Casey.\n\n" + prefix)
+        XCTAssertEqual(prompt, "Write in English.\n\n" + prefix)
     }
 
     /// 2500 characters of ordinary prose is ~550 estimated tokens: inside the shipped token budget
-    /// even though it exceeds the old 2400-character cap. The whole prefix and the persona survive.
+    /// even though it exceeds the old 2400-character cap. The whole prefix and the context survive.
     func test_tokenBudgetAdmitsAPrefixLargerThanTheOldCharacterBudget() {
         let prefix = String(repeating: "every word counts here ", count: 109) + "and the end"
         XCTAssertGreaterThan(prefix.count, 2400)
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
             applicationName: "Pages",
-            userName: "Jacob",
+            userName: nil,
+            languageInstruction: "Write in English.",
             tokenBudget: SuggestionConfiguration.standard.llamaPromptTokenBudget
         )
-        XCTAssertEqual(prompt, "Written by Jacob.\n\n" + prefix)
+        XCTAssertEqual(prompt, "Write in English.\n\n" + prefix)
+    }
+
+    func test_styleAndLanguageConditionWithoutNamingTheWriterAtAnOpening() {
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Hi team,",
+            applicationName: "Mail",
+            userName: "Jacob",
+            customRules: ["friendly", "professional"],
+            languageInstruction: "Write in English."
+        )
+        // Measured live: a name in the preface at an opening made the model write "Hi, I'm Jacob".
+        XCTAssertFalse(prompt.contains("Jacob"))
+        XCTAssertTrue(prompt.contains("friendly, professional"))
+        XCTAssertTrue(prompt.contains("Write in English."))
+        XCTAssertTrue(prompt.hasSuffix("Hi team,"))
+    }
+
+    func test_writerIsNamedOnlyWhereTheCaretFollowsAValediction() {
+        let signing = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Could you add the budget numbers before Friday?\n\nThanks again,\n",
+            applicationName: "Mail",
+            userName: "Jacob"
+        )
+        XCTAssertTrue(signing.contains("Written by Jacob."))
+        // The caret is on the line after the closing, where the name goes, and the model is told so.
+        XCTAssertTrue(signing.hasSuffix("Thanks again,\n"))
+
+        for prefix in ["", "Hi", "Thanks for", "I will forward the draft to", "the rest of the"] {
+            let prompt = BaseCompletionPromptRenderer.prompt(prefixText: prefix, applicationName: "Mail", userName: "Jacob")
+            XCTAssertFalse(prompt.contains("Jacob"), "the name must not condition \(prefix.debugDescription)")
+        }
     }
 }

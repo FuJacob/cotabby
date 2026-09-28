@@ -15,6 +15,8 @@ import Foundation
 /// - Stop / end-of-turn markers mean the model should have stopped; anything after one is a new
 ///   hallucinated turn. We truncate the completion at the first stop marker so that garbage never
 ///   leaks (and a genuine prefix before it is preserved).
+/// - An opening marker at the start of a line, after text, is a new turn too: a transcript puts
+///   every turn on its own line, and the continuation ended with the line before it.
 ///
 /// These are deliberately limited to unambiguous model control tokens that a human would never type
 /// into a text field expecting a completion, so removing them cannot eat legitimate prose or code.
@@ -67,6 +69,14 @@ nonisolated enum ControlTokenMarkers {
             options: .regularExpression
         )
 
+        // A turn that opens on a new line after text is the model writing the next turn of a
+        // transcript it saw: its role word and question are no continuation (measured 2026-09-11,
+        // a pasted ChatML transcript: "…for 10 seconds.\n<|im_start|>user\nHow do I reset my
+        // router?" shown as "user" and the question once the prompt kept its line breaks).
+        if let cut = firstLineStartOpeningMarker(in: result) {
+            result = String(result[..<cut])
+        }
+
         for marker in openingMarkers {
             result = result.replacingOccurrences(of: marker, with: "")
         }
@@ -76,6 +86,27 @@ nonisolated enum ControlTokenMarkers {
         }
 
         return result
+    }
+
+    /// The earliest opening marker that starts a line after some text (only spaces or tabs between
+    /// it and the line break before it), or nil.
+    private static func firstLineStartOpeningMarker(in text: String) -> String.Index? {
+        var earliest: String.Index?
+        for marker in openingMarkers {
+            var searchStart = text.startIndex
+            while let range = text.range(of: marker, range: searchStart..<text.endIndex) {
+                let before = text[..<range.lowerBound]
+                let lineHead = before.reversed().prefix { $0 == " " || $0 == "\t" }
+                let beforeLine = before.dropLast(lineHead.count)
+                if let last = beforeLine.last, last.isNewline,
+                   beforeLine.contains(where: { !$0.isWhitespace }) {
+                    earliest = earliest.map { min($0, range.lowerBound) } ?? range.lowerBound
+                    break
+                }
+                searchStart = range.upperBound
+            }
+        }
+        return earliest
     }
 
     /// The position of the earliest stop marker in `text`, or nil when none appear.

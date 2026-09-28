@@ -138,7 +138,8 @@ final class LlamaSuggestionEngine {
                                 generation: request.generation,
                                 rawText: raw,
                                 text: normalized,
-                                latency: Date().timeIntervalSince(startTime)
+                                latency: Date().timeIntervalSince(startTime),
+                                spacingIsExact: true
                             ))
                         }
                     }
@@ -202,7 +203,10 @@ final class LlamaSuggestionEngine {
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
                 latency: latency,
-                suppressionReason: normalization.suppression?.rawValue
+                suppressionReason: normalization.suppression?.rawValue,
+                // A base model's completion follows the prompt text exactly: its leading space (or
+                // the lack of one) is the model's own word boundary.
+                spacingIsExact: true
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)
@@ -277,6 +281,7 @@ final class LlamaSuggestionEngine {
                 trailingText: request.context.trailingText
             ),
             confidenceFloor: resolvedConfidenceFloor(),
+            sentenceStopMinimumWords: request.wordRange?.lowWords ?? 0,
             stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
         )
     }

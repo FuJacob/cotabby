@@ -6,9 +6,10 @@ import XCTest
 /// a silent UX change. The policy is pure, so these tests do not touch AppKit.
 ///
 /// The rules, in order: a per-app override (when the bundle is known) replaces the global
-/// preference; `.auto` maps caret quality to a mode; and finally any *inline* result for a caret
+/// preference; `.auto` maps caret quality to a mode; and finally an *auto* inline result for a caret
 /// parked mid-line is promoted to the card, because inline ghost text would paint over the
-/// characters after the caret. Results already routed to the card keep their more specific reason.
+/// characters after the caret. Explicit inline pins keep their pick, and results already routed to
+/// the card keep their more specific reason.
 final class CompletionRenderModePolicyTests: XCTestCase {
 
     private struct Case {
@@ -102,12 +103,13 @@ final class CompletionRenderModePolicyTests: XCTestCase {
                  expected: .mirror(reason: .caretMidLine)),
             Case(label: "auto derived", preference: .auto, quality: .derived, atEndOfLine: false,
                  expected: .mirror(reason: .caretMidLine)),
-            // Inline cannot render mid-line at all, so the promotion overrides explicit inline pins.
+            // An explicit inline pin is the user's call; the controller alone decides whether the
+            // ghost can be drawn there without covering the host's text.
             Case(label: "global inline pin", preference: .alwaysInline, bundle: nil, quality: .exact,
-                 atEndOfLine: false, expected: .mirror(reason: .caretMidLine)),
+                 atEndOfLine: false, expected: .inline),
             Case(label: "per-app inline pin", preference: .auto, overrides: [pinned: .alwaysInline],
                  bundle: pinned, quality: .exact, atEndOfLine: false,
-                 expected: .mirror(reason: .caretMidLine)),
+                 expected: .inline),
             // Already a card: the more specific original reason is retained, never relabeled.
             Case(label: "auto estimated", preference: .auto, quality: .estimated, atEndOfLine: false,
                  expected: .mirror(reason: .caretGeometryEstimated)),

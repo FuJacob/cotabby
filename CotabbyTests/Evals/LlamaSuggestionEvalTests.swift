@@ -74,6 +74,54 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         #endif
     }
 
+    /// Context-recall suite: every case hides a fact in the context (earlier in the same field,
+    /// on screen, or on the clipboard) and requires the completion to reproduce it.
+    ///
+    /// Kept as its own dataset and its own report rather than folded into the continuation suite,
+    /// because the two measure different things and mixing them would let fluent-but-ignorant
+    /// prose average away a total failure to use context. `qualityScore` on this suite is the
+    /// context-recall rate.
+    func test_reportRecallSuite() async throws {
+        #if RUN_LLAMA_EVAL
+        let manager = try LlamaEvalRuntime.makeManager()
+        do {
+            try await manager.prepare()
+        } catch {
+            throw XCTSkip(
+                "No llama runtime available (\(error)). Download a model in the app first; " +
+                "the eval loads it from ~/Library/Application Support/Cotabby/LlamaRuntime/."
+            )
+        }
+        let engine = LlamaSuggestionEngine(runtimeManager: manager)
+        let spellChecker = CurrentWordSpellChecker()
+        let cases = try Self.loadCases(named: "llama-recall-cases")
+
+        var results: [LlamaEvalCaseResult] = []
+        for evalCase in cases {
+            let result = try await Self.runCase(evalCase, engine: engine, spellChecker: spellChecker)
+            results.append(result)
+        }
+
+        let report = LlamaEvalReport(
+            modelLabel: (manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown-model") + " [recall]",
+            results: results
+        )
+        print(report.rendered())
+        for result in results {
+            let mark = result.outcome == .correctInsert ? "PASS" : "FAIL"
+            let want = result.evalCase.expectation.mustContain.joined(separator: "|")
+            print("\(mark) \(result.evalCase.id) want=\(want) got=\(result.shownText ?? "<suppressed:\(result.suppressionStage ?? "none")>")")
+        }
+        try Self.writeArtifact(report)
+
+        XCTAssertFalse(results.isEmpty)
+        #else
+        throw XCTSkip(
+            "Llama recall eval is disabled. Pass SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL'."
+        )
+        #endif
+    }
+
     #if RUN_LLAMA_EVAL
     /// One case through the production pipeline. `shownText` is nil wherever the pipeline would
     /// have shown nothing: the pre-generation gate, the normalizer (empty result), the
@@ -83,14 +131,36 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         engine: LlamaSuggestionEngine,
         spellChecker: CurrentWordSpellChecker
     ) async throws -> LlamaEvalCaseResult {
-        // Mirrors the coordinator's pre-generation gate.
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: evalCase.precedingText) else {
+        // Mirrors the coordinator's pre-generation gate, caret position included.
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: evalCase.precedingText, trailingText: evalCase.trailingText
+        ) else {
             return LlamaEvalCaseResult(
                 evalCase: evalCase,
                 shownText: nil,
                 rawText: "",
                 outcome: LlamaEvalScorer.outcome(shownText: nil, for: evalCase),
                 suppressionStage: "pre-generation-gate",
+                latencySeconds: 0
+            )
+        }
+
+        // Mirrors the coordinator's typo gate with the shipping defaults (suppress on typo, offer
+        // corrections, no automatic fixing): a misspelled current word shows no continuation, and a
+        // correction offer is not a continuation either.
+        let typoDecision = TypoGate.resolve(
+            precedingText: evalCase.precedingText,
+            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
+            isTypo: { spellChecker.isTypo($0) },
+            bestCorrection: { spellChecker.bestCorrection(for: $0) }
+        )
+        if typoDecision != .proceed {
+            return LlamaEvalCaseResult(
+                evalCase: evalCase,
+                shownText: nil,
+                rawText: "",
+                outcome: LlamaEvalScorer.outcome(shownText: nil, for: evalCase),
+                suppressionStage: "typo-gate",
                 latencySeconds: 0
             )
         }
@@ -104,35 +174,38 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         let settings = CotabbyTestFixtures.settingsSnapshot(
             selectedEngine: .llamaOpenSource,
             selectedWordCountPreset: .twelveToTwenty,
-            isClipboardContextEnabled: false,
+            // Only a case that supplies clipboard text turns the section on, so the ordinary
+            // continuation cases keep the exact prompt shape they have always been scored against.
+            isClipboardContextEnabled: evalCase.clipboardContext != nil,
             isMultiLineEnabled: evalCase.isMultiLineEnabled
         )
         let request = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settings,
-            configuration: LlamaEvalRuntime.configuration
+            configuration: LlamaEvalRuntime.configuration,
+            clipboardContext: evalCase.clipboardContext,
+            visualContextSummary: evalCase.visualContextSummary
         ).request
 
         let start = Date()
-        let result = try await engine.generateSuggestion(for: request)
-        let latency = Date().timeIntervalSince(start)
+        var result = try await engine.generateSuggestion(for: request)
+        var latency = Date().timeIntervalSince(start)
 
+        let assessment: (String) -> CompletionSeamGuard.SpellingAssessment = { word in
+            guard spellChecker.isTypo(word) else {
+                return .known
+            }
+            return spellChecker.bestCorrection(for: word) == nil
+                ? .uncorrectableTypo
+                : .correctableTypo
+        }
         var shownText: String? = result.text.isEmpty ? nil : result.text
         var suppressionStage: String? = result.text.isEmpty ? "normalizer" : nil
 
         // Mirrors the coordinator's display-time seam guard.
         if let candidate = shownText {
             let verdict = CompletionSeamGuard.verdict(
-                precedingText: evalCase.precedingText,
-                completion: candidate,
-                spellingAssessment: { word in
-                    guard spellChecker.isTypo(word) else {
-                        return .known
-                    }
-                    return spellChecker.bestCorrection(for: word) == nil
-                        ? .uncorrectableTypo
-                        : .correctableTypo
-                }
+                precedingText: evalCase.precedingText, completion: candidate, spellingAssessment: assessment
             )
             if verdict != .allow {
                 shownText = nil
@@ -150,10 +223,10 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         )
     }
 
-    private static func loadCases() throws -> [LlamaEvalCase] {
+    private static func loadCases(named resource: String = "llama-eval-cases") throws -> [LlamaEvalCase] {
         guard let url = Bundle(for: LlamaSuggestionEvalTests.self)
-            .url(forResource: "llama-eval-cases", withExtension: "json") else {
-            throw XCTSkip("llama-eval-cases.json missing from the test bundle")
+            .url(forResource: resource, withExtension: "json") else {
+            throw XCTSkip("\(resource).json missing from the test bundle")
         }
         return try LlamaEvalCase.loadDataset(from: url)
     }
@@ -167,7 +240,9 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         }
         let directory = repoRoot.appendingPathComponent("build/eval", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let stem = report.modelLabel.replacingOccurrences(of: ".gguf", with: "")
+        let stem = report.modelLabel
+            .replacingOccurrences(of: ".gguf", with: "")
+            .replacingOccurrences(of: " [recall]", with: "-recall")
         let url = directory.appendingPathComponent("llama-eval-\(stem).json")
         try report.jsonArtifact().write(to: url)
         print("Eval artifact written to \(url.path)")

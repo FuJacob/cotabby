@@ -18,10 +18,21 @@ nonisolated enum SpeculativeAcceptanceContext {
         after snapshot: FocusedInputSnapshot,
         inserting insertionChunk: String
     ) -> FocusedInputSnapshot {
-        snapshotCopy(
+        optimisticSnapshot(after: snapshot, precedingText: snapshot.precedingText + insertionChunk)
+    }
+
+    /// `snapshot` as it will read once the text before the caret is `precedingText`, a known
+    /// insertion the host may not have published yet. The caret moves by the difference in length;
+    /// everything after the caret stays.
+    static func optimisticSnapshot(
+        after snapshot: FocusedInputSnapshot,
+        precedingText: String
+    ) -> FocusedInputSnapshot {
+        let lengthChange = precedingText.utf16.count - snapshot.precedingText.utf16.count
+        return snapshotCopy(
             snapshot,
-            precedingText: snapshot.precedingText + insertionChunk,
-            selectionLocation: snapshot.selection.location + insertionChunk.utf16.count
+            precedingText: precedingText,
+            selectionLocation: max(0, snapshot.selection.location + lengthChange)
         )
     }
 
@@ -76,7 +87,10 @@ nonisolated enum SpeculativeAcceptanceContext {
             focusedURLString: snapshot.focusedURLString,
             resolvedFieldStyle: snapshot.resolvedFieldStyle,
             windowTitle: snapshot.windowTitle,
-            fieldPlaceholder: snapshot.fieldPlaceholder
+            fieldPlaceholder: snapshot.fieldPlaceholder,
+            hostTextMetrics: snapshot.hostTextMetrics,
+            elementFrameRect: snapshot.elementFrameRect,
+            hostMarkedTextRange: snapshot.hostMarkedTextRange
         )
     }
 }

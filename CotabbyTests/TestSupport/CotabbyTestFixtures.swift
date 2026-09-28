@@ -31,7 +31,8 @@ enum CotabbyTestFixtures {
         focusChangeSequence: UInt64 = 1,
         focusedURLString: String? = nil,
         windowTitle: String? = nil,
-        fieldPlaceholder: String? = nil
+        fieldPlaceholder: String? = nil,
+        hostMarkedTextRange: NSRange? = nil
     ) -> FocusedInputSnapshot {
         let resolvedSelection = selection
             ?? NSRange(location: (precedingText as NSString).length, length: 0)
@@ -58,7 +59,8 @@ enum CotabbyTestFixtures {
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
             windowTitle: windowTitle,
-            fieldPlaceholder: fieldPlaceholder
+            fieldPlaceholder: fieldPlaceholder,
+            hostMarkedTextRange: hostMarkedTextRange
         )
     }
 

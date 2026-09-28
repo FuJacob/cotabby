@@ -29,7 +29,8 @@ nonisolated enum DecodeStopPolicy {
     static func verdict(
         accumulated: String,
         tokensGenerated: Int,
-        minimumTokens: Int = 2
+        minimumTokens: Int = 2,
+        minimumWords: Int = 0
     ) -> StopReason? {
         if containsScaffoldingStopMarker(accumulated) {
             return .scaffoldingMarker
@@ -39,7 +40,16 @@ nonisolated enum DecodeStopPolicy {
             return nil
         }
 
+        // A sentence end before the preset's minimum word count ("report.") made one ghost a single
+        // word and the next a whole phrase; let the model carry on into the next sentence instead.
+        if minimumWords > 0, wordCount(of: accumulated) < minimumWords {
+            return nil
+        }
         return SentenceBoundaryClassifier.endsSentence(accumulated) ? .sentenceBoundary : nil
+    }
+
+    private static func wordCount(of text: String) -> Int {
+        text.split(whereSeparator: { $0.isWhitespace }).count
     }
 
     private static func containsScaffoldingStopMarker(_ text: String) -> Bool {

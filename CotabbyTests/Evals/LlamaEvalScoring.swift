@@ -17,6 +17,11 @@ enum LlamaEvalExpectationKind: String, Decodable {
     case negative
     /// Showing is fine unless the text contains one of `forbidden`; suppression also correct.
     case forbidden
+    /// The completion must reproduce specific facts (`mustContain`) that are only available from
+    /// the case's context: earlier text in the same field, injected screen OCR, or the clipboard.
+    /// This is the context-recall capability — the model has to USE what it was given, not just
+    /// write plausible prose — so suppression is a miss, not an acceptable abstention.
+    case recall
 }
 
 struct LlamaEvalExpectation: Decodable, Equatable {
@@ -27,11 +32,14 @@ struct LlamaEvalExpectation: Decodable, Equatable {
     var acceptable: [String] = []
     /// Forbidden only: substrings that must never appear in shown text (case-insensitive).
     var forbidden: [String] = []
+    /// Recall only: every substring that must appear in the shown text, compared with
+    /// punctuation and case folded out so "WF-1000XM5" matches "wf1000xm5".
+    var mustContain: [String] = []
     /// Negative only: documentation of why showing anything is wrong.
     var reason: String?
 
     private enum CodingKeys: String, CodingKey {
-        case kind, mustShow, acceptable, forbidden, reason
+        case kind, mustShow, acceptable, forbidden, reason, mustContain
     }
 
     init(from decoder: Decoder) throws {
@@ -41,6 +49,7 @@ struct LlamaEvalExpectation: Decodable, Equatable {
         acceptable = try container.decodeIfPresent([String].self, forKey: .acceptable) ?? []
         forbidden = try container.decodeIfPresent([String].self, forKey: .forbidden) ?? []
         reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        mustContain = try container.decodeIfPresent([String].self, forKey: .mustContain) ?? []
     }
 
     init(
@@ -48,13 +57,15 @@ struct LlamaEvalExpectation: Decodable, Equatable {
         mustShow: Bool = false,
         acceptable: [String] = [],
         forbidden: [String] = [],
-        reason: String? = nil
+        reason: String? = nil,
+        mustContain: [String] = []
     ) {
         self.kind = kind
         self.mustShow = mustShow
         self.acceptable = acceptable
         self.forbidden = forbidden
         self.reason = reason
+        self.mustContain = mustContain
     }
 }
 
@@ -66,11 +77,19 @@ struct LlamaEvalCase: Decodable, Equatable {
     let precedingText: String
     var trailingText: String = ""
     var isMultiLineEnabled: Bool = true
+    /// Screen OCR text to inject as the prompt's "Nearby on screen" section, standing in for what
+    /// `ScreenshotContextGenerator` would have produced. Present only on cases that test whether
+    /// the model uses what is visible around the user.
+    var visualContextSummary: String?
+    /// Clipboard text to inject, standing in for what the coordinator would have pinned. Enables
+    /// the clipboard section in settings for that case only.
+    var clipboardContext: String?
     let expectation: LlamaEvalExpectation
 
     private enum CodingKeys: String, CodingKey {
         case id, tags, applicationName, bundleIdentifier
         case precedingText, trailingText, isMultiLineEnabled, expectation
+        case visualContextSummary, clipboardContext
     }
 
     init(from decoder: Decoder) throws {
@@ -83,6 +102,8 @@ struct LlamaEvalCase: Decodable, Equatable {
         precedingText = try container.decode(String.self, forKey: .precedingText)
         trailingText = try container.decodeIfPresent(String.self, forKey: .trailingText) ?? ""
         isMultiLineEnabled = try container.decodeIfPresent(Bool.self, forKey: .isMultiLineEnabled) ?? true
+        visualContextSummary = try container.decodeIfPresent(String.self, forKey: .visualContextSummary)
+        clipboardContext = try container.decodeIfPresent(String.self, forKey: .clipboardContext)
         expectation = try container.decode(LlamaEvalExpectation.self, forKey: .expectation)
     }
 
@@ -94,6 +115,8 @@ struct LlamaEvalCase: Decodable, Equatable {
         precedingText: String,
         trailingText: String = "",
         isMultiLineEnabled: Bool = true,
+        visualContextSummary: String? = nil,
+        clipboardContext: String? = nil,
         expectation: LlamaEvalExpectation
     ) {
         self.id = id
@@ -103,6 +126,8 @@ struct LlamaEvalCase: Decodable, Equatable {
         self.precedingText = precedingText
         self.trailingText = trailingText
         self.isMultiLineEnabled = isMultiLineEnabled
+        self.visualContextSummary = visualContextSummary
+        self.clipboardContext = clipboardContext
         self.expectation = expectation
     }
 
@@ -147,7 +172,31 @@ enum LlamaEvalScorer {
             let lowered = shown.lowercased()
             let violates = evalCase.expectation.forbidden.contains { lowered.contains($0.lowercased()) }
             return violates ? .wrongShown : .correctInsert
+        case .recall:
+            // Recall is the one kind where staying silent is a failure rather than a safe
+            // abstention: the fact was in the context and the completion was supposed to carry it.
+            guard let shown = shownText, !shown.isEmpty else { return .missedShow }
+            return containsAll(shown: shown, required: evalCase.expectation.mustContain)
+                ? .correctInsert
+                : .wrongShown
         }
+    }
+
+    /// True when every required substring appears in `shown` once both sides are folded to
+    /// lowercase alphanumerics. Folding out punctuation and spacing is deliberate: a model that
+    /// writes "WF 1000XM5" or "wf-1000xm5" has recalled the entity just as well as one that
+    /// reproduces the exact glyphs, and scoring should not punish that.
+    static func containsAll(shown: String, required: [String]) -> Bool {
+        guard !required.isEmpty else { return false }
+        let haystack = foldedAlphanumerics(shown)
+        return required.allSatisfy { needle in
+            let folded = foldedAlphanumerics(needle)
+            return !folded.isEmpty && haystack.contains(folded)
+        }
+    }
+
+    private static func foldedAlphanumerics(_ text: String) -> String {
+        String(text.lowercased().filter { $0.isLetter || $0.isNumber })
     }
 
     /// Word-boundary prefix match in either direction: the shown text may extend a reference

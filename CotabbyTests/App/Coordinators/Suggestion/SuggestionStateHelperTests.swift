@@ -313,6 +313,44 @@ final class SuggestionInteractionStateTests: XCTestCase {
         }
     }
 
+    func test_typedThroughAdvanceSurvivesTheHostsAccessibilityLag() {
+        // The key event advances the session before the host publishes the character. A poll that
+        // still shows the old text must not kill the session (it read as "partially undone" in the
+        // Claude composer); the one that carries the character clears the sentinel.
+        runOnMainActor {
+            let state = makeState()
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+            let storedSession = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+            XCTAssertNotNil(state.advanceIfTypedCharactersMatch(" wor", expectedSession: storedSession))
+            XCTAssertTrue(state.isAwaitingPostInsertionSync)
+
+            let lagging = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello w")
+            guard case .valid(_, let survived, _)? = state.reconcileActiveSession(with: lagging) else {
+                return XCTFail("A snapshot behind the typed characters must be tolerated")
+            }
+            XCTAssertEqual(survived.remainingText, "ld again")
+            XCTAssertTrue(state.isAwaitingPostInsertionSync)
+
+            let caughtUp = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wor")
+            guard case .valid(_, let current, _)? = state.reconcileActiveSession(with: caughtUp) else {
+                return XCTFail("The published text matches the session")
+            }
+            XCTAssertEqual(current.remainingText, "ld again")
+            XCTAssertFalse(state.isAwaitingPostInsertionSync, "AX caught up: the sentinel clears")
+        }
+    }
+
+    func test_typingThroughTheWholeSuggestionArmsNoSentinel() {
+        runOnMainActor {
+            let state = makeState()
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+            let storedSession = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
+            let exhausted = state.advanceIfTypedCharactersMatch(" world", expectedSession: storedSession)
+            XCTAssertEqual(exhausted?.isExhausted, true)
+            XCTAssertFalse(state.isAwaitingPostInsertionSync)
+        }
+    }
+
     @MainActor
     private func makeState() -> SuggestionInteractionState {
         let state = SuggestionInteractionState()

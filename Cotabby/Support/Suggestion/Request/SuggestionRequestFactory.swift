@@ -29,6 +29,16 @@ enum SuggestionRequestFactory {
         return !trimmed.isEmpty && (suggestWithinWords || CaretWordContext.unfinishedWord(in: precedingText) == nil)
     }
 
+    /// The full pre-generation gate: some typed text (and, when the boundary preference asks for
+    /// it, a finished word), and a caret that is not parked inside a token (see
+    /// `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    static func shouldGenerateSuggestion(
+        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true
+    ) -> Bool {
+        guard shouldGenerateSuggestion(for: precedingText, suggestWithinWords: suggestWithinWords) else { return false }
+        return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
+    }
+
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
     static func buildRequest(
         context: FocusedInputContext,
@@ -136,7 +146,8 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
-            requestID: RequestID.generate()
+            requestID: RequestID.generate(),
+            wordRange: settings.effectiveWordRange
         )
 
         return SuggestionRequestBuildResult(

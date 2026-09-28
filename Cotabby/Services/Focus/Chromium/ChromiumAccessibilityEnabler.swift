@@ -67,6 +67,21 @@ final class ChromiumAccessibilityEnabler {
             CotabbyLogger.focus.debug(
                 "CHROME-PRIME enabled web accessibility for \(application.localizedName ?? "?")")
         case .attributeUnsupported:
+            // `AXManualAccessibility` is an Electron addition; Chrome itself rejects it. Chrome's
+            // full accessibility mode (the one that computes inline text boxes, so character bounds
+            // and font attributes exist) is switched on by the VoiceOver signal instead. Without it
+            // Chrome answers caret markers but never character bounds or fonts, and the ghost can
+            // only guess the host's typeface. Measured 2026-09: all four test fields returned empty
+            // bounds and an empty font dictionary until this flag was set.
+            if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: application.bundleIdentifier),
+               !Self.isEnhancedUserInterfaceDisabled {
+                if AXHelper.setEnhancedUserInterface(true, forApplicationPID: pid) {
+                    primedPIDs.insert(pid)
+                    CotabbyLogger.focus.debug(
+                        "CHROME-PRIME enabled enhanced accessibility for \(application.localizedName ?? "?")")
+                    return
+                }
+            }
             // Codex embeds Chromium in a native shell that rejects AXManualAccessibility.
             // Its native AXEnhancedUserInterface switch exposes the composed web tree instead.
             // Keep this fallback specific to Codex: changing it globally can affect window managers.
@@ -87,5 +102,14 @@ final class ChromiumAccessibilityEnabler {
             // Transient (app still launching, busy): leave it unmarked so the next tick retries.
             break
         }
+    }
+
+    /// Kill switch for the Chromium enhanced-accessibility fallback. Some window managers misplace
+    /// windows of apps that have `AXEnhancedUserInterface` set; a user who hits that can turn the
+    /// fallback off and keep the caret-marker geometry (with font matching by size only).
+    static let enhancedUserInterfaceDisabledDefaultsKey = "cotabbyChromiumEnhancedAccessibilityDisabled"
+
+    private static var isEnhancedUserInterfaceDisabled: Bool {
+        UserDefaults.standard.bool(forKey: enhancedUserInterfaceDisabledDefaultsKey)
     }
 }

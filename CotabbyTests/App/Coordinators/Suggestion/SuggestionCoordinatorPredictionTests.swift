@@ -10,20 +10,30 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
     // MARK: - Happy path
 
     func test_schedulePrediction_generatesAndPresentsTheSuggestion() async {
-        let rig = retained(makeCoordinatorRig())
+        // A word boundary, so the field already supplies the space before the next word.
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello ")
+        ))
 
         rig.coordinator.schedulePrediction()
         XCTAssertEqual(rig.coordinator.state, .debouncing)
 
         await waitUntil("Suggestion never became ready") {
-            rig.coordinator.state == .ready(text: " world", latency: 0.01)
+            rig.coordinator.state == .ready(text: "world", latency: 0.01)
         }
 
-        XCTAssertEqual(rig.overlayController.shownTexts, [" world"])
+        guard case let .ready(text, _) = rig.coordinator.state else {
+            return XCTFail("Expected ready state")
+        }
+        // The field already ends with a space, so the ghost carries none: `GhostSpaceBoundary`
+        // settles that against the live text, and the stub engine's canned " world" (which never
+        // went through the normalizer) is corrected here exactly as a real completion would be.
+        XCTAssertEqual(text, "world")
+        XCTAssertEqual(rig.overlayController.shownTexts, ["world"])
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
-        XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Hello"])
+        XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Hello "])
         XCTAssertEqual(rig.coordinator.latestRequestID, rig.engine.requests.first?.requestID)
-        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world")
         XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.shown, 1)
         // The completed round trip feeds the adaptive debounce for this engine only.
         XCTAssertEqual(rig.coordinator.lastLatencyByEngine, [.llamaOpenSource: 10])
@@ -57,6 +67,21 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
 
         XCTAssertTrue(rig.engine.requests.isEmpty)
         XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because the field has no typed text yet.")
+    }
+
+    func test_generate_holdsWithoutCallingTheEngineWhileTheHostShowsItsOwnInlineText() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(
+                precedingText: "The quick brown fox ju",
+                hostMarkedTextRange: NSRange(location: 22, length: 3)
+            )
+        ))
+
+        rig.coordinator.schedulePrediction()
+        await waitUntil("Pipeline never settled") { rig.coordinator.isHoldingForHostMarkedText }
+
+        XCTAssertTrue(rig.engine.requests.isEmpty, "No generation while the host owns the spot after the caret")
+        XCTAssertEqual(rig.coordinator.state, .idle)
     }
 
     // MARK: - Freshness gates in apply

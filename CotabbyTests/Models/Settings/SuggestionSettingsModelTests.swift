@@ -807,7 +807,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         // offer settings that silently do nothing.
         XCTAssertEqual(
             SuggestionSettingsModel.minimumGhostFontSizeFloor,
-            Double(GhostFontMetrics.absoluteMinimumPointSize)
+            Double(GhostFontSizeLimits.absoluteMinimumPointSize)
         )
     }
 
@@ -1010,7 +1010,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     func test_invertedGhostFontBoundsOnDiskAreRepairedOnLoad() {
         // The two bounds are separate UserDefaults keys written one at a time, so a crash between
         // the writes can persist floor > ceiling. Loading that pair unrepaired would hand
-        // GhostFontMetrics an inverted range where the ceiling silently wins.
+        // GhostFontSizeLimits an inverted range where the ceiling silently wins.
         defaults.set(40.0, forKey: "cotabbyGhostFontSizeFloor")
         defaults.set(16.0, forKey: "cotabbyGhostFontSizeCeiling")
 

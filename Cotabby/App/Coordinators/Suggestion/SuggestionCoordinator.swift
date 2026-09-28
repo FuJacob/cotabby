@@ -17,6 +17,11 @@ final class SuggestionCoordinator: ObservableObject {
     var state: SuggestionDebugState = .idle
     var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
     var latestGenerationNumber: UInt64?
+    /// True while the latest focus snapshot carried host-owned marked text (system inline
+    /// prediction or IME composition); see `SuggestionCoordinator+HostMarkedText.swift`.
+    var isHoldingForHostMarkedText = false
+    /// Work id of a generation re-issued from the word boundary after a seam misspelling, so the
+    /// retry's own result is judged once and never retried again.
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0
@@ -126,6 +131,16 @@ final class SuggestionCoordinator: ObservableObject {
     /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.
     /// `nil` between sessions; replaced when `+Prediction` builds the next request.
     var latestRequestID: String?
+    /// The text before the caret the request now in flight was built from. A base model's
+    /// completion is exact text following it, so `GhostSpaceBoundary` reads the model's own word
+    /// boundary against it (see `SuggestionResult.spacingIsExact`). Kept beside `latestRequestID`
+    /// because both describe the in-flight request, and every reader is already guarded by the
+    /// work-id check that makes "in flight" meaningful.
+    var latestRequestPrecedingText: String?
+    /// True once the continuation of the active suggestion has been prefetched, so the extra
+    /// generation happens at most once per suggestion however many characters are typed through it.
+    /// Cleared whenever the session is torn down or replaced.
+    var hasPrefetchedContinuation = false
     /// Set when a full acceptance commits its final chunk; consumed by the next `apply`. Lets the
     /// coordinator drop a regeneration that only re-proposes the just-accepted tail before the host
     /// publishes the insert, the Chromium AX-publish race that otherwise loops accept/regenerate/
@@ -142,6 +157,7 @@ final class SuggestionCoordinator: ObservableObject {
     var suggestionAnchorCache = SuggestionAnchorCache()
     static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
+    static let continuationPrefetchDisabledDefaultsKey = "cotabbyContinuationPrefetchDisabled"
 
     /// Expected post-acceptance context. A speculative result may predate the live generation
     /// only when both its writing session and exact text match. A matching draft in a different

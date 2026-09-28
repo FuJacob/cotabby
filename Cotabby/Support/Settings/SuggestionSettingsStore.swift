@@ -66,7 +66,7 @@ struct SuggestionSettingsStore {
     /// ordinary body text back down, so neither control is allowed into the other's territory by
     /// range alone. `SuggestionSettingsModel` additionally keeps floor <= ceiling, which range
     /// clamping cannot do because each value is stored independently. The floor's minimum equals
-    /// `GhostFontMetrics.absoluteMinimumPointSize`, the legibility backstop beneath it, so every
+    /// `GhostFontSizeLimits.absoluteMinimumPointSize`, the legibility backstop beneath it, so every
     /// value the slider offers actually takes effect.
     static let defaultGhostFontSizeFloor: Double = 11
     static let minimumGhostFontSizeFloor: Double = 9
@@ -1203,7 +1203,7 @@ struct SuggestionSettingsStore {
     /// Reads the ghost-size floor and ceiling, repairing an inverted pair.
     ///
     /// The two bounds live in separate keys written one at a time, so a crash between the writes can
-    /// persist floor > ceiling. `GhostFontMetrics` would then clamp with an inverted range and the
+    /// persist floor > ceiling. `GhostFontSizeLimits` would then clamp with an inverted range and the
     /// ceiling would silently win, so the pair is ordered here rather than trusted. Kept out of
     /// `load()` so that function's branch count stays under the complexity limit; the resolution is
     /// self-contained, which makes it a natural thing to lift out.

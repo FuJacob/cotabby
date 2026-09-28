@@ -81,28 +81,22 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         }
     }
 
-    func test_make_zeroWidthCaretAwayFromTheOriginAnchorsXToTheCaretButYToTheField() {
-        // `CGRect.isEmpty` is true for a zero-width rect, so the vertical anchor falls back to the
-        // field bottom (400 - 1), while the horizontal anchor only needs a non-zero caret X.
-        let layout = makeLayout(caret: CGRect(x: 300, y: 500, width: 0, height: 18), showsHint: false)
-
-        XCTAssertEqual(layout.panelFrame.minX, 300)
-        XCTAssertEqual(layout.panelFrame.maxY, 399, accuracy: 0.001)
-    }
 
     // MARK: - Horizontal anchor
 
     func test_make_alignsLeftCardEdgeToLTRCaret() {
         let layout = makeLayout(showsHint: false)
 
-        XCTAssertEqual(layout.panelFrame.minX, 722, "LTR card begins at the caret's trailing edge")
+        // The card's padding (10pt) reaches back past the insertion point, so the suggestion's first
+        // letter sits under the caret's leading edge.
+        XCTAssertEqual(layout.panelFrame.minX, 710, "LTR card text begins under the insertion point")
         XCTAssertFalse(layout.isRightToLeft)
     }
 
     func test_make_alignsRightCardEdgeToRTLCaret() {
         let layout = makeLayout(isRightToLeft: true, showsHint: false)
 
-        XCTAssertEqual(layout.panelFrame.maxX, 720, accuracy: 0.001, "RTL card ends at the caret's trailing edge")
+        XCTAssertEqual(layout.panelFrame.maxX, 730, accuracy: 0.001, "RTL card text ends at the insertion point")
         XCTAssertTrue(layout.isRightToLeft)
     }
 
@@ -134,7 +128,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         // A display left of the primary has negative X; clamping must use its own bounds.
         let secondary = CGRect(x: -1440, y: 0, width: 1440, height: 900)
         let inside = makeLayout(caret: CGRect(x: -800, y: 500, width: 2, height: 18), visibleFrame: secondary)
-        XCTAssertEqual(inside.panelFrame.minX, -798)
+        XCTAssertEqual(inside.panelFrame.minX, -810)
 
         let pastLeftEdge = makeLayout(caret: CGRect(x: -1439, y: 500, width: 2, height: 18), visibleFrame: secondary)
         XCTAssertEqual(pastLeftEdge.panelFrame.minX, -1428)
@@ -190,7 +184,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
         // 13 * 0.5 = 6.5pt is below the shared 9pt floor -> height ceil(14.4) + 8 = 23.
         let halved = makeLayout(sizeMultiplier: 0.5)
-        XCTAssertEqual(halved.fontSize, GhostFontMetrics.absoluteMinimumPointSize)
+        XCTAssertEqual(halved.fontSize, GhostFontSizeLimits.absoluteMinimumPointSize)
         XCTAssertEqual(halved.panelFrame.height, 23)
 
         XCTAssertEqual(makeLayout().fontSize, 13)
@@ -225,5 +219,26 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         // so the highlight stops before it.
         XCTAssertEqual(makeLayout("you? me").highlightedPrefix, "you?")
         XCTAssertEqual(makeLayout("you? me", autoAcceptTrailingPunctuation: false).highlightedPrefix, "you")
+    }
+
+    /// Chromium's text-marker carets (and many AppKit insertion points) are zero points wide, which
+    /// `CGRect.isEmpty` calls empty. Measured 2026-09-11 in Gmail's compose body: every mid-line card
+    /// was anchored under the whole body, 440pt below the caret. A caret with height is a line.
+    func test_make_zeroWidthCaretStillAnchorsUnderItsLine() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 1117, y: 469, width: 0, height: 15),
+            inputFrameRect: CGRect(x: 1000, y: 70, width: 500, height: 420)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello there",
+            geometry: geometry,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 949),
+            showsAcceptanceHint: true,
+            reason: .caretMidLine
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 469 - 1, accuracy: 0.5, "the card sits just under the caret line")
+        XCTAssertEqual(layout.panelFrame.minX, 1117 - 10, accuracy: 0.5, "and its text starts under the caret")
     }
 }

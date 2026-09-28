@@ -1,0 +1,403 @@
+[
+  {
+    "id": "screen-product-01",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Google Chrome",
+    "bundleIdentifier": "com.google.Chrome",
+    "precedingText": "I finally decided which earbuds to get. They're called the ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "WF-1000XM5"
+      ]
+    },
+    "visualContextSummary": "Sony WF-1000XM5 Wireless Noise Canceling Earbuds. $299.99. In stock. Free returns. Add to Cart. Customer rating 4.6 out of 5."
+  },
+  {
+    "id": "screen-flight-02",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Google Chrome",
+    "bundleIdentifier": "com.google.Chrome",
+    "precedingText": "Just booked it. My flight number is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "8742"
+      ]
+    },
+    "visualContextSummary": "Air Canada AC 8742. Toronto YYZ to Vancouver YVR. Departs 6:15 PM, Gate B22. Seat 14A. Confirmation QJ7RTM."
+  },
+  {
+    "id": "screen-error-03",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Slack",
+    "bundleIdentifier": "com.tinyspeck.slackmacgap",
+    "precedingText": "The installer keeps failing on me. The code it shows is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "0x80070005"
+      ]
+    },
+    "visualContextSummary": "Setup failed. Error 0x80070005: Access is denied. Retry the installation as an administrator or contact your system administrator."
+  },
+  {
+    "id": "screen-person-04",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Slack",
+    "bundleIdentifier": "com.tinyspeck.slackmacgap",
+    "precedingText": "I don't want to guess on the mockups, so I'll just ask ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Priya"
+      ]
+    },
+    "visualContextSummary": "#design. Priya Raghavan: I pushed the updated mockups this morning, let me know what you think. Devon Clarke: nice, the spacing looks much better."
+  },
+  {
+    "id": "screen-price-05",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Google Chrome",
+    "bundleIdentifier": "com.google.Chrome",
+    "precedingText": "I checked the cart and the total came out to ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "1249"
+      ]
+    },
+    "visualContextSummary": "Order summary. MacBook Air 15-inch M4, 16GB, 512GB. Subtotal $1,199.00. Tax $50.00. Total: $1,249.00. Estimated delivery Thursday."
+  },
+  {
+    "id": "screen-address-06",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Send the package over to the office at ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Wallaby"
+      ]
+    },
+    "visualContextSummary": "Shipping address on file: 42 Wallaby Way, Sydney NSW 2000, Australia. Edit address. Save changes."
+  },
+  {
+    "id": "screen-version-07",
+    "tags": [
+      "recall",
+      "screen"
+    ],
+    "applicationName": "Slack",
+    "bundleIdentifier": "com.tinyspeck.slackmacgap",
+    "precedingText": "Before you debug anything else, note that we're still pinned to version ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "3.11.4"
+      ]
+    },
+    "visualContextSummary": "Deployment status: production running build 3.11.4, staging running build 3.12.0-rc1. Last deploy 2 hours ago by ci-bot."
+  },
+  {
+    "id": "field-room-01",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hello Sarah,\n\nI am free Thursday afternoon for the meeting with PR in room 380. That should give us enough time to go through everything.\n\nOne more thing before I forget: the meeting is in room ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "380"
+      ]
+    }
+  },
+  {
+    "id": "field-name-02",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hi Marcus,\n\nQuick update: Priya Raghavan finished the migration script yesterday and it is already merged.\n\nSo if anything looks off in staging, the person who wrote that script is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Priya"
+      ]
+    }
+  },
+  {
+    "id": "field-project-03",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "We're calling the new initiative Project Halcyon internally, and it kicks off at the start of March.\n\nWhen you write the announcement, refer to it by its internal codename, which is Project ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Halcyon"
+      ]
+    }
+  },
+  {
+    "id": "field-invoice-04",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "The invoice total came to $4,820 after the discount was applied. Please process it before Friday so it lands in this quarter.\n\nJust to confirm, the amount we owe is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "4820"
+      ]
+    }
+  },
+  {
+    "id": "field-date-05",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "The launch is scheduled for November 14th and marketing needs all of the assets before then.\n\nTo confirm the timeline one more time: the product launches on ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "November 14"
+      ]
+    }
+  },
+  {
+    "id": "field-codename-06",
+    "tags": [
+      "recall",
+      "field"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "The staging cluster we spun up is called orion-west-2 and it mirrors production one to one.\n\nIf you want to reproduce the bug, the exact cluster name you need to connect to is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "orion"
+      ]
+    }
+  },
+  {
+    "id": "fieldlong-room-01",
+    "tags": [
+      "recall",
+      "field-long"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hello Sarah,\n\nI am free Thursday afternoon for the meeting with PR in room 380.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one.\n\nAnyway, before I forget: the meeting is in room ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "380"
+      ]
+    }
+  },
+  {
+    "id": "fieldlong-project-02",
+    "tags": [
+      "recall",
+      "field-long"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Quick note before the recap: we're calling the new initiative Project Halcyon internally.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project.\n\nSo when you write the announcement, make sure you refer to it as Project ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Halcyon"
+      ]
+    }
+  },
+  {
+    "id": "fieldlong-invoice-03",
+    "tags": [
+      "recall",
+      "field-long"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "For the record, the invoice total came to $4,820 after the discount.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them.\n\nTo restate the number one last time, the amount we owe is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "4820"
+      ]
+    }
+  },
+  {
+    "id": "fieldlong-name-04",
+    "tags": [
+      "recall",
+      "field-long"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hi Marcus,\n\nQuick update before the recap: Priya Raghavan finished the migration script yesterday.\n\nThanks for the quick turnaround on all of this.\n\nOne last thing: the person who actually wrote the migration script was ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Priya"
+      ]
+    }
+  },
+  {
+    "id": "fieldlong-codename-05",
+    "tags": [
+      "recall",
+      "field-long"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "The staging cluster we spun up is called orion-west-2 and it mirrors production exactly.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed.\n\nTo reproduce it yourself, point your client at the cluster named ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "orion"
+      ]
+    }
+  },
+  {
+    "id": "overflow-room-01",
+    "tags": [
+      "recall",
+      "overflow"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hello Sarah,\n\nI am free Thursday afternoon for the meeting with PR in room 380.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week.\n\nAnyway, before I forget: the meeting is in room ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "380"
+      ]
+    }
+  },
+  {
+    "id": "overflow-project-02",
+    "tags": [
+      "recall",
+      "overflow"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Quick note before the recap: we're calling the new initiative Project Halcyon internally.\n\nThe team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent. A couple of people asked for more visibility into what is landing each week. The plan is to keep the scope tight and let the next round absorb whatever slips. I will put together a short summary so nobody has to read the whole thread. Feedback so far has been positive and mostly focused on polish rather than direction. There is still an open question about how much of this we want to automate. We can decide that later once we see how the first pass actually performs. The rest of the agenda was routine and did not produce any new action items. The team spent most of the afternoon walking through the open items one by one. Nothing was blocked, but a few threads still need an owner before the end of the week. We agreed the documentation should be rewritten before anyone else joins the project. Support has been quiet, which usually means people are working around the rough edges instead of reporting them. I went back through the notes from the previous cycle and most of the concerns there have already been addressed. The build has been stable for a while now and nobody has needed to roll anything back. There was a long discussion about whether to split the work into smaller pieces. Everyone seemed comfortable with the current direction once the tradeoffs were written down. We should probably revisit the onboarding flow at some point, though it is not urgent.\n\nSo when you write the announcement, make sure you refer to it as Project ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Halcyon"
+      ]
+    }
+  },
+  {
+    "id": "clip-passcode-01",
+    "tags": [
+      "recall",
+      "clipboard"
+    ],
+    "applicationName": "Slack",
+    "bundleIdentifier": "com.tinyspeck.slackmacgap",
+    "precedingText": "Here's the meeting link. The passcode is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "4471"
+      ]
+    },
+    "clipboardContext": "Zoom meeting\nhttps://zoom.us/j/98234571209\nMeeting ID: 982 3457 1209\nPasscode: 4471"
+  },
+  {
+    "id": "clip-address-02",
+    "tags": [
+      "recall",
+      "clipboard"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "You can reach the new office at ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Wallaby"
+      ]
+    },
+    "clipboardContext": "Head office\n42 Wallaby Way\nSydney NSW 2000\nAustralia"
+  },
+  {
+    "id": "clip-tracking-03",
+    "tags": [
+      "recall",
+      "clipboard"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "The parcel is on its way. Tracking number is ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "1Z999AA10123456784"
+      ]
+    },
+    "clipboardContext": "Shipment details\nCarrier: UPS\nTracking: 1Z999AA10123456784\nStatus: In transit\nExpected: Thursday"
+  }
+]

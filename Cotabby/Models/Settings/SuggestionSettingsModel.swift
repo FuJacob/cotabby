@@ -1197,7 +1197,7 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     /// Raising the floor past the ceiling (or lowering the ceiling past the floor) would describe an
-    /// empty range, which `GhostFontMetrics` would resolve by letting the ceiling win — silently
+    /// empty range, which `GhostFontSizeLimits` would resolve by letting the ceiling win — silently
     /// ignoring the control the user just moved. Pushing the other value along keeps both controls
     /// honest and the range non-empty, and it matches how paired min/max controls behave elsewhere.
     func setGhostFontSizeFloor(_ points: Double) {

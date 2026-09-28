@@ -53,7 +53,8 @@ final class CaretGeometrySelectorTests: XCTestCase {
             source: "derived deep (runs)",
             quality: .derived,
             observedCharWidth: 6,
-            observedContentEdges: deepEdges
+            observedContentEdges: deepEdges,
+            sourceDetail: "runs"
         ))
     }
 
@@ -96,7 +97,8 @@ final class CaretGeometrySelectorTests: XCTestCase {
             source: "layout-estimated primary-fallback (layout)",
             quality: .layoutEstimated,
             observedCharWidth: 5,
-            observedContentEdges: primaryEdges
+            observedContentEdges: primaryEdges,
+            sourceDetail: "layout"
         ))
     }
 
