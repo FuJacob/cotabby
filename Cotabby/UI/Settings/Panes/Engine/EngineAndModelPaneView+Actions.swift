@@ -42,7 +42,19 @@ extension EngineAndModelPaneView {
     var selectedEngineBinding: Binding<SuggestionEngineKind> {
         Binding(
             get: { suggestionSettings.selectedEngine },
-            set: { suggestionSettings.selectEngine($0) }
+            set: { engine in
+                // Second line of defense behind the disabled menu item: never persist an engine the
+                // Mac cannot run, even if a future picker style ignores `selectionDisabled`.
+                guard isEngineSelectable(engine) else { return }
+                suggestionSettings.selectEngine(engine)
+            }
+        )
+    }
+
+    func isEngineSelectable(_ engine: SuggestionEngineKind) -> Bool {
+        SuggestionEngineSelectionPolicy.isSelectable(
+            engine,
+            foundationModelAvailable: foundationModelAvailabilityService.isAvailable
         )
     }
 
