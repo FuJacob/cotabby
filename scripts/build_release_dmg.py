@@ -29,13 +29,25 @@ from pathlib import Path
 from textwrap import dedent
 
 
-# The committed background art is authored at 2x. Finder window dimensions use point-sized
-# coordinates so the mounted DMG opens compactly without scrollbars while preserving crisp art.
-WINDOW_WIDTH = 540
-WINDOW_HEIGHT = 760
-ICON_SIZE = 128
-APP_ICON_LOCATION = (270, 280)
-APPLICATIONS_ICON_LOCATION = (270, 635)
+# Finder window dimensions use point-sized coordinates. The committed background art is a
+# 700x424 point illustration plus 80pt of extra paper along the bottom, exported at 1x and
+# @2x (assets/release/dmg_background*.png). The padding exists because Finder may show a
+# tab bar and status/path bar regardless of the settings below, and those eat content
+# height: the window opens tall enough that the cat stays visible with that chrome, and
+# without it the extra rows just show more paper instead of Finder's default white.
+# The icon locations are the centers of the two "drop zone" cards drawn in that art, so
+# re-measure them whenever the illustration changes: the icon is centered a little above
+# each card's midpoint so that the icon plus its label sit visually centered together.
+WINDOW_WIDTH = 700
+WINDOW_HEIGHT = 504
+# dmgbuild stores window_rect as Finder's full window frame, title bar included, while the
+# background is drawn in the content area below it. Without this padding the bottom 28pt of
+# the art (where the cat sleeps) is clipped until the user resizes the window.
+TITLE_BAR_HEIGHT = 28
+ICON_SIZE = 72
+TEXT_SIZE = 12
+APP_ICON_LOCATION = (226, 178)
+APPLICATIONS_ICON_LOCATION = (468, 178)
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,7 +229,7 @@ def write_settings_file(
         include_icon_view_settings = True
         arrange_by = None
         icon_size = {ICON_SIZE}
-        text_size = 14
+        text_size = {TEXT_SIZE}
         label_pos = "bottom"
         icon_locations = {{
             app_name: {APP_ICON_LOCATION},
@@ -225,14 +237,14 @@ def write_settings_file(
         }}
 
         background = {str(normalized_background_path)!r}
-        window_rect = ((120, 120), ({WINDOW_WIDTH}, {WINDOW_HEIGHT}))
+        window_rect = ((120, 120), ({WINDOW_WIDTH}, {WINDOW_HEIGHT + TITLE_BAR_HEIGHT}))
         show_status_bar = False
         show_tab_view = False
         show_toolbar = False
         show_pathbar = False
         show_sidebar = False
         show_icon_preview = False
-        grid_spacing = 96
+        grid_spacing = 64
         """
     ).strip() + "\n"
 
