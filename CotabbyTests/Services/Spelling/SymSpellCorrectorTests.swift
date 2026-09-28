@@ -105,7 +105,7 @@ final class SymSpellCorrectorTests: XCTestCase {
             return nil
         })
 
-        wait(for: [loaded], timeout: 5.0)
+        wait(for: [loaded], timeout: Self.backgroundLoadTimeout)
     }
 
     func test_coldLookupsShareOneBackgroundLoadThenServeCorrections() {
@@ -144,7 +144,7 @@ final class SymSpellCorrectorTests: XCTestCase {
         // The first lookup schedules the background load; no index is ready yet.
         XCTAssertNil(corrector.bestCorrection(for: "ciaoo", language: .italian))
 
-        wait(for: [loaderConsulted], timeout: 5.0)
+        wait(for: [loaderConsulted], timeout: Self.backgroundLoadTimeout)
 
         // A failed load publishes nothing: lookups keep failing open and the cache stays empty,
         // so callers fall back to NSSpellChecker instead of crashing or blocking.
@@ -153,7 +153,13 @@ final class SymSpellCorrectorTests: XCTestCase {
     }
 
     /// Polls a background-load condition; loads publish on a global queue with no completion hook.
-    private func waitUntil(timeout: TimeInterval = 5.0, _ condition: () -> Bool) -> Bool {
+    /// Background loads share the global utility queue with every other test's full 82k-word
+    /// English index build. On a GitHub macOS runner those builds take seconds each, and a tiny
+    /// test dictionary can queue behind several of them, so a 5s ceiling flaked in CI. The waits
+    /// return as soon as the condition holds, so a generous ceiling costs nothing when tests pass.
+    private static let backgroundLoadTimeout: TimeInterval = 60
+
+    private func waitUntil(timeout: TimeInterval = SymSpellCorrectorTests.backgroundLoadTimeout, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return true }
