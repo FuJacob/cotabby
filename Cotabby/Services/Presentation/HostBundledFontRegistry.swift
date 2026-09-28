@@ -123,8 +123,9 @@ final class HostBundledFontRegistry {
         guard let traits = CTFontDescriptorCopyAttribute(descriptor, kCTFontTraitsAttribute) as? [String: Any] else { return false }
         let symbolic = (traits[kCTFontSymbolicTrait as String] as? NSNumber)?.uint32Value ?? 0
         guard symbolic & CTFontSymbolicTraits.traitItalic.rawValue == 0 else { return false }
-        let weight = (traits[kCTFontWeightTrait as String] as? NSNumber)?.doubleValue ?? 0
-        guard abs(weight) <= 0.15 else { return false }
+        let weight: Double = (traits[kCTFontWeightTrait as String] as? NSNumber)?.doubleValue ?? 0
+        // `.magnitude` rather than `abs`: Xcode 26.3 finds `abs` ambiguous for this Double.
+        guard weight.magnitude <= 0.15 else { return false }
         let font = CTFontCreateWithFontDescriptor(descriptor, 12, nil)
         var characters: [UniChar] = [0x61, 0x65, 0x6E] // a e n
         var glyphs = [CGGlyph](repeating: 0, count: characters.count)
