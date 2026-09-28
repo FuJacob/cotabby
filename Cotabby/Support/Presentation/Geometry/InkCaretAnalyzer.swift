@@ -151,7 +151,7 @@ enum InkCaretAnalyzer {
                 let minChannel: Double = min(pixel.red, pixel.green, pixel.blue)
                 let saturation: Double = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
                 // Typed locals: Xcode 26.3 found the combined comparison ambiguous.
-                let contrast: Double = abs(luminance[row * width + column] - background)
+                let contrast: Double = (luminance[row * width + column] - background).magnitude
                 let isUnsaturated: Bool = saturation < Self.maximumSaturation
                 if contrast > Self.inkContrast, isUnsaturated {
                     ink[row * width + column] = true

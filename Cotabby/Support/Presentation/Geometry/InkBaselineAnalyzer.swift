@@ -92,7 +92,7 @@ enum InkBaselineAnalyzer {
             for column in 0..<width {
                 let index = row * width + column
                 // Typed locals: Xcode 26.3 found the combined comparison ambiguous.
-                let contrast: Double = abs(luminance[index] - background)
+                let contrast: Double = (luminance[index] - background).magnitude
                 let isUnsaturated: Bool = saturation[index] < Self.maximumSaturation
                 if contrast > Self.inkContrast, isUnsaturated {
                     count += 1
