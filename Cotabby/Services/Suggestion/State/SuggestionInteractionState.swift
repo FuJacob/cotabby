@@ -137,13 +137,20 @@ final class SuggestionInteractionState {
     /// `granularity` selects between word-by-word and phrase-by-phrase acceptance. Whole-
     /// suggestion acceptance is the dedicated full-accept key's responsibility and is routed
     /// through `prepareFullAcceptance`, so the granularity enum has no case for it here.
+    ///
+    /// `heldPresentationText` is the overlay controller's not-yet-painted presentation, if any
+    /// (see `SuggestionSessionReconciler.overlayAllowsAcceptance`). Defaulted so callers that have
+    /// no deferred presenter keep the strict "visible text must equal the tail" rule.
     func prepareAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
+        heldPresentationText: String? = nil,
         granularity: AcceptanceGranularity,
         autoAcceptTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
-        let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
+        let validated = validateSessionForAcceptance(
+            from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
+        )
         guard let (liveContext, session) = validated.session else {
             return .invalid(validated.failureReason ?? "Key passed through.")
         }
@@ -170,9 +177,12 @@ final class SuggestionInteractionState {
 
     func prepareFullAcceptance(
         from snapshot: FocusedInputSnapshot,
-        overlayState: OverlayState
+        overlayState: OverlayState,
+        heldPresentationText: String? = nil
     ) -> SuggestionAcceptancePreparation {
-        let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
+        let validated = validateSessionForAcceptance(
+            from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
+        )
         guard let (liveContext, session) = validated.session else {
             return .invalid(validated.failureReason ?? "Key passed through.")
         }
@@ -192,7 +202,8 @@ final class SuggestionInteractionState {
 
     private func validateSessionForAcceptance(
         from snapshot: FocusedInputSnapshot,
-        overlayState: OverlayState
+        overlayState: OverlayState,
+        heldPresentationText: String?
     ) -> SessionValidation {
         guard let activeSession else {
             return SessionValidation(session: nil, failureReason: "Key passed through because no valid suggestion was ready.")
@@ -204,7 +215,8 @@ final class SuggestionInteractionState {
 
         guard SuggestionSessionReconciler.overlayAllowsAcceptance(
             of: activeSession.remainingText,
-            overlayState: overlayState
+            overlayState: overlayState,
+            heldPresentationText: heldPresentationText
         ) else {
             return SessionValidation(
                 session: nil,

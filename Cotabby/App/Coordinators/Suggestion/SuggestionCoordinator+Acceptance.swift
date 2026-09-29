@@ -83,13 +83,23 @@ extension SuggestionCoordinator {
         // partial modes (`.word`, `.phrase`), since whole-suggestion acceptance is exclusively the
         // dedicated full-accept key's job.
         let primaryGranularity = settingsSnapshot.acceptanceGranularity
+        // A presentation the overlay is still holding (pixel caret read, lagging host caret) leaves
+        // `overlayState` naming the pre-accept tail for a few tens of milliseconds. Hand the held
+        // text to validation so a rapid second Tab accepts the tail Cotabby is about to paint
+        // instead of mismatching, tearing the session down, and leaking Tab into the host.
+        let heldPresentationText = overlayController.heldPresentationText
         let preparation: SuggestionAcceptancePreparation
         if fullText {
-            preparation = interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
+            preparation = interactionState.prepareFullAcceptance(
+                from: rawContext,
+                overlayState: overlayState,
+                heldPresentationText: heldPresentationText
+            )
         } else {
             preparation = interactionState.prepareAcceptance(
                 from: rawContext,
                 overlayState: overlayState,
+                heldPresentationText: heldPresentationText,
                 granularity: primaryGranularity,
                 autoAcceptTrailingPunctuation: settingsSnapshot.autoAcceptTrailingPunctuation
             )

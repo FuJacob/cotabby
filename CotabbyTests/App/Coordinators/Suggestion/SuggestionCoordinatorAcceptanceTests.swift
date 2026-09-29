@@ -124,6 +124,76 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.state, .ready(text: " how", latency: 0.05))
     }
 
+    // MARK: - Rapid successive accepts
+
+    func test_rapidTabsAcceptEachWordWhileTheOverlayIsStillHoldingThePreviousPresent() {
+        // Regression: the overlay controller can hold a presentation (pixel caret read, lagging
+        // host caret) and leave `overlayState` on the pre-accept tail. A second Tab arriving in that
+        // window, before the host has even published the first insertion to AX, used to fail the
+        // "visible text equals tail" check, tear the session down, and pass Tab to the browser,
+        // which moved focus to the page's other controls.
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        rig.overlayController.defersPresentations = true
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.overlayController.heldPresentationText, " world again")
+        XCTAssertEqual(
+            visibleText(of: rig.coordinator.overlayState),
+            " hello world again",
+            "The held present leaves the published state on the previous tail"
+        )
+        XCTAssertTrue(
+            rig.inputMonitor.shouldConsumeAcceptKeyProvider(),
+            "The accept tap must keep owning Tab while the next present is held"
+        )
+
+        // The focus snapshot is untouched: AX has not published " hello" yet.
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "The second rapid Tab must be consumed")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "So must the third")
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world", " again"])
+        XCTAssertFalse(
+            rig.overlayController.hideReasons.contains { $0.hasPrefix("Key passed through") },
+            "No Tab may be handed back to the host during the rapid sequence"
+        )
+    }
+
+    func test_heldPresentLandingKeepsTheRemainingTailAcceptable() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        rig.overlayController.defersPresentations = true
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.overlayController.defersPresentations = false
+        rig.overlayController.landHeldPresentation()
+
+        XCTAssertNil(rig.overlayController.heldPresentationText)
+        XCTAssertEqual(visibleText(of: rig.coordinator.overlayState), " world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world"])
+    }
+
+    func test_staleVisibleGhostWithoutAHeldPresentStillPassesTabThrough() {
+        // The held text widens acceptance only for Cotabby's own in-flight present. A ghost that
+        // shows something other than the tail, with nothing held, is stale UI and must not accept.
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world")
+        rig.overlayController.showSuggestion(
+            " something else",
+            geometry: CotabbyTestFixtures.overlayGeometry()
+        )
+
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertNil(rig.interactionState.activeSession)
+    }
+
+    private func visibleText(of state: OverlayState) -> String? {
+        guard case let .visible(text, _, _) = state else { return nil }
+        return text
+    }
+
     // MARK: - Insertion failures
 
     func test_failedInsertionReturnsTheKeyAndTearsTheSessionDown() {
