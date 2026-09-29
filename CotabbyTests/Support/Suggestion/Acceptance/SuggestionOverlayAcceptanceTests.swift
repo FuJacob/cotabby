@@ -38,6 +38,33 @@ final class SuggestionOverlayAcceptanceTests: XCTestCase {
         )
     }
 
+    func test_overlayAllowsAcceptance_heldPresentationAuthorizesItsOwnTextOnly() {
+        // The controller is holding the next present, so the published state still shows the
+        // tail from before the last accept.
+        let previousTail = OverlayState.visible(
+            text: " hello world",
+            geometry: CotabbyTestFixtures.overlayGeometry(),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionSessionReconciler.overlayAllowsAcceptance(
+                of: " world", overlayState: previousTail, heldPresentationText: " world"
+            )
+        )
+        XCTAssertFalse(
+            SuggestionSessionReconciler.overlayAllowsAcceptance(
+                of: " world", overlayState: previousTail, heldPresentationText: " there"
+            ),
+            "A held present for different text does not make a mismatched ghost acceptable"
+        )
+        XCTAssertFalse(
+            SuggestionSessionReconciler.overlayAllowsAcceptance(
+                of: " world", overlayState: previousTail, heldPresentationText: nil
+            )
+        )
+    }
+
     func test_overlayHideReason_mapsSemanticInputEventsToUserVisibleReasons() {
         XCTAssertEqual(
             SuggestionSessionReconciler.overlayHideReason(

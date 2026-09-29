@@ -243,6 +243,13 @@ protocol SuggestionOverlayControlling: AnyObject {
     var state: OverlayState { get }
     var onStateChange: ((OverlayState) -> Void)? { get set }
 
+    /// Text the last `showSuggestion` call asked for but that the controller is still holding off
+    /// screen (waiting for a pixel caret read, or for a host caret that lags its published text).
+    /// `state` is not updated until the held present lands, so it keeps describing the previous
+    /// presentation; acceptance consults this to tell "our own present is in flight" apart from a
+    /// genuinely stale ghost. Nil whenever nothing is held.
+    var heldPresentationText: String? { get }
+
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 
@@ -260,6 +267,9 @@ protocol SuggestionOverlayControlling: AnyObject {
 }
 
 extension SuggestionOverlayControlling {
+    /// Default: presentations are applied synchronously, so nothing is ever held.
+    var heldPresentationText: String? { nil }
+
     /// Default: not supported, so conformers that do not render an inline panel (e.g. test doubles)
     /// transparently fall back to the caret-anchored present path.
     func advanceInline(to remainingText: String, insertedText: String) -> Bool { false }

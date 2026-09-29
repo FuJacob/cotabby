@@ -89,6 +89,12 @@ final class OverlayController: SuggestionOverlayControlling {
     /// held presentation puts it back. A typed-through advance meanwhile cannot render into the
     /// hidden panel and asks for a fresh present instead (`advanceInline`).
     private var panelHeldForCapture = false
+    /// The text of a presentation `showSuggestion` accepted but has not applied yet (see
+    /// `SuggestionOverlayControlling.heldPresentationText`). Both holds below return before `state`
+    /// is reassigned, so without this the coordinator could not tell its own in-flight present
+    /// from a stale ghost, and rejected a rapid Tab that followed an accept. Cleared by every show
+    /// that is applied, by every newer show before it decides to hold, and by `hide`.
+    private(set) var heldPresentationText: String?
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
     /// The faces an Electron host ships in its bundle, for the pixel match (see the registry).
@@ -158,6 +164,7 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         pixelCaretShowToken &+= 1
         panelHeldForCapture = false
+        heldPresentationText = nil
         // A caret the host has not yet moved for text it has already published (see
         // `CaretLagPolicy`): the next snapshot brings the real one, and a ghost drawn from this one
         // would sit over the typed text, sized from an empty line's box.
@@ -171,6 +178,7 @@ final class OverlayController: SuggestionOverlayControlling {
                     "chars": .stringConvertible(requestedGeometry.lineTextBeforeCaret?.count ?? 0)
                 ]
             )
+            heldPresentationText = text
             return
         }
         // A caret inside a union-run paragraph is placed from the host's pixels (see
@@ -272,6 +280,9 @@ final class OverlayController: SuggestionOverlayControlling {
             )
         }
         let token = pixelCaretShowToken
+        // Marked before `locate`, not after it returns: a capture that fails or answers at once
+        // calls back synchronously, and that nested `showSuggestion` must be free to clear the mark.
+        heldPresentationText = text
         pixelCaretLocator.locate(request) { [weak self] _ in
             guard let self, self.pixelCaretShowToken == token else { return }
             self.showSuggestion(text, geometry: requestedGeometry)
@@ -283,6 +294,7 @@ final class OverlayController: SuggestionOverlayControlling {
     func hide(reason: String) {
         pixelCaretShowToken &+= 1
         panelHeldForCapture = false
+        heldPresentationText = nil
         CotabbyLogger.suggestion.debug("Overlay hidden", metadata: ["stage": .string("overlay-hide"), "reason": .string(reason)])
         panel.orderOut(nil)
         inlineSession = nil

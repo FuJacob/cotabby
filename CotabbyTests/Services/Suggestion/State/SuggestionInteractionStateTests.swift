@@ -164,6 +164,32 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         XCTAssertEqual(chunk, "world")
     }
 
+    func test_secondTabBeforeAXPublishAcceptsTheHeldTailWhileOverlayShowsThePreviousOne() throws {
+        // Rapid Tab regression: after the first accept, AX still shows the pre-insertion text and
+        // the overlay's published state still shows the pre-accept tail, because the controller is
+        // holding the next present. The held text must authorize the second Tab.
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let context = FocusedInputContext(snapshot: snapshot, generation: 1)
+        let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
+        _ = state.commitAcceptedChunk(" world", liveContext: context, session: session)
+        let stalePublishedOverlay = visibleOverlay(text: " world again", for: snapshot)
+
+        guard case .invalid = state.prepareAcceptance(
+            from: snapshot, overlayState: stalePublishedOverlay, granularity: .word
+        ) else { return XCTFail("Without a held present, a mismatched visible ghost is stale UI") }
+
+        guard case let .ready(_, prepared, chunk) = state.prepareAcceptance(
+            from: snapshot,
+            overlayState: stalePublishedOverlay,
+            heldPresentationText: " again",
+            granularity: .word
+        ) else { return XCTFail("The held tail must accept before AX publishes the first insertion") }
+        XCTAssertEqual(prepared.consumedCharacterCount, 6)
+        XCTAssertEqual(chunk, " again")
+        XCTAssertTrue(state.isAwaitingPostInsertionSync, "The first insertion's publication is still owed")
+    }
+
     func test_matchingTypingAfterTabPreservesOutstandingInsertionPublication() throws {
         let state = makeState()
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")

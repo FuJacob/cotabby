@@ -651,12 +651,27 @@ enum SuggestionSessionReconciler {
 
     /// The overlay may be hidden briefly while waiting for the host app to publish an updated
     /// caret position, so hidden does not automatically mean "reject Tab."
-    static func overlayAllowsAcceptance(of text: String, overlayState: OverlayState) -> Bool {
+    ///
+    /// `heldPresentationText` is the text the overlay controller was last asked to show but is
+    /// still holding off screen (a pixel caret read in flight, or a caret that lags the host's
+    /// published text; see `SuggestionOverlayControlling.heldPresentationText`). While a present is
+    /// held, `overlayState` still describes the *previous* presentation, so after a Tab accept it
+    /// names the tail as it was before that accept. A rapid follow-up Tab then compared the new
+    /// tail with the old one, failed, and passed through: the session was torn down and the host
+    /// received a real Tab, moving focus to the page's next control. The held text is the offer
+    /// Cotabby itself is committed to painting for this exact session, so it authorizes acceptance
+    /// just as a painted ghost does. Any other mismatch still rejects: a visible ghost that is
+    /// neither the tail nor its pending replacement is stale UI, not something the user was offered.
+    static func overlayAllowsAcceptance(
+        of text: String,
+        overlayState: OverlayState,
+        heldPresentationText: String? = nil
+    ) -> Bool {
         guard case let .visible(visibleText, _, _) = overlayState else {
             return true
         }
 
-        return visibleText == text
+        return visibleText == text || heldPresentationText == text
     }
 }
 

@@ -101,6 +101,12 @@ final class RigOverlayController: SuggestionOverlayControlling {
     /// Records slide attempts (and declines them, like the protocol default) so tests can assert
     /// which accept paths even try to slide versus re-anchor through a present.
     private(set) var advanceInlineCalls: [(remaining: String, inserted: String)] = []
+    /// When true, `showSuggestion` behaves like the real controller waiting on a pixel caret read
+    /// or a lagging host caret: it records the text as held and leaves `state` on the previous
+    /// presentation. `landHeldPresentation()` then applies it, as the capture callback would.
+    var defersPresentations = false
+    private(set) var heldPresentationText: String?
+    private var heldGeometry: SuggestionOverlayGeometry?
 
     init(state: OverlayState = .hidden(reason: "initial")) {
         self.state = state
@@ -113,12 +119,29 @@ final class RigOverlayController: SuggestionOverlayControlling {
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
         shownTexts.append(text)
+        if defersPresentations {
+            heldPresentationText = text
+            heldGeometry = geometry
+            return
+        }
+        heldPresentationText = nil
+        state = .visible(text: text, geometry: geometry, mode: .inline)
+        onStateChange?(state)
+    }
+
+    /// Applies the held presentation, the way the real controller's capture callback re-runs it.
+    func landHeldPresentation() {
+        guard let text = heldPresentationText, let geometry = heldGeometry else { return }
+        heldPresentationText = nil
+        heldGeometry = nil
         state = .visible(text: text, geometry: geometry, mode: .inline)
         onStateChange?(state)
     }
 
     func hide(reason: String) {
         hideReasons.append(reason)
+        heldPresentationText = nil
+        heldGeometry = nil
         state = .hidden(reason: reason)
         onStateChange?(state)
     }
