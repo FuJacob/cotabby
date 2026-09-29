@@ -863,9 +863,10 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeContext != nil
-            && pendingSpeculativeContext?.sessionIdentity == liveContext.sessionIdentity
-            && pendingSpeculativeContext?.contentSignature == liveContext.contentSignature
+        let isPaidOffSpeculation = pendingSpeculativeContext.map { speculated in
+            liveContext.sessionIdentity.continues(speculated.sessionIdentity)
+                && liveContext.contentSignature == speculated.contentSignature
+        } ?? false
         if isPaidOffSpeculation {
             pendingSpeculativeContext = nil
         }

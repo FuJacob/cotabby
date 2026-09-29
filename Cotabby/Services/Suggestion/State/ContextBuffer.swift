@@ -20,7 +20,11 @@ final class ContextBuffer {
 
         // Identical drafts in two chat tabs are different requests. Session identity includes
         // navigation but excludes volatile AX tokens, so a wrapper refresh alone stays harmless.
-        if snapshot.sessionIdentity != lastSessionIdentity || signature != lastSignature {
+        // A surface fact one poll failed to read is not navigation either: bumping the generation
+        // for it would retire an in-flight suggestion for text that never changed. Real navigation
+        // still bumps, because FocusTracker advances the focus sequence for it.
+        let continuesSession = lastSessionIdentity.map { snapshot.sessionIdentity.continues($0) } ?? false
+        if !continuesSession || signature != lastSignature {
             nextGeneration &+= 1
         }
 

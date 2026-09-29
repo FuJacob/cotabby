@@ -46,22 +46,78 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
 
     /// Every identity fact must match for continuity, even when the composer geometry is reused
     /// verbatim (a chat app swapping conversations inside one window is the motivating case).
+    /// The original's surface facts are known values: a fact that changes from one known value to
+    /// another is navigation, whereas a fact that merely failed to read is covered separately below.
     func test_identityFactsDistinguishReusedComposerAndBreakContinuity() {
-        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let url = "https://chat.example/conversation/one"
+        let title = "Conversation one"
+        let placeholder = "Message #channel"
+        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: url, windowTitle: title, fieldPlaceholder: placeholder
+        ))
+        func snapshot(
+            processIdentifier: Int32 = 123, bundleIdentifier: String = "com.example.TestApp",
+            role: String = "AXTextField", subrole: String? = nil,
+            focusedURLString: String = url, windowTitle: String = title, fieldPlaceholder: String = placeholder
+        ) -> FocusedInputSnapshot {
+            CotabbyTestFixtures.focusedInputSnapshot(
+                bundleIdentifier: bundleIdentifier, processIdentifier: processIdentifier, role: role, subrole: subrole,
+                focusedURLString: focusedURLString, windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            )
+        }
         let changes: [(label: String, snapshot: FocusedInputSnapshot)] = [
-            ("url", CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/conversation/two")),
-            ("window title", CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Another conversation")),
-            ("placeholder", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message #another-channel")),
-            ("pid", CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456)),
-            ("bundle", CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "com.example.Other")),
-            ("role", CotabbyTestFixtures.focusedInputSnapshot(role: "AXTextArea")),
-            ("subrole", CotabbyTestFixtures.focusedInputSnapshot(subrole: "AXSearchField"))
+            ("url", snapshot(focusedURLString: "https://chat.example/conversation/two")),
+            ("window title", snapshot(windowTitle: "Another conversation")),
+            ("placeholder", snapshot(fieldPlaceholder: "Message #another-channel")),
+            ("pid", snapshot(processIdentifier: 456)),
+            ("bundle", snapshot(bundleIdentifier: "com.example.Other")),
+            ("role", snapshot(role: "AXTextArea")),
+            ("subrole", snapshot(subrole: "AXSearchField"))
         ]
         for (label, snapshot) in changes {
             let changed = FocusedInputPollingSignature(context: snapshot)
             XCTAssertNotEqual(original, changed, label)
             XCTAssertFalse(changed.continuesField(of: original), label)
         }
+    }
+
+    /// A surface fact that fails to read on one poll (the host was busy and the AX call hit its
+    /// timeout) arrives as nil. That poll still observes the same field: treating it as navigation
+    /// advanced the focus sequence and retired the active suggestion mid-way through rapid accepts.
+    func test_unreadableSurfaceFactsContinueTheField() {
+        let known = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/conversation/one", windowTitle: "Conversation one",
+            fieldPlaceholder: "Message"
+        ))
+        let blankPolls: [(label: String, snapshot: FocusedInputSnapshot)] = [
+            ("title", CotabbyTestFixtures.focusedInputSnapshot(
+                focusedURLString: "https://chat.example/conversation/one", fieldPlaceholder: "Message")),
+            ("url", CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Conversation one", fieldPlaceholder: "Message")),
+            ("all facts", CotabbyTestFixtures.focusedInputSnapshot())
+        ]
+        for (label, snapshot) in blankPolls {
+            let blank = FocusedInputPollingSignature(context: snapshot)
+            XCTAssertTrue(blank.continuesField(of: known), label)
+            XCTAssertTrue(known.continuesField(of: blank), "\(label): the facts coming back is not navigation either")
+        }
+    }
+
+    /// The tracker stores each continuing poll with unreadable facts filled from the previous one,
+    /// so a navigation that straddles a blank poll (A, nil, B) is still caught on the B poll.
+    func test_carriedKnownFactsStillCatchNavigationAfterAnUnreadablePoll() {
+        let first = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            windowTitle: "Conversation one"
+        ))
+        let blank = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let second = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            windowTitle: "Conversation two"
+        ))
+
+        XCTAssertTrue(second.continuesField(of: blank), "Against the raw blank poll the switch is invisible")
+        let carried = blank.carryingKnownSurfaceFacts(from: first)
+        XCTAssertEqual(carried, first, "Nothing but the unreadable title was inherited")
+        XCTAssertFalse(second.continuesField(of: carried), "Against the carried signature it is navigation")
+        XCTAssertEqual(blank.carryingKnownSurfaceFacts(from: nil), blank)
     }
 
     func test_subPointFrameJitterRoundsToTheSameSignature() {

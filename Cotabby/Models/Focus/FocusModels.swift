@@ -26,6 +26,34 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let focusedURLString: String?
     let windowTitle: String?
     let fieldPlaceholder: String?
+
+    /// True when this identity, read from a live poll, still describes the writing session
+    /// `previous` was captured in.
+    ///
+    /// This is the comparison every consumer of a *live* snapshot must use instead of `==`. The
+    /// process, bundle and focus sequence are Cotabby's own bookkeeping and always known, so they
+    /// must match exactly. The three surface facts are bounded AX reads repeated on every poll,
+    /// each under `AXHelper`'s 50 ms messaging timeout. A host busy processing a burst of synthetic
+    /// keystrokes (Chromium during rapid Tab accepts) times one out, and the fact arrives as nil.
+    /// Nil is an unreadable fact, not a navigation: navigation is one known value replaced by a
+    /// different known value. Reading nil as "changed" tore the active suggestion down mid-burst as
+    /// a "focused field" change, and the next Tab reached the page as a real Tab.
+    func continues(_ previous: FocusedInputSessionIdentity) -> Bool {
+        processIdentifier == previous.processIdentifier
+            && bundleIdentifier == previous.bundleIdentifier
+            && focusChangeSequence == previous.focusChangeSequence
+            && Self.surfaceFactsAgree(focusedURLString, previous.focusedURLString)
+            && Self.surfaceFactsAgree(windowTitle, previous.windowTitle)
+            && Self.surfaceFactsAgree(fieldPlaceholder, previous.fieldPlaceholder)
+    }
+
+    /// Two reads of one surface fact agree unless both are known and differ. Shared with
+    /// `FocusedInputPollingSignature` so the tracker's navigation signal and the session identity
+    /// consumers rely on cannot drift apart on what an unreadable fact means.
+    static func surfaceFactsAgree(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs else { return true }
+        return lhs == rhs
+    }
 }
 
 /// Describes how trustworthy the resolved caret rect is.
