@@ -293,8 +293,14 @@ final class VisualContextCoordinator {
     /// visual-context session still belongs to that same field.
     func excerpt(for context: FocusedInputContext) -> String? {
         expireExcerptIfNeeded()
-        guard let activeAugmentationSession, let activeSessionIdentity,
-            context.sessionIdentity.continues(activeSessionIdentity),
+        // Exact identity here, unlike the session-keeping checks above. Those tolerate a surface
+        // fact the poll failed to read so a busy host does not cancel the capture; this call hands
+        // screen text to a prompt, and a chat switch that reuses the composer, frame and URL while
+        // its new title is momentarily unreadable would otherwise condition the new chat's request
+        // on the previous chat's excerpt. Withholding the excerpt for that one poll costs a request
+        // its screen context; the session and its capture survive for the next readable poll.
+        guard let activeAugmentationSession,
+            activeSessionIdentity == context.sessionIdentity,
             activeAugmentationSession.elementIdentifier == context.elementIdentifier,
             activeAugmentationSession.focusChangeSequence == context.focusChangeSequence,
             activeAugmentationSession.status == .ready
