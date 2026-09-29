@@ -175,9 +175,17 @@ struct MenuBarView: View {
             Group {
                 MenuBarPickerRow(title: "Engine") {
                     Picker("Engine", selection: selectedEngineBinding) {
+                        // Same gating as Settings and onboarding: an unavailable engine is shown
+                        // greyed out with an "(Unavailable)" suffix and cannot be picked.
                         ForEach(SuggestionEngineKind.allCases) { engine in
-                            Text(engine.displayLabel)
-                                .tag(engine)
+                            Text(
+                                SuggestionEngineSelectionPolicy.pickerLabel(
+                                    for: engine,
+                                    foundationModelAvailable: foundationModelAvailabilityService.isAvailable
+                                )
+                            )
+                            .tag(engine)
+                            .selectionDisabled(!isEngineSelectable(engine))
                         }
                     }
                     .labelsHidden()
@@ -347,10 +355,19 @@ struct MenuBarView: View {
         )
     }
 
+    private func isEngineSelectable(_ engine: SuggestionEngineKind) -> Bool {
+        SuggestionEngineSelectionPolicy.isSelectable(
+            engine,
+            foundationModelAvailable: foundationModelAvailabilityService.isAvailable
+        )
+    }
+
     private var selectedEngineBinding: Binding<SuggestionEngineKind> {
         Binding(
             get: { suggestionSettings.selectedEngine },
             set: { engine in
+                // Never persist an engine this Mac cannot run, as a guard behind the disabled item.
+                guard isEngineSelectable(engine) else { return }
                 // With power-based switching on, the active engine is owned by the current power
                 // source's profile. Editing it here writes that profile (battery vs. plugged-in)
                 // instead of `selectedEngine`, which the switcher would otherwise revert. The profile

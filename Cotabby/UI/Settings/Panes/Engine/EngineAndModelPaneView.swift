@@ -29,8 +29,18 @@ struct EngineAndModelPaneView: View {
         SettingsPaneScaffold(callout: callout) {
             Section("Engine") {
                 Picker(selection: selectedEngineBinding) {
+                    // Match onboarding: an engine this Mac cannot run stays listed (so a stored
+                    // selection still renders) but is greyed out and labelled, never selectable.
+                    // `selectionDisabled` (macOS 14+) disables just that menu item.
                     ForEach(SuggestionEngineKind.allCases) { engine in
-                        Text(engine.displayLabel).tag(engine)
+                        Text(
+                            SuggestionEngineSelectionPolicy.pickerLabel(
+                                for: engine,
+                                foundationModelAvailable: foundationModelAvailabilityService.isAvailable
+                            )
+                        )
+                        .tag(engine)
+                        .selectionDisabled(!isEngineSelectable(engine))
                     }
                 } label: {
                     SettingsRowLabel(
