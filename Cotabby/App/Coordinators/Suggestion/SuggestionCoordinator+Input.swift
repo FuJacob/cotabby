@@ -454,9 +454,9 @@ extension SuggestionCoordinator {
             // round-trip the speculation existed to skip. Stand down and let it land; `apply`
             // validates via the same signature. Any divergence falls through to the normal
             // reschedule, whose newer work id retires the speculation automatically.
-            if let expected = pendingSpeculativeContext,
-               currentContext?.sessionIdentity == expected.sessionIdentity,
-               currentContext?.contentSignature == expected.contentSignature {
+            if let expected = pendingSpeculativeContext, let currentContext,
+               currentContext.sessionIdentity.continues(expected.sessionIdentity),
+               currentContext.contentSignature == expected.contentSignature {
                 logStage(
                     "speculation-validated",
                     workID: currentWorkID,

@@ -5,18 +5,59 @@ import XCTest
 /// consumed-prefix changes advance it, and how the post-insertion and typed-input lag sentinels
 /// tolerate a host that has not published yet without excusing unrelated edits.
 final class SuggestionSessionReconciliationTests: XCTestCase {
+    /// The session was offered in a field whose title and URL were readable; a poll that reads a
+    /// *different* title or URL (or a new focus sequence) is another conversation, however similar
+    /// its text. A poll that fails to read one of them is not; see the next test.
     func test_identicalTextInAnotherConversationRejectsEvenDuringInsertionLag() {
-        let session = CotabbyTestFixtures.activeSession()
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                focusedURLString: "https://chat.example/one", windowTitle: "This chat"
+            ),
+            fullText: " world again",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
         let targets = [
-            CotabbyTestFixtures.focusedInputContext(focusChangeSequence: 2),
-            CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
-            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two")
+            CotabbyTestFixtures.focusedInputContext(
+                focusChangeSequence: 2, focusedURLString: "https://chat.example/one", windowTitle: "This chat"),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: "Other chat"),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "This chat")
         ]
         for target in targets {
             assertInvalid(SuggestionSessionReconciler.reconcile(
                 session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
             ), reason: "Overlay hidden because the focused field changed.")
         }
+    }
+
+    /// The live poll re-reads the title and URL from the host under a short AX timeout; during a
+    /// burst of synthetic insertions one comes back nil. That is the same field, so the session
+    /// (here still waiting for the host to publish the first insertion) must survive it. Reading
+    /// nil as another conversation retired the session and handed the next Tab to the host.
+    func test_unreadableSurfaceFactsDuringInsertionLagKeepTheSession() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                focusedURLString: "https://chat.example/one", windowTitle: "Chat one"
+            ),
+            fullText: " world again",
+            consumedCharacterCount: 6,
+            latency: 0.1
+        )
+        let blankReads = [
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: nil),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: nil, windowTitle: "Chat one"),
+            CotabbyTestFixtures.focusedInputContext()
+        ]
+        for live in blankReads {
+            guard case .valid = SuggestionSessionReconciler.reconcile(
+                session: session, with: live, pendingInsertionConsumedCount: session.consumedCharacterCount
+            ) else { return XCTFail("A surface fact that failed to read must not end the session: \(live.sessionIdentity)") }
+        }
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: "Chat two"),
+            pendingInsertionConsumedCount: session.consumedCharacterCount
+        ), reason: "Overlay hidden because the focused field changed.")
     }
 
     func test_wrapperChurnInsideSessionStillAcceptsSuggestion() {

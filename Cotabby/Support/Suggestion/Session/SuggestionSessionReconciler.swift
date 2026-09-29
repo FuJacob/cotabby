@@ -61,7 +61,9 @@ enum SuggestionSessionReconciler {
 
         // Text may be identical in two conversations. Validate the writing session before even
         // the post-insertion AX-lag tolerance, which must never authorize a different target.
-        guard liveContext.sessionIdentity == session.baseContext.sessionIdentity else {
+        // `continues`, not `==`: a surface fact the live poll failed to read is not a new target
+        // (see `FocusedInputSessionIdentity.continues`).
+        guard liveContext.sessionIdentity.continues(session.baseContext.sessionIdentity) else {
             return .invalid("Overlay hidden because the focused field changed.")
         }
 
