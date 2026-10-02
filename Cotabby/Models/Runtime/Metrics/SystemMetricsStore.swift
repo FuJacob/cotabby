@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 /// File overview:
-/// A rolling, in-memory window of the app's own CPU and memory readings, published for the
+/// A rolling, in-memory window of the app's own CPU, memory, and GPU readings, published for the
 /// Performance pane's live graphs. Unlike `PerformanceMetricsStore` this is deliberately *not*
 /// persisted: the samples are only meaningful while you are watching them, and polling stops the
 /// moment the pane goes away. Sampling is reference-counted via `beginSampling`/`endSampling` so a
@@ -15,6 +15,14 @@ struct SystemMetricSample: Identifiable, Equatable {
     let timestamp: Date
     let cpuPercent: Double
     let footprintBytes: UInt64
+    /// Cotabby's own GPU share since the previous sample, 0-100. `nil` on the first sample of a
+    /// session (no previous reading to compare against) and when the GPU counters are unavailable.
+    var gpuPercent: Double? = nil
+    /// Whole-Mac GPU utilization, 0-100, for context: a high value with a low `gpuPercent` means
+    /// another app is using the GPU.
+    var deviceGPUPercent: Double? = nil
+    /// GPU memory in use across the whole Mac, in bytes.
+    var gpuMemoryBytes: UInt64? = nil
 }
 
 @MainActor
@@ -32,6 +40,10 @@ final class SystemMetricsStore: ObservableObject {
 
     private let sampleInterval: TimeInterval
     private let sampler: () -> SystemResourceSample
+    private let gpuSampler: () -> GPUStatisticsReading
+    /// The previous GPU reading and when it was taken, the baseline the next sample's `gpuPercent`
+    /// is measured from. Reset with the window so a new session never spans a gap.
+    private var previousGPUReading: (nanoseconds: UInt64?, date: Date)?
     private var timer: Timer?
     private var nextSampleID: UInt64 = 0
     /// How many live views currently want sampling. Polling runs only while this is positive.
@@ -40,11 +52,13 @@ final class SystemMetricsStore: ObservableObject {
     init(
         sampleInterval: TimeInterval = SystemMetricsStore.defaultInterval,
         physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory,
-        sampler: @escaping () -> SystemResourceSample = { SystemResourceSampler.sample() }
+        sampler: @escaping () -> SystemResourceSample = { SystemResourceSampler.sample() },
+        gpuSampler: @escaping () -> GPUStatisticsReading = { GPUStatisticsReader.read() }
     ) {
         self.sampleInterval = sampleInterval
         self.physicalMemoryBytes = physicalMemoryBytes
         self.sampler = sampler
+        self.gpuSampler = gpuSampler
     }
 
     nonisolated deinit {
@@ -81,6 +95,7 @@ final class SystemMetricsStore: ObservableObject {
     func clear() {
         samples = []
         nextSampleID = 0
+        previousGPUReading = nil
     }
 
     private func startTimer() {
@@ -111,11 +126,24 @@ final class SystemMetricsStore: ObservableObject {
 
     private func captureSample() {
         let reading = sampler()
+        let gpu = gpuSampler()
+        let now = Date()
+        let gpuPercent = previousGPUReading.flatMap { previous in
+            GPUStatisticsReader.processUtilizationPercent(
+                previousNanoseconds: previous.nanoseconds,
+                currentNanoseconds: gpu.processGPUTimeNanoseconds,
+                elapsedSeconds: now.timeIntervalSince(previous.date)
+            )
+        }
+        previousGPUReading = (gpu.processGPUTimeNanoseconds, now)
         let sample = SystemMetricSample(
             id: nextSampleID,
-            timestamp: Date(),
+            timestamp: now,
             cpuPercent: reading.cpuPercent,
-            footprintBytes: reading.footprintBytes
+            footprintBytes: reading.footprintBytes,
+            gpuPercent: gpuPercent,
+            deviceGPUPercent: gpu.deviceUtilizationPercent,
+            gpuMemoryBytes: gpu.inUseMemoryBytes
         )
         nextSampleID &+= 1
         var updated = samples

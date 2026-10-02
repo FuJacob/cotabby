@@ -24,7 +24,8 @@ final class SystemMetricsStoreTests: XCTestCase {
 
     private func makeStore(
         probe: SamplerProbe,
-        sampleInterval: TimeInterval = 600
+        sampleInterval: TimeInterval = 600,
+        gpuSampler: @escaping () -> GPUStatisticsReading = { .unavailable }
     ) -> SystemMetricsStore {
         // The default interval is deliberately huge so timer ticks can never interleave with
         // assertions; timer-driven tests override it explicitly.
@@ -32,7 +33,8 @@ final class SystemMetricsStoreTests: XCTestCase {
             SystemMetricsStore(
                 sampleInterval: sampleInterval,
                 physicalMemoryBytes: 8_589_934_592,
-                sampler: { probe.next() }
+                sampler: { probe.next() },
+                gpuSampler: gpuSampler
             )
         }
     }
@@ -48,6 +50,35 @@ final class SystemMetricsStoreTests: XCTestCase {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
         }
         return true
+    }
+
+    // MARK: - GPU
+
+    func test_gpuShareStartsOnTheSecondSampleAndCarriesDeviceFigures() {
+        // GPU time grows by a fixed amount per reading; the share depends on real elapsed time, so
+        // only its presence and range are asserted.
+        var nanoseconds: UInt64 = 0
+        let store = makeStore(probe: SamplerProbe(), sampleInterval: 0.05, gpuSampler: {
+            nanoseconds += 10_000_000
+            return GPUStatisticsReading(
+                deviceUtilizationPercent: 42,
+                inUseMemoryBytes: 1_024,
+                processGPUTimeNanoseconds: nanoseconds
+            )
+        })
+
+        runOnMainActor { store.beginSampling() }
+        XCTAssertTrue(pumpRunLoop(timeout: 2) { runOnMainActor { store.samples.count >= 2 } })
+        runOnMainActor {
+            let samples = store.samples
+            XCTAssertNil(samples[0].gpuPercent, "the first reading has nothing to measure from")
+            let share = samples[1].gpuPercent
+            XCTAssertNotNil(share)
+            XCTAssertTrue((0...100).contains(share ?? -1))
+            XCTAssertEqual(samples[1].deviceGPUPercent, 42)
+            XCTAssertEqual(samples[1].gpuMemoryBytes, 1_024)
+            store.endSampling()
+        }
     }
 
     // MARK: - Lifecycle and reference counting

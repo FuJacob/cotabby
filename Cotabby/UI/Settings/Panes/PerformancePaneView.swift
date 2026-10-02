@@ -150,12 +150,26 @@ struct PerformancePaneView: View {
                 tint: .green,
                 valueLabel: ramCurrentLabel
             )
+            VStack(alignment: .leading, spacing: 6) {
+                MetricSparkline(
+                    points: gpuPoints,
+                    yDomainUpper: 100,
+                    tint: .purple,
+                    valueLabel: gpuCurrentLabel
+                )
+                Text(deviceGPUSummary)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text("Live Resource Usage")
         } footer: {
             Text(
                 "Updated every second while this pane is open. CPU can exceed 100% across multiple " +
-                "cores. Memory is the app's physical footprint."
+                "cores. Memory is the app's physical footprint. GPU is Cotabby's own share of the " +
+                "GPU, which the Open Source engine uses to run its model; the line below it covers " +
+                "every app on this Mac."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -177,6 +191,31 @@ struct PerformancePaneView: View {
                 value: Double($0.footprintBytes) / Self.bytesPerMB
             )
         }
+    }
+
+    /// Cotabby's GPU share per sample. The first sample of a session has no previous reading to
+    /// measure from and is skipped rather than drawn as a false 0%.
+    private var gpuPoints: [MetricSparkline.Point] {
+        systemMetricsStore.samples.compactMap { sample in
+            sample.gpuPercent.map {
+                MetricSparkline.Point(id: String(sample.id), label: "GPU", date: sample.timestamp, value: $0)
+            }
+        }
+    }
+
+    private var gpuCurrentLabel: String {
+        guard let percent = systemMetricsStore.samples.last?.gpuPercent else { return "—" }
+        return String(format: "%.0f%%", percent)
+    }
+
+    /// Whole-Mac GPU utilization and GPU memory in use, from the latest sample.
+    private var deviceGPUSummary: String {
+        let latest = systemMetricsStore.samples.last
+        let utilization = latest?.deviceGPUPercent.map { String(format: "%.0f%%", $0) } ?? "—"
+        let memory = latest?.gpuMemoryBytes.map {
+            ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory)
+        } ?? "—"
+        return "All apps: GPU \(utilization) · GPU memory in use \(memory)"
     }
 
     /// Headroom above the recent peak so the line never clips the top of the frame. CPU never
@@ -320,7 +359,7 @@ struct PerformancePaneView: View {
     }()
 }
 
-/// A compact filled line graph for a single time series (CPU, memory, or latency). Renders a header
+/// A compact filled line graph for a single time series (CPU, memory, GPU, or latency). Renders a header
 /// with the metric name and its current value, then a fixed-height area+line chart. Kept generic
 /// over plain `Point`s so the pane can feed it three different sources without leaking chart code
 /// into the pane body.
