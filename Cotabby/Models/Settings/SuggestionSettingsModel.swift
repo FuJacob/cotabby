@@ -156,6 +156,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Per-app accept/full-accept overrides. Published so the input monitor's event-time provider
     /// closures (via `ShortcutResolver`) and the Apps settings pane both observe the live list.
     @Published private(set) var perAppShortcutOverrides: [PerAppShortcutOverride]
+    /// Whether Accept Entire Suggestion is bound to a quick double press of the Accept Word key.
+    /// The Accept Entire Suggestion slot holds one shortcut, so while this is true the one-press
+    /// full-accept key is unbound; the setters below keep the two mutually exclusive.
+    @Published private(set) var doubleTapAcceptsEntireSuggestion: Bool
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
     @Published private(set) var batteryEngine: SuggestionEngineKind
@@ -284,6 +288,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
@@ -367,6 +372,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
@@ -480,7 +486,8 @@ final class SuggestionSettingsModel: ObservableObject {
                     modifiers: globalToggleKeyModifiers,
                     label: globalToggleKeyLabel
                 ),
-                perAppOverrides: perAppShortcutOverrides
+                perAppOverrides: perAppShortcutOverrides,
+                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
             )
         )
     }
@@ -521,7 +528,8 @@ final class SuggestionSettingsModel: ObservableObject {
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
+            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion
         )
     }
 
@@ -901,6 +909,60 @@ final class SuggestionSettingsModel: ObservableObject {
             skinTone: preferredEmojiSkinTone,
             gender: preferredEmojiGender
         )
+    }
+
+    private func setDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
+        guard doubleTapAcceptsEntireSuggestion != enabled else {
+            return
+        }
+        doubleTapAcceptsEntireSuggestion = enabled
+        store.saveDoubleTapAcceptsEntireSuggestion(enabled)
+    }
+
+    /// Binds Accept Entire Suggestion to a double press of the Accept Word key, replacing any
+    /// one-press key in that slot. Ignored while Accept Word is unbound, since there is no key to
+    /// press twice.
+    func setDoubleTapFullAcceptance() {
+        guard acceptanceKeyCode != Self.disabledKeyCode else { return }
+        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+        setDoubleTapAcceptsEntireSuggestion(true)
+    }
+
+    /// True when the double-tap binding can actually fire. It rides on the Accept Word key, so it
+    /// is inert while that key is unbound.
+    var isDoubleTapFullAcceptanceActive: Bool {
+        doubleTapAcceptsEntireSuggestion && acceptanceKeyCode != Self.disabledKeyCode
+    }
+
+    /// The Accept Entire Suggestion shortcut as users should read it: the one-press key, or the
+    /// Accept Word key written twice ("Tab Tab").
+    var fullAcceptanceDisplayLabel: String {
+        isDoubleTapFullAcceptanceActive ? "\(acceptanceKeyLabel) \(acceptanceKeyLabel)" : fullAcceptanceKeyLabel
+    }
+
+    /// What accepts the whole suggestion in one app when it inherits the global shortcut. The
+    /// double tap is a double press of that app's own Accept Word key, so a per-app Accept Word
+    /// override changes it too, and disabling Accept Word there leaves no double tap at all.
+    func inheritedFullAcceptanceDisplayLabel(forBundleIdentifier bundleIdentifier: String?) -> String {
+        let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard doubleTapAcceptsEntireSuggestion, fullAccept.keyCode == Self.disabledKeyCode else {
+            return fullAccept.label
+        }
+        let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard accept.keyCode != Self.disabledKeyCode else { return fullAccept.label }
+        return "\(accept.label) \(accept.label)"
+    }
+
+    /// Whether any shortcut accepts the whole suggestion, so views can offer Clear.
+    var hasFullAcceptanceShortcut: Bool {
+        isDoubleTapFullAcceptanceActive || fullAcceptanceKeyCode != Self.disabledKeyCode
+    }
+
+    /// Whether the slot still holds the factory one-press key, so views can hide Reset.
+    var isFullAcceptanceShortcutDefault: Bool {
+        !isDoubleTapFullAcceptanceActive
+            && fullAcceptanceKeyCode == Self.defaultFullAcceptanceKeyCode
+            && fullAcceptanceKeyModifiers.isEmpty
     }
 
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
@@ -1328,10 +1390,18 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func clearAcceptanceKey() {
+        // The double-tap binding is a double press of this key, so it goes away with it rather than
+        // reappearing unexpectedly when a new Accept Word key is recorded later.
+        setDoubleTapAcceptsEntireSuggestion(false)
         setAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
     func setFullAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
+        // A real key takes the slot over from a double tap. Unbinding leaves the flag alone so
+        // `setDoubleTapFullAcceptance` can clear the key without undoing itself.
+        if keyCode != Self.disabledKeyCode {
+            setDoubleTapAcceptsEntireSuggestion(false)
+        }
         let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
         guard fullAcceptanceKeyCode != keyCode
             || fullAcceptanceKeyModifiers != normalizedModifiers
@@ -1353,6 +1423,7 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func clearFullAcceptanceKey() {
+        setDoubleTapAcceptsEntireSuggestion(false)
         setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
@@ -1647,10 +1718,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
         // alongside `acceptanceGranularity` here for the same reason. The three custom-range fields
         // travel together as a single tuple so they only cost one slot in this outer layer.
-        let customRange = Publishers.CombineLatest3(
+        // The double-tap toggle rides in this slot's last free input; it is unrelated to the range
+        // but costs no extra layer of nesting.
+        let customRange = Publishers.CombineLatest4(
             $isUsingCustomWordCountRange,
             $customWordCountLowWords,
-            $customWordCountHighWords
+            $customWordCountHighWords,
+            $doubleTapAcceptsEntireSuggestion
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1674,7 +1748,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
-                let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (isCustomActive, customLow, customHigh, doubleTapAcceptsEntireSuggestion) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1708,7 +1782,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos
+                    automaticallyFixTypos: automaticallyFixTypos,
+                    doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
                 )
             }
             .removeDuplicates()

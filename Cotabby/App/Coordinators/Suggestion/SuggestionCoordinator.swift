@@ -174,6 +174,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
     var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()
 
+    /// Pure state for recognizing a quick second press of the Accept Word key. Only real key presses
+    /// feed it; the queued post-exhaustion accept stays a plain one-word accept.
+    var doubleTapAcceptanceState = DoubleTapAcceptanceState()
+
     init(
         permissionManager: any SuggestionPermissionProviding,
         lowPowerModeProvider: any SuggestionLowPowerModeProviding,

@@ -186,6 +186,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
     /// from triggering destructive edits.
     let automaticallyFixTypos: Bool
+    /// When true, a second press of the Accept Word key within `DoubleTapAcceptanceState.window`
+    /// accepts the rest of the suggestion. Travels in the snapshot so the acceptance path reads the
+    /// live value without subscribing to the settings model.
+    let doubleTapAcceptsEntireSuggestion: Bool
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

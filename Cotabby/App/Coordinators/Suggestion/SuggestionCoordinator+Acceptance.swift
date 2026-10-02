@@ -19,6 +19,39 @@ extension SuggestionCoordinator {
         acceptSuggestion(fullText: true, keyName: "full-accept")
     }
 
+    /// Entry point for a real press of the Accept Word key.
+    ///
+    /// With double-tap enabled, the first press still accepts one word immediately, and a second
+    /// press within `DoubleTapAcceptanceState.window` on the same suggestion accepts what remains.
+    /// Promoting the second press instead of delaying the first keeps single-word acceptance as fast
+    /// as before; the pair still commits the whole suggestion. The queued post-exhaustion accept
+    /// calls `acceptCurrentSuggestion` directly, so a Tab buffered during regeneration never turns
+    /// into an accept-everything of a continuation the user has not seen yet.
+    func acceptForWordAcceptKeyPress() -> Bool {
+        guard settingsSnapshot.doubleTapAcceptsEntireSuggestion else {
+            doubleTapAcceptanceState.reset()
+            return acceptCurrentSuggestion()
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        if let session = interactionState.activeSession, !session.kind.isCorrection,
+           doubleTapAcceptanceState.consumeDoubleTap(of: .init(session: session), at: now) {
+            return acceptSuggestion(fullText: true, keyName: "double-tap")
+        }
+
+        let accepted = acceptCurrentSuggestion()
+        // Arm only when this press left a continuation with text still to accept. An exhausted
+        // suggestion hands Tab to the post-exhaustion window instead, and a correction commits as
+        // a unit, so neither has a "rest" for a second press to take.
+        if accepted, let advanced = interactionState.activeSession, !advanced.kind.isCorrection,
+           !advanced.isExhausted {
+            doubleTapAcceptanceState.recordWordAccept(of: .init(session: advanced), at: now)
+        } else {
+            doubleTapAcceptanceState.reset()
+        }
+        return accepted
+    }
+
     /// Shared acceptance path used by both word-by-word and full acceptance.
     private func acceptSuggestion(
         fullText: Bool,

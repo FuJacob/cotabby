@@ -111,6 +111,10 @@ struct SuggestionShortcutSettings: Equatable {
     var fullAcceptance: SuggestionShortcutBindingSettings
     var globalToggle: SuggestionShortcutBindingSettings
     var perAppOverrides: [PerAppShortcutOverride]
+    /// When true, pressing the Accept Word key twice in quick succession accepts the whole
+    /// suggestion. It modifies the existing word-accept binding rather than adding a new binding, so
+    /// it applies to per-app accept overrides as well.
+    var doubleTapAcceptsEntireSuggestion: Bool
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -468,5 +472,10 @@ extension SuggestionSettingsData {
     var perAppShortcutOverrides: [PerAppShortcutOverride] {
         get { shortcuts.perAppOverrides }
         set { shortcuts.perAppOverrides = newValue }
+    }
+
+    var doubleTapAcceptsEntireSuggestion: Bool {
+        get { shortcuts.doubleTapAcceptsEntireSuggestion }
+        set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
     }
 }

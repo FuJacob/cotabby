@@ -61,9 +61,11 @@ struct ShortcutsPaneView: View {
                 }
                 .settingsItem(.acceptWord)
 
+                // One slot, one shortcut: either a one-press key or a double press of Accept Word.
+                // The recorder takes either, so the gesture is set where users look for it.
                 LabeledContent {
                     KeybindRow(
-                        label: suggestionSettings.fullAcceptanceKeyLabel,
+                        label: suggestionSettings.fullAcceptanceDisplayLabel,
                         keyCode: suggestionSettings.fullAcceptanceKeyCode,
                         isRecording: $isRecordingFullAcceptKeybind,
                         onRecord: { keyCode, modifiers, label in
@@ -81,9 +83,7 @@ struct ShortcutsPaneView: View {
                             )
                         },
                         resetLabel: "Reset",
-                        shouldShowReset: suggestionSettings.fullAcceptanceKeyCode
-                            != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
-                            || !suggestionSettings.fullAcceptanceKeyModifiers.isEmpty,
+                        shouldShowReset: !suggestionSettings.isFullAcceptanceShortcutDefault,
                         onClear: { suggestionSettings.clearFullAcceptanceKey() },
                         clearLabel: "Clear",
                         clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once.",
@@ -93,12 +93,15 @@ struct ShortcutsPaneView: View {
                                 modifiers: modifiers,
                                 excluding: .acceptEntireSuggestion
                             )
-                        }
+                        },
+                        isBound: suggestionSettings.hasFullAcceptanceShortcut,
+                        doubleTapKey: acceptWordDoubleTapKey,
+                        onDoubleTapRecorded: { suggestionSettings.setDoubleTapFullAcceptance() }
                     )
                 } label: {
                     SettingsRowLabel(
                         title: "Accept Entire Suggestion",
-                        description: "Insert the whole remaining suggestion in one keystroke.",
+                        description: fullAcceptanceDescription,
                         systemImage: "text.insert"
                     )
                 }
@@ -141,5 +144,29 @@ struct ShortcutsPaneView: View {
                 .settingsItem(.toggleTabby)
             }
         }
+    }
+
+    /// The Accept Word key, offered to the recorder as a double press. Nil while Accept Word is
+    /// unbound, because there is then no key to press twice.
+    private var acceptWordDoubleTapKey: DoubleTapRecordingKey? {
+        guard suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode else {
+            return nil
+        }
+        return DoubleTapRecordingKey(
+            keyCode: suggestionSettings.acceptanceKeyCode,
+            modifiers: suggestionSettings.acceptanceKeyModifiers,
+            label: suggestionSettings.acceptanceKeyLabel
+        )
+    }
+
+    private var fullAcceptanceDescription: String {
+        let wordKey = suggestionSettings.acceptanceKeyLabel
+        if suggestionSettings.isDoubleTapFullAcceptanceActive {
+            return "Press \(wordKey) twice quickly to insert the whole suggestion. A single press still inserts one word."
+        }
+        if acceptWordDoubleTapKey != nil {
+            return "Insert the whole remaining suggestion at once. For a double tap, click Change and press \(wordKey) twice."
+        }
+        return "Insert the whole remaining suggestion in one keystroke."
     }
 }
