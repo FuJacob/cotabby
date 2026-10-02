@@ -31,7 +31,7 @@ final class SpellingDictionaryLanguageMetadataTests: XCTestCase {
         // persistence and rendering contract, not an implementation detail.
         XCTAssertEqual(
             SpellingDictionaryLanguage.allCases.map(\.rawValue),
-            ["en", "de", "es", "fr", "he", "it", "ru"]
+            ["en", "de", "es", "fr", "he", "it", "ru", "tr", "mk"]
         )
     }
 
@@ -49,5 +49,62 @@ final class SpellingDictionaryLanguageMetadataTests: XCTestCase {
         XCTAssertEqual(SpellingDictionaryLanguage.english.settingsLabel, "English")
         XCTAssertEqual(SpellingDictionaryLanguage.german.settingsLabel, "Deutsch (German)")
         XCTAssertEqual(SpellingDictionaryLanguage.hebrew.settingsLabel, "עברית (Hebrew)")
+    }
+}
+
+/// Turkish and Macedonian: the bundled lists, language selection, and Turkish casing rules.
+final class TurkishMacedonianDictionaryTests: XCTestCase {
+    private let resolver = SpellingLanguageResolver()
+
+    func test_bundledListsStartWithEachLanguagesMostCommonWords() throws {
+        func firstWords(_ language: SpellingDictionaryLanguage) throws -> [String] {
+            let url = try XCTUnwrap(Bundle.main.url(forResource: language.resourceName, withExtension: "txt"))
+            return try String(contentsOf: url, encoding: .utf8).split(separator: "\n").prefix(5)
+                .map { String($0.split(separator: " ")[0]) }
+        }
+        XCTAssertEqual(try firstWords(.turkish).prefix(2), ["bir", "bu"])
+        XCTAssertEqual(try firstWords(.macedonian).prefix(2), ["да", "не"])
+    }
+
+    func test_macedonianOnlyLettersSelectMacedonianOverRussian() {
+        XCTAssertEqual(
+            resolver.resolve(precedingText: "Ќе дојдам утре и ќе ви ја донесам ", currentWord: "кнјига",
+                             enabledLanguages: [.russian, .macedonian]),
+            .macedonian
+        )
+    }
+
+    func test_russianOnlyLettersSelectRussianOverMacedonian() {
+        XCTAssertEqual(
+            resolver.resolve(precedingText: "Мы были в этом городе ещё вчера и ", currentWord: "видели",
+                             enabledLanguages: [.russian, .macedonian]),
+            .russian
+        )
+    }
+
+    func test_turkishTextSelectsTurkishOverEnglish() {
+        XCTAssertEqual(
+            resolver.resolve(precedingText: "Bu cümleyi şimdi Türkçe yazıyorum ve yarın sana ", currentWord: "gönderecğim",
+                             enabledLanguages: [.english, .turkish]),
+            .turkish
+        )
+    }
+
+    func test_turkishCapitalIRecasesWithTurkishRules() {
+        XCTAssertEqual(TypoCaseTransfer.applying(caseOf: "Isk", to: "ışık", locale: Locale(identifier: "tr")), "Işık")
+        XCTAssertEqual(TypoCaseTransfer.applying(caseOf: "ISTNBUL", to: "istanbul", locale: Locale(identifier: "tr")), "İSTANBUL")
+    }
+
+    func test_turkishCorrectionMatchesACapitalizedTypo() {
+        let corrector = SymSpellCorrector(preloadLanguage: nil)
+        corrector.loadForTesting(contents: "ışık 500\nişık 1\n", language: .turkish)
+
+        XCTAssertEqual(corrector.bestCorrection(for: "Işk", language: .turkish), "Işık")
+    }
+
+    func test_turkishPrefixLookupLowercasesDottedCapitalI() {
+        let index = WordPrefixIndex(contents: "istanbul 900\nistasyon 100\n", locale: Locale(identifier: "tr"))
+
+        XCTAssertEqual(index.candidates(for: "İsta").map(\.word), ["istanbul", "istasyon"])
     }
 }
