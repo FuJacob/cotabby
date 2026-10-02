@@ -114,6 +114,18 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(rig.metrics.entries.first?.latencyMs, 20)
     }
 
+    func test_endpointNeverReceivesARequestCarryingTypingHistory() async throws {
+        let rig = makeRig(engine: .openAICompatible)
+
+        let result = try await rig.router.generateSuggestion(
+            for: CotabbyTestFixtures.suggestionRequest(historyExamples: ["My earlier sentence."])
+        )
+
+        XCTAssertTrue(rig.endpoint.requests.isEmpty)
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppressionReason, "historyWithheldFromEndpoint")
+    }
+
     func test_llamaSelection_routesToLlamaEngineAndRecordsTheModelName() async throws {
         let rig = makeRig(engine: .llamaOpenSource)
 

@@ -45,7 +45,8 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        historyExamples: [String] = []
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -93,6 +94,10 @@ enum SuggestionRequestFactory {
                 fieldPlaceholder: context.fieldPlaceholder
             )
             : nil
+        // Typing history stays on this Mac. The provider already returns nothing for the endpoint
+        // engine; dropping it here as well keeps that guarantee in the one pure place every request
+        // passes through.
+        let activeHistoryExamples = settings.selectedEngine == .openAICompatible ? [] : historyExamples
         // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
         // prompt is always the base render: no instruction blob, exact caret prefix last.
         // Custom instructions and persona condition the output rather than being obeyed. The
@@ -113,6 +118,7 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            historyExamples: activeHistoryExamples,
             contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
             maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
             screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
@@ -145,6 +151,7 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            historyExamples: activeHistoryExamples,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
             wordRange: settings.effectiveWordRange

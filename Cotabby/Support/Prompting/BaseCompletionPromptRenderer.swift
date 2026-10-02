@@ -30,6 +30,7 @@ enum BaseCompletionPromptRenderer {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
+        historyExamples: [String] = [],
         usesCompactSurfaceContext: Bool = false,
         contextBudget: Int = defaultContextBudget,
         maxScreenCharacters: Int = 4000,
@@ -61,6 +62,9 @@ enum BaseCompletionPromptRenderer {
             // total budget below (priority 40), so an unusually long prefix can trim it, but in normal use
             // the whole blob lands.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
+        }
+        if let history = Self.historySection(historyExamples) {
+            sections.append(history)
         }
         if let clip = Self.nonEmpty(clipboardContext) {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
@@ -138,6 +142,23 @@ enum BaseCompletionPromptRenderer {
             : SurfaceContextComposer.prefaceLines(for: surface)
         guard !lines.isEmpty else { return nil }
         return contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
+    }
+
+    /// The user's own earlier sentences, quoted. A base model conditions strongly on nearby text in
+    /// the same voice, so a couple of real examples pull its word choice toward how this person
+    /// writes. Sits after the stable preface and before the per-keystroke clipboard and screen
+    /// sections: the examples change only every few words (`TypingHistoryQuery.stableText`), so
+    /// placing them earlier keeps more of the prompt's head reusable from the KV cache.
+    private static func historySection(_ examples: [String]) -> PromptSection? {
+        let quoted = examples
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { "“\($0)”" }
+        guard !quoted.isEmpty else { return nil }
+        return contextSection(
+            "history", "Earlier writing by the same author:\n" + quoted.joined(separator: "\n"),
+            priority: 38, maxChars: 760
+        )
     }
 
     private static func contextSection(
