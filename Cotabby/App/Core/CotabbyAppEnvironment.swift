@@ -40,6 +40,8 @@ final class CotabbyAppEnvironment {
     let huggingFaceSearchService: HuggingFaceSearchService
     let performanceMetricsStore: PerformanceMetricsStore
     let qualityMetricsStore: SuggestionQualityMetricsStore
+    let translationPreferences: TranslationPreferencesStore
+    let translationCoordinator: TranslationCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -157,6 +159,34 @@ final class CotabbyAppEnvironment {
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
+
+        // Augmented translation: Apple Translation first, the selected Open Source model for pairs
+        // Apple does not cover. Off until the user turns it on in Settings → Translation.
+        let translationPreferences = TranslationPreferencesStore()
+        let translationService = TranslationService(
+            apple: AppleTranslationEngine(),
+            local: LocalModelTranslationEngine(
+                runtimeManager: runtimeManager,
+                hasModel: { [weak runtimeModel] in runtimeModel?.selectedModelFilename != nil }
+            )
+        )
+        let translationCoordinator = TranslationCoordinator(
+            preferences: translationPreferences,
+            service: translationService,
+            capture: WindowScreenshotService(),
+            overlay: TranslationOverlayController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            hotkey: TranslationHotkeyTap(suppressionController: suppressionController),
+            isAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
+                guard let suggestionSettings else { return false }
+                let settings = suggestionSettings.snapshot
+                let lowPower = (lowPowerModeMonitor?.isLowPowerModeEnabled ?? false)
+                    && settings.isLowPowerModeAutoDisableEnabled
+                return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
+                    && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
+            }
+        )
         // Commit accepted text through an IME-safe path (Accessibility / paste) while a composing IME
         // is active; a synthetic keystroke would be re-absorbed into composition and the accept would
         // silently fail.
@@ -247,7 +277,9 @@ final class CotabbyAppEnvironment {
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
-            clearEmojiHistory: { emojiUsageStore.clear() }
+            clearEmojiHistory: { emojiUsageStore.clear() },
+            translationPreferences: translationPreferences,
+            translationService: translationService
         )
 
         let interactionState = SuggestionInteractionState()
@@ -352,6 +384,8 @@ final class CotabbyAppEnvironment {
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
+        self.translationPreferences = translationPreferences
+        self.translationCoordinator = translationCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable

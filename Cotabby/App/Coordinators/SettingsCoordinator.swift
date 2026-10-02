@@ -25,6 +25,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
+    private let translationPreferences: TranslationPreferencesStore
+    private let translationService: TranslationService
 
     private var settingsWindowController: NSWindowController?
 
@@ -49,7 +51,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         qualityMetricsStore: SuggestionQualityMetricsStore,
         systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
-        clearEmojiHistory: @escaping () -> Void
+        clearEmojiHistory: @escaping () -> Void,
+        translationPreferences: TranslationPreferencesStore,
+        translationService: TranslationService
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
@@ -65,6 +69,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
+        self.translationPreferences = translationPreferences
+        self.translationService = translationService
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -94,6 +100,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory,
+                    translationPreferences: translationPreferences,
+                    translationService: translationService,
                     onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )

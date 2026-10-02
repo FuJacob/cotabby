@@ -166,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
+        environment.translationCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -248,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()
+        environment.translationCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
 
