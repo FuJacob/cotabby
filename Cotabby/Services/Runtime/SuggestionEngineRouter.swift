@@ -62,6 +62,18 @@ final class SuggestionEngineRouter {
                 recordQualityOutcome(result)
                 return result
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
+                // The user can turn the fallback off (Engine & Model → Apple Intelligence). Then an
+                // unsupported language simply gets no suggestion, and the local model never loads.
+                guard suggestionSettings.isAppleLanguageFallbackEnabled else {
+                    CotabbyLogger.suggestion.info(
+                        "Apple Intelligence unsupported for locale; fallback is turned off",
+                        metadata: metadata.merging(["reason": .string(message)]) { _, new in new }
+                    )
+                    return SuggestionResult(
+                        generation: request.generation, rawText: "", text: "", latency: 0,
+                        suppressionReason: "appleLanguageUnsupported"
+                    )
+                }
                 CotabbyLogger.suggestion.info(
                     "Apple Intelligence unsupported for locale, falling back to open-source: \(message)",
                     metadata: metadata.merging([

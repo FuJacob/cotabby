@@ -63,6 +63,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Engine & Model
     case engine
     case appleIntelligenceAvailability
+    case appleLanguageFallback
+    case appleLanguageFallbackModel
     case modelStatus
     case selectedModel
     case lowPowerModeAutoDisable
@@ -152,6 +154,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
+        case .appleLanguageFallback: return "Fall Back to Open Source Model"
+        case .appleLanguageFallbackModel: return "Fallback Model"
         case .modelStatus: return "Model Status"
         case .selectedModel: return "Selected Model"
         case .lowPowerModeAutoDisable: return "Pause in Low Power Mode"
@@ -236,6 +240,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
+        case .appleLanguageFallback: return "arrow.triangle.branch"
+        case .appleLanguageFallbackModel: return "shippingbox"
         case .modelStatus: return "info.circle"
         case .selectedModel: return "shippingbox"
         case .lowPowerModeAutoDisable: return "bolt.slash.circle"
@@ -293,7 +299,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
-        case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
+        case .engine, .appleIntelligenceAvailability, .appleLanguageFallback, .appleLanguageFallbackModel, .modelStatus, .selectedModel,
              .lowPowerModeAutoDisable, .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
              .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
@@ -363,6 +369,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
+        case .appleLanguageFallback: return "Use the local model for languages Apple Intelligence doesn't support."
+        case .appleLanguageFallbackModel: return "Which downloaded model the language fallback uses."
         case .modelStatus: return "Whether the local model is loaded and ready."
         case .selectedModel: return "Which downloaded model generates suggestions."
         case .lowPowerModeAutoDisable: return "Pause suggestions while Low Power Mode is active."
@@ -537,6 +545,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "provider", "runtime", "foundation models", "oss", "local", "endpoint",
                     "ollama", "openai compatible", "lm studio", "vllm",
                     "on-device", "model engine"]
+        case .appleLanguageFallbackModel:
+            return ["fallback model", "fallback", "model", "gemma", "gguf", "local model", "choose model"]
+        case .appleLanguageFallback:
+            return ["fallback", "fall back", "unsupported language", "language", "macedonian",
+                    "open source", "local model", "gemma", "llama", "keep loaded", "preload", "memory"]
         case .appleIntelligenceAvailability:
             return ["apple intelligence", "availability", "available", "supported",
                     "compatibility", "status", "macos", "device support"]

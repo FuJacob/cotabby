@@ -83,9 +83,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        suggestionSettings.$selectedEngine
+        // The fallback switches decide whether the local model stays loaded under Apple Intelligence,
+        // so they re-evaluate the runtime just like an engine change does.
+        Publishers.CombineLatest3(
+            suggestionSettings.$selectedEngine.removeDuplicates(),
+            suggestionSettings.$isAppleLanguageFallbackEnabled.removeDuplicates(),
+            suggestionSettings.$keepsFallbackModelLoaded.removeDuplicates()
+        )
             .dropFirst()
-            .removeDuplicates()
             .sink { [weak self] _ in
                 self?.startRuntimeIfPreferredEngineRequiresIt()
             }
@@ -283,6 +288,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startRuntimeIfPreferredEngineRequiresIt() {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
+            runtimeModel.startIfNeeded()
+        case .appleIntelligence
+            where suggestionSettings.isAppleLanguageFallbackEnabled && suggestionSettings.keepsFallbackModelLoaded:
+            // The user chose to keep the fallback model ready, so an unsupported language gets a
+            // suggestion without first waiting several seconds for the model to load.
             runtimeModel.startIfNeeded()
         case .appleIntelligence, .openAICompatible:
             // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
