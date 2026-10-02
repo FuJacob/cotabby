@@ -2,91 +2,180 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// App-specific settings for shortcut overrides, exclusions, and integrated terminals.
+/// The Apps pane: every app Cotabby knows about, most-used first, and a detail screen per app.
+///
+/// An app appears once anything is known about it: typing history was collected there, it is
+/// disabled, or it has its own keys or behavior (`AppSettingsList`). Selecting one shows
+/// `AppSettingsDetailView`. The list replaces the old separate "Per-App Shortcuts" and "Disabled
+/// Apps" sections, whose settings now live on each app's detail screen.
 struct AppsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    /// Owned by `CotabbyAppEnvironment`; supplies per-app input counts, exclusions, and deletion.
+    @ObservedObject var typingHistory: TypingHistoryStore
 
     /// Snapshotted at view-appear time. We deliberately don't subscribe to NSWorkspace launch
     /// notifications: the panel is not a live process inspector, and re-rendering as random apps
     /// open and close would make the chips flicker while the user is mid-task.
     @State private var runningAppSuggestions: [RunningAppSuggestion] = []
-    /// A single target prevents multiple key recorders from running at once.
-    @State private var recordingTarget: RecordingTarget?
+    @State private var selectedApp: AppSettingsEntry?
+    @State private var searchText = ""
+    /// Apps added with "Add App…" that have no settings yet, so they stay listed this session.
+    @State private var addedBundleIdentifiers: [String] = []
 
     var body: some View {
         SettingsPaneScaffold {
-            Section("Per-App Shortcuts") {
-                Text("Give a specific app its own accept key, disable an accept action there, or "
-                    + "keep inheriting the global shortcut from the Shortcuts pane.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if suggestionSettings.perAppShortcutOverrides.isEmpty {
-                    Text("No per-app shortcuts. Cotabby uses the global accept key everywhere.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(suggestionSettings.perAppShortcutOverrides) { override in
-                        perAppOverrideRow(override)
-                    }
-                }
-
-                Button("Add App…") {
-                    presentPerAppOverridePicker()
-                }
-            }
-
-            Section("Disabled Apps") {
-                Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
-                    + "menu bar, like a launcher that closes the moment it loses focus.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .settingsItem(.disabledApps)
-
-                if suggestionSettings.disabledAppRules.isEmpty {
-                    Text("No apps are disabled. Cotabby is active in every supported field.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(suggestionSettings.disabledAppRules) { rule in
-                        disabledAppRuleRow(rule)
-                    }
-                }
-
-                Button("Add App…") {
-                    presentDisabledAppPicker()
-                }
-            }
-
-            Section("Integrated Terminals") {
-                Toggle(isOn: suggestInIntegratedTerminalsBinding) {
-                    SettingsRowLabel(
-                        title: "Suggest in Integrated Terminals",
-                        description: "Show ghost text in VS Code and Cursor integrated terminals. "
-                            + "Off by default so suggestions stay out of shell prompts; the editor "
-                            + "and chat in the same window keep suggesting either way.",
-                        systemImage: "terminal"
-                    )
-                }
-                .settingsItem(.suggestInIntegratedTerminals)
-            }
-
-            if !filteredRunningAppSuggestions.isEmpty {
-                Section("Suggestions") {
-                    Text("Currently running apps you can disable with one click.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(filteredRunningAppSuggestions) { suggestion in
-                            runningAppSuggestionRow(suggestion)
-                        }
-                    }
-                }
+            if let selectedApp {
+                AppSettingsDetailView(
+                    suggestionSettings: suggestionSettings,
+                    typingHistory: typingHistory,
+                    bundleIdentifier: selectedApp.bundleIdentifier,
+                    displayName: selectedApp.displayName,
+                    onBack: { self.selectedApp = nil }
+                )
+            } else {
+                appListSection
+                integratedTerminalsSection
+                runningAppsSection
             }
         }
         .onAppear {
             runningAppSuggestions = RunningAppSuggestion.collect()
+        }
+    }
+
+    // MARK: - App list
+
+    private var entries: [AppSettingsEntry] {
+        AppSettingsList.entries(
+            inputCounts: typingHistory.recordCountsByApp,
+            disabledRules: suggestionSettings.disabledAppRules,
+            overrides: suggestionSettings.perAppShortcutOverrides,
+            excludedFromHistory: typingHistory.preferences.excludedBundleIdentifiers,
+            addedBundleIdentifiers: addedBundleIdentifiers,
+            displayName: AppIconCache.displayName(for:)
+        )
+    }
+
+    private var appListSection: some View {
+        Section("Apps") {
+            Text("Choose an app to change how Cotabby behaves there: completions, mid-line suggestions, " +
+                "autocorrect, accept keys, instructions, and typing history.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .settingsItem(.disabledApps)
+
+            HStack(spacing: 8) {
+                TextField("Search apps", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                Button("Add App…") { presentAppPicker() }
+            }
+
+            let visible = AppSettingsList.filter(entries, query: searchText)
+            if visible.isEmpty {
+                Text(searchText.isEmpty
+                    ? "No apps yet. Apps appear here once you type in them with typing history on, or add one."
+                    : "No apps match “\(searchText)”.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(visible) { entry in
+                    appRow(entry)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func appRow(_ entry: AppSettingsEntry) -> some View {
+        Button {
+            selectedApp = entry
+        } label: {
+            HStack(spacing: 10) {
+                Image(nsImage: AppIconCache.icon(for: entry.bundleIdentifier))
+                    .resizable()
+                    .frame(width: 22, height: 22)
+                    .accessibilityHidden(true)
+                Text(entry.displayName)
+                if entry.isDisabled {
+                    Image(systemName: "nosign")
+                        .foregroundStyle(.secondary)
+                        .help("Completions are off in this app.")
+                        .accessibilityLabel("Completions off")
+                }
+                if entry.hasOverrides {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(.secondary)
+                        .help("This app has its own settings.")
+                        .accessibilityLabel("Has its own settings")
+                }
+                Spacer(minLength: 0)
+                if entry.inputCount > 0 {
+                    Text("\(entry.inputCount)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .help("Typing-history inputs collected in this app.")
+                }
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func presentAppPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Add"
+        panel.message = "Choose an app to configure."
+        guard panel.runModal() == .OK, let url = panel.url,
+              let metadata = ApplicationBundleMetadata(appURL: url)
+        else { return }
+        if !addedBundleIdentifiers.contains(metadata.bundleIdentifier) {
+            addedBundleIdentifiers.append(metadata.bundleIdentifier)
+        }
+        selectedApp = entries.first { $0.bundleIdentifier == metadata.bundleIdentifier }
+            ?? AppSettingsEntry(
+                bundleIdentifier: metadata.bundleIdentifier, displayName: metadata.displayName, inputCount: 0,
+                isDisabled: false, hasOverrides: false, isExcludedFromHistory: false
+            )
+    }
+
+    // MARK: - Global app settings
+
+    private var integratedTerminalsSection: some View {
+        Section("Integrated Terminals") {
+            Toggle(isOn: suggestInIntegratedTerminalsBinding) {
+                SettingsRowLabel(
+                    title: "Suggest in Integrated Terminals",
+                    description: "Show ghost text in VS Code and Cursor integrated terminals. "
+                        + "Off by default so suggestions stay out of shell prompts; the editor "
+                        + "and chat in the same window keep suggesting either way.",
+                    systemImage: "terminal"
+                )
+            }
+            .settingsItem(.suggestInIntegratedTerminals)
+        }
+    }
+
+    @ViewBuilder
+    private var runningAppsSection: some View {
+        if !filteredRunningAppSuggestions.isEmpty {
+            Section("Suggestions") {
+                Text("Currently running apps you can disable with one click.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(filteredRunningAppSuggestions) { suggestion in
+                        runningAppSuggestionRow(suggestion)
+                    }
+                }
+            }
         }
     }
 
@@ -128,354 +217,6 @@ struct AppsPaneView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func perAppOverrideRow(_ override: PerAppShortcutOverride) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(nsImage: icon(forBundleIdentifier: override.bundleIdentifier))
-                    .resizable()
-                    .frame(width: 28, height: 28)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(override.displayName)
-                    Text(override.bundleIdentifier)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                Spacer(minLength: 0)
-
-                Button {
-                    suggestionSettings.removePerAppOverride(bundleIdentifier: override.bundleIdentifier)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Remove per-app shortcuts for \(override.displayName)")
-                .help("Remove this app's overrides. Cotabby will use the global accept keys here.")
-            }
-
-            perAppBindingRow(
-                override: override,
-                action: .acceptWord,
-                title: "Accept Word",
-                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.acceptanceKeyLabel)). "
-                    + "Click Change to set a custom key for \(override.displayName)."
-            )
-            perAppBindingRow(
-                override: override,
-                action: .acceptEntireSuggestion,
-                title: "Accept Entire Suggestion",
-                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.fullAcceptanceKeyLabel)). "
-                    + "Click Change to set a custom key for \(override.displayName)."
-            )
-        }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private func perAppBindingRow(
-        override: PerAppShortcutOverride,
-        action: PerAppShortcutAction,
-        title: String,
-        inheritsHelp: String
-    ) -> some View {
-        let inherits = (action == .acceptWord && override.acceptance == nil)
-            || (action == .acceptEntireSuggestion && override.fullAcceptance == nil)
-        let recordingBinding = recordingBinding(forBundleIdentifier: override.bundleIdentifier, action: action)
-        let binding = perAppBinding(override: override, action: action)
-
-        HStack(alignment: .center, spacing: 12) {
-            Text(title)
-                .font(.callout)
-                .frame(width: 180, alignment: .leading)
-
-            if inherits {
-                Text("Uses global (\(binding.label))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .help(inheritsHelp)
-
-                if recordingBinding.wrappedValue {
-                    KeyRecorderView(
-                        onKeyRecorded: { keyCode, modifiers, recordedLabel in
-                            applyPerAppBinding(
-                                override: override,
-                                action: action,
-                                keyCode: keyCode,
-                                modifiers: modifiers,
-                                label: recordedLabel
-                            )
-                            recordingTarget = nil
-                        },
-                        onCancelled: { recordingTarget = nil },
-                        conflictChecker: perAppConflictChecker(
-                            bundleIdentifier: override.bundleIdentifier,
-                            action: action
-                        )
-                    )
-                } else {
-                    Button("Change") {
-                        recordingTarget = RecordingTarget(
-                            bundleIdentifier: override.bundleIdentifier,
-                            action: action
-                        )
-                    }
-
-                    Button("Disable") {
-                        disablePerAppBinding(override: override, action: action)
-                    }
-                    .help("No key will perform \(title.lowercased()) in \(override.displayName).")
-                }
-            } else {
-                KeybindRow(
-                    label: binding.label,
-                    keyCode: binding.keyCode,
-                    isRecording: recordingBinding,
-                    onRecord: { keyCode, modifiers, recordedLabel in
-                        applyPerAppBinding(
-                            override: override,
-                            action: action,
-                            keyCode: keyCode,
-                            modifiers: modifiers,
-                            label: recordedLabel
-                        )
-                    },
-                    onReset: { clearPerAppBinding(override: override, action: action) },
-                    resetLabel: "Use Global",
-                    shouldShowReset: true,
-                    onClear: { disablePerAppBinding(override: override, action: action) },
-                    clearLabel: "Disable",
-                    clearHelp: "No key will perform \(title.lowercased()) in \(override.displayName).",
-                    conflictChecker: perAppConflictChecker(
-                        bundleIdentifier: override.bundleIdentifier,
-                        action: action
-                    )
-                )
-            }
-        }
-    }
-
-    private func recordingBinding(
-        forBundleIdentifier bundleIdentifier: String,
-        action: PerAppShortcutAction
-    ) -> Binding<Bool> {
-        Binding(
-            get: {
-                recordingTarget == RecordingTarget(bundleIdentifier: bundleIdentifier, action: action)
-            },
-            set: { isRecording in
-                if isRecording {
-                    recordingTarget = RecordingTarget(bundleIdentifier: bundleIdentifier, action: action)
-                } else if recordingTarget == RecordingTarget(bundleIdentifier: bundleIdentifier, action: action) {
-                    recordingTarget = nil
-                }
-            }
-        )
-    }
-
-    private func perAppBinding(
-        override: PerAppShortcutOverride,
-        action: PerAppShortcutAction
-    ) -> ShortcutResolver.ResolvedBinding {
-        switch action {
-        case .acceptWord:
-            return suggestionSettings.resolvedAcceptBinding(
-                forBundleIdentifier: override.bundleIdentifier
-            )
-        case .acceptEntireSuggestion:
-            return suggestionSettings.resolvedFullAcceptBinding(
-                forBundleIdentifier: override.bundleIdentifier
-            )
-        }
-    }
-
-    private func applyPerAppBinding(
-        override: PerAppShortcutOverride,
-        action: PerAppShortcutAction,
-        keyCode: CGKeyCode,
-        modifiers: ShortcutModifierMask,
-        label: String
-    ) {
-        switch action {
-        case .acceptWord:
-            suggestionSettings.setPerAppAcceptKey(
-                bundleIdentifier: override.bundleIdentifier,
-                displayName: override.displayName,
-                keyCode: keyCode,
-                modifiers: modifiers,
-                label: label
-            )
-        case .acceptEntireSuggestion:
-            suggestionSettings.setPerAppFullAcceptKey(
-                bundleIdentifier: override.bundleIdentifier,
-                displayName: override.displayName,
-                keyCode: keyCode,
-                modifiers: modifiers,
-                label: label
-            )
-        }
-    }
-
-    private func clearPerAppBinding(
-        override: PerAppShortcutOverride,
-        action: PerAppShortcutAction
-    ) {
-        switch action {
-        case .acceptWord:
-            suggestionSettings.clearPerAppAcceptKey(bundleIdentifier: override.bundleIdentifier)
-        case .acceptEntireSuggestion:
-            suggestionSettings.clearPerAppFullAcceptKey(bundleIdentifier: override.bundleIdentifier)
-        }
-    }
-
-    private func disablePerAppBinding(
-        override: PerAppShortcutOverride,
-        action: PerAppShortcutAction
-    ) {
-        applyPerAppBinding(
-            override: override,
-            action: action,
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
-            modifiers: [],
-            label: SuggestionSettingsModel.disabledKeyLabel
-        )
-    }
-
-    private func perAppConflictChecker(
-        bundleIdentifier: String,
-        action: PerAppShortcutAction
-    ) -> (CGKeyCode, ShortcutModifierMask) -> String? {
-        { keyCode, modifiers in
-            suggestionSettings.conflictingPerAppShortcutName(
-                forBundleIdentifier: bundleIdentifier,
-                keyCode: keyCode,
-                modifiers: modifiers,
-                excluding: action.shortcutAction
-            )
-        }
-    }
-
-    private func presentPerAppOverridePicker() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Add"
-        panel.message = "Choose apps that should get their own accept shortcut."
-
-        guard panel.runModal() == .OK else { return }
-
-        for url in panel.urls {
-            guard let metadata = ApplicationBundleMetadata(appURL: url) else { continue }
-            suggestionSettings.addPerAppShortcutApp(
-                bundleIdentifier: metadata.bundleIdentifier,
-                displayName: metadata.displayName
-            )
-        }
-    }
-
-    private func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
-            return NSWorkspace.shared.icon(for: .applicationBundle)
-        }
-        return NSWorkspace.shared.icon(forFile: appURL.path)
-    }
-
-    @ViewBuilder
-    private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
-        HStack(spacing: 12) {
-            Image(nsImage: icon(for: rule))
-                .resizable()
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(rule.displayName)
-
-                Text(rule.bundleIdentifier)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                suggestionSettings.removeDisabledApplication(
-                    bundleIdentifier: rule.bundleIdentifier
-                )
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    /// Bundle IDs are durable; app paths are not. Resolve the current app URL at render time so
-    /// Settings naturally picks up app updates, moves, or reinstalls without persisting UI cache.
-    private func icon(for rule: DisabledApplicationRule) -> NSImage {
-        guard let appURL = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: rule.bundleIdentifier
-        ) else {
-            return NSWorkspace.shared.icon(for: .applicationBundle)
-        }
-        return NSWorkspace.shared.icon(forFile: appURL.path)
-    }
-
-    /// Lets the user disable Cotabby in an app they can't reach from the menu bar. The menu-bar
-    /// "Enable in <app>" switch only targets the frontmost app, so a launcher like Raycast or
-    /// Spotlight (which dismisses itself the instant the menu bar is clicked) can never be turned
-    /// off that way. An open panel names any installed app whether or not it is running.
-    private func presentDisabledAppPicker() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Disable"
-        panel.message = "Choose apps where Cotabby should not autocomplete."
-
-        guard panel.runModal() == .OK else {
-            return
-        }
-
-        for url in panel.urls {
-            guard let metadata = ApplicationBundleMetadata(appURL: url) else {
-                continue
-            }
-            suggestionSettings.disableApplication(
-                bundleIdentifier: metadata.bundleIdentifier,
-                displayName: metadata.displayName
-            )
-        }
-    }
-}
-
-/// Identifies the only per-app key recorder allowed to be active.
-private struct RecordingTarget: Equatable {
-    let bundleIdentifier: String
-    let action: PerAppShortcutAction
-}
-
-private enum PerAppShortcutAction: Equatable {
-    case acceptWord
-    case acceptEntireSuggestion
-
-    var shortcutAction: ShortcutAction {
-        switch self {
-        case .acceptWord: return .acceptWord
-        case .acceptEntireSuggestion: return .acceptEntireSuggestion
-        }
     }
 }
 

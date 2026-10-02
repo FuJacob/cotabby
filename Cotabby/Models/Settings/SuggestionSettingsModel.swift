@@ -521,8 +521,17 @@ final class SuggestionSettingsModel: ObservableObject {
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
+            perAppBehaviors: Self.behaviorMap(settings.shortcuts.perAppOverrides)
         )
+    }
+
+    /// The per-app behavior the suggestion pipeline reads, keyed by bundle identifier. Apps whose
+    /// record only overrides keys are left out, so the map stays small and equality cheap.
+    static func behaviorMap(_ overrides: [PerAppShortcutOverride]) -> [String: PerAppBehavior] {
+        Dictionary(uniqueKeysWithValues: overrides.compactMap { override in
+            override.behavior.map { (override.bundleIdentifier, $0) }
+        })
     }
 
     func selectEngine(_ engine: SuggestionEngineKind) {
@@ -1447,6 +1456,31 @@ final class SuggestionSettingsModel: ObservableObject {
         upsertPerAppOverride(override)
     }
 
+    /// Edits one app's suggestion behavior. The record is created on first use, like a per-app key.
+    func updatePerAppBehavior(
+        bundleIdentifier: String,
+        displayName: String,
+        _ change: (inout PerAppBehavior) -> Void
+    ) {
+        guard var override = perAppOverrideForMutation(
+            bundleIdentifier: bundleIdentifier,
+            displayName: displayName
+        ) else { return }
+        var behavior = override.behavior ?? PerAppBehavior()
+        change(&behavior)
+        behavior = SuggestionSettingsStore.normalizedPerAppBehavior(behavior)
+        override.behavior = behavior.isEmpty ? nil : behavior
+        upsertPerAppOverride(override)
+    }
+
+    func perAppBehavior(forBundleIdentifier bundleIdentifier: String) -> PerAppBehavior {
+        // Normalize like the writer does, so a lookup always finds what `updatePerAppBehavior` stored.
+        guard let normalized = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
+            return PerAppBehavior()
+        }
+        return existingPerAppOverride(bundleIdentifier: normalized)?.behavior ?? PerAppBehavior()
+    }
+
     func removePerAppOverride(bundleIdentifier: String) {
         guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
             return
@@ -1655,7 +1689,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
             primary,
-            $acceptanceGranularity,
+            // Per-app behavior shares the granularity slot; both change only from the Settings window.
+            Publishers.CombineLatest($acceptanceGranularity, $perAppShortcutOverrides),
             Publishers.CombineLatest4(
                 $extendedContext,
                 $suggestInIntegratedTerminals,
@@ -1664,7 +1699,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             ),
             customRange
         )
-            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, granularityAndOverrides, extendedContextTuple, customRangeTuple in
+                let (granularity, perAppOverrides) = granularityAndOverrides
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1708,7 +1744,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos
+                    automaticallyFixTypos: automaticallyFixTypos,
+                    perAppBehaviors: Self.behaviorMap(perAppOverrides)
                 )
             }
             .removeDuplicates()

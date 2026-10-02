@@ -59,6 +59,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case automaticallyFixTypos
     // Context
     case extendedContext
+    case typingHistory
     case contextLivePreview
     // Engine & Model
     case engine
@@ -149,6 +150,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Spelling Dictionaries"
         case .automaticallyFixTypos: return "Automatically Fix Typos"
         case .extendedContext: return "Extended Context"
+        case .typingHistory: return "Typing History"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
@@ -171,7 +173,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
         case .toggleTabby: return "Toggle Cotabby"
-        case .disabledApps: return "Disabled Apps"
+        case .disabledApps: return "App Settings"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
@@ -233,6 +235,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "character.book.closed"
         case .automaticallyFixTypos: return "checkmark.circle"
         case .extendedContext: return "doc.text"
+        case .typingHistory: return "clock.arrow.circlepath"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
@@ -291,7 +294,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
-        case .extendedContext, .contextLivePreview:
+        case .extendedContext, .contextLivePreview, .typingHistory:
             return .context
         case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
              .lowPowerModeAutoDisable, .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
@@ -360,6 +363,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Dictionaries used to detect typos."
         case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
         case .extendedContext: return "A glossary or notes sent with every suggestion."
+        case .typingHistory: return "Learn from what you type, and import Cotypist history."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
@@ -382,7 +386,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
-        case .disabledApps: return "Apps where Cotabby never autocompletes."
+        case .disabledApps: return "Per-app completions, autocorrect, keys, instructions, and history."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
         case .accessibility: return "Required to read the focused field and caret."
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
@@ -529,6 +533,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .extendedContext:
             return ["context", "glossary", "reference", "notes", "jargon", "instructions",
                     "memory", "background", "system prompt", "vocabulary"]
+        case .typingHistory:
+            return ["history", "typing history", "personalize", "personalization", "learn", "record",
+                    "cotypist", "import", "phrases", "my writing", "privacy", "delete"]
         case .contextLivePreview:
             return ["live", "preview", "test", "ghost", "try", "playground", "sandbox",
                     "demo", "try it", "test field"]
@@ -595,7 +602,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "enable", "disable", "keybind", "binding", "tabby"]
         case .disabledApps:
             return ["apps", "disable", "exclude", "block", "ignore", "blacklist",
-                    "deny list", "exception", "app exclusion", "skip", "off in"]
+                    "deny list", "exception", "app exclusion", "skip", "off in", "per app",
+                    "app settings", "mid-line", "midline", "autocorrect", "tab key", "instructions",
+                    "collected inputs", "typing history"]
         case .suggestInIntegratedTerminals:
             return ["terminal", "terminals", "integrated terminal", "vscode", "vs code",
                     "cursor", "shell", "xterm", "command line", "cli", "console",

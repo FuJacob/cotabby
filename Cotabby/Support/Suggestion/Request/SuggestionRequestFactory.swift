@@ -32,11 +32,21 @@ enum SuggestionRequestFactory {
     /// The full pre-generation gate: some typed text (and, when the boundary preference asks for
     /// it, a finished word), and a caret that is not parked inside a token (see
     /// `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    ///
+    /// `allowsMidLine` is the per-app "mid-line completions" choice: when false, no new suggestion
+    /// starts while the caret's line has text after it. A suggestion already on screen still
+    /// follows typing; this only gates new requests, like `suggestWithinWords`.
     static func shouldGenerateSuggestion(
-        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true
+        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true, allowsMidLine: Bool = true
     ) -> Bool {
         guard shouldGenerateSuggestion(for: precedingText, suggestWithinWords: suggestWithinWords) else { return false }
+        if !allowsMidLine, hasTextLaterOnLine(trailingText) { return false }
         return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
+    }
+
+    /// True when non-whitespace text follows the caret before the next line break.
+    static func hasTextLaterOnLine(_ trailingText: String) -> Bool {
+        trailingText.prefix { !$0.isNewline }.contains { !$0.isWhitespace }
     }
 
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
@@ -45,7 +55,8 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        historyExamples: [String] = []
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -64,9 +75,10 @@ enum SuggestionRequestFactory {
         // would prevent the user from typing a space at the end of a word in the editor). Do the
         // trim here, once per request, and collapse a whitespace-only body back to nil so renderers
         // skip the section heading entirely.
-        let trimmedExtendedContext = settings.extendedContext
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let activeExtendedContext = trimmedExtendedContext.isEmpty ? nil : trimmedExtendedContext
+        // Global notes plus this app's own instructions, already trimmed; nil when both are empty.
+        let activeExtendedContext = PerAppSettingsResolver.extendedContext(
+            bundleIdentifier: context.bundleIdentifier, settings: settings
+        )
         // nil when the user declared no languages — the renderers then just match the surrounding text.
         let languageInstruction = LanguageCatalog.promptInstruction(for: settings.responseLanguages)
         let boundedClipboardContext = activeClipboardContext(
@@ -93,6 +105,10 @@ enum SuggestionRequestFactory {
                 fieldPlaceholder: context.fieldPlaceholder
             )
             : nil
+        // Typing history stays on this Mac. The provider already returns nothing for the endpoint
+        // engine; dropping it here as well keeps that guarantee in the one pure place every request
+        // passes through.
+        let activeHistoryExamples = settings.selectedEngine == .openAICompatible ? [] : historyExamples
         // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
         // prompt is always the base render: no instruction blob, exact caret prefix last.
         // Custom instructions and persona condition the output rather than being obeyed. The
@@ -113,6 +129,7 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            historyExamples: activeHistoryExamples,
             contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
             maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
             screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
@@ -145,6 +162,7 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            historyExamples: activeHistoryExamples,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
             wordRange: settings.effectiveWordRange

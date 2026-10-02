@@ -59,7 +59,8 @@ extension SuggestionCoordinator {
         let request = SuggestionRequestFactory.buildRequest(context: context, settings: settingsSnapshot,
             configuration: configuration, clipboardContext: pinnedClipboardContext(rawContext: rawContext),
             visualContextSummary: permissionManager.screenRecordingGranted
-                ? visualContextCoordinator.excerpt(for: session.baseContext) : nil).request
+                ? visualContextCoordinator.excerpt(for: session.baseContext) : nil,
+            historyExamples: historyExamples(for: context)).request
         continuationWorkController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
             await self.awaitCachedGenerationContextResetIfNeeded()
