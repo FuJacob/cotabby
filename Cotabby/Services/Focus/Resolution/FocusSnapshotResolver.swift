@@ -1396,50 +1396,57 @@ struct FocusSnapshotResolver {
             return fullTextSelection()
         }
 
-        let documentLength = rawDocumentLength
+        return Self.windowedTextSelection(
+            selection: selection,
+            documentLength: rawDocumentLength,
+            contextWindow: Self.focusedTextContextWindowUTF16,
+            readRange: { range in
+                AXHelper.parameterizedStringValue(
+                    for: kAXStringForRangeParameterizedAttribute as CFString,
+                    range: range,
+                    on: element
+                )
+            }
+        ) ?? fullTextSelection()
+    }
+
+    /// The caret-windowed text assembled from `readRange` (the host's `AXStringForRange`), or `nil`
+    /// when the host could not read the text before the caret or the selection, which sends the
+    /// caller to the full `AXValue`.
+    ///
+    /// A zero-length range is the empty string by definition, so it is never asked of the host:
+    /// Catalyst text views (WhatsApp's composer) answer an empty range, and an empty field's
+    /// `AXValue`, with `kAXErrorNoValue` rather than `""`, which would leave an empty field with
+    /// no text at all and so unsupported, with no ghost and no field icon until the first keystroke.
+    static func windowedTextSelection(
+        selection: NSRange,
+        documentLength: Int,
+        contextWindow: Int,
+        readRange: (NSRange) -> String?
+    ) -> AXTextSelection? {
+        func read(_ range: NSRange) -> String? {
+            range.length == 0 ? "" : readRange(range)
+        }
+
         let safeLocation = min(max(selection.location, 0), documentLength)
         let requestedEnd = selection.location > Int.max - selection.length
             ? Int.max
             : selection.location + selection.length
         let safeEnd = min(max(requestedEnd, safeLocation), documentLength)
 
-        let beforeLength = min(safeLocation, Self.focusedTextContextWindowUTF16)
+        let beforeLength = min(safeLocation, contextWindow)
         let beforeStart = safeLocation - beforeLength
         let afterStart = safeEnd
-        let afterLength = min(max(documentLength - afterStart, 0), Self.focusedTextContextWindowUTF16)
+        let afterLength = min(max(documentLength - afterStart, 0), contextWindow)
 
-        guard let beforeText = AXHelper.parameterizedStringValue(
-            for: kAXStringForRangeParameterizedAttribute as CFString,
-            range: NSRange(location: beforeStart, length: beforeLength),
-            on: element
-        ) else {
-            return fullTextSelection()
+        guard let beforeText = read(NSRange(location: beforeStart, length: beforeLength)),
+              let selectedText = read(NSRange(location: safeLocation, length: safeEnd - safeLocation))
+        else {
+            return nil
         }
-
-        let selectedText: String
-        if safeEnd > safeLocation {
-            guard let nativeSelectedText = AXHelper.parameterizedStringValue(
-                for: kAXStringForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: safeLocation, length: safeEnd - safeLocation),
-                on: element
-            ) else {
-                return fullTextSelection()
-            }
-            selectedText = nativeSelectedText
-        } else {
-            selectedText = ""
-        }
-
-        let trailingText: String
-        if afterLength > 0 {
-            trailingText = AXHelper.parameterizedStringValue(
-                for: kAXStringForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: afterStart, length: afterLength),
-                on: element
-            ) ?? ""
-        } else {
-            trailingText = ""
-        }
+        // The text after the caret is optional context: a failed read leaves it out rather than
+        // giving up the window.
+        let trailingText = read(NSRange(location: afterStart, length: afterLength)) ?? ""
 
         let text = beforeText + selectedText + trailingText
         return AXTextSelection(
@@ -1569,7 +1576,7 @@ private struct FocusedElementReading {
     let subrole: String?
 }
 
-private struct AXTextSelection {
+struct AXTextSelection {
     let text: String
     let selection: NSRange
 }
