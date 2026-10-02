@@ -49,7 +49,7 @@ struct TypingHistorySectionView: View {
                     Button("Import Cotypist Export…") { chooseExportToImport() }
                         .disabled(store.status != .ready || store.isImporting)
                     Button("Delete All…", role: .destructive) { isConfirmingDeleteAll = true }
-                        .disabled(store.recordCount == 0)
+                        .disabled(store.recordCount == 0 || store.isImporting)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {

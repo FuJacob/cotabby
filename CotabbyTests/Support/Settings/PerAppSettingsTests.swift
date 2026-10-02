@@ -87,7 +87,7 @@ final class PerAppSettingsResolverTests: XCTestCase {
 final class AppSettingsListTests: XCTestCase {
     func test_listMergesEveryOwnerAndSortsByUse() {
         let entries = AppSettingsList.entries(
-            inputCounts: ["net.whatsapp.WhatsApp": 869, "com.googlecode.iterm2": 997, "unknown": 3],
+            inputCounts: ["net.whatsapp.WhatsApp": 869, "com.googlecode.iterm2": 997, "unknown": 3, "unknown.bundle": 41],
             disabledRules: [DisabledApplicationRule(bundleIdentifier: "com.1password", displayName: "1Password")],
             overrides: [PerAppShortcutOverride(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
                                                behavior: PerAppBehavior(midLineCompletions: .off))],
@@ -97,7 +97,7 @@ final class AppSettingsListTests: XCTestCase {
 
         XCTAssertEqual(entries.map(\.bundleIdentifier).prefix(2), ["com.googlecode.iterm2", "net.whatsapp.WhatsApp"])
         XCTAssertEqual(entries.first?.displayName, "iTerm")
-        XCTAssertFalse(entries.contains { $0.bundleIdentifier == "unknown" })
+        XCTAssertFalse(entries.contains { $0.bundleIdentifier == "unknown" || $0.bundleIdentifier == "unknown.bundle" })
         XCTAssertEqual(entries.first { $0.bundleIdentifier == "com.1password" }?.isDisabled, true)
         XCTAssertEqual(entries.first { $0.bundleIdentifier == "com.apple.Terminal" }?.hasOverrides, true)
         XCTAssertEqual(entries.first { $0.bundleIdentifier == "com.apple.Notes" }?.isExcludedFromHistory, true)

@@ -1474,7 +1474,11 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func perAppBehavior(forBundleIdentifier bundleIdentifier: String) -> PerAppBehavior {
-        existingPerAppOverride(bundleIdentifier: bundleIdentifier)?.behavior ?? PerAppBehavior()
+        // Normalize like the writer does, so a lookup always finds what `updatePerAppBehavior` stored.
+        guard let normalized = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
+            return PerAppBehavior()
+        }
+        return existingPerAppOverride(bundleIdentifier: normalized)?.behavior ?? PerAppBehavior()
     }
 
     func removePerAppOverride(bundleIdentifier: String) {

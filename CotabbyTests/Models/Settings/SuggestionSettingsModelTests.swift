@@ -1037,6 +1037,13 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertNil(reloaded.snapshot.perAppBehaviors["com.microsoft.teams2"])
     }
 
+    func test_perAppBehaviorLookupNormalizesTheBundleIdentifier() {
+        let model = makeModel()
+        model.updatePerAppBehavior(bundleIdentifier: "com.apple.mail", displayName: "Mail") { $0.autocorrect = .off }
+
+        XCTAssertEqual(model.perAppBehavior(forBundleIdentifier: "  com.apple.mail  ").autocorrect, .off)
+    }
+
     func test_perAppInstructionsAreCapped() {
         let model = makeModel()
 

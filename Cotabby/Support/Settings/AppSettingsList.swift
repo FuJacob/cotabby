@@ -44,8 +44,10 @@ enum AppSettingsList {
         identifiers.formUnion(overrides.map { $0.bundleIdentifier })
         identifiers.formUnion(excluded)
         identifiers.formUnion(addedBundleIdentifiers)
-        // Imported rows with no app recorded carry this placeholder; there is no app to configure.
-        identifiers.remove("unknown")
+        // Imported rows with no app recorded carry a placeholder; there is no app to configure.
+        // Older imports stored Cotypist's own "unknown.bundle" before the importer normalized it.
+        identifiers.remove(CotypistExportImporter.unknownBundleIdentifier)
+        identifiers.remove("unknown.bundle")
 
         return identifiers.map { identifier in
             AppSettingsEntry(

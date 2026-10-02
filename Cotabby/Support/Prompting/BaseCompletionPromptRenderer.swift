@@ -149,17 +149,32 @@ enum BaseCompletionPromptRenderer {
     /// writes. Sits after the stable preface and before the per-keystroke clipboard and screen
     /// sections: the examples change only every few words (`TypingHistoryQuery.stableText`), so
     /// placing them earlier keeps more of the prompt's head reusable from the KV cache.
+    ///
+    /// All or nothing, like the "following" section: a budget-trimmed history section could end
+    /// on an unclosed quote, and the model would then read the live caret text as part of that
+    /// quote. Examples are dropped whole until the section fits its cap.
     private static func historySection(_ examples: [String]) -> PromptSection? {
-        let quoted = examples
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .map { "“\($0)”" }
-        guard !quoted.isEmpty else { return nil }
-        return contextSection(
-            "history", "Earlier writing by the same author:\n" + quoted.joined(separator: "\n"),
-            priority: 38, maxChars: 760
+        let heading = "Earlier writing by the same author:"
+        var content = heading
+        for example in examples {
+            let trimmed = example.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let line = "\n“\(trimmed)”"
+            guard content.count + line.count <= historyMaxCharacters else { continue }
+            content += line
+        }
+        guard content.count > heading.count else { return nil }
+        return PromptSection(
+            name: "history",
+            content: content,
+            priority: 38,
+            minChars: content.count,
+            maxChars: content.count,
+            truncation: .preserveStart
         )
     }
+
+    private static let historyMaxCharacters = 760
 
     private static func contextSection(
         _ name: String,

@@ -256,4 +256,91 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 1)
     }
 
+    // MARK: - Review fixes
+
+    func test_aSaveCapturedBeforeDeleteAllIsNeverWritten() throws {
+        let vault = makeVault()
+        let writer = TypingHistoryWriter(vault: vault)
+        let record = TypingHistoryRecord(
+            id: UUID(), bundleIdentifier: "com.apple.mail", domain: nil, createdAt: Date(), updatedAt: Date(),
+            text: "Deleted history must stay deleted.", source: .recorded
+        )
+
+        try writer.destroy(generation: 1)
+        try writer.save([record], generation: 0, sequence: 1)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
+    }
+
+    func test_anOlderSnapshotCannotOverwriteANewerOne() throws {
+        let vault = makeVault()
+        let writer = TypingHistoryWriter(vault: vault)
+        func record(_ text: String) -> TypingHistoryRecord {
+            TypingHistoryRecord(id: UUID(), bundleIdentifier: "a", domain: nil, createdAt: Date(), updatedAt: Date(),
+                                text: text, source: .recorded)
+        }
+
+        try writer.save([record("newer snapshot text")], generation: 0, sequence: 2)
+        try writer.save([record("older snapshot text")], generation: 0, sequence: 1)
+
+        XCTAssertEqual(try vault.load().map(\.text), ["newer snapshot text"])
+    }
+
+    private func focus(_ text: String, element: String, sequence: UInt64, app: String = "com.apple.mail",
+                       isIntegratedTerminal: Bool = false) -> FocusSnapshot {
+        let input = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: app, elementIdentifier: element, precedingText: text,
+            isIntegratedTerminal: isIntegratedTerminal, focusChangeSequence: sequence
+        )
+        return FocusSnapshot(applicationName: "Mail", bundleIdentifier: app, capability: .supported, context: input)
+    }
+
+    func test_returningToAFieldContinuesItsRecord() {
+        let store = makeStore()
+        store.setRecording(true)
+
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("", element: "search", sequence: 2)) { true }
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 3)) { true }
+        store.observe(focus("", element: "search", sequence: 4)) { true }
+
+        XCTAssertEqual(store.recordCount, 1)
+    }
+
+    func test_aReusedElementWithDifferentTextStartsANewRecord() {
+        let store = makeStore()
+        store.setRecording(true)
+
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+        store.observe(focus("A completely different message about lunch plans today.", element: "body", sequence: 3)) { true }
+        store.observe(focus("", element: "other", sequence: 4)) { true }
+
+        XCTAssertEqual(store.recordCount, 2)
+    }
+
+    func test_terminalsAreNeverRecorded() {
+        let store = makeStore()
+        store.setRecording(true)
+
+        store.observe(focus("export OPENAI_API_KEY and run the deploy script", element: "t", sequence: 1,
+                            app: "com.googlecode.iterm2")) { true }
+        store.observe(focus("git push origin main and then open the pull request", element: "vs", sequence: 2,
+                            app: "com.microsoft.VSCode", isIntegratedTerminal: true)) { true }
+        store.observe(focus("", element: "x", sequence: 3)) { true }
+
+        XCTAssertEqual(store.recordCount, 0)
+    }
+
+    func test_unchangedTextDoesNotEvaluateTheSettingsGate() {
+        let store = makeStore()
+        store.setRecording(true)
+        var gateCalls = 0
+
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
+
+        XCTAssertEqual(gateCalls, 1)
+    }
+
 }
