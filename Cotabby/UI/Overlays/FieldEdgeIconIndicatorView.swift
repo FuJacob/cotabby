@@ -7,6 +7,9 @@ struct FieldEdgeIconIndicatorView: View {
     // Sized at 0.7 of the original chip so the affordance sits more discreetly beside the input.
     private let side: CGFloat = 14
     private let cornerRadius: CGFloat = 3.5
+    /// Autocomplete is off in this app or window. The icon stays (it is how the user turns it back
+    /// on) but fades so it reads as "Cotabby is here, but paused".
+    var dimmed = false
 
     var body: some View {
         ZStack {
@@ -22,6 +25,7 @@ struct FieldEdgeIconIndicatorView: View {
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        .opacity(dimmed ? 0.45 : 1)
         .fixedSize()
     }
 }

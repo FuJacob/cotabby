@@ -23,6 +23,15 @@ struct CapturedWindowScreenshot {
 /// ScreenCaptureKit is permissioned, asynchronous, and window-manager dependent. Keeping this
 /// protocol narrow lets `ScreenshotContextGenerator` tests focus on context policy instead of
 /// requiring a live macOS desktop capture.
+/// One whole app window, captured for reading its text. `windowFrame` is in global display points
+/// with a top-left origin (ScreenCaptureKit's space), the space OCR boxes are mapped into.
+struct CapturedAppWindow {
+    let image: CGImage
+    let windowID: CGWindowID
+    let windowFrame: CGRect
+    let windowTitle: String?
+}
+
 protocol WindowScreenshotCapturing {
     func captureSnapshot(
         around context: FocusedInputSnapshot,
@@ -136,6 +145,38 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
             height: caret.height / sourceRect.height
         )
         return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title, focusBounds: focusBounds)
+    }
+
+    /// Captures the whole active window of an app, for reading what is on screen (incoming
+    /// messages to translate) rather than the area around a text field. Returns the window's frame
+    /// in global display points (top-left origin) so text positions found in the image can be mapped
+    /// back onto the screen. The capture contains only that window, never Cotabby's own overlays.
+    func captureActiveWindow(processIdentifier: pid_t) async throws -> CapturedAppWindow {
+        guard CGPreflightScreenCaptureAccess() else {
+            throw WindowScreenshotError.screenRecordingPermissionMissing
+        }
+        let shareableContent = try await currentShareableContent()
+        try Task.checkCancellation()
+        let candidates = shareableContent.windows.filter {
+            $0.owningApplication?.processID == processIdentifier && $0.isOnScreen && $0.windowLayer == 0
+        }
+        guard let window = candidates.first(where: \.isActive) ?? candidates.max(by: {
+            $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
+        }) else {
+            throw WindowScreenshotError.noVisibleWindowForProcess(processIdentifier)
+        }
+        let scale = backingScaleFactor(for: window.frame)
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = CGRect(origin: .zero, size: window.frame.size)
+        configuration.width = max(Int((window.frame.width * scale).rounded(.up)), 1)
+        configuration.height = max(Int((window.frame.height * scale).rounded(.up)), 1)
+        configuration.showsCursor = false
+        let image = try await captureImage(
+            filter: SCContentFilter(desktopIndependentWindow: window),
+            configuration: configuration
+        )
+        try Task.checkCancellation()
+        return CapturedAppWindow(image: image, windowID: window.windowID, windowFrame: window.frame, windowTitle: window.title)
     }
 
     private func snapshotRect(
