@@ -111,4 +111,13 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertEqual(reason, "Cotabby is turned off.",
                        "Global-off should take precedence over the terminal check")
     }
+
+    func test_herdrMIsATerminalScreenFieldNotABlockedTerminal() {
+        // HerdrM keeps suggestions; only the caret's line is compared there.
+        XCTAssertTrue(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: "dev.bybee.herdrm"))
+        XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: "dev.bybee.herdrm"))
+        XCTAssertFalse(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: "com.apple.TextEdit"))
+        XCTAssertFalse(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: nil))
+    }
+
 }

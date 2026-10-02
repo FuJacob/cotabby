@@ -24,6 +24,19 @@ nonisolated enum TerminalAppDetector {
         return terminalBundleIdentifiers.contains(bundleIdentifier)
     }
 
+    /// Hosts whose terminal is one Accessibility text area holding the whole screen, with the
+    /// insertion point on the terminal cursor (HerdrM). Unlike the emulators above, Cotabby suggests
+    /// there, but only the caret's own line is the user's text: the rest of the screen (status
+    /// lines, spinners, agent output) redraws on its own while the user types.
+    private static let terminalScreenFieldBundleIdentifiers: Set<String> = [
+        "dev.bybee.herdrm"
+    ]
+
+    static func isTerminalScreenField(bundleIdentifier: String?) -> Bool {
+        guard let bundleIdentifier else { return false }
+        return terminalScreenFieldBundleIdentifiers.contains(bundleIdentifier)
+    }
+
     /// DOM class prefix xterm.js stamps on every node of its terminal subtree — most importantly the
     /// focusable `xterm-helper-textarea` that receives the caret.
     private static let integratedTerminalClassPrefix = "xterm"

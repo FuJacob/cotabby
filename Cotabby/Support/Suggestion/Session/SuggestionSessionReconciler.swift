@@ -69,9 +69,11 @@ enum SuggestionSessionReconciler {
             return .invalid("Overlay hidden because text is selected.")
         }
 
+        let text = ComparedText(session: session, liveContext: liveContext)
+
         if let trailingTextReconciliation = reconcileTrailingText(
+            text: text,
             session: session,
-            liveContext: liveContext,
             pendingInsertionConsumedCount: pendingInsertionConsumedCount,
             isAwaitingInsertedTextSync: isAwaitingInsertedTextSync
         ) {
@@ -79,8 +81,8 @@ enum SuggestionSessionReconciler {
         }
 
         if let prefixReconciliation = reconcilePrefixAnchor(
+            text: text,
             session: session,
-            liveContext: liveContext,
             pendingInsertionConsumedCount: pendingInsertionConsumedCount,
             isAwaitingInsertedTextSync: isAwaitingInsertedTextSync
         ) {
@@ -89,7 +91,7 @@ enum SuggestionSessionReconciler {
 
         var nextPendingInsertionConsumedCount = pendingInsertionConsumedCount
         let consumedSuffix = String(
-            Self.spaceNormalized(liveContext.precedingText).dropFirst(session.baseContext.precedingText.count)
+            Self.spaceNormalized(text.livePreceding).dropFirst(text.basePreceding.count)
         )
         if let consumedTextReconciliation = reconcileConsumedSuggestionText(
             session: session,
@@ -156,6 +158,46 @@ enum SuggestionSessionReconciler {
         )
     }
 
+    /// The text the session is compared on: the field's text before and after the caret, at the
+    /// suggestion's start and now. A terminal screen (`TerminalAppDetector.isTerminalScreenField`)
+    /// is one field holding the whole screen, so it is compared on the caret's own line only: the
+    /// rest of the screen redraws by itself (a status line's counters, a spinner, agent output),
+    /// and comparing it dropped the suggestion on every redraw, a few hundred milliseconds after
+    /// it appeared.
+    struct ComparedText: Equatable {
+        let basePreceding: String
+        let livePreceding: String
+        let baseTrailing: String
+        let liveTrailing: String
+
+        init(session: ActiveSuggestionSession, liveContext: FocusedInputContext) {
+            let base = session.baseContext
+            guard TerminalAppDetector.isTerminalScreenField(bundleIdentifier: liveContext.bundleIdentifier) else {
+                basePreceding = base.precedingText
+                livePreceding = liveContext.precedingText
+                baseTrailing = base.trailingText
+                liveTrailing = liveContext.trailingText
+                return
+            }
+            basePreceding = Self.lineBeforeCaret(base.precedingText)
+            livePreceding = Self.lineBeforeCaret(liveContext.precedingText)
+            baseTrailing = Self.lineAfterCaret(base.trailingText)
+            liveTrailing = Self.lineAfterCaret(liveContext.trailingText)
+        }
+
+        /// The caret line's text before the caret: everything after the last line break.
+        static func lineBeforeCaret(_ precedingText: String) -> String {
+            guard let lineBreak = precedingText.lastIndex(of: "\n") else { return precedingText }
+            return String(precedingText[precedingText.index(after: lineBreak)...])
+        }
+
+        /// The caret line's text after the caret: everything up to the next line break.
+        static func lineAfterCaret(_ trailingText: String) -> String {
+            guard let lineBreak = trailingText.firstIndex(of: "\n") else { return trailingText }
+            return String(trailingText[..<lineBreak])
+        }
+    }
+
     private static func tolerateTransientPostInsertionLag(
         session: ActiveSuggestionSession,
         pendingInsertionConsumedCount: Int?
@@ -178,12 +220,12 @@ enum SuggestionSessionReconciler {
     }
 
     private static func reconcileTrailingText(
+        text: ComparedText,
         session: ActiveSuggestionSession,
-        liveContext: FocusedInputContext,
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard spaceNormalized(liveContext.trailingText) != spaceNormalized(session.baseContext.trailingText) else {
+        guard spaceNormalized(text.liveTrailing) != spaceNormalized(text.baseTrailing) else {
             return nil
         }
 
@@ -191,25 +233,25 @@ enum SuggestionSessionReconciler {
         // text snapshot catches up. Right after Tab insertion that makes the trailing-text slice
         // look changed even though the active suggestion tail is still valid.
         if isAwaitingInsertedTextSync,
-           spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) {
+           spaceNormalized(text.livePreceding).hasPrefix(spaceNormalized(text.basePreceding)) {
             return tolerateTransientPostInsertionLag(
                 session: session,
                 pendingInsertionConsumedCount: pendingInsertionConsumedCount
             )
         }
 
-        let before = (session.baseContext.trailingText as NSString).length
-        let after = (liveContext.trailingText as NSString).length
+        let before = (text.baseTrailing as NSString).length
+        let after = (text.liveTrailing as NSString).length
         return .invalid("Overlay hidden because text after the caret changed (\(before) -> \(after) chars).")
     }
 
     private static func reconcilePrefixAnchor(
+        text: ComparedText,
         session: ActiveSuggestionSession,
-        liveContext: FocusedInputContext,
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard !spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) else {
+        guard !spaceNormalized(text.livePreceding).hasPrefix(spaceNormalized(text.basePreceding)) else {
             return nil
         }
 
