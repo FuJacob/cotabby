@@ -51,11 +51,30 @@ extension EngineAndModelPaneView {
             }
             .disabled(!suggestionSettings.isAppleLanguageFallbackEnabled)
 
-            if suggestionSettings.isAppleLanguageFallbackEnabled, runtimeModel.selectedModelFilename == nil {
-                Text("No Open Source model is selected, so there is nothing to fall back to. " +
-                    "Choose one under Engine → Open Source.")
+            // The Open Source section is hidden while Apple Intelligence is the engine, so the
+            // fallback model is chosen here. It is the same selection the Open Source engine uses:
+            // the local runtime holds one model at a time.
+            if runtimeModel.availableModels.isEmpty {
+                Text("No downloaded models were found, so there is nothing to fall back to. " +
+                    "Switch the engine to Open Source to download one.")
                     .font(.caption)
                     .foregroundStyle(.orange)
+            } else {
+                Picker(selection: selectedModelBinding) {
+                    ForEach(runtimeModel.availableModels) { model in
+                        Text(model.displayName).tag(model.filename)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Fallback Model",
+                        description: "The downloaded model used when Apple Intelligence can't handle the " +
+                            "language. It is also your Open Source engine's model.",
+                        systemImage: "shippingbox"
+                    )
+                }
+                .disabled(!suggestionSettings.isAppleLanguageFallbackEnabled
+                    || suggestionSettings.isPowerBasedModelSwitchingEnabled)
+                .settingsItem(.appleLanguageFallbackModel)
             }
         }
     }
