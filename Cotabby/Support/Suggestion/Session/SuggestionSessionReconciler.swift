@@ -191,10 +191,13 @@ enum SuggestionSessionReconciler {
             return String(precedingText[precedingText.index(after: lineBreak)...])
         }
 
-        /// The caret line's text after the caret: everything up to the next line break.
+        /// The caret line's text after the caret, up to the next line break, without its blank
+        /// cells. A terminal row is a fixed width of cells, so the blanks after the caret shrink by
+        /// one with every inserted character (measured: 183 -> 176 after a 7-character Tab accept
+        /// on a 230-column prompt line) without any text after the caret changing.
         static func lineAfterCaret(_ trailingText: String) -> String {
-            guard let lineBreak = trailingText.firstIndex(of: "\n") else { return trailingText }
-            return String(trailingText[..<lineBreak])
+            let line = trailingText.firstIndex(of: "\n").map { trailingText[..<$0] } ?? trailingText[...]
+            return String(line.filter { !$0.isWhitespace })
         }
     }
 

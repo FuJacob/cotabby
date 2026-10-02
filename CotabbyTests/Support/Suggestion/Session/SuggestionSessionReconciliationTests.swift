@@ -567,12 +567,37 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         )
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: session, with: edited, pendingInsertionConsumedCount: nil
-        ), reason: "Overlay hidden because text after the caret changed (0 -> 4 chars).")
+        ), reason: "Overlay hidden because text after the caret changed (0 -> 3 chars).")
 
         let retyped = terminalContext(above: "out", prompt: "❯ git switch", below: "status")
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: session, with: retyped, pendingInsertionConsumedCount: nil
         ), reason: "Overlay hidden because text before the caret no longer matches the suggestion anchor.")
+    }
+
+    func test_terminalScreen_tabAcceptShrinkingTheBlankCellsKeepsTheTail() {
+        // The prompt row is padded with blank cells to the pane's width; inserting the accepted
+        // chunk pushes as many blanks off the row (measured: 183 -> 176 after 7 characters).
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                bundleIdentifier: "dev.bybee.herdrm",
+                precedingText: "out\n❯ git check",
+                trailingText: String(repeating: " ", count: 183) + "\nstatus"
+            ),
+            fullText: "out main",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        let live = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "dev.bybee.herdrm",
+            precedingText: "out\n❯ git checkout",
+            trailingText: String(repeating: " ", count: 180) + "\nstatus"
+        )
+        guard case let .valid(reconciled, _, _) = SuggestionSessionReconciler.reconcile(
+            session: session, with: live, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("blank cells pushed off the row must not drop the rest of the suggestion") }
+        XCTAssertEqual(reconciled.consumedCharacterCount, 3)
+        XCTAssertEqual(reconciled.predictedRemainingText, " main")
     }
 
     func test_otherFieldsStillCompareTheWholeTextAfterTheCaret() {
