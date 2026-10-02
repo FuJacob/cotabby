@@ -13,7 +13,6 @@ nonisolated enum TerminalAppDetector {
         "net.kovidgoyal.kitty",
         "io.alacritty",
         "co.zeit.hyper",
-        "com.mitchellh.ghostty",
         "dev.warp.Warp-Stable",
         "com.github.wez.wezterm",
         "io.rio.terminal"
@@ -24,12 +23,14 @@ nonisolated enum TerminalAppDetector {
         return terminalBundleIdentifiers.contains(bundleIdentifier)
     }
 
-    /// Hosts whose terminal is one Accessibility text area holding the whole screen, with the
-    /// insertion point on the terminal cursor (HerdrM). Unlike the emulators above, Cotabby suggests
-    /// there, but only the caret's own line is the user's text: the rest of the screen (status
-    /// lines, spinners, agent output) redraws on its own while the user types.
+    /// Hosts whose terminal is one Accessibility text area holding the whole screen (HerdrM, and
+    /// Ghostty, whose surface HerdrM's terminal view is modelled on). Unlike the emulators above,
+    /// Cotabby suggests there, by the user's choice, but only the caret's own line is the user's
+    /// text: the rest of the screen (status lines, spinners, agent output) redraws on its own while
+    /// the user types.
     private static let terminalScreenFieldBundleIdentifiers: Set<String> = [
-        "dev.bybee.herdrm"
+        "dev.bybee.herdrm",
+        "com.mitchellh.ghostty"
     ]
 
     static func isTerminalScreenField(bundleIdentifier: String?) -> Bool {
