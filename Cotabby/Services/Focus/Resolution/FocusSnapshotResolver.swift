@@ -378,6 +378,21 @@ struct FocusSnapshotResolver {
             return MailHeaderFieldDetector.blockedReason
         }
 
+        // Email, username, phone and code boxes: four attribute reads, only for single-line fields.
+        if CredentialFieldDetector.mightBeCredentialField(role: candidate.role),
+           CredentialFieldDetector.isCredentialField(
+               role: candidate.role,
+               labels: [
+                   AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: candidate.element),
+                   AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: candidate.element),
+                   AXHelper.stringValue(for: kAXPlaceholderValueAttribute as CFString, on: candidate.element)
+               ],
+               domIdentifier: AXHelper.stringValue(for: "AXDOMIdentifier" as CFString, on: candidate.element),
+               text: candidate.textValue
+           ) {
+            return CredentialFieldDetector.blockedReason
+        }
+
         guard selection.length > 0 else { return nil }
         if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier) {
             CotabbyLogger.focus.debug(
