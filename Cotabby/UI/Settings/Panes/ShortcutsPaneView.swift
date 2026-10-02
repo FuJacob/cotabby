@@ -104,6 +104,18 @@ struct ShortcutsPaneView: View {
                 }
                 .settingsItem(.acceptEntireSuggestion)
 
+                // A modifier on the Accept Word key rather than its own binding: the first press still
+                // takes a word immediately, and a quick second press takes the rest.
+                Toggle(isOn: doubleTapAcceptsEntireSuggestionBinding) {
+                    SettingsRowLabel(
+                        title: "Double-Tap to Accept All",
+                        description: "Press \(suggestionSettings.acceptanceKeyLabel) twice quickly to insert the " +
+                            "whole suggestion. A single press still inserts one word.",
+                        systemImage: "hand.tap"
+                    )
+                }
+                .settingsItem(.doubleTapAcceptEntire)
+
                 // The opt-in toggle has no factory binding; Clear is its only reset action.
                 LabeledContent {
                     KeybindRow(
@@ -141,5 +153,12 @@ struct ShortcutsPaneView: View {
                 .settingsItem(.toggleTabby)
             }
         }
+    }
+
+    private var doubleTapAcceptsEntireSuggestionBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.doubleTapAcceptsEntireSuggestion },
+            set: { suggestionSettings.setDoubleTapAcceptsEntireSuggestion($0) }
+        )
     }
 }

@@ -116,6 +116,7 @@ struct SuggestionSettingsStore {
     private static let pauseStateDefaultsKey = "cotabbySuggestionPauseState"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
+    private static let doubleTapAcceptsEntireSuggestionDefaultsKey = "cotabbyDoubleTapAcceptsEntireSuggestion"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
@@ -209,6 +210,7 @@ struct SuggestionSettingsStore {
         pauseStateDefaultsKey,
         disabledAppRulesDefaultsKey,
         perAppShortcutOverridesDefaultsKey,
+        doubleTapAcceptsEntireSuggestionDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
@@ -294,6 +296,10 @@ struct SuggestionSettingsStore {
         let resolvedPauseState = persistedPauseState?.activeState()
         let resolvedDisabledAppRules = loadDisabledAppRules()
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
+        // Off by default: a fast second Tab has always accepted one more word, and turning it into a
+        // whole-suggestion accept is an opt-in change to that muscle memory.
+        let resolvedDoubleTapAcceptsEntireSuggestion =
+            userDefaults.object(forKey: Self.doubleTapAcceptsEntireSuggestionDefaultsKey) as? Bool ?? false
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
@@ -650,7 +656,8 @@ struct SuggestionSettingsStore {
                     modifiers: resolvedGlobalToggleKeyModifiers,
                     label: resolvedGlobalToggleKeyLabel
                 ),
-                perAppOverrides: resolvedPerAppShortcutOverrides
+                perAppOverrides: resolvedPerAppShortcutOverrides,
+                doubleTapAcceptsEntireSuggestion: resolvedDoubleTapAcceptsEntireSuggestion
             )
         )
 
@@ -722,6 +729,7 @@ struct SuggestionSettingsStore {
             label: data.globalToggleKeyLabel
         )
         savePerAppShortcutOverrides(data.perAppShortcutOverrides)
+        saveDoubleTapAcceptsEntireSuggestion(data.doubleTapAcceptsEntireSuggestion)
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
         saveBatteryEngine(data.batteryEngine)
@@ -786,6 +794,10 @@ struct SuggestionSettingsStore {
     }
 
     /// Removing the key for an empty list keeps reset state identical to a fresh install.
+    func saveDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.doubleTapAcceptsEntireSuggestionDefaultsKey)
+    }
+
     func savePerAppShortcutOverrides(_ overrides: [PerAppShortcutOverride]) {
         guard !overrides.isEmpty else {
             userDefaults.removeObject(forKey: Self.perAppShortcutOverridesDefaultsKey)

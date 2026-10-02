@@ -156,6 +156,8 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Per-app accept/full-accept overrides. Published so the input monitor's event-time provider
     /// closures (via `ShortcutResolver`) and the Apps settings pane both observe the live list.
     @Published private(set) var perAppShortcutOverrides: [PerAppShortcutOverride]
+    /// Whether a quick second press of the Accept Word key accepts the rest of the suggestion.
+    @Published private(set) var doubleTapAcceptsEntireSuggestion: Bool
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
     @Published private(set) var batteryEngine: SuggestionEngineKind
@@ -284,6 +286,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
@@ -367,6 +370,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
@@ -480,7 +484,8 @@ final class SuggestionSettingsModel: ObservableObject {
                     modifiers: globalToggleKeyModifiers,
                     label: globalToggleKeyLabel
                 ),
-                perAppOverrides: perAppShortcutOverrides
+                perAppOverrides: perAppShortcutOverrides,
+                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
             )
         )
     }
@@ -521,7 +526,8 @@ final class SuggestionSettingsModel: ObservableObject {
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
+            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion
         )
     }
 
@@ -901,6 +907,14 @@ final class SuggestionSettingsModel: ObservableObject {
             skinTone: preferredEmojiSkinTone,
             gender: preferredEmojiGender
         )
+    }
+
+    func setDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
+        guard doubleTapAcceptsEntireSuggestion != enabled else {
+            return
+        }
+        doubleTapAcceptsEntireSuggestion = enabled
+        store.saveDoubleTapAcceptsEntireSuggestion(enabled)
     }
 
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
@@ -1647,10 +1661,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
         // alongside `acceptanceGranularity` here for the same reason. The three custom-range fields
         // travel together as a single tuple so they only cost one slot in this outer layer.
-        let customRange = Publishers.CombineLatest3(
+        // The double-tap toggle rides in this slot's last free input; it is unrelated to the range
+        // but costs no extra layer of nesting.
+        let customRange = Publishers.CombineLatest4(
             $isUsingCustomWordCountRange,
             $customWordCountLowWords,
-            $customWordCountHighWords
+            $customWordCountHighWords,
+            $doubleTapAcceptsEntireSuggestion
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1674,7 +1691,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
-                let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (isCustomActive, customLow, customHigh, doubleTapAcceptsEntireSuggestion) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1708,7 +1725,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos
+                    automaticallyFixTypos: automaticallyFixTypos,
+                    doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
                 )
             }
             .removeDuplicates()
