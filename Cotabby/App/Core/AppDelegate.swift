@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let settingsCoordinator: SettingsCoordinator
 
     private let activationIndicatorController: ActivationIndicatorController
+    private let fieldScopeMenuController: FieldScopeMenuController
     private let focusDebugOverlayController: FocusDebugOverlayController?
     /// Retained for the app's lifetime because the environment owns its own `cancellables` (the only
     /// subscriptions wiring the focus-poll-interval setting and the global-toggle hotkey rebind to the
@@ -62,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator
         activationIndicatorController = environment.activationIndicatorController
+        fieldScopeMenuController = environment.fieldScopeMenuController
         focusDebugOverlayController = environment.focusDebugOverlayController
         super.init()
 
@@ -91,8 +93,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        activationIndicatorController.onClick = { [weak self] iconFrame in
+            self?.toggleFieldScopeMenu(anchorRect: iconFrame)
+        }
+
         focusModel.$snapshot
             .sink { [weak self] snapshot in
+                self?.dismissFieldScopeMenuIfFocusLeftTarget(snapshot)
                 self?.updateActivationIndicator(for: snapshot)
                 self?.focusDebugOverlayController?.update(for: snapshot)
             }
@@ -256,8 +263,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
     }
 
-    /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
-    /// disable rules, and the user's indicator toggle.
+    /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, and the
+    /// user's indicator toggle. Where autocomplete is off for the app or window the icon stays,
+    /// dimmed, because clicking it is how the user turns autocomplete back on there.
     private func updateActivationIndicator(
         for snapshot: FocusSnapshot,
         settings: SuggestionSettingsSnapshot? = nil
@@ -265,7 +273,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = settings ?? suggestionSettings.snapshot
         guard settings.isGloballyEnabled,
               !settings.isTemporarilyPaused,
-              !settings.disabledAppBundleIdentifiers.contains(snapshot.bundleIdentifier ?? ""),
               case .supported = snapshot.capability,
               let context = snapshot.context
         else {
@@ -273,11 +280,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let windowKey = WindowFeatureScope.windowKey(
+            bundleIdentifier: snapshot.bundleIdentifier, windowTitle: context.windowTitle
+        )
+        let disabledApps = WindowFeatureScope.effectiveDisabledApps(
+            settings.disabledAppBundleIdentifiers,
+            bundleIdentifier: snapshot.bundleIdentifier,
+            windowOverride: environment.windowFeatureOverrides.override(for: .autocomplete, windowKey: windowKey)
+        )
         activationIndicatorController.show(
             enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
-            inputFrameRect: context.inputFrameRect
+            inputFrameRect: context.inputFrameRect,
+            dimmed: disabledApps.contains(snapshot.bundleIdentifier ?? "")
         )
+    }
+
+    // MARK: - Field icon popup
+
+    /// Opens (or, on a second click, closes) the Autocomplete/Translate popup for the focused
+    /// app and window. The target is captured now so the popup keeps editing this window.
+    private func toggleFieldScopeMenu(anchorRect: CGRect) {
+        if fieldScopeMenuController.isShown {
+            fieldScopeMenuController.dismiss()
+            return
+        }
+        let snapshot = focusModel.snapshot
+        guard let bundleIdentifier = snapshot.bundleIdentifier else { return }
+        let target = FieldScopeTarget(
+            bundleIdentifier: bundleIdentifier,
+            applicationName: snapshot.applicationName,
+            windowTitle: snapshot.context?.windowTitle
+        )
+        let menu = FieldScopeMenuView(
+            target: target,
+            suggestionSettings: suggestionSettings,
+            translationPreferences: environment.translationPreferences,
+            windowOverrides: environment.windowFeatureOverrides,
+            onChange: { [weak self] feature in self?.handleFieldScopeChange(feature) },
+            onOpenSettings: { [weak self] in
+                self?.fieldScopeMenuController.dismiss()
+                self?.settingsCoordinator.showSettings()
+            }
+        )
+        fieldScopeMenuController.show(menu, for: target, anchorRect: anchorRect)
+    }
+
+    /// Applies a popup change right away instead of waiting for the next keystroke or tick.
+    private func handleFieldScopeChange(_ feature: ScopedFeature) {
+        switch feature {
+        case .autocomplete:
+            suggestionCoordinator.handleWindowFeatureOverrideChange()
+            updateActivationIndicator(for: focusModel.snapshot)
+        case .translation:
+            environment.translationCoordinator.handleScopeChange()
+        }
+    }
+
+    /// Closes the popup once the user is typing in a different app or window, so it never edits a
+    /// window other than the one it names. A missing bundle or title is AX flicker, not a move.
+    private func dismissFieldScopeMenuIfFocusLeftTarget(_ snapshot: FocusSnapshot) {
+        guard let target = fieldScopeMenuController.target,
+              let bundleIdentifier = snapshot.bundleIdentifier
+        else { return }
+        let windowKey = WindowFeatureScope.windowKey(
+            bundleIdentifier: bundleIdentifier, windowTitle: snapshot.context?.windowTitle
+        )
+        if bundleIdentifier != target.bundleIdentifier
+            || (windowKey != nil && target.windowKey != nil && windowKey != target.windowKey) {
+            fieldScopeMenuController.dismiss()
+        }
     }
 
     /// Warm the local runtime only when the user is actually on a local engine path.

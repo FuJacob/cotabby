@@ -27,6 +27,8 @@ final class TranslationCoordinator {
     private let hotkey: TranslationHotkeyTap
     /// Cotabby's own gates for an app: globally on, not paused, app not disabled, not Low Power Mode.
     private let isAllowed: @MainActor (String) -> Bool
+    /// Per-window choices made from the field icon; set by `CotabbyAppEnvironment`.
+    var windowOverrides: WindowFeatureOverrideStore?
 
     private var conversations = ConversationLanguageTracker()
     private var timer: Timer?
@@ -122,7 +124,7 @@ final class TranslationCoordinator {
         guard prefs.isEnabled, prefs.translatesIncoming,
               let app = NSWorkspace.shared.frontmostApplication,
               let bundleIdentifier = app.bundleIdentifier,
-              preferences.isActive(forBundleIdentifier: bundleIdentifier),
+              mayTranslate(inApp: bundleIdentifier),
               isAllowed(bundleIdentifier),
               CGPreflightScreenCaptureAccess()
         else {
@@ -133,6 +135,13 @@ final class TranslationCoordinator {
 
         do {
             let window = try await capture.captureActiveWindow(processIdentifier: app.processIdentifier)
+            // The window title is only known now; a chat turned off from the field icon stays off
+            // even though its app is on the translation list (and vice versa).
+            guard isTranslationActive(bundleIdentifier: bundleIdentifier, windowTitle: window.windowTitle) else {
+                overlay.hideIncoming()
+                lastCaptureSignature = nil
+                return
+            }
             let hash = Self.sampleHash(window.image)
             if let last = lastCaptureSignature, last.windowID == window.windowID, last.frame == window.windowFrame,
                last.hash == hash {
@@ -227,6 +236,36 @@ final class TranslationCoordinator {
         return hasher.finalize()
     }
 
+    // MARK: - Scope
+
+    /// Whether translation applies in this window: the window's own choice from the field icon
+    /// when it has one, otherwise whether its app is on the translation list.
+    func isTranslationActive(bundleIdentifier: String?, windowTitle: String?) -> Bool {
+        guard preferences.preferences.isEnabled, let bundleIdentifier else { return false }
+        let windowKey = WindowFeatureScope.windowKey(bundleIdentifier: bundleIdentifier, windowTitle: windowTitle)
+        return WindowFeatureScope.resolve(
+            appEnabled: preferences.isActive(forBundleIdentifier: bundleIdentifier),
+            windowOverride: windowOverrides?.override(for: .translation, windowKey: windowKey)
+        )
+    }
+
+    /// Cheap pre-check before a capture, when the front window's title is not known yet: the app
+    /// is on the list, or one of its windows was turned on from the field icon.
+    private func mayTranslate(inApp bundleIdentifier: String) -> Bool {
+        preferences.isActive(forBundleIdentifier: bundleIdentifier)
+            || (preferences.preferences.isEnabled
+                && windowOverrides?.hasEnabledWindow(for: .translation, bundleIdentifier: bundleIdentifier) == true)
+    }
+
+    /// Re-run both directions now that a window or app choice changed, instead of waiting for the
+    /// next 2-second tick, so the popup's switch takes effect immediately.
+    func handleScopeChange() {
+        lastCaptureSignature = nil
+        overlay.hideIncoming()
+        scheduleIncomingPass()
+        observeReply(focusModel.snapshot)
+    }
+
     // MARK: - Reply
 
     private func observeReply(_ snapshot: FocusSnapshot) {
@@ -234,7 +273,7 @@ final class TranslationCoordinator {
         guard prefs.isEnabled, prefs.offersReplyTranslation,
               case .supported = snapshot.capability,
               let input = snapshot.context, !input.isSecure,
-              preferences.isActive(forBundleIdentifier: input.bundleIdentifier),
+              isTranslationActive(bundleIdentifier: input.bundleIdentifier, windowTitle: input.windowTitle),
               isAllowed(input.bundleIdentifier),
               let conversationLanguage = conversations.language(
                   for: ConversationLanguageTracker.key(bundleIdentifier: input.bundleIdentifier, windowTitle: input.windowTitle)),

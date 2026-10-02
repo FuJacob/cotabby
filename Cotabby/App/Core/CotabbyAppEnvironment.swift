@@ -44,6 +44,10 @@ final class CotabbyAppEnvironment {
     let translationCoordinator: TranslationCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
+    /// Per-window Autocomplete/Translate choices made from the field icon.
+    let windowFeatureOverrides: WindowFeatureOverrideStore
+    /// The popup the field icon opens.
+    let fieldScopeMenuController: FieldScopeMenuController
     let focusDebugOverlayController: FocusDebugOverlayController?
 
     private var cancellables = Set<AnyCancellable>()
@@ -199,6 +203,8 @@ final class CotabbyAppEnvironment {
             faceMemoryDefaults: .standard
         )
         let activationIndicatorController = ActivationIndicatorController()
+        let windowFeatureOverrides = WindowFeatureOverrideStore()
+        translationCoordinator.windowOverrides = windowFeatureOverrides
         let clipboardContextProvider = ClipboardContextProvider()
         let clipboardRelevanceFilter = ClipboardRelevanceFilter()
         let screenshotContextGenerator = ScreenshotContextGenerator()
@@ -356,6 +362,16 @@ final class CotabbyAppEnvironment {
             macro: macroController,
             inputMonitor: inputMonitor
         )
+        // The coordinator asks for the focused window's own choice through a closure, so it does not
+        // depend on the concrete store (and its tests need no UserDefaults).
+        suggestionCoordinator.windowAutocompleteOverride = { [weak windowFeatureOverrides] snapshot in
+            windowFeatureOverrides?.override(
+                for: .autocomplete,
+                windowKey: WindowFeatureScope.windowKey(
+                    bundleIdentifier: snapshot.bundleIdentifier, windowTitle: snapshot.context?.windowTitle
+                )
+            )
+        }
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false
         }
@@ -388,6 +404,8 @@ final class CotabbyAppEnvironment {
         self.translationCoordinator = translationCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
+        self.windowFeatureOverrides = windowFeatureOverrides
+        self.fieldScopeMenuController = FieldScopeMenuController()
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
             ? FocusDebugOverlayController()
             : nil
