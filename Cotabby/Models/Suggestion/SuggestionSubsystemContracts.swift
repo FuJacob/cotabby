@@ -101,6 +101,19 @@ protocol EmojiInputIntercepting: AnyObject {
     func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool
 }
 
+/// Read-only access to the user's typing history for the suggestion pipeline.
+///
+/// Both answers are empty for the endpoint engine: history stays on this Mac, so it may only shape
+/// requests handled by Apple Intelligence or the in-process model. Implementations also return
+/// nothing while the user has history turned off, so callers never need to check settings.
+@MainActor
+protocol SuggestionHistoryProviding: AnyObject {
+    /// Short passages of the user's past writing that resemble the current field, best first.
+    func historyExamples(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String]
+    /// Exact text to insert when history is confident how the current phrase ends, else nil.
+    func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String?
+}
+
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult

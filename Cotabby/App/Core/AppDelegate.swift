@@ -247,6 +247,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
+        // Write the field being typed in now; the debounced background save may not have run yet.
+        environment.typingHistoryStore.flush()
         inlineCommandCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
