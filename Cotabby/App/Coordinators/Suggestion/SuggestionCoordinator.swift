@@ -337,6 +337,15 @@ final class SuggestionCoordinator: ObservableObject {
 
         visualContextCoordinator.onInjectedContextReady = { [weak self] identity in
             guard let self, self.focusModel.snapshot.context?.identity == identity else { return }
+            // A terminal screen field (HerdrM) redraws its status line and agent output every few
+            // seconds, so its screen text changes without any navigation, and each pane is its own
+            // field, so a switch already arrives as a focus change. The new text simply feeds the
+            // next request; retiring the visible suggestion here hid it every 2-3 seconds.
+            if TerminalAppDetector.isTerminalScreenField(
+                bundleIdentifier: self.focusModel.snapshot.context?.bundleIdentifier
+            ) {
+                return
+            }
             // A host may expose identical URL/title/geometry for two chats. Changed screen text
             // is then our next navigation signal. Retire visible tails as well as cached/async
             // work; keeping an old tail stable would let it outlive arbitrarily many refreshes.

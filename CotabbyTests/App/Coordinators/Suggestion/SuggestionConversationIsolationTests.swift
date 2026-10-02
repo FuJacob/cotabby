@@ -103,6 +103,21 @@ final class SuggestionConversationIsolationTests: XCTestCase {
         await waitUntil { rig.engine.requests.count == 2 && rig.coordinator.overlayState.isVisible }
     }
 
+    func test_changedScreenTextKeepsTheVisiblePredictionInATerminalScreenField() async {
+        // HerdrM's status line redraws every few seconds; each pane is its own field, so changed
+        // screen text there is not a navigation signal and must not retire the visible suggestion.
+        let rig = makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "dev.bybee.herdrm", precedingText: "Hello")
+        )
+        defer { rig.coordinator.stop() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.coordinator.overlayState.isVisible }
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertNotNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.engine.requests.count, 1)
+    }
+
     private func publish(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {
         setSnapshot(snapshot, in: rig)
         rig.focusProvider.snapshotSubject.send(rig.focusProvider.snapshot)
