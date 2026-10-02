@@ -142,6 +142,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `fadeInSuggestions`, so dragging the speed slider takes effect on the next suggestion. Lower is
     /// a faster fade. Like `fadeInSuggestions`, it never reaches generation, only the overlay renderer.
     @Published private(set) var fadeInDurationSeconds: Double
+    /// When on, the ghost is drawn at exactly the size measured for the host's own text: the size
+    /// multiplier and the floor/ceiling are not applied. Read live by `OverlayController`, so it
+    /// takes effect on the next suggestion; like the size settings it never reaches generation.
+    @Published private(set) var matchesHostTextSize: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -283,6 +287,7 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -369,6 +374,7 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -473,6 +479,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
                 fadeInDurationSeconds: fadeInDurationSeconds,
+                matchesHostTextSize: matchesHostTextSize,
                 showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
@@ -1059,6 +1066,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         fadeInSuggestions = enabled
         store.saveFadeInSuggestions(enabled)
+    }
+
+    func setMatchesHostTextSize(_ enabled: Bool) {
+        guard matchesHostTextSize != enabled else {
+            return
+        }
+        matchesHostTextSize = enabled
+        store.saveMatchesHostTextSize(enabled)
     }
 
     func setFadeInDurationSeconds(_ seconds: Double) {
