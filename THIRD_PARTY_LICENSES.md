@@ -97,6 +97,12 @@ The corresponding source word-list notices were captured from
 `5ede45bb705d3f9f525ea779f7b487f9fc062013`, the latest revision before
 SymSpell published the derived multilingual files.
 
+Turkish (`tr-100k.txt`) and Macedonian (`mk-100k.txt`) are not SymSpell files. They were built
+the same way from OpenSubtitles 2018 word frequencies published by `hermitdave/FrequencyWords`
+(content licensed CC BY-SA 4.0) filtered through the Hunspell dictionaries in `wooorm/dictionaries`
+(Turkish: MIT; Macedonian: GPL-3.0-or-later). Pinned commits, hashes, and the build script are listed
+in `Cotabby/Resources/SpellingDictionaries/NOTICE.md`.
+
 Chinese is intentionally not bundled: SymSpell's generation notes do not identify
 the source word list and license for that file, and Cotabby's current typo gate does
 not yet provide reliable word segmentation for languages without whitespace.

@@ -66,7 +66,7 @@ extension SuggestionCoordinator {
                                                        currentWord: prefix, enabledLanguages: languages)
         let candidates = language.map { symSpellCorrector.completionCandidates(for: prefix, language: $0) } ?? []
         return WordCompletionFallback.suffix(for: prefix, references: completionReferenceWords(context: context),
-                                             dictionaryCandidates: candidates)
+                                             dictionaryCandidates: candidates, locale: language?.caseLocale)
     }
 
     func wasDismissed(_ text: String, context: FocusedInputContext) -> Bool {
