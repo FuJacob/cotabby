@@ -118,4 +118,25 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
 
         XCTAssertEqual(model.fullAcceptanceDisplayLabel, "Return Return")
     }
+
+    func test_inheritedLabelUsesTheAppsOwnAcceptWordKey() {
+        let model = makeModel()
+        model.setDoubleTapFullAcceptance()
+        model.setPerAppAcceptKey(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
+                                 keyCode: 36, modifiers: [], label: "Return")
+
+        XCTAssertEqual(model.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: "com.apple.mail"), "Tab Tab")
+        XCTAssertEqual(model.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: "com.apple.Terminal"), "Return Return")
+    }
+
+    func test_inheritedLabelHasNoDoubleTapWhereAcceptWordIsDisabled() {
+        let model = makeModel()
+        model.setDoubleTapFullAcceptance()
+        model.setPerAppAcceptKey(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
+                                 keyCode: SuggestionSettingsModel.disabledKeyCode, modifiers: [], label: "None")
+
+        XCTAssertEqual(model.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: "com.apple.Terminal"),
+                       SuggestionSettingsModel.disabledKeyLabel)
+    }
+
 }

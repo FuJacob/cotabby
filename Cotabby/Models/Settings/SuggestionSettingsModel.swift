@@ -940,6 +940,19 @@ final class SuggestionSettingsModel: ObservableObject {
         isDoubleTapFullAcceptanceActive ? "\(acceptanceKeyLabel) \(acceptanceKeyLabel)" : fullAcceptanceKeyLabel
     }
 
+    /// What accepts the whole suggestion in one app when it inherits the global shortcut. The
+    /// double tap is a double press of that app's own Accept Word key, so a per-app Accept Word
+    /// override changes it too, and disabling Accept Word there leaves no double tap at all.
+    func inheritedFullAcceptanceDisplayLabel(forBundleIdentifier bundleIdentifier: String?) -> String {
+        let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard doubleTapAcceptsEntireSuggestion, fullAccept.keyCode == Self.disabledKeyCode else {
+            return fullAccept.label
+        }
+        let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard accept.keyCode != Self.disabledKeyCode else { return fullAccept.label }
+        return "\(accept.label) \(accept.label)"
+    }
+
     /// Whether any shortcut accepts the whole suggestion, so views can offer Clear.
     var hasFullAcceptanceShortcut: Bool {
         isDoubleTapFullAcceptanceActive || fullAcceptanceKeyCode != Self.disabledKeyCode
