@@ -1118,7 +1118,8 @@ struct SuggestionSettingsStore {
                     fallbackBundleIdentifier: normalizedBundleIdentifier
                 ),
                 acceptance: override.acceptance,
-                fullAcceptance: override.fullAcceptance
+                fullAcceptance: override.fullAcceptance,
+                behavior: override.behavior.map(normalizedPerAppBehavior)
             )
         }
 
@@ -1126,6 +1127,13 @@ struct SuggestionSettingsStore {
     }
 
     // MARK: - Pure value normalizers (shared with the facade's setters)
+
+    /// Caps per-app instructions at the same length as Extended Context.
+    nonisolated static func normalizedPerAppBehavior(_ behavior: PerAppBehavior) -> PerAppBehavior {
+        var normalized = behavior
+        normalized.instructions = String(behavior.instructions.prefix(PerAppBehavior.maximumInstructionCharacters))
+        return normalized
+    }
 
     static func sortedDisabledAppRules(
         _ rules: [DisabledApplicationRule]

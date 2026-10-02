@@ -163,7 +163,10 @@ extension SuggestionCoordinator {
         guard SuggestionRequestFactory.shouldGenerateSuggestion(
             for: rawContext.precedingText,
             trailingText: rawContext.trailingText,
-            suggestWithinWords: settingsSnapshot.suggestWithinWords
+            suggestWithinWords: settingsSnapshot.suggestWithinWords,
+            allowsMidLine: PerAppSettingsResolver.allowsMidLineCompletions(
+                bundleIdentifier: rawContext.bundleIdentifier, settings: settingsSnapshot
+            )
         ) else {
             // A visual-context refresh may ask for new work while a valid tail is visible.
             // The boundary preference quiets new suggestions without interrupting type-through.
@@ -263,11 +266,16 @@ extension SuggestionCoordinator {
         // gate with its correction semantics; declining here only skips the speculation.
         guard SuggestionRequestFactory.shouldGenerateSuggestion(
             for: optimistic.precedingText, trailingText: optimistic.trailingText,
-            suggestWithinWords: settingsSnapshot.suggestWithinWords
+            suggestWithinWords: settingsSnapshot.suggestWithinWords,
+            allowsMidLine: PerAppSettingsResolver.allowsMidLineCompletions(
+                bundleIdentifier: optimistic.bundleIdentifier, settings: settingsSnapshot
+            )
         ) else {
             return
         }
-        if settingsSnapshot.suppressCompletionsOnTypo,
+        if PerAppSettingsResolver.typoSettings(
+            bundleIdentifier: optimistic.bundleIdentifier, settings: settingsSnapshot
+        ).suppressCompletionsOnTypo,
            let trailingWord = CaretWordContext.committedWord(in: optimistic.precedingText)?.word,
            spellChecker.isTypo(trailingWord) {
             return
@@ -347,7 +355,10 @@ extension SuggestionCoordinator {
             after: rawContext, precedingText: session.precedingTextOnceTypedThrough
         )
         guard SuggestionRequestFactory.shouldGenerateSuggestion(
-            for: optimistic.precedingText, trailingText: optimistic.trailingText
+            for: optimistic.precedingText, trailingText: optimistic.trailingText,
+            allowsMidLine: PerAppSettingsResolver.allowsMidLineCompletions(
+                bundleIdentifier: optimistic.bundleIdentifier, settings: settingsSnapshot
+            )
         ) else { return }
         hasPrefetchedContinuation = true
 
@@ -585,10 +596,9 @@ extension SuggestionCoordinator {
     private func handleTypoGate(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
         switch TypoGate.resolve(
             precedingText: rawContext.precedingText,
-            settings: TypoGate.Settings(
-                suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
-                offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
-                automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos
+            // Autocorrect can be turned on or off per app; the resolver applies that over the globals.
+            settings: PerAppSettingsResolver.typoSettings(
+                bundleIdentifier: rawContext.bundleIdentifier, settings: settingsSnapshot
             ),
             isTypo: { spellChecker.isTypo($0) },
             bestCorrection: {

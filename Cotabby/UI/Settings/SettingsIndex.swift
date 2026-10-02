@@ -173,7 +173,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
         case .toggleTabby: return "Toggle Cotabby"
-        case .disabledApps: return "Disabled Apps"
+        case .disabledApps: return "App Settings"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
@@ -386,7 +386,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
-        case .disabledApps: return "Apps where Cotabby never autocompletes."
+        case .disabledApps: return "Per-app completions, autocorrect, keys, instructions, and history."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
         case .accessibility: return "Required to read the focused field and caret."
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
@@ -602,7 +602,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "enable", "disable", "keybind", "binding", "tabby"]
         case .disabledApps:
             return ["apps", "disable", "exclude", "block", "ignore", "blacklist",
-                    "deny list", "exception", "app exclusion", "skip", "off in"]
+                    "deny list", "exception", "app exclusion", "skip", "off in", "per app",
+                    "app settings", "mid-line", "midline", "autocorrect", "tab key", "instructions",
+                    "collected inputs", "typing history"]
         case .suggestInIntegratedTerminals:
             return ["terminal", "terminals", "integrated terminal", "vscode", "vs code",
                     "cursor", "shell", "xterm", "command line", "cli", "console",

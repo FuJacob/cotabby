@@ -149,7 +149,7 @@ struct SettingsContainerView: View {
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:
-            AppsPaneView(suggestionSettings: suggestionSettings)
+            AppsPaneView(suggestionSettings: suggestionSettings, typingHistory: typingHistoryStore)
         case .permissions:
             PermissionsPaneView(
                 permissionManager: permissionManager,

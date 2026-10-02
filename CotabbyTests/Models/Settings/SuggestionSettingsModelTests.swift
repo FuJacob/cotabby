@@ -1018,4 +1018,34 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
     }
+
+    func test_perAppBehaviorPersistsReachesTheSnapshotAndClearsWhenEmpty() {
+        let model = makeModel()
+
+        model.updatePerAppBehavior(bundleIdentifier: "com.microsoft.teams2", displayName: "Microsoft Teams") {
+            $0.midLineCompletions = .off
+            $0.instructions = "Reply informally."
+        }
+
+        let reloaded = makeModel()
+        XCTAssertEqual(reloaded.perAppBehavior(forBundleIdentifier: "com.microsoft.teams2").midLineCompletions, .off)
+        XCTAssertEqual(reloaded.snapshot.perAppBehaviors["com.microsoft.teams2"]?.instructions, "Reply informally.")
+
+        reloaded.updatePerAppBehavior(bundleIdentifier: "com.microsoft.teams2", displayName: "Microsoft Teams") {
+            $0 = PerAppBehavior()
+        }
+        XCTAssertNil(reloaded.snapshot.perAppBehaviors["com.microsoft.teams2"])
+    }
+
+    func test_perAppInstructionsAreCapped() {
+        let model = makeModel()
+
+        model.updatePerAppBehavior(bundleIdentifier: "com.apple.mail", displayName: "Mail") {
+            $0.instructions = String(repeating: "a", count: PerAppBehavior.maximumInstructionCharacters + 50)
+        }
+
+        XCTAssertEqual(model.perAppBehavior(forBundleIdentifier: "com.apple.mail").instructions.count,
+                       PerAppBehavior.maximumInstructionCharacters)
+    }
+
 }

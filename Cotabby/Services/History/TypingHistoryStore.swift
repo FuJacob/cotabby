@@ -28,6 +28,8 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
 
     @Published private(set) var preferences: TypingHistoryPreferences
     @Published private(set) var recordCount = 0
+    /// Entries per app, for the Apps settings list and its per-app Delete.
+    @Published private(set) var recordCountsByApp: [String: Int] = [:]
     @Published private(set) var status: Status = .loading
     @Published private(set) var isImporting = false
     @Published private(set) var lastImportMessage: String?
@@ -126,7 +128,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         do {
             let loaded = try await Task.detached(priority: .utility) { try vault.load() }.value
             records = loaded
-            recordCount = loaded.count
+            refreshCounts()
             status = .ready
             rebuildSearchStructures()
         } catch {
@@ -255,7 +257,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             // The user cleared the field down to nothing worth keeping.
             if let existingIndex {
                 records.remove(at: existingIndex)
-                recordCount = records.count
+                refreshCounts()
                 return true
             }
             return false
@@ -275,7 +277,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             ))
             trimToCapacity()
         }
-        recordCount = records.count
+        refreshCounts()
         return true
     }
 
@@ -301,7 +303,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             let fresh = imported.filter { !knownTexts.contains($0.text) }
             records.append(contentsOf: fresh)
             trimToCapacity()
-            recordCount = records.count
+            refreshCounts()
             lastImportMessage = "Imported \(fresh.count) entries"
                 + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
             scheduleSave()
@@ -311,13 +313,31 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
     }
 
+    /// Removes one app's records, keeping everything else. The field being typed in that app is
+    /// dropped too, so it is not written back a few seconds later.
+    func deleteRecords(forBundleIdentifier bundleIdentifier: String) {
+        if activeRecording?.bundleIdentifier == bundleIdentifier { activeRecording = nil }
+        if lastFinishedRecording?.bundleIdentifier == bundleIdentifier { lastFinishedRecording = nil }
+        let remaining = records.filter { $0.bundleIdentifier != bundleIdentifier }
+        guard remaining.count != records.count else { return }
+        records = remaining
+        refreshCounts()
+        scheduleSave()
+        rebuildSearchStructures()
+    }
+
+    private func refreshCounts() {
+        recordCount = records.count
+        recordCountsByApp = Dictionary(grouping: records, by: \.bundleIdentifier).mapValues(\.count)
+    }
+
     /// Removes every record, the encrypted file, and its Keychain key.
     func deleteAll() {
         saveTask?.cancel()
         activeRecording = nil
         lastFinishedRecording = nil
         records = []
-        recordCount = 0
+        refreshCounts()
         index = nil
         phrases = nil
         exampleCache = nil

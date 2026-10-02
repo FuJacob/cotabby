@@ -32,11 +32,21 @@ enum SuggestionRequestFactory {
     /// The full pre-generation gate: some typed text (and, when the boundary preference asks for
     /// it, a finished word), and a caret that is not parked inside a token (see
     /// `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    ///
+    /// `allowsMidLine` is the per-app "mid-line completions" choice: when false, no new suggestion
+    /// starts while the caret's line has text after it. A suggestion already on screen still
+    /// follows typing; this only gates new requests, like `suggestWithinWords`.
     static func shouldGenerateSuggestion(
-        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true
+        for precedingText: String, trailingText: String, suggestWithinWords: Bool = true, allowsMidLine: Bool = true
     ) -> Bool {
         guard shouldGenerateSuggestion(for: precedingText, suggestWithinWords: suggestWithinWords) else { return false }
+        if !allowsMidLine, hasTextLaterOnLine(trailingText) { return false }
         return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
+    }
+
+    /// True when non-whitespace text follows the caret before the next line break.
+    static func hasTextLaterOnLine(_ trailingText: String) -> Bool {
+        trailingText.prefix { !$0.isNewline }.contains { !$0.isWhitespace }
     }
 
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
@@ -65,9 +75,10 @@ enum SuggestionRequestFactory {
         // would prevent the user from typing a space at the end of a word in the editor). Do the
         // trim here, once per request, and collapse a whitespace-only body back to nil so renderers
         // skip the section heading entirely.
-        let trimmedExtendedContext = settings.extendedContext
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let activeExtendedContext = trimmedExtendedContext.isEmpty ? nil : trimmedExtendedContext
+        // Global notes plus this app's own instructions, already trimmed; nil when both are empty.
+        let activeExtendedContext = PerAppSettingsResolver.extendedContext(
+            bundleIdentifier: context.bundleIdentifier, settings: settings
+        )
         // nil when the user declared no languages — the renderers then just match the surrounding text.
         let languageInstruction = LanguageCatalog.promptInstruction(for: settings.responseLanguages)
         let boundedClipboardContext = activeClipboardContext(

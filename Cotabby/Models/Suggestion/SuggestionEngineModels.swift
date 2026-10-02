@@ -186,6 +186,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
     /// from triggering destructive edits.
     let automaticallyFixTypos: Bool
+    /// App-specific behavior by bundle identifier (mid-line, autocorrect, instructions). Read through
+    /// `PerAppSettingsResolver`, never directly, so the "default follows global" rule lives in one place.
+    let perAppBehaviors: [String: PerAppBehavior]
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

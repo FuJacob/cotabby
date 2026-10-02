@@ -241,4 +241,19 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
     }
+
+    func test_countsByAppAndPerAppDeleteKeepOtherApps() async throws {
+        let store = makeStore()
+        var rows = signOffRows(count: 3)
+        rows.append(["appBundleIdentifier": "net.whatsapp.WhatsApp", "textUpToCursor": "See you tomorrow at the office then!"])
+        await store.importCotypistExport(from: try writeExport(rows))
+
+        XCTAssertEqual(store.recordCountsByApp, ["com.microsoft.Outlook": 3, "net.whatsapp.WhatsApp": 1])
+
+        store.deleteRecords(forBundleIdentifier: "com.microsoft.Outlook")
+
+        XCTAssertEqual(store.recordCountsByApp, ["net.whatsapp.WhatsApp": 1])
+        XCTAssertEqual(store.recordCount, 1)
+    }
+
 }
