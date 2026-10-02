@@ -417,7 +417,11 @@ nonisolated struct FocusedInputSnapshot: Equatable {
 
     /// The title that identifies this window for the field icon's per-window choices.
     var featureScopeWindowTitle: String? {
-        windowTitle ?? appFocusedWindowTitle
+        // Some hosts answer the title read with "" rather than failing; treat that as missing so
+        // the app-window fallback still applies.
+        [windowTitle, appFocusedWindowTitle].lazy
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
     }
 
     /// How the host renders text near the caret (measured widths, line box, line pitch), resolved

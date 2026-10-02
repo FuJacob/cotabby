@@ -263,7 +263,7 @@ struct FocusSnapshotResolver {
         )
         let windowTitle = resolvedCandidate.isSecure ? nil : AXHelper.windowTitle(near: focusedElement)
         // Two extra attribute reads, and only when the field-relative read came back empty.
-        let appFocusedWindowTitle = (resolvedCandidate.isSecure || windowTitle != nil)
+        let appFocusedWindowTitle = (resolvedCandidate.isSecure || !(windowTitle ?? "").isEmpty)
             ? nil : AXHelper.focusedWindowTitle(processIdentifier: application.processIdentifier)
         let fieldPlaceholder = resolvedCandidate.isSecure ? nil : AXHelper.stringValue(
             for: kAXPlaceholderValueAttribute as CFString, on: resolvedCandidate.element

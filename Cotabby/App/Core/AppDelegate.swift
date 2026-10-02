@@ -307,6 +307,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let snapshot = focusModel.snapshot
         guard let bundleIdentifier = snapshot.bundleIdentifier else { return }
+        // Presence and length only: titles name chats and documents, so the text is not logged.
+        CotabbyLogger.focus.info(
+            "Field scope popup opened",
+            metadata: [
+                "stage": .string("field-scope-menu"),
+                "field_window_title_length": .stringConvertible(snapshot.context?.windowTitle?.count ?? -1),
+                "app_window_title_length": .stringConvertible(snapshot.context?.appFocusedWindowTitle?.count ?? -1),
+                "has_context": .string(snapshot.context == nil ? "no" : "yes")
+            ]
+        )
         let target = FieldScopeTarget(
             bundleIdentifier: bundleIdentifier,
             applicationName: snapshot.applicationName,
