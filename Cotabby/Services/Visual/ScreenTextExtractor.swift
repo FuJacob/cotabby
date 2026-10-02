@@ -78,13 +78,19 @@ struct ScreenTextExtractor: ScreenTextExtracting {
 
     let maxImageDimension: Int
     let maxRecognizedCharacters: Int
+    /// Vision language hints, in priority order ("tr-TR", "ru-RU"). Nil keeps Vision's default, which
+    /// is what screen context has always used; translation passes the chat's languages so accented
+    /// and Cyrillic letters are read correctly.
+    let recognitionLanguages: [String]?
 
     init(
         maxImageDimension: Int = VisualContextConfiguration.default.maxImageDimension,
-        maxRecognizedCharacters: Int = VisualContextConfiguration.default.maxRecognizedCharacters
+        maxRecognizedCharacters: Int = VisualContextConfiguration.default.maxRecognizedCharacters,
+        recognitionLanguages: [String]? = nil
     ) {
         self.maxImageDimension = maxImageDimension
         self.maxRecognizedCharacters = maxRecognizedCharacters
+        self.recognitionLanguages = recognitionLanguages
     }
 
     /// Performs OCR asynchronously so the main actor is not blocked by Vision processing.
@@ -185,6 +191,9 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                 request.recognitionLevel = .accurate
                 request.usesLanguageCorrection = true
                 request.minimumTextHeight = 0.008
+                if let recognitionLanguages = self.recognitionLanguages {
+                    request.recognitionLanguages = recognitionLanguages
+                }
 
                 do {
                     let handler = VNImageRequestHandler(cgImage: preparedImage, options: [:])

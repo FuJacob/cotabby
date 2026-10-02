@@ -186,6 +186,36 @@ final class SuggestionInserter {
         return true
     }
 
+    /// Replaces everything in the focused field with `text`: selects all with a synthetic Cmd-A, then
+    /// pastes. Used by reply translation, where the whole draft becomes its translation. Paste (not
+    /// keystrokes) because a translation can be long or multi-line and Electron chat fields drop or
+    /// reorder long synthetic keystroke bursts; the user's clipboard is restored as for any paste.
+    /// The paste waits a moment so the Cmd-A has been processed before the menu Paste runs (the
+    /// AX Paste press is immediate, while the keystroke is queued). Never presses Return.
+    func replaceFieldText(with text: String) -> Bool {
+        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: Self.aKeyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: nil, virtualKey: Self.aKeyCode, keyDown: false) else {
+            lastErrorMessage = "Unable to create a synthetic select-all event."
+            return false
+        }
+        down.flags = .maskCommand
+        up.flags = .maskCommand
+        suppressionController.markSynthetic(down)
+        suppressionController.markSynthetic(up)
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self else { return }
+            if !self.insertViaPaste(text) {
+                CotabbyLogger.suggestion.error("Reply translation paste failed")
+            }
+        }
+        lastErrorMessage = nil
+        return true
+    }
+
+    private static let aKeyCode: CGKeyCode = 0x00
+
     /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
     /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
     /// synthetic event could not be created, so the caller falls back to keystroke insertion. The
