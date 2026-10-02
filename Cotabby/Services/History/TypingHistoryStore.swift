@@ -39,6 +39,14 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     static let minimumRecordedCharacters = 20
 
     private let vault: TypingHistoryVault
+    /// Every write and delete goes through this so a deletion can never be undone by a save that
+    /// was already running (see `TypingHistoryWriter`).
+    private let writer: TypingHistoryWriter
+    /// Bumped by Delete All. Work that started before a deletion (a load, an import, a save)
+    /// compares its captured value and discards its result instead of restoring deleted history.
+    private var persistenceGeneration = 0
+    /// Numbers each captured save so an older snapshot can never overwrite a newer one.
+    private var saveSequence = 0
     private let userDefaults: UserDefaults
     private var records: [TypingHistoryRecord] = []
     private var index: TypingHistoryIndex?
@@ -46,10 +54,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private var rebuildGeneration = 0
     private var saveTask: Task<Void, Never>?
     private var activeRecording: ActiveRecording?
-    /// The field most recently finished. Accessibility can briefly report a field as unsupported
-    /// mid-typing; when the same field comes back, recording resumes into the same record instead
-    /// of starting a duplicate.
-    private var lastFinishedRecording: ActiveRecording?
+    /// Recently finished fields, by field key. When the user returns to one (or Accessibility
+    /// briefly reported it unsupported), recording resumes into the same record instead of
+    /// starting a duplicate of the same text.
+    private var recentRecordings: [String: ActiveRecording] = [:]
+    private static let maximumRecentRecordings = 64
+    /// How much of a field's opening must match for a returning field to count as the same document.
+    private static let sameDocumentOpeningLength = 40
     private var exampleCache: (key: String, examples: [String])?
 
     /// The field being typed in right now. Its raw text is kept here and only scrubbed and copied
@@ -74,6 +85,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
 
     init(vault: TypingHistoryVault = .standard(), userDefaults: UserDefaults = .standard, loadsArchive: Bool = true) {
         self.vault = vault
+        self.writer = TypingHistoryWriter(vault: vault)
         self.userDefaults = userDefaults
         preferences = TypingHistoryPreferences(
             isUsingHistory: userDefaults.object(forKey: DefaultsKey.isUsingHistory) as? Bool
@@ -115,7 +127,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         if excluded, activeRecording?.bundleIdentifier == bundleIdentifier {
             // Excluding an app mid-field discards that field's unsaved text instead of keeping it.
             activeRecording = nil
-            lastFinishedRecording = nil
+            recentRecordings = recentRecordings.filter { $0.value.bundleIdentifier != bundleIdentifier }
         }
     }
 
@@ -123,8 +135,11 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
 
     func loadArchive() async {
         let vault = vault
+        let generation = persistenceGeneration
         do {
             let loaded = try await Task.detached(priority: .utility) { try vault.load() }.value
+            // Delete All ran while the archive was decrypting: the loaded records are gone now.
+            guard generation == persistenceGeneration else { return }
             records = loaded
             recordCount = loaded.count
             status = .ready
@@ -141,8 +156,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard status == .ready else { return }
         saveTask?.cancel()
         materializeActiveRecording()
+        saveSequence += 1
         do {
-            try vault.save(records)
+            try writer.save(records, generation: persistenceGeneration, sequence: saveSequence)
         } catch {
             CotabbyLogger.app.error("Typing history could not be saved: \(error)")
         }
@@ -155,10 +171,15 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             guard let self, !Task.isCancelled else { return }
             self.materializeActiveRecording()
+            self.saveSequence += 1
             let snapshot = self.records
-            let vault = self.vault
+            let writer = self.writer
+            let generation = self.persistenceGeneration
+            let sequence = self.saveSequence
             do {
-                try await Task.detached(priority: .utility) { try vault.save(snapshot) }.value
+                try await Task.detached(priority: .utility) {
+                    try writer.save(snapshot, generation: generation, sequence: sequence)
+                }.value
             } catch {
                 CotabbyLogger.app.error("Typing history could not be saved: \(error)")
             }
@@ -195,23 +216,29 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard status == .ready, preferences.isRecording,
               case .supported = snapshot.capability,
               let input = snapshot.context, !input.isSecure,
-              !preferences.excludedBundleIdentifiers.contains(input.bundleIdentifier),
-              isAllowed()
+              !Self.isTerminal(input),
+              !preferences.excludedBundleIdentifiers.contains(input.bundleIdentifier)
         else {
             finishActiveRecording()
             return
         }
 
-        let fieldKey = "\(input.bundleIdentifier)|\(input.processIdentifier)|\(input.elementIdentifier)|\(input.focusChangeSequence)"
+        // The focus sequence is left out on purpose: leaving a field and coming back starts a new
+        // focus session, but it is the same document and should stay one record.
+        let fieldKey = "\(input.bundleIdentifier)|\(input.processIdentifier)|\(input.elementIdentifier)"
         let text = input.precedingText + input.trailingText
+        // Unchanged text in the same field is the common case on a 50 ms poll; answer it before
+        // building the settings snapshot `isAllowed` needs.
+        if activeRecording?.fieldKey == fieldKey, activeRecording?.rawText == text { return }
+        guard isAllowed() else {
+            finishActiveRecording()
+            return
+        }
+
         if activeRecording?.fieldKey != fieldKey {
             finishActiveRecording()
-            if var resumed = lastFinishedRecording, resumed.fieldKey == fieldKey {
-                resumed.rawText = text
-                resumed.rawTypedLength = input.precedingText.count
-                activeRecording = resumed
-            } else {
-                activeRecording = ActiveRecording(
+            activeRecording = resumedRecording(fieldKey: fieldKey, text: text, typedLength: input.precedingText.count)
+                ?? ActiveRecording(
                     fieldKey: fieldKey,
                     recordID: UUID(),
                     bundleIdentifier: input.bundleIdentifier,
@@ -220,13 +247,30 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
                     rawText: text,
                     rawTypedLength: input.precedingText.count
                 )
-            }
             return
         }
-        guard activeRecording?.rawText != text else { return }
         activeRecording?.rawText = text
         activeRecording?.rawTypedLength = input.precedingText.count
         scheduleSave()
+    }
+
+    /// Terminals are never recorded: their text is shell commands and output, where secrets are
+    /// common and nothing is the user's prose.
+    private static func isTerminal(_ input: FocusedInputSnapshot) -> Bool {
+        input.isIntegratedTerminal || AppSurfaceClassifier.classify(bundleIdentifier: input.bundleIdentifier) == .terminal
+    }
+
+    /// Continues the record of a recently finished field when the user comes back to it. The text
+    /// must still start the same way: Accessibility element identifiers can be reused by a
+    /// different field, and resuming into the wrong record would overwrite its text.
+    private func resumedRecording(fieldKey: String, text: String, typedLength: Int) -> ActiveRecording? {
+        guard var recent = recentRecordings[fieldKey] else { return nil }
+        let opening = recent.rawText.prefix(Self.sameDocumentOpeningLength)
+        guard !opening.isEmpty, text.hasPrefix(opening) || recent.rawText.hasPrefix(text.prefix(Self.sameDocumentOpeningLength))
+        else { return nil }
+        recent.rawText = text
+        recent.rawTypedLength = typedLength
+        return recent
     }
 
     /// Commits the active field to `records` and makes it searchable. Called when focus moves to
@@ -234,7 +278,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private func finishActiveRecording() {
         guard activeRecording != nil else { return }
         let changed = materializeActiveRecording()
-        lastFinishedRecording = activeRecording
+        if let finished = activeRecording {
+            recentRecordings[finished.fieldKey] = finished
+            if recentRecordings.count > Self.maximumRecentRecordings, let oldest = recentRecordings.values
+                .min(by: { $0.createdAt < $1.createdAt }) {
+                recentRecordings[oldest.fieldKey] = nil
+            }
+        }
         activeRecording = nil
         if changed {
             scheduleSave()
@@ -293,10 +343,16 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard status == .ready, !isImporting else { return }
         isImporting = true
         defer { isImporting = false }
+        let generation = persistenceGeneration
         do {
             let imported = try await Task.detached(priority: .userInitiated) {
                 try CotypistExportImporter.records(fromExport: Data(contentsOf: url))
             }.value
+            // Delete All ran while the file was being read; adding the import now would partly undo it.
+            guard generation == persistenceGeneration else {
+                lastImportMessage = "Import cancelled because typing history was deleted."
+                return
+            }
             let knownTexts = Set(records.map(\.text))
             let fresh = imported.filter { !knownTexts.contains($0.text) }
             records.append(contentsOf: fresh)
@@ -314,8 +370,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// Removes every record, the encrypted file, and its Keychain key.
     func deleteAll() {
         saveTask?.cancel()
+        persistenceGeneration += 1
         activeRecording = nil
-        lastFinishedRecording = nil
+        recentRecordings = [:]
         records = []
         recordCount = 0
         index = nil
@@ -324,7 +381,8 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         rebuildGeneration += 1
         lastImportMessage = nil
         do {
-            try vault.destroy()
+            // Waits for any save already writing, then deletes; saves captured earlier are dropped.
+            try writer.destroy(generation: persistenceGeneration)
             status = .ready
         } catch {
             CotabbyLogger.app.error("Typing history could not be deleted: \(error)")

@@ -47,7 +47,7 @@ nonisolated enum CotypistExportImporter {
                 before: row.textUpToCursor ?? "", after: row.textAfterCursor ?? ""
             )
             guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumCharacters else { continue }
-            let bundleIdentifier = row.appBundleIdentifier ?? "unknown"
+            let bundleIdentifier = normalizedBundleIdentifier(row.appBundleIdentifier)
             let createdAt = parseDate(row.createdAt) ?? Date(timeIntervalSince1970: 0)
             let record = TypingHistoryRecord(
                 id: UUID(),
@@ -80,6 +80,16 @@ nonisolated enum CotypistExportImporter {
             kept.append(contentsOf: keptInApp)
         }
         return kept
+    }
+
+    /// Placeholder for rows Cotypist could not attribute to an app ("unknown.bundle" in its export).
+    static let unknownBundleIdentifier = "unknown"
+
+    private static func normalizedBundleIdentifier(_ identifier: String?) -> String {
+        guard let identifier = identifier?.trimmingCharacters(in: .whitespaces), !identifier.isEmpty,
+              identifier != "unknown.bundle", identifier != unknownBundleIdentifier
+        else { return unknownBundleIdentifier }
+        return identifier
     }
 
     /// Cotypist uses "-" for fields with no site; treat that like no domain at all.

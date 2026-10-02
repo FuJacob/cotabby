@@ -76,6 +76,18 @@ final class TypingHistoryPromptTests: XCTestCase {
         XCTAssertTrue(prompt.hasSuffix("The POC is"), "The caret text must stay last")
     }
 
+    func test_historySectionIsDroppedWholeRatherThanCutMidQuote() {
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: String(repeating: "word ", count: 30),
+            applicationName: "Mail",
+            userName: nil,
+            historyExamples: [String(repeating: "earlier ", count: 40)],
+            contextBudget: 200
+        )
+
+        XCTAssertFalse(prompt.contains("“"), "A partly kept history section would leave an unclosed quote")
+    }
+
     func test_basePromptWithoutExamplesIsUnchanged() {
         XCTAssertEqual(
             BaseCompletionPromptRenderer.prompt(prefixText: "The POC is", applicationName: "Mail", userName: nil),
