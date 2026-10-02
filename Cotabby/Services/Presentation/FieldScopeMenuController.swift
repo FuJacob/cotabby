@@ -14,7 +14,7 @@ import SwiftUI
 @MainActor
 final class FieldScopeMenuController {
     private let panel: NSPanel
-    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+    private let hostingView = FirstMouseHostingView(rootView: AnyView(EmptyView()))
     /// Opaque tokens returned by `NSEvent.addGlobalMonitorForEvents`; removed on dismiss so no
     /// monitor outlives the panel.
     private var eventMonitors: [Any] = []
@@ -92,4 +92,10 @@ final class FieldScopeMenuController {
         y = min(max(y, visible.minY + 4), visible.maxY - size.height - 4)
         return CGPoint(x: x, y: y)
     }
+}
+
+/// The panel is never key, so without `acceptsFirstMouse` AppKit would spend the first click on a
+/// switch trying to make the window key instead of delivering it to the control.
+private final class FirstMouseHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
 }

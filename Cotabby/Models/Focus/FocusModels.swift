@@ -408,6 +408,18 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// compiling unchanged.
     let fieldPlaceholder: String?
 
+    /// The app's focused-window title, read only when `windowTitle` is nil. Chromium and Electron
+    /// hosts (Teams, Slack, WhatsApp) often do not link a web field to its window in the AX tree, so
+    /// the field-relative read fails even though the window has a title. Kept separate from
+    /// `windowTitle` on purpose: that one feeds prompts and session identity, and this fallback
+    /// is only for per-window feature choices (`featureScopeWindowTitle`).
+    let appFocusedWindowTitle: String?
+
+    /// The title that identifies this window for the field icon's per-window choices.
+    var featureScopeWindowTitle: String? {
+        windowTitle ?? appFocusedWindowTitle
+    }
+
     /// How the host renders text near the caret (measured widths, line box, line pitch), resolved
     /// once per field so the ghost can match the host's typeface and wrap geometry. Nil when the
     /// host exposes no measurable text geometry. The initializer default keeps existing call sites
@@ -444,6 +456,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         resolvedFieldStyle: ResolvedFieldStyle? = nil,
         windowTitle: String? = nil,
         fieldPlaceholder: String? = nil,
+        appFocusedWindowTitle: String? = nil,
         hostTextMetrics: HostTextMetrics? = nil,
         elementFrameRect: CGRect? = nil,
         hostMarkedTextRange: NSRange? = nil
@@ -471,6 +484,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.resolvedFieldStyle = resolvedFieldStyle
         self.windowTitle = windowTitle
         self.fieldPlaceholder = fieldPlaceholder
+        self.appFocusedWindowTitle = appFocusedWindowTitle
         self.hostTextMetrics = hostTextMetrics
         self.elementFrameRect = elementFrameRect
         self.hostMarkedTextRange = hostMarkedTextRange

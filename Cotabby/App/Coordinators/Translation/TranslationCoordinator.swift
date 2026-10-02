@@ -273,10 +273,10 @@ final class TranslationCoordinator {
         guard prefs.isEnabled, prefs.offersReplyTranslation,
               case .supported = snapshot.capability,
               let input = snapshot.context, !input.isSecure,
-              isTranslationActive(bundleIdentifier: input.bundleIdentifier, windowTitle: input.windowTitle),
+              isTranslationActive(bundleIdentifier: input.bundleIdentifier, windowTitle: input.featureScopeWindowTitle),
               isAllowed(input.bundleIdentifier),
               let conversationLanguage = conversations.language(
-                  for: ConversationLanguageTracker.key(bundleIdentifier: input.bundleIdentifier, windowTitle: input.windowTitle)),
+                  for: ConversationLanguageTracker.key(bundleIdentifier: input.bundleIdentifier, windowTitle: input.featureScopeWindowTitle)),
               !TranslationLanguagePolicy.sameLanguage(conversationLanguage, prefs.readingLanguage)
         else {
             withdrawReplyOffer()

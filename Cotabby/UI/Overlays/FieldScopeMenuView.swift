@@ -43,22 +43,32 @@ struct FieldScopeMenuView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(target.applicationName)
-                    .font(.headline)
-                if let title = target.windowTitle {
-                    Text(title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(target.applicationName)
+                        .font(.system(size: 12, weight: .semibold))
+                    if let title = target.windowTitle {
+                        Text(title)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
+                Spacer(minLength: 4)
+                Button(action: onOpenSettings) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Open Cotabby Settings")
             }
 
             Divider()
 
-            featureSection(
+            featureRow(
                 title: "Autocomplete",
                 feature: .autocomplete,
                 appEnabled: Binding(
@@ -75,9 +85,7 @@ struct FieldScopeMenuView: View {
                 isAvailable: true
             )
 
-            Divider()
-
-            featureSection(
+            featureRow(
                 title: "Translate",
                 feature: .translation,
                 appEnabled: Binding(
@@ -90,62 +98,56 @@ struct FieldScopeMenuView: View {
                 isAvailable: translationPreferences.preferences.isEnabled
             )
             if !translationPreferences.preferences.isEnabled {
-                HStack {
+                HStack(spacing: 4) {
                     Text("Translation is off.")
-                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Turn On") {
                         translationPreferences.setEnabled(true)
                         onChange(.translation)
                     }
                     .buttonStyle(.link)
-                    .font(.caption)
                 }
+                .font(.system(size: 10))
             }
-
-            Divider()
-
-            Button("Settings…", action: onOpenSettings)
-                .buttonStyle(.borderless)
-                .font(.subheadline)
         }
-        .padding(14)
-        .frame(width: 272)
+        .padding(10)
+        .frame(width: 216)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
         }
     }
 
+    /// One feature: its name, the app switch, and (when the window can be told apart) a compact
+    /// window picker. The switch is the app's setting; the picker overrides it for this window.
     @ViewBuilder
-    private func featureSection(
+    private func featureRow(
         title: String,
         feature: ScopedFeature,
         appEnabled: Binding<Bool>,
         isAvailable: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(effectiveLabel(feature: feature, appEnabled: appEnabled.wrappedValue, isAvailable: isAvailable))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                Spacer(minLength: 6)
+                Toggle(title, isOn: appEnabled)
+                    .toggleStyle(CompactSwitchStyle())
+                    .labelsHidden()
+                    .help("\(title) in all of \(target.applicationName)")
             }
 
-            Toggle("In \(target.applicationName)", isOn: appEnabled)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
             if let windowKey = target.windowKey {
-                HStack {
+                HStack(spacing: 6) {
                     Text("This window")
-                    Spacer(minLength: 8)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
                     Picker("This window", selection: Binding(
                         get: { WindowChoice(windowOverrides.override(for: feature, windowKey: windowKey)) },
                         set: { choice in
@@ -153,28 +155,49 @@ struct FieldScopeMenuView: View {
                             onChange(feature)
                         }
                     )) {
-                        Text("Same as app").tag(WindowChoice.sameAsApp)
+                        Text("App").tag(WindowChoice.sameAsApp)
                         Text("On").tag(WindowChoice.on)
                         Text("Off").tag(WindowChoice.off)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .controlSize(.small)
+                    .controlSize(.mini)
                     .fixedSize()
+                    .help("App follows the switch above; On or Off applies to this window only.")
                 }
             }
         }
         .disabled(!isAvailable)
+        .opacity(isAvailable ? 1 : 0.5)
     }
+}
 
-    /// "On here" / "Off here": the result of the app switch and the window choice together, so the
-    /// user does not have to work out which of the two wins.
-    private func effectiveLabel(feature: ScopedFeature, appEnabled: Bool, isAvailable: Bool) -> String {
-        guard isAvailable else { return "Off" }
-        let on = WindowFeatureScope.resolve(
-            appEnabled: appEnabled,
-            windowOverride: windowOverrides.override(for: feature, windowKey: target.windowKey)
-        )
-        return on ? "On here" : "Off here"
+/// A small switch drawn in SwiftUI.
+///
+/// Why not the system switch: this popup lives in a non-activating panel that is never the key
+/// window (so the host keeps focus), and AppKit draws its controls in an inactive window gray,
+/// which made "on" look "off". This style draws the accent color from the value alone.
+private struct CompactSwitchStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        Capsule()
+            .fill(configuration.isOn ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+            .frame(width: 26, height: 15)
+            .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(.white)
+                    .padding(1.5)
+                    .shadow(color: .black.opacity(0.15), radius: 0.5, y: 0.5)
+            }
+            .animation(.easeOut(duration: 0.12), value: configuration.isOn)
+            .contentShape(Capsule())
+            .onTapGesture {
+                guard isEnabled else { return }
+                configuration.isOn.toggle()
+            }
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(configuration.isOn ? "On" : "Off")
     }
 }
