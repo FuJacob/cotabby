@@ -158,6 +158,11 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var perAppShortcutOverrides: [PerAppShortcutOverride]
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
+    /// Retry with the Open Source model when Apple Intelligence rejects the text's language.
+    /// Read live by `SuggestionEngineRouter` at request time.
+    @Published private(set) var isAppleLanguageFallbackEnabled: Bool
+    /// Keep the fallback model loaded while Apple Intelligence is selected (see `AppDelegate`).
+    @Published private(set) var keepsFallbackModelLoaded: Bool
     @Published private(set) var batteryEngine: SuggestionEngineKind
     @Published private(set) var batteryModelFilename: String
     @Published private(set) var batteryEndpointModelName: String
@@ -286,6 +291,8 @@ final class SuggestionSettingsModel: ObservableObject {
         perAppShortcutOverrides = data.perAppShortcutOverrides
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
+        keepsFallbackModelLoaded = data.keepsFallbackModelLoaded
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
         batteryEndpointModelName = data.batteryEndpointModelName
@@ -369,6 +376,8 @@ final class SuggestionSettingsModel: ObservableObject {
         perAppShortcutOverrides = data.perAppShortcutOverrides
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
+        keepsFallbackModelLoaded = data.keepsFallbackModelLoaded
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
         batteryEndpointModelName = data.batteryEndpointModelName
@@ -410,7 +419,9 @@ final class SuggestionSettingsModel: ObservableObject {
                 batteryEndpointModelName: batteryEndpointModelName,
                 pluggedInEngine: pluggedInEngine,
                 pluggedInModelFilename: pluggedInModelFilename,
-                pluggedInEndpointModelName: pluggedInEndpointModelName
+                pluggedInEndpointModelName: pluggedInEndpointModelName,
+                isAppleLanguageFallbackEnabled: isAppleLanguageFallbackEnabled,
+                keepsFallbackModelLoaded: keepsFallbackModelLoaded
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: selectedWordCountPreset,
@@ -569,6 +580,18 @@ final class SuggestionSettingsModel: ObservableObject {
     func saveOpenAICompatibleAPIKey(_ apiKey: String?) throws {
         try endpointCredentialStore.saveAPIKey(apiKey)
         endpointCredentialRevision &+= 1
+    }
+
+    func setAppleLanguageFallbackEnabled(_ enabled: Bool) {
+        guard isAppleLanguageFallbackEnabled != enabled else { return }
+        isAppleLanguageFallbackEnabled = enabled
+        store.saveAppleLanguageFallbackEnabled(enabled)
+    }
+
+    func setKeepsFallbackModelLoaded(_ enabled: Bool) {
+        guard keepsFallbackModelLoaded != enabled else { return }
+        keepsFallbackModelLoaded = enabled
+        store.saveKeepsFallbackModelLoaded(enabled)
     }
 
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Apple Intelligence availability presentation.
@@ -23,6 +24,45 @@ extension EngineAndModelPaneView {
                 )
             }
             .settingsItem(.appleIntelligenceAvailability)
+
+            Toggle(isOn: Binding(
+                get: { suggestionSettings.isAppleLanguageFallbackEnabled },
+                set: { suggestionSettings.setAppleLanguageFallbackEnabled($0) }
+            )) {
+                SettingsRowLabel(
+                    title: "Fall Back to Open Source Model",
+                    description: "When Apple Intelligence doesn't support the language you're writing in, " +
+                        "suggest with \(fallbackModelName) instead. Turn off to get no suggestion in those languages.",
+                    systemImage: "arrow.triangle.branch"
+                )
+            }
+            .settingsItem(.appleLanguageFallback)
+
+            Toggle(isOn: Binding(
+                get: { suggestionSettings.keepsFallbackModelLoaded },
+                set: { suggestionSettings.setKeepsFallbackModelLoaded($0) }
+            )) {
+                SettingsRowLabel(
+                    title: "Keep Fallback Model Loaded",
+                    description: "Load the fallback model in advance so its first suggestion doesn't wait for it " +
+                        "to load. Uses the model's memory (several GB) while Apple Intelligence is selected.",
+                    systemImage: "memorychip"
+                )
+            }
+            .disabled(!suggestionSettings.isAppleLanguageFallbackEnabled)
+
+            if suggestionSettings.isAppleLanguageFallbackEnabled, runtimeModel.selectedModelFilename == nil {
+                Text("No Open Source model is selected, so there is nothing to fall back to. " +
+                    "Choose one under Engine → Open Source.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
+    }
+
+    /// The model the fallback uses: the selected Open Source model. The local runtime holds one
+    /// model at a time, so the fallback cannot use a different one without swapping it in.
+    private var fallbackModelName: String {
+        runtimeModel.selectedModelFilename.map { ($0 as NSString).deletingPathExtension } ?? "your Open Source model"
     }
 }
