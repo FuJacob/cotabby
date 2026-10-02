@@ -171,7 +171,7 @@ struct AppsPaneView: View {
                 override: override,
                 action: .acceptEntireSuggestion,
                 title: "Accept Entire Suggestion",
-                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.fullAcceptanceKeyLabel)). "
+                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.fullAcceptanceDisplayLabel)). "
                     + "Click Change to set a custom key for \(override.displayName)."
             )
         }
