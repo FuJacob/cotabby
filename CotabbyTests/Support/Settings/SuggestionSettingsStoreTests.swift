@@ -30,6 +30,28 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
     }
 
+    /// Bold and italic suggestions are opt-in: a fresh install draws plain ghost text, each choice
+    /// persists on its own key, and a reset returns both to plain.
+    func test_ghostTextStyle_defaultsPlainPersistsAndResets() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        let fresh = store.load(configuration: .standard)
+        XCTAssertFalse(fresh.isGhostTextBold)
+        XCTAssertFalse(fresh.isGhostTextItalic)
+
+        store.saveGhostTextBold(true)
+        store.saveGhostTextItalic(true)
+        let saved = store.load(configuration: .standard)
+        XCTAssertTrue(saved.isGhostTextBold)
+        XCTAssertTrue(saved.isGhostTextItalic)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyGhostTextBold") as? Bool, true)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyGhostTextItalic") as? Bool, true)
+
+        let reset = store.resetToDefaults(configuration: .standard)
+        XCTAssertFalse(reset.isGhostTextBold)
+        XCTAssertFalse(reset.isGhostTextItalic)
+    }
+
     // MARK: - Suggestion timing
 
     func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {

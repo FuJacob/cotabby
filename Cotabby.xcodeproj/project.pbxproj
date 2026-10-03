@@ -286,6 +286,7 @@
 		4666D3B3A81CCB4CC68FC395 /* FocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B778713FE1C9481CE0DF065 /* FocusModels.swift */; };
 		468477E87700B5D18BCD7A7A /* SuggestionEngineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB1A3F7D6C0FF28717E6D4C /* SuggestionEngineModels.swift */; };
 		469626C2EFEDFD6C188941F5 /* de.txt in Resources */ = {isa = PBXBuildFile; fileRef = C648EBB10D7F8E0B904DEC91 /* de.txt */; };
+		47121E2DA2B1185A310EFA3C /* GhostFontStylerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91CA4CBD3F0E35457B48DEC /* GhostFontStylerTests.swift */; };
 		47123A894E2866177AA9A761 /* OnboardingFlowSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64AEF94A48DF96D6BEE3048C /* OnboardingFlowSteps.swift */; };
 		471F4800C22DACDA60BF54CD /* WelcomeTemplateStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53ED6F2F3354FB3E6065804 /* WelcomeTemplateStepView.swift */; };
 		4744AC9FCAA7856BF70D5A37 /* SuggestionStreamingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157C86303F9B51B6F648E5B3 /* SuggestionStreamingState.swift */; };
@@ -724,6 +725,7 @@
 		B582B229486BFA041A4641BA /* DateMacroEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34A14D9D852BB9C6829DDC7 /* DateMacroEvaluatorTests.swift */; };
 		B5C255E58C128C4042FA7F66 /* PhrasePredictionScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E542E57459488F3D39A9053 /* PhrasePredictionScoringTests.swift */; };
 		B65B49F24F59154A7611FD22 /* HomePaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1123AB515110BD0CBA39490 /* HomePaneView.swift */; };
+		B67197483AD14EDA4959B74F /* GhostFontStyler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE7E21B82525DA3CD86CCACA /* GhostFontStyler.swift */; };
 		B695D8396E7FE07438DF9C9F /* TypingHistoryIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503A3986FC8C378991727721 /* TypingHistoryIndexTests.swift */; };
 		B6BA7DF77DCA55F9EF090AEE /* ScreenTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E299BE2E9D42A33D5D2F5D /* ScreenTextExtractor.swift */; };
 		B6C2570DB8D17C8626D50F76 /* SuggestionCoordinatorContinuityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5830E18C10728B7AF1DB2CCF /* SuggestionCoordinatorContinuityTests.swift */; };
@@ -965,6 +967,7 @@
 		F22FAA3449506ABBACB12BA0 /* WordCountFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E22DCC1852B8E4B235D256 /* WordCountFormatter.swift */; };
 		F25F1800B79BF85AF07048C3 /* TypoCaseTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5953E5EB042ABAF6F35A69 /* TypoCaseTransferTests.swift */; };
 		F26DD9AEAFECAAAD13F3A0A0 /* DownloadFileRescuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC756DF8E0032B39099D2BF8 /* DownloadFileRescuer.swift */; };
+		F27332D9CF6DE4465E9283C5 /* GhostFontStyler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE7E21B82525DA3CD86CCACA /* GhostFontStyler.swift */; };
 		F28293E59121DBD6241BA551 /* EmojiPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871C7A27BAB5A510273D0A19 /* EmojiPickerView.swift */; };
 		F2919788D0F55970FCCCA8BD /* FocusSessionScopedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EBAC4CC8B8B8266F3E4DA1 /* FocusSessionScopedCache.swift */; };
 		F32559EB4BE478324CA18B96 /* EmojiQueryRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626861231138509BCD7BB6EA /* EmojiQueryRunTests.swift */; };
@@ -1616,6 +1619,7 @@
 		E80071E4A5D844CEF5B7C487 /* RequestIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestIDTests.swift; sourceTree = "<group>"; };
 		E83C6E965A3978D0EBFB1EA2 /* ShortcutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutResolver.swift; sourceTree = "<group>"; };
 		E8A00E909E0A51B119F9CB6B /* TypingHistoryPhraseEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingHistoryPhraseEngineTests.swift; sourceTree = "<group>"; };
+		E91CA4CBD3F0E35457B48DEC /* GhostFontStylerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostFontStylerTests.swift; sourceTree = "<group>"; };
 		E94A6036F4B703A2FF7F68EF /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
 		EA8311FAC345FE431FA89855 /* EmojiMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatcher.swift; sourceTree = "<group>"; };
 		EAA290A7B1BF37F3D125DC8F /* SuggestionCoordinatorPredictionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionCoordinatorPredictionTests.swift; sourceTree = "<group>"; };
@@ -1666,6 +1670,7 @@
 		FCD0F17E1E2BB8FE75A6E75E /* EmojiVariantResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiVariantResolverTests.swift; sourceTree = "<group>"; };
 		FCE4F5CA49ED9988AC4F4C6C /* CaretLinePositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaretLinePositionTests.swift; sourceTree = "<group>"; };
 		FDAA9ADF6C0BD9D16016AA9B /* TokenHealingPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenHealingPlan.swift; sourceTree = "<group>"; };
+		FE7E21B82525DA3CD86CCACA /* GhostFontStyler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostFontStyler.swift; sourceTree = "<group>"; };
 		FEA3558520A71033BBF30879 /* TypingCadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingCadenceTests.swift; sourceTree = "<group>"; };
 		FEC5EC41F1677027D46E2B02 /* SpellingDictionaryCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellingDictionaryCatalogTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -1818,6 +1823,7 @@
 			isa = PBXGroup;
 			children = (
 				58FA6A8D05AEEBE3501B478F /* GhostFontResolverTests.swift */,
+				E91CA4CBD3F0E35457B48DEC /* GhostFontStylerTests.swift */,
 				47F6000E673651AE72243F8A /* GhostTextColorPresetPaletteTests.swift */,
 				A236731DA3FFF8FEECB67167 /* HostAdvanceFitTests.swift */,
 				623D8B3C927836D7C4002AB8 /* HostFaceMemoryTests.swift */,
@@ -2240,6 +2246,7 @@
 			children = (
 				F3BB26526298A85454330591 /* GhostFontResolver.swift */,
 				EAC61CA8FEFB45FB1CCA453A /* GhostFontSizeLimits.swift */,
+				FE7E21B82525DA3CD86CCACA /* GhostFontStyler.swift */,
 				74AB26FDFBBAC0C6375C4192 /* GhostTextColorPreset.swift */,
 				3A5DC5FF5BD2995FB6709A65 /* HostAdvanceFit.swift */,
 				7103021AEC287186CE25415D /* HostFaceMemory.swift */,
@@ -4071,6 +4078,7 @@
 				0569D0ECE7AA0F70B2436B1A /* GhostCaretRefinement.swift in Sources */,
 				1092E77D9D92DAC4808ABF9A /* GhostFontResolver.swift in Sources */,
 				CFCBA5D14335960CF994F40D /* GhostFontSizeLimits.swift in Sources */,
+				F27332D9CF6DE4465E9283C5 /* GhostFontStyler.swift in Sources */,
 				A1C4151AAE1CC55282C136BB /* GhostSpaceBoundary.swift in Sources */,
 				39B6842EF482AFB6CBEE6816 /* GhostTextColorPreset.swift in Sources */,
 				113D4A18C8782C578463A6C4 /* GhostTextLayout.swift in Sources */,
@@ -4410,6 +4418,7 @@
 				57857C599039465ADB0EC3AD /* GhostCaretRefinement.swift in Sources */,
 				A18051D870C0BEF082053D2C /* GhostFontResolver.swift in Sources */,
 				6EC1C0311B57074487F9658F /* GhostFontSizeLimits.swift in Sources */,
+				B67197483AD14EDA4959B74F /* GhostFontStyler.swift in Sources */,
 				564BA8F230F45E378D26B36C /* GhostSpaceBoundary.swift in Sources */,
 				0C8D3E1DC9D7B0FC7664055A /* GhostTextColorPreset.swift in Sources */,
 				8AE7B4DE4650D0DA8F6EFFE7 /* GhostTextLayout.swift in Sources */,
@@ -4720,6 +4729,7 @@
 				CA959F082DB2C6E95C5743C8 /* GhostBaselinePolicyTests.swift in Sources */,
 				0C6DCE04EF0D1EE132B59B73 /* GhostCaretRefinementTests.swift in Sources */,
 				4BDE48F1CCFAA097E95B53F6 /* GhostFontResolverTests.swift in Sources */,
+				47121E2DA2B1185A310EFA3C /* GhostFontStylerTests.swift in Sources */,
 				7C56674EF8DA8869D5116EE6 /* GhostSpaceBoundaryTests.swift in Sources */,
 				D9BF921EDFAE90D4D15DA82F /* GhostTextColorPresetPaletteTests.swift in Sources */,
 				109F9BD7E1AE3E7FB0C712AA /* GhostTextLayoutTests.swift in Sources */,

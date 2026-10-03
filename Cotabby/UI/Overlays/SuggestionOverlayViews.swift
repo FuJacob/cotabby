@@ -95,7 +95,7 @@ struct MirrorOverlayView: View {
     /// a single line and lets tail-truncation treat the whole suggestion as one unit.
     private var styledSuggestion: AttributedString {
         var attributed = AttributedString(layout.suggestionText)
-        attributed.font = .system(size: layout.fontSize)
+        attributed.font = cardFont(weight: layout.isBold ? .bold : .regular)
         attributed.foregroundColor = ghostColor
 
         // A correction replaces the whole word, so the entire run stays green; the next-accept-word
@@ -110,8 +110,15 @@ struct MirrorOverlayView: View {
         let highlightEnd = characters.index(characters.startIndex, offsetBy: prefix.count)
         let highlightRange = characters.startIndex..<highlightEnd
         attributed[highlightRange].foregroundColor = highlightColor
-        attributed[highlightRange].font = .system(size: layout.fontSize, weight: .semibold)
+        attributed[highlightRange].font = cardFont(weight: layout.isBold ? .heavy : .semibold)
         return attributed
+    }
+
+    /// The card's system face at `weight`, slanted when the user chose italic suggestions. A bold
+    /// suggestion keeps its next-accept word a step heavier so the highlight still stands out.
+    private func cardFont(weight: Font.Weight) -> Font {
+        let font = Font.system(size: layout.fontSize, weight: weight)
+        return layout.isItalic ? font.italic() : font
     }
 
     var body: some View {

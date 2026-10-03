@@ -24,6 +24,10 @@ struct GhostTextPreview: View {
     let opacity: Double
     /// Final preview point size (the representative base already scaled by the user's multiplier).
     let fontSize: CGFloat
+    /// The user's suggestion style, applied to the ghost half only: the typed half shows the host's
+    /// own text, which the setting never changes.
+    var isBold: Bool = false
+    var isItalic: Bool = false
 
     /// Representative base size the multiplier scales in the preview. Sits near the lower end of
     /// the overlay's real `[14, 24]` caret-derived band, matching typical small-to-medium text
@@ -37,7 +41,10 @@ struct GhostTextPreview: View {
 
     var body: some View {
         let sample = Text(typedText).foregroundStyle(.primary)
-            + Text(ghostText).foregroundStyle(ghostColor.opacity(opacity))
+            + Text(ghostText)
+                .fontWeight(isBold ? .bold : .regular)
+                .italic(isItalic)
+                .foregroundStyle(ghostColor.opacity(opacity))
 
         return sample
             .font(.system(size: fontSize))

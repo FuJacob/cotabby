@@ -37,6 +37,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showMenuBarIcon
     case showKeyHint
     case ghostTextColor
+    case ghostTextStyle
     case ghostTextOpacity
     case ghostTextSize
     case ghostTextSizeFloor
@@ -136,6 +137,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
+        case .ghostTextStyle: return "Ghost Text Style"
         case .ghostTextOpacity: return "Ghost Text Opacity"
         case .ghostTextSize: return "Ghost Text Size"
         case .ghostTextSizeFloor: return "Smallest Ghost Text"
@@ -224,6 +226,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "menubar.rectangle"
         case .showKeyHint: return "keyboard"
         case .ghostTextColor: return "paintpalette"
+        case .ghostTextStyle: return "bold.italic.underline"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
         case .ghostTextSize: return "textformat.size"
         case .ghostTextSizeFloor: return "arrow.down.to.line"
@@ -295,7 +298,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
-             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
+             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor, .ghostTextStyle,
              .ghostTextOpacity, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
@@ -354,6 +357,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
         case .ghostTextColor: return "Pick the color of the inline suggestion."
+        case .ghostTextStyle: return "Draw suggestions bold, italic, or both."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
         case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
         case .ghostTextSizeFloor:
@@ -494,7 +498,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "show key"]
         case .ghostTextColor:
             return ["color", "ghost", "theme", "dark", "light", "tint", "appearance",
-                    "highlight", "shade"]
+                    "highlight", "shade", "white"]
+        case .ghostTextStyle:
+            return ["bold", "italic", "style", "font", "weight", "slant", "emphasis",
+                    "ghost", "appearance"]
         case .ghostTextOpacity:
             return ["opacity", "transparency", "fade", "alpha", "translucent", "dim",
                     "brightness", "visibility"]

@@ -63,6 +63,29 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         }
     }
 
+    /// The card measures its text in the face it draws: a bold suggestion is wider than the same
+    /// text in regular, and the card grows to fit it instead of truncating it.
+    func test_make_boldSuggestionWidensTheCardAndCarriesTheStyle() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+        func layout(bold: Bool, italic: Bool) -> MirrorOverlayLayout {
+            MirrorOverlayLayout.make(
+                suggestion: "a reasonably long suggestion", geometry: geometry, visibleFrame: screen,
+                showsAcceptanceHint: true, isBold: bold, isItalic: italic, reason: .userPreference
+            )
+        }
+
+        let regular = layout(bold: false, italic: false)
+        let bold = layout(bold: true, italic: true)
+
+        XCTAssertGreaterThan(bold.panelFrame.width, regular.panelFrame.width)
+        XCTAssertTrue(bold.isBold)
+        XCTAssertTrue(bold.isItalic)
+        XCTAssertFalse(regular.isBold)
+    }
+
     func test_make_emptyCaretAnchorsBelowAndCentersOnTheInputFrameForEveryReason() {
         // A zero caret rect is the degenerate shape some hosts publish right after focus: the
         // safety-net anchor is just below the field's bottom edge, centered on the field, in either

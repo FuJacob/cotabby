@@ -17,7 +17,9 @@ nonisolated struct GhostTextColorPreset: Identifiable, Equatable {
 
     static let automatic = GhostTextColorPreset(id: "automatic", name: "Automatic", hex: nil)
 
-    /// Automatic plus ten distinct accent hues. Order is the swatch order shown in Settings.
+    /// Automatic, ten distinct accent hues, and white. Order is the swatch order shown in Settings.
+    /// White is for dark editors: like any fixed color it does not adapt, so on a light field it
+    /// is as faint as the field allows.
     static let all: [GhostTextColorPreset] = [
         automatic,
         GhostTextColorPreset(id: "blue", name: "Blue", hex: "3B82F6"),
@@ -29,7 +31,8 @@ nonisolated struct GhostTextColorPreset: Identifiable, Equatable {
         GhostTextColorPreset(id: "yellow", name: "Yellow", hex: "EAB308"),
         GhostTextColorPreset(id: "teal", name: "Teal", hex: "14B8A6"),
         GhostTextColorPreset(id: "cyan", name: "Cyan", hex: "06B6D4"),
-        GhostTextColorPreset(id: "indigo", name: "Indigo", hex: "6366F1")
+        GhostTextColorPreset(id: "indigo", name: "Indigo", hex: "6366F1"),
+        GhostTextColorPreset(id: "white", name: "White", hex: "FFFFFF")
     ]
 
     /// Matches a persisted hex back to its preset so the UI can highlight the active swatch. Falls
