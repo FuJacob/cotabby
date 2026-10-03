@@ -72,6 +72,17 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     /// A request needs at least one non-whitespace character. No trailing space is required:
     /// debounce handles keystroke settling and the output normalizer handles spacing, so adding
     /// "one more guard" here would silently remove completions that used to work.
+    /// Budgets within the reserved output ceiling leave the prompt budget alone; larger ones (a
+    /// long range with multi-line, up to 120 tokens) take their excess out of the prompt, so the
+    /// context window always holds prompt plus the full decode.
+    func test_promptTokenBudget_reservesRoomForTheRequestsWholeOutput() {
+        let ceiling = SuggestionConfiguration.llamaPromptOutputCeilingTokens
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 26), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: ceiling), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 120), 3982 - (120 - ceiling))
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 10, maxPredictionTokens: 120), 0)
+    }
+
     func test_shouldGenerate_requiresNonWhitespaceButNotATrailingDelimiter() {
         for text in ["", "   \t  ", "\n\n", " \n\t \n  "] {
             XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text), text.debugDescription)

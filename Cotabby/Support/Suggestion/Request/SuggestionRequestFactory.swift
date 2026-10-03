@@ -103,6 +103,12 @@ enum SuggestionRequestFactory {
         // Custom instructions and persona condition the output rather than being obeyed. The
         // Foundation Models path builds its own messages from these same request fields, so this
         // prompt string is only consumed by the llama engine.
+        let maxPredictionTokens = activeMaxPredictionTokens(
+            configuration: configuration,
+            wordRange: settings.effectiveWordRange,
+            responseLanguages: settings.responseLanguages,
+            isMultiLineEnabled: settings.isMultiLineEnabled
+        )
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
@@ -122,7 +128,10 @@ enum SuggestionRequestFactory {
             contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
             maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
             screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
-            tokenBudget: configuration.llamaPromptTokenBudget
+            tokenBudget: promptTokenBudget(
+                configuredBudget: configuration.llamaPromptTokenBudget,
+                maxPredictionTokens: maxPredictionTokens
+            )
         )
 
         let request = SuggestionRequest(
@@ -130,12 +139,7 @@ enum SuggestionRequestFactory {
             prefixText: prefixText,
             prompt: prompt,
             generation: context.generation,
-            maxPredictionTokens: activeMaxPredictionTokens(
-                configuration: configuration,
-                wordRange: settings.effectiveWordRange,
-                responseLanguages: settings.responseLanguages,
-                isMultiLineEnabled: settings.isMultiLineEnabled
-            ),
+            maxPredictionTokens: maxPredictionTokens,
             temperature: configuration.temperature,
             topK: configuration.topK,
             topP: configuration.topP,
@@ -285,6 +289,16 @@ enum SuggestionRequestFactory {
         )
         let base = max(configuration.maxPredictionTokens, languageAware)
         return isMultiLineEnabled ? min(base * 2, 120) : base
+    }
+
+    /// The prompt's token budget for one request. The configured budget already holds back
+    /// `llamaPromptOutputCeilingTokens` of the context window for output, but a request can ask for
+    /// more than that (12-20 words with multi-line is 52 tokens; multi-line allows up to 120). The
+    /// excess comes out of the prompt, so a long prompt can never squeeze the decode the request
+    /// was budgeted for.
+    static func promptTokenBudget(configuredBudget: Int, maxPredictionTokens: Int) -> Int {
+        let excess = max(0, maxPredictionTokens - SuggestionConfiguration.llamaPromptOutputCeilingTokens)
+        return max(0, configuredBudget - excess)
     }
 
     private static func promptPreview(
