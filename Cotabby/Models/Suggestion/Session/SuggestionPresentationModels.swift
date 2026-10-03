@@ -94,6 +94,11 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// rather than the document's margin. Ghost text that wraps onto another line aligns to this
     /// instead of the frame, so overflow lines land on the host's margin like its own text does.
     let observedContentEdges: ObservedContentEdges?
+    /// True when `caretRect` is a `.layoutEstimated` line whose Y came from default insets rather
+    /// than anything the host measured (`TextLayoutCaretEstimator.Estimate.isVerticallyCalibrated`).
+    /// Its X still follows the text, but the line may sit well above or below the host's real one,
+    /// so the mirror card anchors under the field instead of under that guessed line.
+    let isCaretLineVerticallyUncalibrated: Bool
 
     init(
         caretRect: CGRect,
@@ -117,7 +122,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         wrappedRun: WrappedRunAnchor? = nil,
         pixelBaselineOffset: CGFloat? = nil,
         pixelLineInkWidth: CGFloat? = nil,
-        observedContentEdges: ObservedContentEdges? = nil
+        observedContentEdges: ObservedContentEdges? = nil,
+        isCaretLineVerticallyUncalibrated: Bool = false
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -141,6 +147,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.pixelBaselineOffset = pixelBaselineOffset
         self.pixelLineInkWidth = pixelLineInkWidth
         self.observedContentEdges = observedContentEdges
+        self.isCaretLineVerticallyUncalibrated = isCaretLineVerticallyUncalibrated
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -166,7 +173,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             elementFrameRect: elementFrameRect,
             lineTextBeforeCaret: lineTextBeforeCaret,
             wrappedRun: wrappedRun,
-            observedContentEdges: observedContentEdges
+            observedContentEdges: observedContentEdges,
+            isCaretLineVerticallyUncalibrated: isCaretLineVerticallyUncalibrated
         )
     }
 

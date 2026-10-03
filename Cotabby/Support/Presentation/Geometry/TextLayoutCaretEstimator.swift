@@ -92,7 +92,26 @@ enum TextLayoutCaretEstimator {
         /// can be traced to a missing or rejected calibration.
         let usedObservedLineHeight: Bool
         let usedObservedContentEdges: Bool
+        /// Whether the text block's top came from a measured edge rather than the default inset.
+        /// Narrower than `usedObservedContentEdges`, which a measured left edge alone also sets.
+        let usedObservedTopInset: Bool
         let layoutFontPointSize: CGFloat
+
+        /// Whether the caret's line was placed from host measurements rather than defaults.
+        ///
+        /// A single-line field centers its line in the frame, which needs nothing measured. A
+        /// multi-line field stacks lines down from the top inset, so the first line needs a measured
+        /// top, and any later line also a measured line box, since a guessed line unit compounds
+        /// per line. When neither was measured the X is still useful (wrap points come from the
+        /// text), but the Y is the 4pt default inset: a web textarea with 20pt of padding drew its
+        /// first line a whole line below that guess, and a card placed under the guessed line sat
+        /// on the text (Claude desktop, 2026-10-03).
+        var isVerticallyCalibrated: Bool {
+            guard isMultiLineField else {
+                return true
+            }
+            return usedObservedTopInset && (lineIndex == 0 || usedObservedLineHeight)
+        }
     }
 
     /// Why an estimate was refused. Raw values feed the structured log stream so a misplaced
@@ -269,6 +288,7 @@ enum TextLayoutCaretEstimator {
             isMultiLineField: isMultiLineField,
             usedObservedLineHeight: observedLineHeight != nil,
             usedObservedContentEdges: insets.isMeasured,
+            usedObservedTopInset: insets.isTopMeasured,
             layoutFontPointSize: font.pointSize
         )
         return .estimate(estimate)
@@ -349,6 +369,8 @@ enum TextLayoutCaretEstimator {
         let top: CGFloat
         /// True when at least one inset came from a real measurement rather than the defaults.
         let isMeasured: Bool
+        /// True when the top inset specifically came from a measured text-block top.
+        let isTopMeasured: Bool
     }
 
     /// Derives content insets from measured edges, with sanity gates per axis; any distrusted or
@@ -365,6 +387,7 @@ enum TextLayoutCaretEstimator {
         var left = Metrics.horizontalInset
         var top = Metrics.topInset
         var isMeasured = false
+        var isTopMeasured = false
 
         if let edges {
             let measuredLeft = edges.leftX - frame.minX
@@ -386,13 +409,14 @@ enum TextLayoutCaretEstimator {
                     measuredTop <= frame.height * Metrics.maximumMeasuredTopInsetFraction {
                     top = measuredTop
                     isMeasured = true
+                    isTopMeasured = true
                 }
             }
         }
 
         // Horizontal padding is assumed symmetric; AX reveals only where content starts, not where
         // the host would wrap, and symmetric padding is the overwhelmingly common case.
-        return ContentInsets(left: left, right: left, top: top, isMeasured: isMeasured)
+        return ContentInsets(left: left, right: left, top: top, isMeasured: isMeasured, isTopMeasured: isTopMeasured)
     }
 
     // MARK: - Hidden layout

@@ -40,6 +40,43 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         }
     }
 
+    /// The Claude desktop textarea from 2026-10-03: AX offers only the field frame (Cocoa
+    /// 400,104 690x114 for a 218 top) and nothing about its padding, so the substituted estimate's
+    /// line comes from the default top inset and is flagged for the card to stay below the field.
+    func test_layoutRepair_substitutedEstimateFromDefaultInsetsIsFlaggedVerticallyUncalibrated() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            inputFrameRect: CGRect(x: 400, y: 104, width: 690, height: 114),
+            caretQuality: .estimated,
+            precedingText: "The whole",
+            isWebContentField: true
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context, fallbackRect: fallbackRect, pendingInsertion: "", isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .layoutEstimated)
+        XCTAssertTrue(anchor.isCaretLineVerticallyUncalibrated)
+    }
+
+    /// The same field with its text block's top measured places a calibrated line.
+    func test_layoutRepair_measuredTopLeavesTheEstimateCalibrated() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            inputFrameRect: CGRect(x: 400, y: 104, width: 690, height: 114),
+            caretQuality: .estimated,
+            observedContentEdges: ObservedContentEdges(leftX: 414, topY: 202),
+            precedingText: "The whole",
+            isWebContentField: true
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context, fallbackRect: fallbackRect, pendingInsertion: "", isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .layoutEstimated)
+        XCTAssertFalse(anchor.isCaretLineVerticallyUncalibrated)
+    }
+
     func test_layoutRepair_wrappedRunLaysTheParagraphOutInsideItsOwnFrame() {
         // Obsidian: the caret's paragraph is one run whose frame spans its wrapped lines (union
         // 612,599 628x116 in Cocoa for a 24pt pitch, 20pt line boxes); the caret is far enough

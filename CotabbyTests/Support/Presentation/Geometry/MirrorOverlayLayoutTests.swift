@@ -26,6 +26,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         showsHint: Bool = true,
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
+        isCaretLineVerticallyUncalibrated: Bool = false,
         reason: CompletionRenderMode.MirrorReason = .userPreference
     ) -> MirrorOverlayLayout {
         MirrorOverlayLayout.make(
@@ -33,7 +34,8 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             geometry: CotabbyTestFixtures.overlayGeometry(
                 caretRect: caret,
                 inputFrameRect: inputFrame,
-                isRightToLeft: isRightToLeft
+                isRightToLeft: isRightToLeft,
+                isCaretLineVerticallyUncalibrated: isCaretLineVerticallyUncalibrated
             ),
             visibleFrame: visibleFrame ?? screen,
             showsAcceptanceHint: showsHint,
@@ -61,6 +63,43 @@ final class MirrorOverlayLayoutTests: XCTestCase {
                 XCTAssertEqual(layout.reason, reason, label)
             }
         }
+    }
+
+    /// A layout estimate whose line was placed from a guessed top inset says nothing reliable
+    /// about where the text is drawn: in a Claude desktop textarea it put the line 12pt above the
+    /// real text, and the card under it landed on the text. The card drops below the field, which
+    /// it can never cover, while keeping the caret's x.
+    func test_make_uncalibratedLayoutEstimateSitsBelowTheFieldNotTheGuessedLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let inputFrame = CGRect(x: 400, y: 400, width: 640, height: 200)
+        let layout = makeLayout(
+            caret: caret, inputFrame: inputFrame, isCaretLineVerticallyUncalibrated: true,
+            reason: .caretLayoutEstimated
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 399)
+        XCTAssertEqual(layout.panelFrame.minX, 710)
+    }
+
+    /// A calibrated estimate keeps tracking its caret line, and the flag only governs layout
+    /// estimates: trusted carets already measured their line.
+    func test_make_uncalibratedFlagLeavesCalibratedAndTrustedCaretsUnderTheirLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let calibrated = makeLayout(caret: caret, reason: .caretLayoutEstimated)
+        let trusted = makeLayout(caret: caret, isCaretLineVerticallyUncalibrated: true, reason: .caretMidLine)
+
+        XCTAssertEqual(calibrated.panelFrame.maxY, 583)
+        XCTAssertEqual(trusted.panelFrame.maxY, 583)
+    }
+
+    /// Without a field frame there is nothing safer to sit under than the caret line itself.
+    func test_make_uncalibratedEstimateWithoutAFieldKeepsTheCaretLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let layout = makeLayout(
+            caret: caret, inputFrame: nil, isCaretLineVerticallyUncalibrated: true, reason: .caretLayoutEstimated
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 583)
     }
 
     func test_make_emptyCaretAnchorsBelowAndCentersOnTheInputFrameForEveryReason() {
