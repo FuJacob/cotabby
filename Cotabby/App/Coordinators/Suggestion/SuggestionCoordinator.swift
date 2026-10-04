@@ -178,6 +178,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// feed it; the queued post-exhaustion accept stays a plain one-word accept.
     var doubleTapAcceptanceState = DoubleTapAcceptanceState()
 
+    /// Clock for double-tap timing, in seconds of system uptime. Tests substitute a manual clock so
+    /// a busy runner cannot stretch two back-to-back presses past the window.
+    var doubleTapUptimeProvider: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+
     init(
         permissionManager: any SuggestionPermissionProviding,
         lowPowerModeProvider: any SuggestionLowPowerModeProviding,

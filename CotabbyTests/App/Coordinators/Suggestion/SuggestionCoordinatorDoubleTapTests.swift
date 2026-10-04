@@ -5,12 +5,20 @@ import XCTest
 
 /// Drives real Accept Word key events through the coordinator to pin the double-tap contract: the
 /// first press always takes one word, a quick second press on the same suggestion takes the rest,
-/// and anything else (setting off, a slow press, an intervening key) keeps word-by-word acceptance.
+/// and anything else (setting off, a slow press, an intervening key, a held key) keeps word-by-word
+/// acceptance.
 ///
 /// The rig's host never publishes inserted text, so every accept reconciles against the original
-/// "Hello " and drops the chunk's leading space; the expected chunks below reflect that.
+/// "Hello " and drops the chunk's leading space; the expected chunks below reflect that. Press
+/// timing comes from a manual clock, so no assertion depends on how fast the runner executes.
 @MainActor
 final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
+    /// Reference box, so the coordinator's clock closure reads whatever time the test sets.
+    private final class ManualClock {
+        var now: TimeInterval = 1_000
+    }
+
+    private let clock = ManualClock()
     private let tab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [])
     private let heldTab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [], isAutorepeat: true)
 
@@ -21,6 +29,7 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         XCTAssertEqual(rig.inserter.insertedChunks, ["world"])
 
+        clock.now += 0.1
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again tomorrow"])
         XCTAssertNil(rig.interactionState.activeSession, "The pair must exhaust the suggestion")
@@ -31,6 +40,7 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        clock.now += 0.1
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
 
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
@@ -42,16 +52,9 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
-        // Backdate the first press past the window instead of sleeping in the test.
-        guard let session = rig.interactionState.activeSession else {
-            return XCTFail("Expected the suggestion to remain active after one word")
-        }
-        rig.coordinator.doubleTapAcceptanceState.recordWordAccept(
-            of: .init(session: session),
-            at: ProcessInfo.processInfo.systemUptime - DoubleTapAcceptanceState.window - 1
-        )
-
+        clock.now += DoubleTapAcceptanceState.window + 0.05
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
     }
 
@@ -60,12 +63,15 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
-        // A modifier-only or unmapped key leaves the suggestion alone but still breaks the pair.
-        _ = rig.coordinator.handleInputEvent(
-            CapturedInputEvent(kind: .other, keyCode: 56, characters: "", flags: .maskShift)
-        )
+        // Shift-Tab matches neither accept binding, so it arrives as `.other`: the suggestion stays
+        // on screen, but the Tabs on either side of it are no longer one double tap.
+        XCTAssertFalse(rig.coordinator.handleInputEvent(
+            CapturedInputEvent(kind: .other, keyCode: 48, characters: "", flags: .maskShift)
+        ))
+        clock.now += 0.1
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
 
-        XCTAssertFalse(rig.coordinator.doubleTapAcceptanceState.hasPendingPress)
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
     }
 
     func testHeldKeyRepeatsAcceptWordByWordWithoutDoubleTapping() async {
@@ -75,11 +81,13 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         // Key repeat lands well inside the window, but holding the key is one long press: the
         // repeat takes one more word, as holding Tab always has, and does not finish the pair.
+        clock.now += 0.05
         XCTAssertTrue(rig.coordinator.handleInputEvent(heldTab))
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
-        XCTAssertFalse(rig.coordinator.doubleTapAcceptanceState.hasPendingPress)
 
-        // Nor does the repeat arm a pair, so the next real press is a first press again.
+        // Nor does the first press stay armed behind the repeat, so the next real press, still
+        // inside the window of that first press, is a first press again.
+        clock.now += 0.05
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again", "tomorrow"])
     }
@@ -95,6 +103,8 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
                 doubleTapAcceptsEntireSuggestion: doubleTapEnabled
             )
         )
+        let clock = clock
+        rig.coordinator.doubleTapUptimeProvider = { clock.now }
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: completion, text: completion, latency: 0.01)
         }

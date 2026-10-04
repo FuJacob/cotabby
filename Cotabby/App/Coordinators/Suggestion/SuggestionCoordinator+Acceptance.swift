@@ -38,7 +38,7 @@ extension SuggestionCoordinator {
             return acceptCurrentSuggestion()
         }
 
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = doubleTapUptimeProvider()
         if let session = interactionState.activeSession, !session.kind.isCorrection,
            doubleTapAcceptanceState.consumeDoubleTap(of: .init(session: session), at: now) {
             return acceptSuggestion(fullText: true, keyName: "double-tap")
