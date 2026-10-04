@@ -27,8 +27,13 @@ extension SuggestionCoordinator {
     /// as before; the pair still commits the whole suggestion. The queued post-exhaustion accept
     /// calls `acceptCurrentSuggestion` directly, so a Tab buffered during regeneration never turns
     /// into an accept-everything of a continuation the user has not seen yet.
-    func acceptForWordAcceptKeyPress() -> Bool {
-        guard settingsSnapshot.doubleTapAcceptsEntireSuggestion else {
+    ///
+    /// `isAutorepeat` marks a key-down the system generated because the key is held. Those keep
+    /// accepting word by word, as holding the key always has, but a held key is one long press:
+    /// a repeat neither completes a pending double tap nor arms a new one. Without this, holding
+    /// Accept Word past the first repeat (repeats arrive well inside the window) took everything.
+    func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
+        guard settingsSnapshot.doubleTapAcceptsEntireSuggestion, !isAutorepeat else {
             doubleTapAcceptanceState.reset()
             return acceptCurrentSuggestion()
         }

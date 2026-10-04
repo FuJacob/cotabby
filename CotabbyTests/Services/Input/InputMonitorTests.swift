@@ -224,6 +224,22 @@ final class InputMonitorTests: XCTestCase {
         XCTAssertEqual(delivered(), [.acceptance])
     }
 
+    func test_acceptTapTellsTheCoordinatorWhichPressesAreKeyRepeats() {
+        let monitor = makeMonitor()
+        monitor.shouldConsumeAcceptKeyProvider = { true }
+        var repeatFlags: [Bool] = []
+        monitor.onEvent = { event in
+            repeatFlags.append(event.isAutorepeat)
+            return true
+        }
+
+        XCTAssertEqual(monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: Self.tab)), .consume)
+        XCTAssertEqual(monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: Self.tab, isAutorepeat: true)), .consume)
+
+        // A held key still accepts, but double-tap recognition must see it as one long press.
+        XCTAssertEqual(repeatFlags, [false, true])
+    }
+
     func test_fullAcceptBindingWinsWhenBothBindingsShareAKey() {
         let monitor = makeMonitor()
         monitor.fullAcceptanceBindingProvider = { (Self.tab, []) }

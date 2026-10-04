@@ -19,11 +19,14 @@ struct InputMonitorKeyEvent {
     let keyCode: CGKeyCode
     let characters: String
     let flags: CGEventFlags
+    /// Mirrors `kCGKeyboardEventAutorepeat`: the key is being held, not pressed again.
+    let isAutorepeat: Bool
 
-    init(keyCode: CGKeyCode, characters: String = "", flags: CGEventFlags = []) {
+    init(keyCode: CGKeyCode, characters: String = "", flags: CGEventFlags = [], isAutorepeat: Bool = false) {
         self.keyCode = keyCode
         self.characters = characters
         self.flags = flags
+        self.isAutorepeat = isAutorepeat
     }
 }
 
@@ -563,7 +566,13 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            let keyEvent = InputMonitorKeyEvent(keyCode: keyCode(from: event), flags: event.flags)
+            // Holding Accept Word repeats its key-down. The flag lets double-tap recognition treat
+            // those repeats as one long press instead of a second tap.
+            let keyEvent = InputMonitorKeyEvent(
+                keyCode: keyCode(from: event),
+                flags: event.flags,
+                isAutorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            )
             switch resolveAcceptKeyDown(keyEvent) {
             case .consume:
                 return nil
@@ -622,7 +631,8 @@ final class InputMonitor {
             kind: kind,
             keyCode: keyEvent.keyCode,
             characters: "",
-            flags: keyEvent.flags
+            flags: keyEvent.flags,
+            isAutorepeat: keyEvent.isAutorepeat
         )
         guard onEvent(capturedEvent) else {
             CotabbyLogger.app.debug(

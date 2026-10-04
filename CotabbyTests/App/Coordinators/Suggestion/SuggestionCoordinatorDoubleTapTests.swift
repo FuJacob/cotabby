@@ -12,6 +12,7 @@ import XCTest
 @MainActor
 final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
     private let tab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [])
+    private let heldTab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [], isAutorepeat: true)
 
     func testQuickSecondPressAcceptsTheRestOfTheSuggestion() async {
         let rig = await makeReadyRig(doubleTapEnabled: true)
@@ -67,7 +68,26 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         XCTAssertFalse(rig.coordinator.doubleTapAcceptanceState.hasPendingPress)
     }
 
-    private func makeReadyRig(doubleTapEnabled: Bool) async -> CoordinatorRig {
+    func testHeldKeyRepeatsAcceptWordByWordWithoutDoubleTapping() async {
+        let rig = await makeReadyRig(doubleTapEnabled: true, completion: "world again tomorrow morning")
+        defer { rig.coordinator.stop() }
+
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        // Key repeat lands well inside the window, but holding the key is one long press: the
+        // repeat takes one more word, as holding Tab always has, and does not finish the pair.
+        XCTAssertTrue(rig.coordinator.handleInputEvent(heldTab))
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
+        XCTAssertFalse(rig.coordinator.doubleTapAcceptanceState.hasPendingPress)
+
+        // Nor does the repeat arm a pair, so the next real press is a first press again.
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again", "tomorrow"])
+    }
+
+    private func makeReadyRig(
+        doubleTapEnabled: Bool,
+        completion: String = "world again tomorrow"
+    ) async -> CoordinatorRig {
         let rig = makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
@@ -76,8 +96,7 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
             )
         )
         rig.engine.resultProvider = { request in
-            SuggestionResult(generation: request.generation, rawText: "world again tomorrow",
-                             text: "world again tomorrow", latency: 0.01)
+            SuggestionResult(generation: request.generation, rawText: completion, text: completion, latency: 0.01)
         }
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.interactionState.activeSession != nil }
