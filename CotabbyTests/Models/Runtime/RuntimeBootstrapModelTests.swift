@@ -233,6 +233,61 @@ final class RuntimeBootstrapModelTests: XCTestCase {
         }
     }
 
+    // MARK: - selectModelWithoutLoading
+
+    func test_selectModelWithoutLoading_persistsTheChoiceWithoutStartingTheRuntime() throws {
+        let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
+        let userDefaults = makeUserDefaults()
+        let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
+        let reloads = ReloadCounter()
+        runOnMainActor { model.onWillReloadModel = { reloads.increment() } }
+
+        // With the files gone, any load attempt fails inside the locator and leaves a .failed state,
+        // so an idle state afterwards proves no load was started.
+        try removeModelFile("alpha.gguf", in: directory)
+        try removeModelFile("beta.gguf", in: directory)
+
+        runOnMainActor {
+            model.selectModelWithoutLoading("beta.gguf")
+            model.selectModelWithoutLoading("ghost.gguf")
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        runOnMainActor {
+            XCTAssertEqual(model.selectedModelFilename, "beta.gguf", "An unknown filename must be ignored")
+            XCTAssertEqual(userDefaults.string(forKey: Self.selectionKey), "beta.gguf")
+            XCTAssertEqual(model.state, .idle, "Recording a choice must not load the model")
+            XCTAssertEqual(reloads.count, 0, "Nothing reloads, so suggestion state must be left alone")
+        }
+    }
+
+    func test_selectModelWithoutLoading_isUsedByTheNextStart() throws {
+        let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf", "charlie.gguf"])
+        let userDefaults = makeUserDefaults()
+        let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
+        runOnMainActor {
+            XCTAssertEqual(model.selectedModelFilename, "alpha.gguf")
+            model.selectModelWithoutLoading("beta.gguf")
+        }
+        // charlie stays on disk so resolution fails by name ("beta.gguf was not found") instead of
+        // with a generic empty-folder error. Removing alpha too keeps a regression that still loads
+        // alpha off the native path: it would fail naming alpha instead.
+        try removeModelFile("alpha.gguf", in: directory)
+        try removeModelFile("beta.gguf", in: directory)
+
+        let (failed, cancellable) = expectFailureState(of: model)
+        runOnMainActor { model.startIfNeeded() }
+        wait(for: [failed], timeout: 10)
+        cancellable.cancel()
+
+        runOnMainActor {
+            XCTAssertTrue(
+                model.diagnostics.lastError?.contains("beta.gguf") == true,
+                "Expected a beta.gguf load failure, got \(model.diagnostics.lastError ?? "nil")"
+            )
+        }
+    }
+
     // MARK: - Available-model reconciliation
 
     func test_refreshAvailableModels_discoversNewModelsAndKeepsValidSelection() throws {
