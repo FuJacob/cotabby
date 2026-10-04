@@ -103,8 +103,12 @@ struct BundledRuntimeLocator {
     /// them out of the model picker.
     static func discoverGGUFModelURLs(in directoryURL: URL, maxDepth: Int = 4) -> [URL] {
         let fileManager = FileManager.default
+        // `FileManager.enumerator` does not descend into a root that is itself a symbolic link, so a
+        // models folder linked to another location (an external drive, another app's folder) would
+        // list nothing. Resolve the root first; links deeper inside stay unfollowed, which keeps
+        // the bounded walk from escaping into arbitrary trees.
         guard let enumerator = fileManager.enumerator(
-            at: directoryURL,
+            at: directoryURL.resolvingSymlinksInPath(),
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {

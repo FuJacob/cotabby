@@ -190,6 +190,8 @@ struct SuggestionSettingsStore {
     private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
+    private static let appleLanguageFallbackEnabledDefaultsKey = "cotabbyAppleLanguageFallbackEnabled"
+    private static let keepFallbackModelLoadedDefaultsKey = "cotabbyKeepFallbackModelLoaded"
     private static let powerModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
     private static let batteryEngineDefaultsKey = "cotabbyBatteryEngine"
     private static let batteryModelFilenameDefaultsKey = "cotabbyBatteryModelFilename"
@@ -272,6 +274,8 @@ struct SuggestionSettingsStore {
         globalToggleKeyLabelDefaultsKey,
         acceptanceGranularityDefaultsKey,
         powerModelSwitchingEnabledDefaultsKey,
+        appleLanguageFallbackEnabledDefaultsKey,
+        keepFallbackModelLoadedDefaultsKey,
         batteryEngineDefaultsKey,
         batteryModelFilenameDefaultsKey,
         batteryEndpointModelNameDefaultsKey,
@@ -555,6 +559,11 @@ struct SuggestionSettingsStore {
 
         let resolvedPowerBasedModelSwitchingEnabled =
             userDefaults.object(forKey: Self.powerModelSwitchingEnabledDefaultsKey) as? Bool ?? false
+        // On by default: falling back is what Cotabby has always done for unsupported languages.
+        let resolvedAppleLanguageFallbackEnabled =
+            userDefaults.object(forKey: Self.appleLanguageFallbackEnabledDefaultsKey) as? Bool ?? true
+        let resolvedKeepsFallbackModelLoaded =
+            userDefaults.object(forKey: Self.keepFallbackModelLoadedDefaultsKey) as? Bool ?? false
         let resolvedBatteryEngine = userDefaults.string(forKey: Self.batteryEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
         let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
@@ -586,7 +595,9 @@ struct SuggestionSettingsStore {
                 batteryEndpointModelName: resolvedBatteryEndpointModelName,
                 pluggedInEngine: resolvedPluggedInEngine,
                 pluggedInModelFilename: resolvedPluggedInModelFilename,
-                pluggedInEndpointModelName: resolvedPluggedInEndpointModelName
+                pluggedInEndpointModelName: resolvedPluggedInEndpointModelName,
+                isAppleLanguageFallbackEnabled: resolvedAppleLanguageFallbackEnabled,
+                keepsFallbackModelLoaded: resolvedKeepsFallbackModelLoaded
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: resolvedWordCountPreset,
@@ -732,6 +743,8 @@ struct SuggestionSettingsStore {
         saveDoubleTapAcceptsEntireSuggestion(data.doubleTapAcceptsEntireSuggestion)
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
+        saveAppleLanguageFallbackEnabled(data.isAppleLanguageFallbackEnabled)
+        saveKeepsFallbackModelLoaded(data.keepsFallbackModelLoaded)
         saveBatteryEngine(data.batteryEngine)
         saveBatteryModelFilename(data.batteryModelFilename)
         saveBatteryEndpointModelName(data.batteryEndpointModelName)
@@ -861,6 +874,14 @@ struct SuggestionSettingsStore {
 
     func saveOpenAICompatibleAPIMode(_ mode: OpenAICompatibleAPIMode) {
         userDefaults.set(mode.rawValue, forKey: Self.openAICompatibleAPIModeDefaultsKey)
+    }
+
+    func saveAppleLanguageFallbackEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.appleLanguageFallbackEnabledDefaultsKey)
+    }
+
+    func saveKeepsFallbackModelLoaded(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.keepFallbackModelLoadedDefaultsKey)
     }
 
     func savePowerBasedModelSwitchingEnabled(_ enabled: Bool) {

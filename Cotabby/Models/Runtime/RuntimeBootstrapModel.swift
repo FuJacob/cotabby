@@ -131,6 +131,27 @@ final class RuntimeBootstrapModel: ObservableObject {
         await runtimeTask?.value
     }
 
+    /// Persists the user's chosen model without loading it. `selectModel` would load the GGUF right
+    /// away, which is wrong while the runtime is meant to stay unloaded, as with the Apple
+    /// Intelligence fallback picker when "Keep Fallback Model Loaded" is off. The runtime manager
+    /// resolves the selection on every prepare, so the next on-demand fallback or engine switch
+    /// loads this model, replacing any model a previous fallback left loaded.
+    func selectModelWithoutLoading(_ filename: String) {
+        guard availableModels.contains(where: { $0.filename == filename }),
+              selectedModelFilename != filename else {
+            return
+        }
+
+        selectedModelFilename = filename
+        persistSelectedModelFilename(filename)
+        // Signal the switch even though nothing loads yet: a model an earlier fallback loaded may
+        // still be generating or showing a suggestion, and the next request runs on the new model.
+        // Clearing that state now matches `selectModel`, so no completion from the old model is
+        // left on screen to accept.
+        onWillReloadModel?()
+        runtimeManager.configureSelectedModel(filename: filename)
+    }
+
     /// Cancels pending startup work and forwards shutdown to the underlying runtime manager.
     func stop() {
         runtimeTask?.cancel()

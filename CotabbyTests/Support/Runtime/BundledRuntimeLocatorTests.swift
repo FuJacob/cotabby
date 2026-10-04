@@ -467,4 +467,19 @@ final class BundledRuntimeLocatorTests: XCTestCase {
             gpuLayerCount: -1
         )
     }
+
+    func test_discoverFindsModelsThroughASymlinkedModelsFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gguf-link-\(UUID().uuidString)")
+        let real = root.appendingPathComponent("real")
+        let link = root.appendingPathComponent("LlamaRuntime")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("gguf".utf8).write(to: real.appendingPathComponent("model.gguf"))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let found = BundledRuntimeLocator.discoverGGUFModelURLs(in: link)
+
+        XCTAssertEqual(found.map(\.lastPathComponent), ["model.gguf"])
+    }
+
 }
