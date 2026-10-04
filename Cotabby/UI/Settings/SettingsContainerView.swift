@@ -28,6 +28,8 @@ struct SettingsContainerView: View {
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
+    @ObservedObject var translationPreferences: TranslationPreferencesStore
+    let translationService: TranslationService
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -142,6 +144,8 @@ struct SettingsContainerView: View {
             )
         case .writing:
             WritingPaneView(suggestionSettings: suggestionSettings)
+        case .translation:
+            TranslationPaneView(preferences: translationPreferences, service: translationService)
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings)
         case .shortcuts:
