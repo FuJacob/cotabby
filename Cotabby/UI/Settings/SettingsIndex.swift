@@ -380,7 +380,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointModel: return "The model identifier sent to the configured endpoint."
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
-        case .acceptEntireSuggestion: return "The key, or Tab pressed twice, that inserts the whole suggestion."
+        case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."

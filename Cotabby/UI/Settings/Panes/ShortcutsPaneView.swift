@@ -162,7 +162,10 @@ struct ShortcutsPaneView: View {
     private var fullAcceptanceDescription: String {
         let wordKey = suggestionSettings.acceptanceKeyLabel
         if suggestionSettings.isDoubleTapFullAcceptanceActive {
-            return "Press \(wordKey) twice quickly to insert the whole suggestion. A single press still inserts one word."
+            // The first press of the pair follows the Mode picker above, so name what it inserts.
+            let singlePress = suggestionSettings.acceptanceGranularity == .phrase ? "phrase" : "word"
+            return "Press \(wordKey) twice quickly to insert the whole suggestion. "
+                + "A single press still inserts the next \(singlePress)."
         }
         if acceptWordDoubleTapKey != nil {
             return "Insert the whole remaining suggestion at once. For a double tap, click Change and press \(wordKey) twice."
