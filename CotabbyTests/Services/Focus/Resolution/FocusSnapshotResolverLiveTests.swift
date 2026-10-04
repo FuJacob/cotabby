@@ -201,3 +201,107 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         XCTAssertEqual(context.trailingText, "tail")
     }
 }
+
+/// The sign-in field gate (`CredentialFieldDetector`) wired through the live resolver: a real
+/// single-line AppKit field, read over AX, so the attribute reads, the per-session label cache, and
+/// the per-poll typed-text check are exercised together rather than only as pure strings.
+@MainActor
+final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
+    private static let fieldIdentifier = "cotabby-resolver-credential-field"
+
+    private var window: NSWindow?
+    private var field: NSTextField?
+
+    override func tearDown() {
+        window?.orderOut(nil)
+        window = nil
+        field = nil
+        super.tearDown()
+    }
+
+    /// Hosts one editing `NSTextField` and returns its AX element, or skips where self-process AX
+    /// is unavailable.
+    private func makeFieldElement(placeholder: String, text: String) throws -> AXUIElement {
+        let window = NSWindow(
+            contentRect: NSRect(x: 220, y: 220, width: 360, height: 80),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        let field = NSTextField(frame: NSRect(x: 10, y: 28, width: 300, height: 24))
+        field.placeholderString = placeholder
+        field.setAccessibilityIdentifier(Self.fieldIdentifier)
+        window.contentView?.addSubview(field)
+        window.orderFrontRegardless()
+        self.window = window
+        self.field = field
+        setText(text)
+
+        let appElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if let element = Self.findField(under: appElement, depth: 0) {
+                return element
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        throw XCTSkip("Self-process AX is unavailable in this environment")
+    }
+
+    /// Replaces the text the way typing would leave it: field editor active, caret at the end.
+    private func setText(_ text: String) {
+        guard let window, let field else { return }
+        window.makeFirstResponder(nil)
+        field.stringValue = text
+        window.makeFirstResponder(field)
+        field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+    }
+
+    private static func findField(under element: AXUIElement, depth: Int) -> AXUIElement? {
+        guard depth <= 8 else { return nil }
+        if AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) == (kAXTextFieldRole as String),
+           AXHelper.accessibilityIdentifier(of: element) == fieldIdentifier {
+            return element
+        }
+        for child in AXHelper.childElements(of: element) {
+            if let found = findField(under: child, depth: depth + 1) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private func capability(of element: AXUIElement, focusChangeSequence: UInt64, resolver: FocusSnapshotResolver) -> FocusCapability {
+        resolver.resolveSnapshot(
+            focusedElement: element,
+            application: NSRunningApplication.current,
+            focusChangeSequence: focusChangeSequence
+        ).capability
+    }
+
+    func test_signInPlaceholderBlocksTheField_andLabelsAreReadOncePerFocusSession() throws {
+        let element = try makeFieldElement(placeholder: "Email or phone", text: "realdeepdark")
+        let resolver = FocusSnapshotResolver()
+        let credentialBlock = FocusCapability.blocked(CredentialFieldDetector.blockedReason)
+
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
+
+        // The label is session-invariant and cached: a later poll in the same session does not
+        // re-read it, and a new focus session does.
+        field?.placeholderString = "Notes"
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
+        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 8, resolver: resolver), credentialBlock)
+    }
+
+    func test_typedAddressBlocksAnUnlabelledField_onTheNextPoll() throws {
+        let element = try makeFieldElement(placeholder: "Account", text: "alice")
+        let resolver = FocusSnapshotResolver()
+        let credentialBlock = FocusCapability.blocked(CredentialFieldDetector.blockedReason)
+
+        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 3, resolver: resolver), credentialBlock)
+        // Same focus session: the typed text is judged on every poll, unlike the cached labels.
+        setText("alice@")
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 3, resolver: resolver), credentialBlock)
+    }
+}
