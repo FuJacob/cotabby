@@ -529,7 +529,10 @@ final class SuggestionSettingsModel: ObservableObject {
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
             automaticallyFixTypos: settings.correction.automaticallyFixTypos,
-            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion
+            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
+            fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
+                in: settings.shortcuts.perAppOverrides
+            )
         )
     }
 
@@ -1718,18 +1721,22 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
         // alongside `acceptanceGranularity` here for the same reason. The three custom-range fields
         // travel together as a single tuple so they only cost one slot in this outer layer.
-        // The double-tap toggle rides in this slot's last free input; it is unrelated to the range
-        // but costs no extra layer of nesting.
-        let customRange = Publishers.CombineLatest4(
+        let customRange = Publishers.CombineLatest3(
             $isUsingCustomWordCountRange,
             $customWordCountLowWords,
-            $customWordCountHighWords,
-            $doubleTapAcceptsEntireSuggestion
+            $customWordCountHighWords
+        )
+        // What a press of an accept key does: how much one press takes, whether a double tap takes
+        // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
+        let acceptance = Publishers.CombineLatest3(
+            $acceptanceGranularity,
+            $doubleTapAcceptsEntireSuggestion,
+            $perAppShortcutOverrides
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
             primary,
-            $acceptanceGranularity,
+            acceptance,
             Publishers.CombineLatest4(
                 $extendedContext,
                 $suggestInIntegratedTerminals,
@@ -1738,7 +1745,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             ),
             customRange
         )
-            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, acceptanceTuple, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1748,7 +1755,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
-                let (isCustomActive, customLow, customHigh, doubleTapAcceptsEntireSuggestion) = customRangeTuple
+                let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides) = acceptanceTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1783,7 +1791,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
                     automaticallyFixTypos: automaticallyFixTypos,
-                    doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
+                    doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                    fullAcceptanceOverrideBundleIdentifiers:
+                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides)
                 )
             }
             .removeDuplicates()

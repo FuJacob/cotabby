@@ -32,8 +32,14 @@ extension SuggestionCoordinator {
     /// accepting word by word, as holding the key always has, but a held key is one long press:
     /// a repeat neither completes a pending double tap nor arms a new one. Without this, holding
     /// Accept Word past the first repeat (repeats arrive well inside the window) took everything.
+    ///
+    /// The focused app is resolved from the same focus snapshot the input monitor used to classify
+    /// this press, so an app with its own Accept Entire Suggestion binding keeps it here too.
     func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
-        guard settingsSnapshot.doubleTapAcceptsEntireSuggestion, !isAutorepeat else {
+        let doubleTapApplies = settingsSnapshot.isDoubleTapFullAcceptanceActive(
+            forBundleIdentifier: focusModel.snapshot.bundleIdentifier
+        )
+        guard doubleTapApplies, !isAutorepeat else {
             doubleTapAcceptanceState.reset()
             return acceptCurrentSuggestion()
         }

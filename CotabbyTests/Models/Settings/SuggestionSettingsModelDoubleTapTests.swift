@@ -139,4 +139,23 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
                        SuggestionSettingsModel.disabledKeyLabel)
     }
 
+    func test_appsWithTheirOwnFullAcceptBindingKeepItOverTheDoubleTap() {
+        let model = makeModel()
+        model.setDoubleTapFullAcceptance()
+        // Disable is an explicit per-app binding too: "no key accepts everything here".
+        model.setPerAppFullAcceptKey(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
+                                     keyCode: SuggestionSettingsModel.disabledKeyCode, modifiers: [], label: "None")
+        model.setPerAppAcceptKey(bundleIdentifier: "com.apple.mail", displayName: "Mail",
+                                 keyCode: 36, modifiers: [], label: "Return")
+
+        let snapshot = model.snapshot
+        XCTAssertFalse(snapshot.isDoubleTapFullAcceptanceActive(forBundleIdentifier: "com.apple.Terminal"))
+        // Overriding only Accept Word keeps the inherited slot; the double tap moves to that key.
+        XCTAssertTrue(snapshot.isDoubleTapFullAcceptanceActive(forBundleIdentifier: "com.apple.mail"))
+        XCTAssertTrue(snapshot.isDoubleTapFullAcceptanceActive(forBundleIdentifier: "com.apple.TextEdit"))
+        XCTAssertTrue(snapshot.isDoubleTapFullAcceptanceActive(forBundleIdentifier: nil))
+
+        model.clearPerAppFullAcceptKey(bundleIdentifier: "com.apple.Terminal")
+        XCTAssertTrue(model.snapshot.isDoubleTapFullAcceptanceActive(forBundleIdentifier: "com.apple.Terminal"))
+    }
 }

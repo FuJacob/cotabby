@@ -5,8 +5,8 @@ import XCTest
 
 /// Drives real Accept Word key events through the coordinator to pin the double-tap contract: the
 /// first press always takes one word, a quick second press on the same suggestion takes the rest,
-/// and anything else (setting off, a slow press, an intervening key, a held key) keeps word-by-word
-/// acceptance.
+/// and anything else (setting off, a slow press, an intervening key, a held key, an app with its own
+/// Accept Entire Suggestion binding) keeps word-by-word acceptance.
 ///
 /// The rig's host never publishes inserted text, so every accept reconciles against the original
 /// "Hello " and drops the chunk's leading space; the expected chunks below reflect that. Press
@@ -19,6 +19,7 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
     }
 
     private let clock = ManualClock()
+    private let appBundleIdentifier = "com.example.TestApp"
     private let tab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [])
     private let heldTab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [], isAutorepeat: true)
 
@@ -92,15 +93,44 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again", "tomorrow"])
     }
 
+    func testAppWithItsOwnFullAcceptBindingKeepsWordByWordAcceptance() async {
+        // An app's own Accept Entire Suggestion binding (a key, or Disable) replaces the global
+        // slot that holds the double tap, so in that app the pair stays two single-word accepts.
+        let rig = await makeReadyRig(doubleTapEnabled: true, fullAcceptanceOverrides: [appBundleIdentifier])
+        defer { rig.coordinator.stop() }
+
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        clock.now += 0.1
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again"])
+    }
+
+    func testOtherAppsFullAcceptBindingsLeaveThisAppsDoubleTapAlone() async {
+        let rig = await makeReadyRig(doubleTapEnabled: true, fullAcceptanceOverrides: ["com.apple.Terminal"])
+        defer { rig.coordinator.stop() }
+
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        clock.now += 0.1
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again tomorrow"])
+    }
+
     private func makeReadyRig(
         doubleTapEnabled: Bool,
-        completion: String = "world again tomorrow"
+        completion: String = "world again tomorrow",
+        fullAcceptanceOverrides: Set<String> = []
     ) async -> CoordinatorRig {
         let rig = makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(
+                bundleIdentifier: appBundleIdentifier,
+                precedingText: "Hello "
+            ),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
-                doubleTapAcceptsEntireSuggestion: doubleTapEnabled
+                doubleTapAcceptsEntireSuggestion: doubleTapEnabled,
+                fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrides
             )
         )
         let clock = clock
