@@ -249,6 +249,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
         runOnMainActor {
             model.selectModelWithoutLoading("beta.gguf")
+            model.selectModelWithoutLoading("beta.gguf")
             model.selectModelWithoutLoading("ghost.gguf")
         }
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
@@ -257,7 +258,10 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             XCTAssertEqual(model.selectedModelFilename, "beta.gguf", "An unknown filename must be ignored")
             XCTAssertEqual(userDefaults.string(forKey: Self.selectionKey), "beta.gguf")
             XCTAssertEqual(model.state, .idle, "Recording a choice must not load the model")
-            XCTAssertEqual(reloads.count, 0, "Nothing reloads, so suggestion state must be left alone")
+            // The next request runs on the new model, so suggestion state from the old one is
+            // cleared once. The repeated pick and the unknown filename change nothing and must not
+            // signal again.
+            XCTAssertEqual(reloads.count, 1, "The model switch must clear suggestion state from the old model")
         }
     }
 

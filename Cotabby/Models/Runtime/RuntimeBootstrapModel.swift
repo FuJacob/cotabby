@@ -144,6 +144,11 @@ final class RuntimeBootstrapModel: ObservableObject {
 
         selectedModelFilename = filename
         persistSelectedModelFilename(filename)
+        // Signal the switch even though nothing loads yet: a model an earlier fallback loaded may
+        // still be generating or showing a suggestion, and the next request runs on the new model.
+        // Clearing that state now matches `selectModel`, so no completion from the old model is
+        // left on screen to accept.
+        onWillReloadModel?()
         runtimeManager.configureSelectedModel(filename: filename)
     }
 
