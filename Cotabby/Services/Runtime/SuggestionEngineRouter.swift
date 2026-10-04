@@ -69,10 +69,14 @@ final class SuggestionEngineRouter {
                         "Apple Intelligence unsupported for locale; fallback is turned off",
                         metadata: metadata.merging(["reason": .string(message)]) { _, new in new }
                     )
-                    return SuggestionResult(
+                    let result = SuggestionResult(
                         generation: request.generation, rawText: "", text: "", latency: 0,
                         suppressionReason: "appleLanguageUnsupported"
                     )
+                    // The coordinator leaves results that carry a suppression reason to the router,
+                    // so this is the only place the withheld request can be counted.
+                    recordQualityOutcome(result)
+                    return result
                 }
                 CotabbyLogger.suggestion.info(
                     "Apple Intelligence unsupported for locale, falling back to open-source: \(message)",

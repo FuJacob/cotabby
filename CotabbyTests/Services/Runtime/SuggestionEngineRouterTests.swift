@@ -176,6 +176,11 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(result.text, "")
         XCTAssertEqual(result.suppressionReason, "appleLanguageUnsupported")
         XCTAssertTrue(rig.llama.requests.isEmpty, "With the fallback off the local model must not run")
+        // The coordinator skips results that carry a suppression reason, so the router must count
+        // this one or the Performance pane never shows it.
+        XCTAssertEqual(rig.quality.counters.generated, 1)
+        XCTAssertEqual(rig.quality.counters.suppressedByReason, ["appleLanguageUnsupported": 1])
+        XCTAssertTrue(rig.metrics.entries.isEmpty, "Nothing was generated, so there is no latency to record")
     }
 
     func test_fallbackSettingsDefaultToTodaysBehaviorAndPersist() {
