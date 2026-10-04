@@ -414,6 +414,52 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.pluggedInModelFilename, "")
     }
 
+    // MARK: - Local runtime residency
+
+    /// `AppDelegate` starts or stops the runtime from these emissions. Each one must reflect the
+    /// setting that was just written, not the value it replaced: `@Published` sends from `willSet`,
+    /// so a decision built by reading the properties back would turn "Keep Fallback Model Loaded"
+    /// into its opposite.
+    func test_localRuntimeResidencyPublisher_emitsTheDecisionForTheNewSettings() {
+        let model = makeModel()
+        model.selectEngine(.appleIntelligence)
+        var decisions: [Bool] = []
+        let subscription = model.localRuntimeResidencyPublisher.sink { decisions.append($0) }
+        defer { subscription.cancel() }
+        XCTAssertEqual(decisions, [false], "Defaults keep the fallback on but do not preload its model")
+
+        model.setKeepsFallbackModelLoaded(true)
+        XCTAssertEqual(decisions, [false, true])
+        XCTAssertTrue(model.keepsLocalRuntimeLoaded)
+
+        model.setAppleLanguageFallbackEnabled(false)
+        XCTAssertEqual(decisions, [false, true, false], "Keep-loaded means nothing once the fallback is off")
+
+        model.setAppleLanguageFallbackEnabled(true)
+        model.selectEngine(.openAICompatible)
+        XCTAssertEqual(decisions, [false, true, false, true, false])
+        XCTAssertFalse(model.keepsLocalRuntimeLoaded)
+
+        model.selectEngine(.llamaOpenSource)
+        XCTAssertEqual(decisions.last, true)
+        XCTAssertTrue(model.keepsLocalRuntimeLoaded)
+    }
+
+    func test_localRuntimeResidencyPublisher_repeatsAnUnchangedDecisionOnEngineSwitch() {
+        // Apple Intelligence without keep-loaded and the endpoint both answer "not resident". The
+        // repeat must still arrive: it is what stops a model the fallback loaded on demand.
+        let model = makeModel()
+        model.selectEngine(.appleIntelligence)
+        var decisions: [Bool] = []
+        let subscription = model.localRuntimeResidencyPublisher.sink { decisions.append($0) }
+        defer { subscription.cancel() }
+
+        model.selectEngine(.openAICompatible)
+        model.selectEngine(.openAICompatible)
+
+        XCTAssertEqual(decisions, [false, false], "A repeated write of the same engine is not a change")
+    }
+
     // MARK: - Endpoint configuration
 
     func test_openAICompatibleConfiguration_validatesTheStoredEndpointFields() throws {

@@ -92,6 +92,7 @@ Cotabby/
 │   │   ├── BundledRuntimeLocator.swift
 │   │   ├── DecodeStopPolicy.swift
 │   │   ├── DownloadOutcomeClassifier.swift
+│   │   ├── LocalRuntimeResidencyPolicy.swift  when the local model stays loaded
 │   │   ├── TokenHealingPlan.swift    bounded word-fragment retokenization at the caret
 │   │   └── TokenHealingBuffer.swift  exact byte replay and lossless streamed UTF-8
 │   ├── Settings/                     persistence and settings policies

@@ -594,6 +594,38 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveKeepsFallbackModelLoaded(enabled)
     }
 
+    /// Whether the local runtime should keep its model loaded under the current settings. Read
+    /// this outside a `@Published` sink; inside one, use `localRuntimeResidencyPublisher`.
+    var keepsLocalRuntimeLoaded: Bool {
+        LocalRuntimeResidencyPolicy.keepsModelLoaded(
+            engine: selectedEngine,
+            isAppleLanguageFallbackEnabled: isAppleLanguageFallbackEnabled,
+            keepsFallbackModelLoaded: keepsFallbackModelLoaded
+        )
+    }
+
+    /// Emits the residency decision whenever the engine or either fallback switch changes, starting
+    /// with the current value. The decision is computed from the *emitted* values on purpose:
+    /// `@Published` publishes from the property's `willSet`, so a subscriber that read
+    /// `selectedEngine` back would still see the previous engine and start or stop the wrong way.
+    /// Equal decisions are not collapsed: switching from Apple Intelligence to the endpoint emits
+    /// `false` again, and that repeat is what releases a model the fallback loaded on demand.
+    var localRuntimeResidencyPublisher: AnyPublisher<Bool, Never> {
+        Publishers.CombineLatest3(
+            $selectedEngine.removeDuplicates(),
+            $isAppleLanguageFallbackEnabled.removeDuplicates(),
+            $keepsFallbackModelLoaded.removeDuplicates()
+        )
+        .map { engine, isFallbackEnabled, keepsFallbackLoaded in
+            LocalRuntimeResidencyPolicy.keepsModelLoaded(
+                engine: engine,
+                isAppleLanguageFallbackEnabled: isFallbackEnabled,
+                keepsFallbackModelLoaded: keepsFallbackLoaded
+            )
+        }
+        .eraseToAnyPublisher()
+    }
+
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
         guard isPowerBasedModelSwitchingEnabled != enabled else {
             return
