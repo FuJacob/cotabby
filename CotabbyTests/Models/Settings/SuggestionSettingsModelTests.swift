@@ -966,6 +966,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setStreamSuggestionsWhileGenerating(true)
         model.setPredictAheadWhileTyping(false)
         model.setAcceptanceGranularity(.phrase)
+        model.setDoubleTapFullAcceptance()
+        model.setPerAppFullAcceptKey(bundleIdentifier: "com.example.own", displayName: "Own",
+                                     keyCode: 50, modifiers: [], label: "`")
         model.setExtendedContext("notes")
         model.setSuggestInIntegratedTerminals(true)
         model.setSurfaceContextEnabled(false)
@@ -999,6 +1002,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(published.streamSuggestionsWhileGenerating, true)
         XCTAssertEqual(published.predictAheadWhileTyping, false)
         XCTAssertEqual(published.acceptanceGranularity, .phrase)
+        XCTAssertEqual(published.doubleTapAcceptsEntireSuggestion, true)
+        XCTAssertEqual(published.fullAcceptanceOverrideBundleIdentifiers, ["com.example.own"])
         XCTAssertEqual(published.extendedContext, "notes")
         XCTAssertEqual(published.suggestInIntegratedTerminals, true)
         XCTAssertEqual(published.isSurfaceContextEnabled, false)

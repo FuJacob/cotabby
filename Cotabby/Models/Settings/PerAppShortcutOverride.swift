@@ -10,3 +10,11 @@ struct PerAppShortcutOverride: Codable, Equatable, Identifiable, Sendable {
 
     var id: String { bundleIdentifier }
 }
+
+extension PerAppShortcutOverride {
+    /// Apps whose Accept Entire Suggestion binding replaces the global one. A recorded key and
+    /// Disable (the disabled-key sentinel) both count; only `nil` inherits the global slot.
+    static func bundleIdentifiersOverridingFullAcceptance(in overrides: [PerAppShortcutOverride]) -> Set<String> {
+        Set(overrides.filter { $0.fullAcceptance != nil }.map(\.bundleIdentifier))
+    }
+}

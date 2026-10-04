@@ -186,6 +186,15 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
     /// from triggering destructive edits.
     let automaticallyFixTypos: Bool
+    /// When true, a second press of the Accept Word key within `DoubleTapAcceptanceState.window`
+    /// accepts the rest of the suggestion. Travels in the snapshot so the acceptance path reads the
+    /// live value without subscribing to the settings model. Read it per app through
+    /// `isDoubleTapFullAcceptanceActive(forBundleIdentifier:)`.
+    let doubleTapAcceptsEntireSuggestion: Bool
+    /// Apps with their own Accept Entire Suggestion binding: a one-press key, or Disable. The
+    /// double tap lives in the global Accept Entire Suggestion slot, and an app's own binding
+    /// replaces that slot there, so these apps never treat a double tap as accept-all.
+    let fullAcceptanceOverrideBundleIdentifiers: Set<String>
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the
@@ -193,5 +202,14 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// toggle stays load-bearing.
     var effectiveWordRange: SuggestionWordRange {
         isUsingCustomWordCountRange ? customWordCountRange : selectedWordCountPreset.range
+    }
+
+    /// Whether a quick second Accept Word press accepts the rest of the suggestion in the app with
+    /// this bundle identifier. Matching is exact, like `ShortcutResolver`, so this agrees with the
+    /// per-app bindings the input monitor used to classify the press.
+    func isDoubleTapFullAcceptanceActive(forBundleIdentifier bundleIdentifier: String?) -> Bool {
+        guard doubleTapAcceptsEntireSuggestion else { return false }
+        guard let bundleIdentifier else { return true }
+        return !fullAcceptanceOverrideBundleIdentifiers.contains(bundleIdentifier)
     }
 }

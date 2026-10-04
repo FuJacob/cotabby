@@ -174,6 +174,14 @@ final class SuggestionCoordinator: ObservableObject {
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
     var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()
 
+    /// Pure state for recognizing a quick second press of the Accept Word key. Only real key presses
+    /// feed it; the queued post-exhaustion accept stays a plain one-word accept.
+    var doubleTapAcceptanceState = DoubleTapAcceptanceState()
+
+    /// Clock for double-tap timing, in seconds of system uptime. Tests substitute a manual clock so
+    /// a busy runner cannot stretch two back-to-back presses past the window.
+    var doubleTapUptimeProvider: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+
     /// The user's typing history, when the app has one. Optional so test rigs and previews run
     /// without it; the provider itself returns nothing while history is turned off.
     let historyProvider: (any SuggestionHistoryProviding)?

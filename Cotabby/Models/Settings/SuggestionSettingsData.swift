@@ -111,6 +111,11 @@ struct SuggestionShortcutSettings: Equatable {
     var fullAcceptance: SuggestionShortcutBindingSettings
     var globalToggle: SuggestionShortcutBindingSettings
     var perAppOverrides: [PerAppShortcutOverride]
+    /// When true, Accept Entire Suggestion is bound to a quick double press of the Accept Word key
+    /// instead of a one-press key; the model's setters keep `fullAcceptance` unbound while it is on.
+    /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
+    /// the global Accept Entire Suggestion binding.
+    var doubleTapAcceptsEntireSuggestion: Bool
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -468,5 +473,10 @@ extension SuggestionSettingsData {
     var perAppShortcutOverrides: [PerAppShortcutOverride] {
         get { shortcuts.perAppOverrides }
         set { shortcuts.perAppOverrides = newValue }
+    }
+
+    var doubleTapAcceptsEntireSuggestion: Bool {
+        get { shortcuts.doubleTapAcceptsEntireSuggestion }
+        set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
     }
 }
