@@ -223,7 +223,8 @@ extension SuggestionCoordinator {
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
-                configuration: configuration
+                configuration: configuration,
+                historyExamples: self.historyExamples(for: prewarmContext)
             ).request
             await suggestionEngine.prewarm(for: request)
         }

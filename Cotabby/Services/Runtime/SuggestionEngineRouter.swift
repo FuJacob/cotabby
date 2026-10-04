@@ -98,6 +98,16 @@ final class SuggestionEngineRouter {
             recordQualityOutcome(result)
             return result
         case .openAICompatible:
+            // The request was built from a settings snapshot; power-source switching can move the
+            // live engine to the endpoint in between. Typing history must never leave this Mac, so
+            // a request that carries it is dropped rather than sent.
+            guard request.historyExamples.isEmpty else {
+                CotabbyLogger.suggestion.info("Withheld a request carrying typing history from the endpoint", metadata: metadata)
+                return SuggestionResult(
+                    generation: request.generation, rawText: "", text: "", latency: 0,
+                    suppressionReason: "historyWithheldFromEndpoint"
+                )
+            }
             CotabbyLogger.suggestion.debug("Routing to OpenAI-compatible endpoint", metadata: metadata)
             let result = try await openAICompatibleEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: endpointModelNameProvider() ?? "Local Endpoint", latency: result.latency)

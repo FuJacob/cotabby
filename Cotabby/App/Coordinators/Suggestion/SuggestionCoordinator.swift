@@ -182,6 +182,17 @@ final class SuggestionCoordinator: ObservableObject {
     /// a busy runner cannot stretch two back-to-back presses past the window.
     var doubleTapUptimeProvider: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
+    /// The user's typing history, when the app has one. Optional so test rigs and previews run
+    /// without it; the provider itself returns nothing while history is turned off.
+    let historyProvider: (any SuggestionHistoryProviding)?
+
+    /// Examples of the user's past writing for this field, for every request built from it.
+    /// Every request kind (ordinary, speculative, continuation, prewarm) passes the same examples so
+    /// their prompts share one head and the llama KV cache stays reusable between them.
+    func historyExamples(for context: FocusedInputContext) -> [String] {
+        historyProvider?.historyExamples(for: context, engine: settingsSnapshot.selectedEngine) ?? []
+    }
+
     init(
         permissionManager: any SuggestionPermissionProviding,
         lowPowerModeProvider: any SuggestionLowPowerModeProviding,
@@ -201,6 +212,7 @@ final class SuggestionCoordinator: ObservableObject {
         symSpellCorrector: SymSpellCorrector,
         spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
         qualityMetricsStore: SuggestionQualityMetricsStore,
+        historyProvider: (any SuggestionHistoryProviding)? = nil,
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -224,6 +236,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.symSpellCorrector = symSpellCorrector
         self.spellingLanguageResolver = spellingLanguageResolver
         self.qualityMetricsStore = qualityMetricsStore
+        self.historyProvider = historyProvider
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
