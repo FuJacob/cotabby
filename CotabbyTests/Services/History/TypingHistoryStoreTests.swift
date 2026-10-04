@@ -611,6 +611,32 @@ final class TypingHistoryStoreTests: XCTestCase {
                        "The field now contains that writing; showing it would make the model echo the draft")
     }
 
+    func test_anExampleHiddenByTheFieldsLatestWordsComesBackWhenTheWordingMovesOn() async throws {
+        let store = makeStore()
+        store.setUsingHistory(true)
+        let earlier = "we will review the Imperum connector plan with the SOC team on Monday morning, then ship it."
+        await store.importCotypistExport(from: try writeExport([[
+            "appBundleIdentifier": "com.example.TestApp", "textUpToCursor": earlier
+        ]]))
+        let probe = CotabbyTestFixtures.focusedInputContext(
+            elementIdentifier: "probe", precedingText: "Imperum connector plan review notes for the steering group "
+        )
+        await waitUntil { !store.historyExamples(for: probe, engine: .llamaOpenSource).isEmpty }
+        // The field's latest words are inside the earlier passage, so it is withheld for now.
+        let echoing = "Budget notes for Friday and several other items: please review the Imperum connector plan with "
+            + "the SOC team on Monday"
+        XCTAssertEqual(
+            store.historyExamples(for: CotabbyTestFixtures.focusedInputContext(precedingText: echoing), engine: .llamaOpenSource), []
+        )
+
+        // Two more words, same 8-word block: the wording has moved on, so the passage is usable again.
+        let movedOn = CotabbyTestFixtures.focusedInputContext(precedingText: echoing + " evening instead")
+        XCTAssertEqual(
+            TypingHistoryQuery.stableText(from: echoing), TypingHistoryQuery.stableText(from: movedOn.precedingText)
+        )
+        XCTAssertFalse(store.historyExamples(for: movedOn, engine: .llamaOpenSource).isEmpty)
+    }
+
     func test_unchangedTextDoesNotEvaluateTheSettingsGate() {
         let store = makeStore()
         store.setRecording(true)

@@ -112,10 +112,11 @@ nonisolated struct TypingHistoryIndex: Sendable {
     }
 
     /// Ranks past writing against the query and returns the best `maxCandidates` matches with their
-    /// passages, best first. Matches that are already versions of the field's own text are skipped
-    /// here, so they never take a slot from a usable example; a few more candidates than examples
-    /// are kept because the field keeps growing and can still come to contain one
-    /// (`examples(from:currentFieldText:limit:)` re-checks them on every request).
+    /// passages, best first. Earlier versions of the field's own text (the field already contains
+    /// their opening, which stays true as it grows) are skipped here, so they never take a slot
+    /// from a usable example. Whether the field's latest words appear in a match changes with
+    /// every keystroke, so that half of the check is left to `examples(from:currentFieldText:limit:)`,
+    /// which re-runs both halves on every request; a few spare candidates cover what it drops.
     func candidates(for query: TypingHistoryQuery, maxCandidates: Int = 6, maxCharacters: Int = 320) -> [Candidate] {
         let queryTerms = Set(Self.terms(in: query.text))
         guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
@@ -139,11 +140,10 @@ nonisolated struct TypingHistoryIndex: Sendable {
             .filter { $0.1 >= Self.minimumScore }
             .sorted { $0.1 > $1.1 }
 
-        let currentTail = Self.tail(of: query.currentFieldText)
         var candidates: [Candidate] = []
         for (documentID, _) in ranked {
             let text = documents[Int(documentID)].text
-            if Self.isSameDocument(text, currentText: query.currentFieldText, currentTail: currentTail) { continue }
+            if Self.isEarlierVersion(text, of: query.currentFieldText) { continue }
             let passage = Self.bestPassage(in: text, terms: queryTerms, maxCharacters: maxCharacters)
             guard !passage.isEmpty else { continue }
             candidates.append(Candidate(documentText: text, passage: passage))
@@ -160,9 +160,13 @@ nonisolated struct TypingHistoryIndex: Sendable {
     /// True when a history entry is another version of the text being typed: an earlier snapshot
     /// (the field now contains its opening) or a later one (it contains the field's latest words).
     private static func isSameDocument(_ text: String, currentText: String, currentTail: String) -> Bool {
+        isEarlierVersion(text, of: currentText) || (currentTail.count >= 20 && text.contains(currentTail))
+    }
+
+    /// The field already contains this entry's opening: an earlier snapshot of the same writing.
+    private static func isEarlierVersion(_ text: String, of currentText: String) -> Bool {
         let opening = String(text.prefix(60))
-        if opening.count >= 20, currentText.contains(opening) { return true }
-        return currentTail.count >= 20 && text.contains(currentTail)
+        return opening.count >= 20 && currentText.contains(opening)
     }
 
     // MARK: - Text helpers
