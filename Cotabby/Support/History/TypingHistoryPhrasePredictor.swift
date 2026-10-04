@@ -79,42 +79,46 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
             sequences.append(ids)
         }
 
-        // Two passes keep memory bounded: count every context first, then collect next-token
-        // counts only for contexts frequent enough to ever produce a shortcut.
-        var contextCounts: [Context: Int32] = [:]
-        for ids in sequences where ids.count > Self.contextLength {
-            for index in Self.contextLength..<ids.count {
-                contextCounts[Context(first: ids[index - 3], second: ids[index - 2], third: ids[index - 1]), default: 0] += 1
-            }
-        }
-        var continuations: [Context: [Int32: Int32]] = [:]
-        for ids in sequences where ids.count > Self.contextLength {
-            for index in Self.contextLength..<ids.count {
-                let context = Context(first: ids[index - 3], second: ids[index - 2], third: ids[index - 1])
-                guard let count = contextCounts[context], count >= Self.minimumCount else { continue }
-                continuations[context, default: [:]][ids[index], default: 0] += 1
-            }
-        }
-
-        var shortCounts: [ShortContext: Int32] = [:]
-        for ids in sequences where ids.count > 2 {
-            for index in 2..<ids.count {
-                shortCounts[ShortContext(first: ids[index - 2], second: ids[index - 1]), default: 0] += 1
-            }
-        }
-        var shortContinuations: [ShortContext: [Int32: Int32]] = [:]
-        for ids in sequences where ids.count > 2 {
-            for index in 2..<ids.count {
-                let context = ShortContext(first: ids[index - 2], second: ids[index - 1])
-                guard let count = shortCounts[context], count >= Self.backoffMinimumCount else { continue }
-                shortContinuations[context, default: [:]][ids[index], default: 0] += 1
-            }
-        }
-
         self.vocabulary = vocabulary
         self.displayForms = displayForms
-        self.continuations = continuations
-        self.shortContinuations = shortContinuations
+        continuations = Self.continuationCounts(
+            in: sequences, contextLength: Self.contextLength, minimumCount: Self.minimumCount
+        ) { ids, index in
+            Context(first: ids[index - 3], second: ids[index - 2], third: ids[index - 1])
+        }
+        shortContinuations = Self.continuationCounts(
+            in: sequences, contextLength: 2, minimumCount: Self.backoffMinimumCount
+        ) { ids, index in
+            ShortContext(first: ids[index - 2], second: ids[index - 1])
+        }
+    }
+
+    /// Next-token counts for every context of `contextLength` words seen at least `minimumCount`
+    /// times; `context` builds the key for the words just before `index`.
+    ///
+    /// Two passes keep memory bounded: count every context first, then collect next-token counts
+    /// only for contexts frequent enough to ever produce a shortcut.
+    private static func continuationCounts<Key: Hashable>(
+        in sequences: [[Int32]],
+        contextLength: Int,
+        minimumCount: Int32,
+        context: ([Int32], Int) -> Key
+    ) -> [Key: [Int32: Int32]] {
+        var contextCounts: [Key: Int32] = [:]
+        for ids in sequences where ids.count > contextLength {
+            for index in contextLength..<ids.count {
+                contextCounts[context(ids, index), default: 0] += 1
+            }
+        }
+        var continuations: [Key: [Int32: Int32]] = [:]
+        for ids in sequences where ids.count > contextLength {
+            for index in contextLength..<ids.count {
+                let key = context(ids, index)
+                guard let count = contextCounts[key], count >= minimumCount else { continue }
+                continuations[key, default: [:]][ids[index], default: 0] += 1
+            }
+        }
+        return continuations
     }
 
     /// The exact text to insert after `precedingText`, or nil when history is not confident.
@@ -126,21 +130,7 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
         let endsAtBoundary = precedingText.last.map { $0.isWhitespace } ?? true
         var tokens = Self.tokens(in: String(precedingText.suffix(400)))
         let partial = endsAtBoundary ? nil : tokens.popLast()
-        guard tokens.count >= 2 else { return nil }
-
-        // The two words nearest the caret must be known; the third may be new (it only selects the
-        // three-word table), in which case the two-word fallback answers.
-        var ids: [Int32] = tokens.count >= Self.contextLength ? [] : [Self.unknownToken]
-        for (offset, token) in tokens.suffix(Self.contextLength).enumerated() {
-            let isNearCaret = offset >= min(tokens.count, Self.contextLength) - 2
-            if let id = vocabulary[token.lowercased()] {
-                ids.append(id)
-            } else if isNearCaret {
-                return nil
-            } else {
-                ids.append(Self.unknownToken)
-            }
-        }
+        guard tokens.count >= 2, var ids = contextIDs(for: tokens) else { return nil }
 
         var output = ""
         var words = 0
@@ -148,23 +138,7 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
         var isFirstStep = true
         while words < limits.maxWords {
             let prefixFilter = isFirstStep ? partial?.lowercased() : nil
-            let context = Context(first: ids[ids.count - 3], second: ids[ids.count - 2], third: ids[ids.count - 1])
-            let shortContext = ShortContext(first: ids[ids.count - 2], second: ids[ids.count - 1])
-            let choice: (Int32, Int32)?
-            if let candidates = continuations[context] {
-                choice = Self.confidentCandidate(
-                    in: candidates, displayForms: displayForms, prefix: prefixFilter,
-                    minimumCount: Self.minimumCount, minimumShare: Self.minimumShare
-                )
-            } else if let candidates = shortContinuations[shortContext] {
-                choice = Self.confidentCandidate(
-                    in: candidates, displayForms: displayForms, prefix: prefixFilter,
-                    minimumCount: Self.backoffMinimumCount, minimumShare: Self.backoffMinimumShare
-                )
-            } else {
-                choice = nil
-            }
-            guard let (nextID, count) = choice else { break }
+            guard let (nextID, count) = confidentNextToken(after: ids, prefix: prefixFilter) else { break }
             let token = displayForms[Int(nextID)]
 
             if token == Self.newlineToken {
@@ -190,6 +164,43 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
         guard !visible.isEmpty else { return nil }
         if words < 2, weakestCount < Self.minimumSingleWordCount { return nil }
         return output.hasSuffix("\n") ? String(output.dropLast()) : output
+    }
+
+    /// The ids of the three words before the caret, or nil when history cannot answer.
+    ///
+    /// The two words nearest the caret must be known; the third may be new (it only selects the
+    /// three-word table), in which case the two-word fallback answers.
+    private func contextIDs(for tokens: [String]) -> [Int32]? {
+        var ids: [Int32] = tokens.count >= Self.contextLength ? [] : [Self.unknownToken]
+        for (offset, token) in tokens.suffix(Self.contextLength).enumerated() {
+            let isNearCaret = offset >= min(tokens.count, Self.contextLength) - 2
+            if let id = vocabulary[token.lowercased()] {
+                ids.append(id)
+            } else if isNearCaret {
+                return nil
+            } else {
+                ids.append(Self.unknownToken)
+            }
+        }
+        return ids
+    }
+
+    /// The next token history is confident about (its id and count): from the three-word table
+    /// when it knows the context, otherwise from the stricter two-word fallback.
+    private func confidentNextToken(after ids: [Int32], prefix: String?) -> (Int32, Int32)? {
+        let context = Context(first: ids[ids.count - 3], second: ids[ids.count - 2], third: ids[ids.count - 1])
+        if let candidates = continuations[context] {
+            return Self.confidentCandidate(
+                in: candidates, displayForms: displayForms, prefix: prefix,
+                minimumCount: Self.minimumCount, minimumShare: Self.minimumShare
+            )
+        }
+        let shortContext = ShortContext(first: ids[ids.count - 2], second: ids[ids.count - 1])
+        guard let candidates = shortContinuations[shortContext] else { return nil }
+        return Self.confidentCandidate(
+            in: candidates, displayForms: displayForms, prefix: prefix,
+            minimumCount: Self.backoffMinimumCount, minimumShare: Self.backoffMinimumShare
+        )
     }
 
     private static func confidentCandidate(

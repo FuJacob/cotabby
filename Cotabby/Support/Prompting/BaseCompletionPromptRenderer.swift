@@ -108,19 +108,7 @@ enum BaseCompletionPromptRenderer {
             )
         )
 
-        // Token-aware budgeting (opt-in): when a token budget is supplied, fill sections against an
-        // estimated-token window instead of the character approximation. Defaults to the character
-        // path so shipped behavior is unchanged.
-        let kept: [PromptSection]
-        if let tokenBudget {
-            kept = PromptSectionBudget.allocate(
-                sections,
-                totalTokens: tokenBudget,
-                estimate: TokenCountEstimator.estimate
-            )
-        } else {
-            kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
-        }
+        let kept = allocate(sections, contextBudget: contextBudget, tokenBudget: tokenBudget)
         let prefix = kept.first { $0.name == "prefix" }?.content ?? ""
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
@@ -131,6 +119,16 @@ enum BaseCompletionPromptRenderer {
         // A blank line separates the conditioning preface from the live text without a label the
         // model could copy. The prefix remains the final bytes of the prompt.
         return preface.joined(separator: "\n") + "\n\n" + prefix
+    }
+
+    /// Token-aware budgeting (opt-in): when a token budget is supplied, fill sections against an
+    /// estimated-token window instead of the character approximation. Defaults to the character
+    /// path so shipped behavior is unchanged.
+    private static func allocate(_ sections: [PromptSection], contextBudget: Int, tokenBudget: Int?) -> [PromptSection] {
+        guard let tokenBudget else {
+            return PromptSectionBudget.allocate(sections, totalChars: contextBudget)
+        }
+        return PromptSectionBudget.allocate(sections, totalTokens: tokenBudget, estimate: TokenCountEstimator.estimate)
     }
 
     /// Surface metadata is one optional section; its representation does not affect budgeting.

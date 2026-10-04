@@ -36,7 +36,7 @@ nonisolated struct TypingHistoryRecord: Codable, Equatable, Sendable, Identifiab
     /// Text after the caret is usually not the user's: in an email reply it is the quoted thread
     /// other people wrote. Learning only from this part keeps their names and phrasing out of the
     /// user's shortcuts. Nil means the whole text counts (records written before this existed).
-    var typedLength: Int? = nil
+    var typedLength: Int?
 
     /// The part of `text` the user wrote themselves.
     var typedText: String {
