@@ -50,6 +50,7 @@ extension EngineAndModelPaneView {
                 )
             }
             .disabled(!suggestionSettings.isAppleLanguageFallbackEnabled)
+            .settingsItem(.keepFallbackModelLoaded)
 
             // The Open Source section is hidden while Apple Intelligence is the engine, so the
             // fallback model is chosen here. It is the same selection the Open Source engine uses:

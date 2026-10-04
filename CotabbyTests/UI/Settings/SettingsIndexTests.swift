@@ -64,7 +64,11 @@ final class SettingsIndexTests: XCTestCase {
             ("typo", .automaticallyFixTypos),
             ("model status", .modelStatus),
             ("battery", .batteryModel),
-            ("plugged", .pluggedInModel)
+            ("plugged", .pluggedInModel),
+            ("unsupported language", .appleLanguageFallback),
+            ("fallback model", .appleLanguageFallbackModel),
+            ("keep loaded", .keepFallbackModelLoaded),
+            ("preload", .keepFallbackModelLoaded)
         ]
         for expectation in expectations {
             XCTAssertTrue(
