@@ -62,6 +62,22 @@ final class SuggestionEngineRouter {
                 recordQualityOutcome(result)
                 return result
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
+                // The user can turn the fallback off (Engine & Model → Apple Intelligence). Then an
+                // unsupported language simply gets no suggestion, and the local model never loads.
+                guard suggestionSettings.isAppleLanguageFallbackEnabled else {
+                    CotabbyLogger.suggestion.info(
+                        "Apple Intelligence unsupported for locale; fallback is turned off",
+                        metadata: metadata.merging(["reason": .string(message)]) { _, new in new }
+                    )
+                    let result = SuggestionResult(
+                        generation: request.generation, rawText: "", text: "", latency: 0,
+                        suppressionReason: "appleLanguageUnsupported"
+                    )
+                    // The coordinator leaves results that carry a suppression reason to the router,
+                    // so this is the only place the withheld request can be counted.
+                    recordQualityOutcome(result)
+                    return result
+                }
                 CotabbyLogger.suggestion.info(
                     "Apple Intelligence unsupported for locale, falling back to open-source: \(message)",
                     metadata: metadata.merging([
@@ -82,6 +98,16 @@ final class SuggestionEngineRouter {
             recordQualityOutcome(result)
             return result
         case .openAICompatible:
+            // The request was built from a settings snapshot; power-source switching can move the
+            // live engine to the endpoint in between. Typing history must never leave this Mac, so
+            // a request that carries it is dropped rather than sent.
+            guard request.historyExamples.isEmpty else {
+                CotabbyLogger.suggestion.info("Withheld a request carrying typing history from the endpoint", metadata: metadata)
+                return SuggestionResult(
+                    generation: request.generation, rawText: "", text: "", latency: 0,
+                    suppressionReason: "historyWithheldFromEndpoint"
+                )
+            }
             CotabbyLogger.suggestion.debug("Routing to OpenAI-compatible endpoint", metadata: metadata)
             let result = try await openAICompatibleEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: endpointModelNameProvider() ?? "Local Endpoint", latency: result.latency)

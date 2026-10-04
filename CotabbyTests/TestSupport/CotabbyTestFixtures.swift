@@ -126,6 +126,7 @@ enum CotabbyTestFixtures {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
+        historyExamples: [String] = [],
         isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -155,6 +156,7 @@ enum CotabbyTestFixtures {
             languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
+            historyExamples: historyExamples,
             isMultiLineEnabled: isMultiLineEnabled
         )
     }
@@ -270,7 +272,9 @@ enum CotabbyTestFixtures {
         suppressCompletionsOnTypo: Bool = false,
         offerTypoCorrections: Bool = false,
         enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
-        automaticallyFixTypos: Bool = false
+        automaticallyFixTypos: Bool = false,
+        doubleTapAcceptsEntireSuggestion: Bool = false,
+        fullAcceptanceOverrideBundleIdentifiers: Set<String> = []
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -303,7 +307,9 @@ enum CotabbyTestFixtures {
             suppressCompletionsOnTypo: suppressCompletionsOnTypo,
             offerTypoCorrections: offerTypoCorrections,
             enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: automaticallyFixTypos
+            automaticallyFixTypos: automaticallyFixTypos,
+            doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+            fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrideBundleIdentifiers
         )
     }
 }

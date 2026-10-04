@@ -28,6 +28,11 @@ struct SuggestionEngineSettings: Equatable {
     var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
     var pluggedInEndpointModelName: String
+    /// When Apple Intelligence rejects a language, retry with the selected Open Source model.
+    var isAppleLanguageFallbackEnabled: Bool
+    /// Keep that fallback model loaded while Apple Intelligence is selected, so the first
+    /// fallback suggestion does not wait for the model to load. Costs the model's memory.
+    var keepsFallbackModelLoaded: Bool
 }
 
 /// Completion length, timing, streaming, and acceptance behavior.
@@ -111,6 +116,11 @@ struct SuggestionShortcutSettings: Equatable {
     var fullAcceptance: SuggestionShortcutBindingSettings
     var globalToggle: SuggestionShortcutBindingSettings
     var perAppOverrides: [PerAppShortcutOverride]
+    /// When true, Accept Entire Suggestion is bound to a quick double press of the Accept Word key
+    /// instead of a one-press key; the model's setters keep `fullAcceptance` unbound while it is on.
+    /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
+    /// the global Accept Entire Suggestion binding.
+    var doubleTapAcceptsEntireSuggestion: Bool
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -183,6 +193,16 @@ extension SuggestionSettingsData {
     var isPowerBasedModelSwitchingEnabled: Bool {
         get { engine.isPowerBasedModelSwitchingEnabled }
         set { engine.isPowerBasedModelSwitchingEnabled = newValue }
+    }
+
+    var isAppleLanguageFallbackEnabled: Bool {
+        get { engine.isAppleLanguageFallbackEnabled }
+        set { engine.isAppleLanguageFallbackEnabled = newValue }
+    }
+
+    var keepsFallbackModelLoaded: Bool {
+        get { engine.keepsFallbackModelLoaded }
+        set { engine.keepsFallbackModelLoaded = newValue }
     }
 
     var batteryEngine: SuggestionEngineKind {
@@ -468,5 +488,10 @@ extension SuggestionSettingsData {
     var perAppShortcutOverrides: [PerAppShortcutOverride] {
         get { shortcuts.perAppOverrides }
         set { shortcuts.perAppOverrides = newValue }
+    }
+
+    var doubleTapAcceptsEntireSuggestion: Bool {
+        get { shortcuts.doubleTapAcceptsEntireSuggestion }
+        set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
     }
 }

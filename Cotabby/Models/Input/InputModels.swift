@@ -65,6 +65,24 @@ struct CapturedInputEvent: Equatable {
     let keyCode: CGKeyCode
     let characters: String
     let flags: CGEventFlags
+    /// True when the system generated this key-down because the key is being held
+    /// (`kCGKeyboardEventAutorepeat`). Only the accept tap stamps it: double-tap recognition is the
+    /// one consumer that must tell a held Accept Word key apart from a second, separate press.
+    let isAutorepeat: Bool
+
+    init(
+        kind: Kind,
+        keyCode: CGKeyCode,
+        characters: String,
+        flags: CGEventFlags,
+        isAutorepeat: Bool = false
+    ) {
+        self.kind = kind
+        self.keyCode = keyCode
+        self.characters = characters
+        self.flags = flags
+        self.isAutorepeat = isAutorepeat
+    }
 
     var shouldSchedulePrediction: Bool {
         switch kind {

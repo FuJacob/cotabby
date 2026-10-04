@@ -506,15 +506,27 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
             // outside the content; keeping both surfaces visible is what creates the double
             // outline. By owning the one visible rounded surface here, the menu has a single border
             // regardless of how much padding the system host reserves around it.
+            //
+            // No SwiftUI `.shadow` here: the host window is only a few points larger than this
+            // panel, so a soft shadow gets clipped at the window edge and reads as a hard gray
+            // frame around the menu. The native window shadow (enabled in the configurator) is
+            // drawn by the window server outside the window and follows the panel's alpha shape.
+            //
+            // `.ignoresSafeArea()` matters on macOS 27: the host window is 8pt taller than this
+            // view (a 4pt safe-area inset top and bottom), and the system paints its own rounded
+            // backing across the whole window. A panel that stops at the safe area leaves that
+            // backing showing as a gray frame above and below the menu; filling to the window
+            // edges covers it so there is one surface.
             content
                 .background {
                     RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
                         .fill(Color(nsColor: .windowBackgroundColor))
-                        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 8)
+                        .ignoresSafeArea()
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
                         .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
+                        .ignoresSafeArea()
                 }
         } else if #available(macOS 15.0, *) {
             // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
@@ -541,7 +553,10 @@ private enum MenuBarWindowChromeConfigurator {
     static func configure(_ window: NSWindow) {
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = false
+        // The window itself is clear, so the window server derives the shadow from the alpha of
+        // the SwiftUI panel: it hugs the rounded rectangle and, unlike a SwiftUI shadow, is not
+        // clipped by the window's bounds.
+        window.hasShadow = true
 
         for backingView in [window.contentView, window.contentView?.superview].compactMap({ $0 }) {
             backingView.wantsLayer = true
