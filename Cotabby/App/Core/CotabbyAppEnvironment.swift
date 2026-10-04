@@ -374,15 +374,27 @@ final class CotabbyAppEnvironment {
             : nil
 
         // Recording reads every focus snapshot; the store ignores them unless recording is on and
-        // the text changed. Cotabby's own gates (globally on, not paused, app not disabled) decide
-        // where recording may happen, so history is only collected where Cotabby is active.
+        // the text changed. The same rule that decides whether Cotabby suggests (on, not paused,
+        // app or site not disabled, not paused for Low Power Mode) decides where recording may
+        // happen, so history is only collected where Cotabby is active. The store checks the
+        // field's capability, secure fields, and terminals itself.
         focusModel.$snapshot
-            .sink { [weak typingHistoryStore, weak suggestionSettings] snapshot in
-                guard let typingHistoryStore, let suggestionSettings else { return }
+            .sink { [weak typingHistoryStore, weak suggestionSettings, weak permissionManager, weak lowPowerModeMonitor] snapshot in
+                guard let typingHistoryStore, let suggestionSettings, let permissionManager, let lowPowerModeMonitor else { return }
                 typingHistoryStore.observe(snapshot) {
                     let settings = suggestionSettings.snapshot
-                    return settings.isGloballyEnabled && !settings.isTemporarilyPaused
-                        && !(snapshot.bundleIdentifier.map(settings.disabledAppBundleIdentifiers.contains) ?? false)
+                    return SuggestionAvailabilityEvaluator.disabledReason(
+                        globallyEnabled: settings.isGloballyEnabled,
+                        temporarilyPaused: settings.isTemporarilyPaused,
+                        isLowPowerModeActive: lowPowerModeMonitor.isLowPowerModeEnabled,
+                        isLowPowerModeAutoDisableEnabled: settings.isLowPowerModeAutoDisableEnabled,
+                        disabledAppBundleIdentifiers: settings.disabledAppBundleIdentifiers,
+                        disabledDomains: PerDomainDisableSettings.disabledDomains(),
+                        suggestInIntegratedTerminals: settings.suggestInIntegratedTerminals,
+                        inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+                        focusSnapshot: snapshot,
+                        checkCapability: false
+                    ) == nil
                 }
             }
             .store(in: &cancellables)

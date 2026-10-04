@@ -270,7 +270,8 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
 
         let typedLength = input.precedingText.count
-        if let active = activeRecording, active.fieldKey == fieldKey, !holdsNewDocument(active, text: text) {
+        if let active = activeRecording, active.fieldKey == fieldKey,
+           !holdsNewDocument(active, text: text, isWindowed: input.precedingTextMayBeTruncated) {
             activeRecording?.rawText = text
             activeRecording?.rawTypedLength = typedLength
             scheduleSave()
@@ -298,9 +299,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// sent, and some reuse one composer for every conversation. Updating the same record across
     /// those would overwrite each message with the next. Typing, deleting, or editing one spot
     /// leaves most of the text in place between two observations; sending or switching replaces it.
-    private func holdsNewDocument(_ active: ActiveRecording, text: String) -> Bool {
+    ///
+    /// `isWindowed` means focus capture cut the text before the caret to its window
+    /// (`FocusedInputSnapshot.textWindowUTF16`): a long document, whose window start slides with
+    /// every keystroke, so comparing the two ends says nothing. It stays one record.
+    private func holdsNewDocument(_ active: ActiveRecording, text: String, isWindowed: Bool) -> Bool {
         if Self.isWorthKeeping(active.rawText) {
-            return !Self.keepsMostOf(active.rawText, in: text)
+            return !isWindowed && !Self.keepsMostOf(active.rawText, in: text)
         }
         // Nothing worth keeping is being recorded, for example just after a message was sent. If
         // the field shows the writing it held a moment ago again (Accessibility briefly reported it

@@ -465,6 +465,23 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 0)
     }
 
+    func test_aLongDocumentsSlidingCaptureWindowStaysOneRecord() {
+        let store = makeStore()
+        store.setRecording(true)
+        // Focus capture keeps a fixed window before the caret, so in a long document every
+        // keystroke drops a character from the front of the window as it adds one at the caret.
+        let document = (0..<1_000).map { "word\($0)" }.joined(separator: " ")
+        var window = String(document.suffix(FocusedInputSnapshot.textWindowUTF16))
+        store.observe(focus(window, element: "doc", sequence: 1)) { true }
+        for character in " and a few more words typed at the end" {
+            window = String((window + String(character)).suffix(FocusedInputSnapshot.textWindowUTF16))
+            store.observe(focus(window, element: "doc", sequence: 1)) { true }
+        }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+
+        XCTAssertEqual(store.recordCount, 1)
+    }
+
     func test_keepsMostOfTellsEditsFromReplacements() {
         let draft = "Hi Arnaud, the Imperum POC is ready for review."
 
