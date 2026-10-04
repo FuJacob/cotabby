@@ -280,18 +280,26 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         ).capability
     }
 
-    func test_signInPlaceholderBlocksTheField_andLabelsAreReadOncePerFocusSession() throws {
+    func test_signInPlaceholderBlocksTheField_andLabelsAreReadAtMostOncePerInterval() throws {
         let element = try makeFieldElement(placeholder: "Email or phone", text: "realdeepdark")
-        let resolver = FocusSnapshotResolver()
+        var now: TimeInterval = 100
+        let resolver = FocusSnapshotResolver(uptime: { now })
         let credentialBlock = FocusCapability.blocked(CredentialFieldDetector.blockedReason)
+        let interval = FocusSnapshotResolver.credentialLabelRefreshInterval
 
         XCTAssertEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
 
-        // The label is session-invariant and cached: a later poll in the same session does not
-        // re-read it, and a new focus session does.
+        // Within the interval a poll reuses the reading, so a relabel is not seen yet...
         field?.placeholderString = "Notes"
+        now += interval / 2
         XCTAssertEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
-        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 8, resolver: resolver), credentialBlock)
+        // ...and once it has passed, the same session reads the field again.
+        now += interval
+        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
+
+        // A new focus session reads at once, however fresh the last reading is.
+        field?.placeholderString = "Email or phone"
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 8, resolver: resolver), credentialBlock)
     }
 
     func test_typedAddressBlocksAnUnlabelledField_onTheNextPoll() throws {
