@@ -27,7 +27,7 @@ struct TypingHistorySectionView: View {
                 SettingsRowLabel(
                     title: "Record What I Type",
                     description: "Saves the text of fields where Cotabby is active, encrypted on this Mac. " +
-                        "Password fields and disabled apps are never recorded.",
+                        "Password fields, terminals, and disabled apps are never recorded.",
                     systemImage: "record.circle"
                 )
             }
@@ -49,15 +49,15 @@ struct TypingHistorySectionView: View {
                     Button("Import Cotypist Export…") { chooseExportToImport() }
                         .disabled(store.status != .ready || store.isImporting)
                     Button("Delete All…", role: .destructive) { isConfirmingDeleteAll = true }
-                        .disabled(store.recordCount == 0 || store.isImporting)
+                        .disabled(!canDeleteAll)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entryCountLabel)
                     if let message = statusMessage {
-                        Text(message)
+                        Text(message.text)
                             .font(.caption)
-                            .foregroundStyle(store.status == .ready ? Color.secondary : Color.red)
+                            .foregroundStyle(message.isError ? Color.red : Color.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -66,11 +66,24 @@ struct TypingHistorySectionView: View {
                 "Delete all typing history?",
                 isPresented: $isConfirmingDeleteAll
             ) {
-                Button("Delete All \(store.recordCount) Entries", role: .destructive) { store.deleteAll() }
+                Button(deleteAllConfirmationTitle, role: .destructive) { store.deleteAll() }
             } message: {
                 Text("This removes every recorded and imported entry and its encryption key. It can't be undone.")
             }
         }
+    }
+
+    /// Delete All also clears an archive that can no longer be opened (its entries can't be
+    /// counted, so the count reads zero) and stays available after a failed deletion so it can be
+    /// retried. Never during an import, which would add entries back.
+    private var canDeleteAll: Bool {
+        guard !store.isImporting else { return false }
+        if case .unavailable = store.status { return true }
+        return store.recordCount > 0 || store.deletionError != nil
+    }
+
+    private var deleteAllConfirmationTitle: String {
+        store.recordCount > 0 ? "Delete All \(store.recordCount) Entries" : "Delete Typing History"
     }
 
     private var entryCountLabel: String {
@@ -80,10 +93,11 @@ struct TypingHistorySectionView: View {
         }
     }
 
-    private var statusMessage: String? {
-        if case let .unavailable(message) = store.status { return message }
-        if store.isImporting { return "Importing…" }
-        return store.lastImportMessage
+    private var statusMessage: (text: String, isError: Bool)? {
+        if let deletionError = store.deletionError { return (deletionError, true) }
+        if case let .unavailable(message) = store.status { return (message, true) }
+        if store.isImporting { return ("Importing…", false) }
+        return store.lastImportMessage.map { ($0, false) }
     }
 
     /// Asks for the `user_inputs.json` file from a decrypted Cotypist export.

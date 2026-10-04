@@ -31,6 +31,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     @Published private(set) var status: Status = .loading
     @Published private(set) var isImporting = false
     @Published private(set) var lastImportMessage: String?
+    /// Why the last Delete All failed, until a later one succeeds. While it is set the history is
+    /// still stored, so Settings keeps showing it and keeps Delete All available for a retry.
+    @Published private(set) var deletionError: String?
 
     /// Oldest records are dropped past this many. Retrieval and the phrase table stay small enough
     /// to rebuild in a second or two, and very old writing says little about how the user writes now.
@@ -47,6 +50,10 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private var persistenceGeneration = 0
     /// Numbers each captured save so an older snapshot can never overwrite a newer one.
     private var saveSequence = 0
+    /// Whether `records` differ from what was last loaded or handed to the writer. Saves are skipped
+    /// while this is false, so a user who never records or imports never gets an archive file or a
+    /// Keychain key, and quitting after Delete All does not recreate them.
+    private var hasUnsavedChanges = false
     private let userDefaults: UserDefaults
     private var records: [TypingHistoryRecord] = []
     private var index: TypingHistoryIndex?
@@ -54,14 +61,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private var rebuildGeneration = 0
     private var saveTask: Task<Void, Never>?
     private var activeRecording: ActiveRecording?
-    /// Recently finished fields, by field key. When the user returns to one (or Accessibility
-    /// briefly reported it unsupported), recording resumes into the same record instead of
-    /// starting a duplicate of the same text.
+    /// Recently finished fields worth keeping, by field key. When the user returns to one (or
+    /// Accessibility briefly reported it unsupported or empty) and it still holds that text,
+    /// recording resumes into the same record instead of starting a duplicate of the same text.
     private var recentRecordings: [String: ActiveRecording] = [:]
     private static let maximumRecentRecordings = 64
-    /// How much of a field's opening must match for a returning field to count as the same document.
-    private static let sameDocumentOpeningLength = 40
-    private var exampleCache: (key: String, examples: [String])?
+    /// Ranked example candidates for the current query block (see `historyExamples`).
+    private var exampleCache: (key: String, candidates: [TypingHistoryIndex.Candidate])?
 
     /// The field being typed in right now. Its raw text is kept here and only scrubbed and copied
     /// into `records` when saving or when focus moves on, so recording costs a string comparison
@@ -124,10 +130,18 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard identifiers != preferences.excludedBundleIdentifiers else { return }
         preferences.excludedBundleIdentifiers = identifiers
         userDefaults.set(identifiers, forKey: DefaultsKey.excludedBundleIdentifiers)
-        if excluded, activeRecording?.bundleIdentifier == bundleIdentifier {
-            // Excluding an app mid-field discards that field's unsaved text instead of keeping it.
-            activeRecording = nil
-            recentRecordings = recentRecordings.filter { $0.value.bundleIdentifier != bundleIdentifier }
+        guard excluded else { return }
+        recentRecordings = recentRecordings.filter { $0.value.bundleIdentifier != bundleIdentifier }
+        guard let active = activeRecording, active.bundleIdentifier == bundleIdentifier else { return }
+        // Excluding an app mid-field discards that field's text instead of keeping it, including
+        // any part a background save already copied into `records`.
+        activeRecording = nil
+        if let index = records.firstIndex(where: { $0.id == active.recordID }) {
+            records.remove(at: index)
+            recordCount = records.count
+            hasUnsavedChanges = true
+            scheduleSave()
+            rebuildSearchStructures()
         }
     }
 
@@ -151,16 +165,16 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     }
 
     /// Writes immediately, on the calling (main) thread. Used at termination, when there is no time
-    /// left for a debounced background save.
+    /// left for a debounced background save. Writes nothing when nothing changed.
     func flush() {
         guard status == .ready else { return }
         saveTask?.cancel()
         materializeActiveRecording()
-        saveSequence += 1
+        guard let save = captureSave() else { return }
         do {
-            try writer.save(records, generation: persistenceGeneration, sequence: saveSequence)
+            try writer.save(save.records, generation: save.generation, sequence: save.sequence)
         } catch {
-            CotabbyLogger.app.error("Typing history could not be saved: \(error)")
+            saveFailed(error, generation: save.generation)
         }
     }
 
@@ -171,19 +185,39 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             guard let self, !Task.isCancelled else { return }
             self.materializeActiveRecording()
-            self.saveSequence += 1
-            let snapshot = self.records
+            guard let save = self.captureSave() else { return }
             let writer = self.writer
-            let generation = self.persistenceGeneration
-            let sequence = self.saveSequence
             do {
                 try await Task.detached(priority: .utility) {
-                    try writer.save(snapshot, generation: generation, sequence: sequence)
+                    try writer.save(save.records, generation: save.generation, sequence: save.sequence)
                 }.value
             } catch {
-                CotabbyLogger.app.error("Typing history could not be saved: \(error)")
+                self.saveFailed(error, generation: save.generation)
             }
         }
+    }
+
+    /// A copy of the records for the writer, numbered and tagged with the deletion generation it
+    /// was taken in (see `TypingHistoryWriter`).
+    nonisolated private struct PendingSave: Sendable {
+        let records: [TypingHistoryRecord]
+        let generation: Int
+        let sequence: Int
+    }
+
+    /// Snapshots the records for the writer, or returns nil when they match what is already on disk.
+    private func captureSave() -> PendingSave? {
+        guard hasUnsavedChanges else { return nil }
+        hasUnsavedChanges = false
+        saveSequence += 1
+        return PendingSave(records: records, generation: persistenceGeneration, sequence: saveSequence)
+    }
+
+    /// A failed write leaves the records unsaved, so the next save (or the termination flush)
+    /// tries again. Not after a deletion, though: those records are gone.
+    private func saveFailed(_ error: Error, generation: Int) {
+        if generation == persistenceGeneration { hasUnsavedChanges = true }
+        CotabbyLogger.app.error("Typing history could not be saved: \(error)")
     }
 
     /// Rebuilds the index and phrase table off the main actor from a copy of the records. The field
@@ -235,23 +269,44 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             return
         }
 
-        if activeRecording?.fieldKey != fieldKey {
-            finishActiveRecording()
-            activeRecording = resumedRecording(fieldKey: fieldKey, text: text, typedLength: input.precedingText.count)
-                ?? ActiveRecording(
-                    fieldKey: fieldKey,
-                    recordID: UUID(),
-                    bundleIdentifier: input.bundleIdentifier,
-                    domain: SurfaceContextComposer.registrableDomain(from: input.focusedURLString),
-                    createdAt: Date(),
-                    rawText: text,
-                    rawTypedLength: input.precedingText.count
-                )
+        let typedLength = input.precedingText.count
+        if let active = activeRecording, active.fieldKey == fieldKey, !holdsNewDocument(active, text: text) {
+            activeRecording?.rawText = text
+            activeRecording?.rawTypedLength = typedLength
+            scheduleSave()
             return
         }
-        activeRecording?.rawText = text
-        activeRecording?.rawTypedLength = input.precedingText.count
-        scheduleSave()
+        // Another field, or this field now holds different writing (a sent chat message was
+        // cleared, or another conversation's draft is showing): keep what was there as its own
+        // record and start recording the new text.
+        finishActiveRecording()
+        activeRecording = resumedRecording(fieldKey: fieldKey, text: text, typedLength: typedLength)
+            ?? ActiveRecording(
+                fieldKey: fieldKey,
+                recordID: UUID(),
+                bundleIdentifier: input.bundleIdentifier,
+                domain: SurfaceContextComposer.registrableDomain(from: input.focusedURLString),
+                createdAt: Date(),
+                rawText: text,
+                rawTypedLength: typedLength
+            )
+    }
+
+    /// Whether the active field's new `text` is different writing from what is being recorded.
+    ///
+    /// A field is reused for many pieces of writing: chat apps clear the composer when a message is
+    /// sent, and some reuse one composer for every conversation. Updating the same record across
+    /// those would overwrite each message with the next. Typing, deleting, or editing one spot
+    /// leaves most of the text in place between two observations; sending or switching replaces it.
+    private func holdsNewDocument(_ active: ActiveRecording, text: String) -> Bool {
+        if Self.isWorthKeeping(active.rawText) {
+            return !Self.keepsMostOf(active.rawText, in: text)
+        }
+        // Nothing worth keeping is being recorded, for example just after a message was sent. If
+        // the field shows the writing it held a moment ago again (Accessibility briefly reported it
+        // empty), go back to that record rather than copying it into a new one.
+        guard let recent = recentRecordings[active.fieldKey], recent.recordID != active.recordID else { return false }
+        return text.hasPrefix(recent.rawText)
     }
 
     /// Terminals are never recorded: their text is shell commands and output, where secrets are
@@ -260,25 +315,27 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         input.isIntegratedTerminal || AppSurfaceClassifier.classify(bundleIdentifier: input.bundleIdentifier) == .terminal
     }
 
-    /// Continues the record of a recently finished field when the user comes back to it. The text
-    /// must still start the same way: Accessibility element identifiers can be reused by a
-    /// different field, and resuming into the wrong record would overwrite its text.
+    /// Continues the record of a recently finished field when the user comes back to it, but only
+    /// while the field still holds everything that record has. Accessibility element identifiers
+    /// can be reused by a different field (a new compose window, an empty composer), and resuming
+    /// into the wrong record would overwrite writing the user already did. Anything else starts a
+    /// new record: at worst a near-copy of an edited document, never a lost one.
     private func resumedRecording(fieldKey: String, text: String, typedLength: Int) -> ActiveRecording? {
-        guard var recent = recentRecordings[fieldKey] else { return nil }
-        let opening = recent.rawText.prefix(Self.sameDocumentOpeningLength)
-        guard !opening.isEmpty, text.hasPrefix(opening) || recent.rawText.hasPrefix(text.prefix(Self.sameDocumentOpeningLength))
-        else { return nil }
+        guard var recent = recentRecordings[fieldKey], text.hasPrefix(recent.rawText) else { return nil }
         recent.rawText = text
         recent.rawTypedLength = typedLength
         return recent
     }
 
     /// Commits the active field to `records` and makes it searchable. Called when focus moves to
-    /// another field, recording stops, or the app is no longer eligible.
+    /// another field, the field starts holding different writing, recording stops, or the app is no
+    /// longer eligible.
     private func finishActiveRecording() {
-        guard activeRecording != nil else { return }
+        guard let finished = activeRecording else { return }
         let changed = materializeActiveRecording()
-        if let finished = activeRecording {
+        // Only writing worth keeping can be resumed; remembering an emptied field would replace the
+        // entry for the text it held before.
+        if Self.isWorthKeeping(finished.rawText) {
             recentRecordings[finished.fieldKey] = finished
             if recentRecordings.count > Self.maximumRecentRecordings, let oldest = recentRecordings.values
                 .min(by: { $0.createdAt < $1.createdAt }) {
@@ -292,6 +349,34 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
     }
 
+    /// Fields with less text than `minimumRecordedCharacters` are not worth keeping.
+    private static func isWorthKeeping(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumRecordedCharacters
+    }
+
+    /// Whether `new` keeps at least half of `old` in place: their common start plus common end.
+    /// One edit between two observations (typing, deleting, a paste, fixing a word) keeps most of
+    /// a text; a cleared field or a different text keeps little. Compares UTF-8 bytes because it
+    /// runs on every change of a field that can hold thousands of characters.
+    static func keepsMostOf(_ old: String, in new: String) -> Bool {
+        let oldCount = old.utf8.count
+        let newCount = new.utf8.count
+        var prefix = 0
+        var oldBytes = old.utf8.makeIterator()
+        var newBytes = new.utf8.makeIterator()
+        while let oldByte = oldBytes.next(), let newByte = newBytes.next(), oldByte == newByte {
+            prefix += 1
+        }
+        var suffix = 0
+        let suffixLimit = min(oldCount, newCount) - prefix
+        var oldReversed = old.utf8.reversed().makeIterator()
+        var newReversed = new.utf8.reversed().makeIterator()
+        while suffix < suffixLimit, let oldByte = oldReversed.next(), let newByte = newReversed.next(), oldByte == newByte {
+            suffix += 1
+        }
+        return (prefix + suffix) * 2 >= oldCount
+    }
+
     /// Copies the active field's scrubbed text into `records`. Returns whether anything changed.
     @discardableResult
     private func materializeActiveRecording() -> Bool {
@@ -301,11 +386,12 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             before: String(active.rawText[..<split]), after: String(active.rawText[split...])
         )
         let existingIndex = records.firstIndex { $0.id == active.recordID }
-        guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= Self.minimumRecordedCharacters else {
-            // The user cleared the field down to nothing worth keeping.
+        guard Self.isWorthKeeping(text) else {
+            // The user deleted the field's text down to nothing worth keeping.
             if let existingIndex {
                 records.remove(at: existingIndex)
                 recordCount = records.count
+                hasUnsavedChanges = true
                 return true
             }
             return false
@@ -326,6 +412,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             trimToCapacity()
         }
         recordCount = records.count
+        hasUnsavedChanges = true
         return true
     }
 
@@ -355,11 +442,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             }
             let knownTexts = Set(records.map(\.text))
             let fresh = imported.filter { !knownTexts.contains($0.text) }
+            lastImportMessage = "Imported \(fresh.count) entries"
+                + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
+            guard !fresh.isEmpty else { return }
             records.append(contentsOf: fresh)
             trimToCapacity()
             recordCount = records.count
-            lastImportMessage = "Imported \(fresh.count) entries"
-                + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
+            hasUnsavedChanges = true
             scheduleSave()
             rebuildSearchStructures()
         } catch {
@@ -367,26 +456,36 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
     }
 
-    /// Removes every record, the encrypted file, and its Keychain key.
+    /// Removes every record, the encrypted file, and its Keychain key. Also the way out of an
+    /// archive that can no longer be opened: deleting it lets recording start over.
     func deleteAll() {
         saveTask?.cancel()
         persistenceGeneration += 1
+        do {
+            // Waits for any save already writing, then deletes; saves captured earlier are dropped.
+            try writer.destroy(generation: persistenceGeneration)
+        } catch {
+            // The archive or its key is still on disk. Keep showing what is stored and say why, so
+            // Settings never reports a deletion that did not happen and the user can try again.
+            // A save captured before this attempt was dropped as stale, and the file may already be
+            // gone, so the kept records count as unsaved until written again.
+            hasUnsavedChanges = true
+            deletionError = "Typing history couldn't be deleted: \(error.localizedDescription)"
+            CotabbyLogger.app.error("Typing history could not be deleted: \(error)")
+            return
+        }
         activeRecording = nil
         recentRecordings = [:]
         records = []
         recordCount = 0
+        hasUnsavedChanges = false
         index = nil
         phrases = nil
         exampleCache = nil
         rebuildGeneration += 1
         lastImportMessage = nil
-        do {
-            // Waits for any save already writing, then deletes; saves captured earlier are dropped.
-            try writer.destroy(generation: persistenceGeneration)
-            status = .ready
-        } catch {
-            CotabbyLogger.app.error("Typing history could not be deleted: \(error)")
-        }
+        deletionError = nil
+        status = .ready
     }
 
     // MARK: - SuggestionHistoryProviding
@@ -398,16 +497,21 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         // field has, so it joins the query even before the first full block of words is typed.
         let queryText = [stableText, context.windowTitle ?? ""].joined(separator: " ")
         let cacheKey = "\(context.focusedInputIdentityKey)|\(queryText)"
-        if let exampleCache, exampleCache.key == cacheKey { return exampleCache.examples }
-
-        let examples = index.examples(for: TypingHistoryQuery(
-            text: queryText,
-            bundleIdentifier: context.bundleIdentifier,
-            domain: SurfaceContextComposer.registrableDomain(from: context.focusedURLString),
-            currentFieldText: context.precedingText
-        ))
-        exampleCache = (cacheKey, examples)
-        return examples
+        let candidates: [TypingHistoryIndex.Candidate]
+        if let exampleCache, exampleCache.key == cacheKey {
+            candidates = exampleCache.candidates
+        } else {
+            candidates = index.candidates(for: TypingHistoryQuery(
+                text: queryText,
+                bundleIdentifier: context.bundleIdentifier,
+                domain: SurfaceContextComposer.registrableDomain(from: context.focusedURLString),
+                currentFieldText: context.precedingText
+            ))
+            exampleCache = (cacheKey, candidates)
+        }
+        // The ranking holds for a whole block of words, but the field keeps growing inside the
+        // block, so the check against echoing the user's own draft runs on the live text each time.
+        return TypingHistoryIndex.examples(from: candidates, currentFieldText: context.precedingText)
     }
 
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String? {

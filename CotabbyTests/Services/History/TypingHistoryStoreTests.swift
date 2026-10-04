@@ -6,6 +6,12 @@ import XCTest
 private final class InMemoryKeyStore: TypingHistoryKeyStore, @unchecked Sendable {
     private let lock = NSLock()
     private var key: SymmetricKey?
+    private var deletionFails = false
+
+    var hasKey: Bool { lock.withLock { key != nil } }
+
+    /// Makes `deleteKey()` fail, the way a locked or denied Keychain would.
+    func setDeletionFails(_ fails: Bool) { lock.withLock { deletionFails = fails } }
 
     func existingKey() throws -> SymmetricKey? { lock.withLock { key } }
     func createKey() throws -> SymmetricKey {
@@ -15,7 +21,12 @@ private final class InMemoryKeyStore: TypingHistoryKeyStore, @unchecked Sendable
             return created
         }
     }
-    func deleteKey() throws { lock.withLock { key = nil } }
+    func deleteKey() throws {
+        try lock.withLock {
+            if deletionFails { throw TypingHistoryVault.VaultError.keychain(errSecInteractionNotAllowed) }
+            key = nil
+        }
+    }
 }
 
 @MainActor
@@ -316,6 +327,178 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.observe(focus("", element: "x", sequence: 3)) { true }
 
         XCTAssertEqual(store.recordCount, 0)
+    }
+
+    // MARK: - Storage lifecycle
+
+    func test_quittingWithoutHistoryCreatesNoArchiveOrKey() {
+        let keyStore = InMemoryKeyStore()
+        let vault = makeVault(keyStore: keyStore)
+        let store = makeStore(vault: vault)
+        store.setRecording(true)
+        store.observe(focus("short")) { true }
+
+        store.flush()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
+        XCTAssertFalse(keyStore.hasKey)
+    }
+
+    func test_quittingAfterDeleteAllDoesNotRecreateTheArchive() async throws {
+        let keyStore = InMemoryKeyStore()
+        let vault = makeVault(keyStore: keyStore)
+        let store = makeStore(vault: vault)
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+        store.flush()
+
+        store.deleteAll()
+        store.flush()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
+        XCTAssertFalse(keyStore.hasKey)
+    }
+
+    func test_aFailedDeleteAllKeepsShowingTheHistoryAndCanBeRetried() async throws {
+        let keyStore = InMemoryKeyStore()
+        let store = makeStore(vault: makeVault(keyStore: keyStore))
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+        store.flush()
+        keyStore.setDeletionFails(true)
+
+        store.deleteAll()
+
+        XCTAssertEqual(store.recordCount, 3, "Nothing was deleted, so nothing should look deleted")
+        XCTAssertNotNil(store.deletionError)
+
+        keyStore.setDeletionFails(false)
+        store.deleteAll()
+
+        XCTAssertEqual(store.recordCount, 0)
+        XCTAssertNil(store.deletionError)
+        XCTAssertFalse(keyStore.hasKey)
+    }
+
+    func test_excludingAnAppMidFieldAlsoDropsTheAlreadySavedPart() throws {
+        let vault = makeVault()
+        let store = makeStore(vault: vault)
+        store.setRecording(true)
+        store.observe(focus("a long private chat message in WhatsApp", app: "net.whatsapp.WhatsApp")) { true }
+        store.flush()
+        XCTAssertEqual(store.recordCount, 1, "Saving copies the field being typed in")
+
+        store.setExcluded("net.whatsapp.WhatsApp", excluded: true)
+        store.flush()
+
+        XCTAssertEqual(store.recordCount, 0)
+        XCTAssertEqual(try vault.load(), [])
+    }
+
+    // MARK: - Field identity
+
+    private func storedTexts(_ store: TypingHistoryStore, vault: TypingHistoryVault) throws -> [String] {
+        store.flush()
+        return try vault.load().map(\.text).sorted()
+    }
+
+    func test_eachSentChatMessageIsKeptWhenTheComposerClears() throws {
+        let vault = makeVault()
+        let store = makeStore(vault: vault)
+        store.setRecording(true)
+
+        store.observe(focus("", element: "composer", sequence: 1)) { true }
+        store.observe(focus("Hey, are we still on for lunch tomorrow?", element: "composer", sequence: 1)) { true }
+        store.observe(focus("", element: "composer", sequence: 1)) { true }
+        store.observe(focus("Great, I will book the usual place at noon.", element: "composer", sequence: 1)) { true }
+        store.observe(focus("", element: "composer", sequence: 1)) { true }
+        store.observe(focus("", element: "search", sequence: 2)) { true }
+
+        XCTAssertEqual(try storedTexts(store, vault: vault), [
+            "Great, I will book the usual place at noon.",
+            "Hey, are we still on for lunch tomorrow?"
+        ])
+    }
+
+    func test_anEmptyFieldReusingAnElementNeverOverwritesEarlierWriting() throws {
+        let vault = makeVault()
+        let store = makeStore(vault: vault)
+        store.setRecording(true)
+
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+        // A new compose window that got the old body's element identifier, empty at first.
+        store.observe(focus("", element: "body", sequence: 3)) { true }
+        store.observe(focus("Lunch at noon tomorrow works for me, see you.", element: "body", sequence: 3)) { true }
+        store.observe(focus("", element: "other", sequence: 4)) { true }
+
+        XCTAssertEqual(try storedTexts(store, vault: vault), [
+            "Hi Arnaud, the Imperum POC is ready for review.",
+            "Lunch at noon tomorrow works for me, see you."
+        ])
+    }
+
+    func test_aFieldThatBrieflyReadsEmptyKeepsOneRecord() throws {
+        let vault = makeVault()
+        let store = makeStore(vault: vault)
+        store.setRecording(true)
+
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+
+        XCTAssertEqual(try storedTexts(store, vault: vault), ["Hi Arnaud, the Imperum POC is ready for review."])
+    }
+
+    func test_deletingAFieldsTextKeyByKeyStillDiscardsIt() {
+        let store = makeStore()
+        store.setRecording(true)
+        let text = "Hi Arnaud, the Imperum POC is ready for review."
+        store.observe(focus(text, element: "body", sequence: 1)) { true }
+        store.flush()
+        XCTAssertEqual(store.recordCount, 1)
+
+        for length in stride(from: text.count - 1, through: 0, by: -1) {
+            store.observe(focus(String(text.prefix(length)), element: "body", sequence: 1)) { true }
+        }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+
+        XCTAssertEqual(store.recordCount, 0)
+    }
+
+    func test_keepsMostOfTellsEditsFromReplacements() {
+        let draft = "Hi Arnaud, the Imperum POC is ready for review."
+
+        XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: draft + " Thanks"), "Typing at the end")
+        XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: "Hello Arnaud, the Imperum POC is ready for review."),
+                      "Fixing the first word")
+        XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: String(draft.dropLast(5))), "Deleting a few characters")
+        XCTAssertFalse(TypingHistoryStore.keepsMostOf(draft, in: ""), "A sent message cleared from the composer")
+        XCTAssertFalse(TypingHistoryStore.keepsMostOf(draft, in: "Lunch at noon tomorrow works for me."), "Different text")
+    }
+
+    // MARK: - Example cache
+
+    func test_cachedExamplesAreRecheckedAsTheFieldGrowsWithinABlock() async throws {
+        let store = makeStore()
+        store.setUsingHistory(true)
+        await store.importCotypistExport(from: try writeExport([[
+            "appBundleIdentifier": "com.example.TestApp",
+            "textUpToCursor": "we will review the Imperum connector plan with the SOC team on Monday morning, then ship it."
+        ]]))
+        // 16 words: the query block for both lookups below.
+        let opening = "Draft notes for Friday about unrelated budget items we will review the Imperum connector plan with "
+        let earlier = CotabbyTestFixtures.focusedInputContext(precedingText: opening)
+        // Five more words, still inside the same 8-word block, and now the field holds the past text.
+        let later = CotabbyTestFixtures.focusedInputContext(precedingText: opening + "the SOC team on Monday")
+        XCTAssertEqual(
+            TypingHistoryQuery.stableText(from: earlier.precedingText),
+            TypingHistoryQuery.stableText(from: later.precedingText)
+        )
+
+        await waitUntil { !store.historyExamples(for: earlier, engine: .llamaOpenSource).isEmpty }
+
+        XCTAssertEqual(store.historyExamples(for: later, engine: .llamaOpenSource), [],
+                       "The field now contains that writing; showing it would make the model echo the draft")
     }
 
     func test_unchangedTextDoesNotEvaluateTheSettingsGate() {

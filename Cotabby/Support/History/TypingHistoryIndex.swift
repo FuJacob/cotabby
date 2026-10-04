@@ -76,11 +76,47 @@ nonisolated struct TypingHistoryIndex: Sendable {
         self.inverseDocumentFrequency = postings.mapValues { log((count + 1) / Double($0.count)) + 1 }
     }
 
+    /// A ranked match: the passage that would be shown, and the whole past text it came from so it
+    /// can be checked against the field as the field grows.
+    struct Candidate: Equatable, Sendable {
+        let documentText: String
+        let passage: String
+    }
+
     /// Returns up to `limit` passages from past writing that best match the query, each at most
-    /// `maxCharacters` long, best first.
+    /// `maxCharacters` long, best first. A one-off lookup over every match; the store ranks once
+    /// per block of words with `candidates(for:)` instead.
     func examples(for query: TypingHistoryQuery, limit: Int = 2, maxCharacters: Int = 320) -> [String] {
+        Self.examples(
+            from: candidates(for: query, maxCandidates: Int.max, maxCharacters: maxCharacters),
+            currentFieldText: query.currentFieldText,
+            limit: limit
+        )
+    }
+
+    /// The best `limit` passages among `candidates` that are not another version of the field's
+    /// own text, without repeats.
+    ///
+    /// Kept apart from `candidates(for:)` so a caller can rank once per block of words and still
+    /// re-run this cheap check on every keystroke: the field's text grows inside a block, and a
+    /// passage it now contains would only teach the model to echo the user's draft.
+    static func examples(from candidates: [Candidate], currentFieldText: String, limit: Int = 2) -> [String] {
+        let currentTail = String(currentFieldText.suffix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
+        var passages: [String] = []
+        for candidate in candidates where passages.count < limit {
+            if isSameDocument(candidate.documentText, currentText: currentFieldText, currentTail: currentTail) { continue }
+            if passages.contains(candidate.passage) { continue }
+            passages.append(candidate.passage)
+        }
+        return passages
+    }
+
+    /// Ranks past writing against the query and returns the best `maxCandidates` matches with their
+    /// passages, best first. A few more than the examples shown are kept so some can still be
+    /// dropped as versions of the field's own text (`examples(from:currentFieldText:limit:)`).
+    func candidates(for query: TypingHistoryQuery, maxCandidates: Int = 6, maxCharacters: Int = 320) -> [Candidate] {
         let queryTerms = Set(Self.terms(in: query.text))
-        guard !queryTerms.isEmpty, limit > 0 else { return [] }
+        guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
 
         var scores: [Int32: Double] = [:]
         for term in queryTerms {
@@ -90,7 +126,6 @@ nonisolated struct TypingHistoryIndex: Sendable {
             }
         }
 
-        let currentTail = String(query.currentFieldText.suffix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
         let ranked = scores
             .map { documentID, score -> (Int32, Double) in
                 let document = documents[Int(documentID)]
@@ -102,16 +137,15 @@ nonisolated struct TypingHistoryIndex: Sendable {
             .filter { $0.1 >= Self.minimumScore }
             .sorted { $0.1 > $1.1 }
 
-        var passages: [String] = []
+        var candidates: [Candidate] = []
         for (documentID, _) in ranked {
             let text = documents[Int(documentID)].text
-            if Self.isSameDocument(text, currentText: query.currentFieldText, currentTail: currentTail) { continue }
             let passage = Self.bestPassage(in: text, terms: queryTerms, maxCharacters: maxCharacters)
-            guard !passage.isEmpty, !passages.contains(passage) else { continue }
-            passages.append(passage)
-            if passages.count == limit { break }
+            guard !passage.isEmpty else { continue }
+            candidates.append(Candidate(documentText: text, passage: passage))
+            if candidates.count == maxCandidates { break }
         }
-        return passages
+        return candidates
     }
 
     /// True when a history entry is another version of the text being typed: an earlier snapshot
