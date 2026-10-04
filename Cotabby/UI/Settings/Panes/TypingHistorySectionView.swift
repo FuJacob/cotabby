@@ -89,7 +89,8 @@ struct TypingHistorySectionView: View {
     private var entryCountLabel: String {
         switch store.status {
         case .loading: return "Opening typing history…"
-        case .ready, .unavailable: return store.recordCount == 1 ? "1 entry stored" : "\(store.recordCount) entries stored"
+        case .unavailable: return "Stored history can't be read"
+        case .ready: return store.recordCount == 1 ? "1 entry stored" : "\(store.recordCount) entries stored"
         }
     }
 

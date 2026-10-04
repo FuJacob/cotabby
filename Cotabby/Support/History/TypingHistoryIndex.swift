@@ -101,7 +101,7 @@ nonisolated struct TypingHistoryIndex: Sendable {
     /// re-run this cheap check on every keystroke: the field's text grows inside a block, and a
     /// passage it now contains would only teach the model to echo the user's draft.
     static func examples(from candidates: [Candidate], currentFieldText: String, limit: Int = 2) -> [String] {
-        let currentTail = String(currentFieldText.suffix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentTail = tail(of: currentFieldText)
         var passages: [String] = []
         for candidate in candidates where passages.count < limit {
             if isSameDocument(candidate.documentText, currentText: currentFieldText, currentTail: currentTail) { continue }
@@ -112,8 +112,10 @@ nonisolated struct TypingHistoryIndex: Sendable {
     }
 
     /// Ranks past writing against the query and returns the best `maxCandidates` matches with their
-    /// passages, best first. A few more than the examples shown are kept so some can still be
-    /// dropped as versions of the field's own text (`examples(from:currentFieldText:limit:)`).
+    /// passages, best first. Matches that are already versions of the field's own text are skipped
+    /// here, so they never take a slot from a usable example; a few more candidates than examples
+    /// are kept because the field keeps growing and can still come to contain one
+    /// (`examples(from:currentFieldText:limit:)` re-checks them on every request).
     func candidates(for query: TypingHistoryQuery, maxCandidates: Int = 6, maxCharacters: Int = 320) -> [Candidate] {
         let queryTerms = Set(Self.terms(in: query.text))
         guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
@@ -137,15 +139,22 @@ nonisolated struct TypingHistoryIndex: Sendable {
             .filter { $0.1 >= Self.minimumScore }
             .sorted { $0.1 > $1.1 }
 
+        let currentTail = Self.tail(of: query.currentFieldText)
         var candidates: [Candidate] = []
         for (documentID, _) in ranked {
             let text = documents[Int(documentID)].text
+            if Self.isSameDocument(text, currentText: query.currentFieldText, currentTail: currentTail) { continue }
             let passage = Self.bestPassage(in: text, terms: queryTerms, maxCharacters: maxCharacters)
             guard !passage.isEmpty else { continue }
             candidates.append(Candidate(documentText: text, passage: passage))
             if candidates.count == maxCandidates { break }
         }
         return candidates
+    }
+
+    /// The field's latest words, for spotting a history entry that already contains them.
+    private static func tail(of currentText: String) -> String {
+        String(currentText.suffix(60)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// True when a history entry is another version of the text being typed: an earlier snapshot

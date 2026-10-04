@@ -29,6 +29,41 @@ private final class InMemoryKeyStore: TypingHistoryKeyStore, @unchecked Sendable
     }
 }
 
+/// Holds the first key lookup, which happens inside the first archive write, until released, so a
+/// test can quit while a background save is still writing. Counts lookups, one per write.
+private final class GatedKeyStore: TypingHistoryKeyStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private let gate = DispatchSemaphore(value: 0)
+    private var key: SymmetricKey?
+    private var lookups = 0
+    private var holding = false
+
+    var keyLookups: Int { lock.withLock { lookups } }
+    var isHoldingAWrite: Bool { lock.withLock { holding } }
+    func release() { gate.signal() }
+
+    func existingKey() throws -> SymmetricKey? {
+        let isFirst = lock.withLock {
+            lookups += 1
+            holding = lookups == 1
+            return holding
+        }
+        if isFirst {
+            gate.wait()
+            lock.withLock { holding = false }
+        }
+        return lock.withLock { key }
+    }
+    func createKey() throws -> SymmetricKey {
+        lock.withLock {
+            let created = SymmetricKey(size: .bits256)
+            key = created
+            return created
+        }
+    }
+    func deleteKey() throws { lock.withLock { key = nil } }
+}
+
 @MainActor
 final class TypingHistoryStoreTests: XCTestCase {
     /// App-target MainActor classes crash the app-hosted runner when deallocated; keep them alive.
@@ -284,10 +319,10 @@ final class TypingHistoryStoreTests: XCTestCase {
     }
 
     private func focus(_ text: String, element: String, sequence: UInt64, app: String = "com.apple.mail",
-                       isIntegratedTerminal: Bool = false) -> FocusSnapshot {
+                       isIntegratedTerminal: Bool = false, windowTitle: String? = nil) -> FocusSnapshot {
         let input = CotabbyTestFixtures.focusedInputSnapshot(
             bundleIdentifier: app, elementIdentifier: element, precedingText: text,
-            isIntegratedTerminal: isIntegratedTerminal, focusChangeSequence: sequence
+            isIntegratedTerminal: isIntegratedTerminal, focusChangeSequence: sequence, windowTitle: windowTitle
         )
         return FocusSnapshot(applicationName: "Mail", bundleIdentifier: app, capability: .supported, context: input)
     }
@@ -356,6 +391,25 @@ final class TypingHistoryStoreTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
         XCTAssertFalse(keyStore.hasKey)
+    }
+
+    func test_quittingWhileABackgroundSaveIsStillWritingWritesAgain() async {
+        let keyStore = GatedKeyStore()
+        let store = TypingHistoryStore(
+            vault: TypingHistoryVault(fileURL: directory.appendingPathComponent("TypingHistory.sealed"), keyStore: keyStore),
+            userDefaults: defaults, loadsArchive: false, saveDelayNanoseconds: 0
+        )
+        Self.retained.append(store)
+        store.setRecording(true)
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        await waitUntil { keyStore.isHoldingAWrite }
+        // The background write finishes only after the quit has started waiting for it.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { keyStore.release() }
+
+        store.flush()
+
+        XCTAssertEqual(keyStore.keyLookups, 2, "The quit must not trust a write that hasn't finished")
     }
 
     func test_aFailedDeleteAllKeepsShowingTheHistoryAndCanBeRetried() async throws {
@@ -480,6 +534,45 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.observe(focus("", element: "other", sequence: 2)) { true }
 
         XCTAssertEqual(store.recordCount, 1)
+    }
+
+    func test_anotherLongDocumentShownInTheSameViewKeepsBothRecords() {
+        let store = makeStore()
+        store.setRecording(true)
+        let window = FocusedInputSnapshot.textWindowUTF16
+        let first = String((0..<1_000).map { "alpha\($0)" }.joined(separator: " ").suffix(window))
+        let second = String((0..<1_000).map { "beta\($0)" }.joined(separator: " ").suffix(window))
+
+        store.observe(focus(first, element: "doc", sequence: 1, windowTitle: "First.txt")) { true }
+        store.observe(focus(second, element: "doc", sequence: 1, windowTitle: "Second.txt")) { true }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+
+        XCTAssertEqual(store.recordCount, 2)
+    }
+
+    func test_aCaretJumpInALongDocumentKeepsOneRecord() {
+        let store = makeStore()
+        store.setRecording(true)
+        let window = FocusedInputSnapshot.textWindowUTF16
+        let document = (0..<2_000).map { "word\($0)" }.joined(separator: " ")
+        let nearEnd = String(document.suffix(window))
+        let nearMiddle = String(document.prefix(document.count / 2).suffix(window))
+
+        store.observe(focus(nearEnd, element: "doc", sequence: 1, windowTitle: "Notes.txt")) { true }
+        store.observe(focus(nearMiddle, element: "doc", sequence: 1, windowTitle: "Notes.txt")) { true }
+        store.observe(focus("", element: "other", sequence: 2)) { true }
+
+        XCTAssertEqual(store.recordCount, 1)
+    }
+
+    func test_sharesContentFollowsASlidingWindowButNotAnotherDocument() {
+        let window = FocusedInputSnapshot.textWindowUTF16
+        let current = String((0..<1_000).map { "word\($0)" }.joined(separator: " ").suffix(window))
+
+        XCTAssertTrue(TypingHistoryStore.sharesContent(current, with: String((current + " and more").suffix(window))))
+        XCTAssertFalse(TypingHistoryStore.sharesContent(
+            current, with: String((0..<1_000).map { "other\($0)" }.joined(separator: " ").suffix(window))
+        ))
     }
 
     func test_keepsMostOfTellsEditsFromReplacements() {

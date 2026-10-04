@@ -41,6 +41,19 @@ final class TypingHistoryIndexTests: XCTestCase {
         XCTAssertEqual(index.examples(for: query("Imperum POC Sentinel SOC review", field: draft + " Let me")), [])
     }
 
+    func test_versionsOfTheDraftNeverCrowdOutAUsableExample() {
+        // Seven earlier versions of the field's own text outrank the one usable example; they
+        // must not fill every candidate slot and leave nothing to show.
+        let draft = "Status: the Imperum POC with Sentinel connectors is ready for SOC review this week and "
+        let usable = "Separately, the Imperum connectors for Sentinel passed review yesterday."
+        let index = TypingHistoryIndex(
+            records: (0..<7).map { record(draft + "version \($0) ends here.") } + [record(usable, domain: "github.com")]
+        )
+        let lookup = query(draft, domain: "github.com", field: draft)
+
+        XCTAssertEqual(TypingHistoryIndex.examples(from: index.candidates(for: lookup), currentFieldText: draft), [usable])
+    }
+
     func test_passageIsBoundedAndKeepsWholeSentences() {
         let long = "Short opener here. " + String(repeating: "Filler words about nothing in particular. ", count: 20)
             + "The Imperum POC uses Sentinel connectors for SOC alerts. " + String(repeating: "More filler text follows. ", count: 20)

@@ -50,11 +50,16 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private var persistenceGeneration = 0
     /// Numbers each captured save so an older snapshot can never overwrite a newer one.
     private var saveSequence = 0
-    /// Whether `records` differ from what was last loaded or handed to the writer. Saves are skipped
-    /// while this is false, so a user who never records or imports never gets an archive file or a
-    /// Keychain key, and quitting after Delete All does not recreate them.
-    private var hasUnsavedChanges = false
+    /// Counts changes to `records`; `savedChangeCount` is the latest count a finished write has put
+    /// on disk. While they match, saves are skipped, so a user who never records or imports never
+    /// gets an archive file or a Keychain key, and quitting after Delete All does not recreate them.
+    /// A background write still in progress does not count as saved: the termination flush writes
+    /// again rather than trust a write the process may exit before.
+    private var changeCount = 0
+    private var savedChangeCount = 0
     private let userDefaults: UserDefaults
+    /// How long typing must pause before a background save; injectable so tests need not wait.
+    private let saveDelayNanoseconds: UInt64
     private var records: [TypingHistoryRecord] = []
     private var index: TypingHistoryIndex?
     private var phrases: TypingHistoryPhrasePredictor?
@@ -81,6 +86,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         var rawText: String
         /// Characters before the caret in `rawText` at the latest capture.
         var rawTypedLength: Int
+        /// The window title at the latest capture: for a long document seen through the capture
+        /// window, a changed title is what tells another document from a caret jump.
+        var windowTitle: String?
     }
 
     private enum DefaultsKey {
@@ -89,10 +97,16 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         static let excludedBundleIdentifiers = "cotabbyTypingHistoryExcludedApps"
     }
 
-    init(vault: TypingHistoryVault = .standard(), userDefaults: UserDefaults = .standard, loadsArchive: Bool = true) {
+    init(
+        vault: TypingHistoryVault = .standard(),
+        userDefaults: UserDefaults = .standard,
+        loadsArchive: Bool = true,
+        saveDelayNanoseconds: UInt64 = 5_000_000_000
+    ) {
         self.vault = vault
         self.writer = TypingHistoryWriter(vault: vault)
         self.userDefaults = userDefaults
+        self.saveDelayNanoseconds = saveDelayNanoseconds
         preferences = TypingHistoryPreferences(
             isUsingHistory: userDefaults.object(forKey: DefaultsKey.isUsingHistory) as? Bool
                 ?? TypingHistoryPreferences.defaults.isUsingHistory,
@@ -139,7 +153,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         if let index = records.firstIndex(where: { $0.id == active.recordID }) {
             records.remove(at: index)
             recordCount = records.count
-            hasUnsavedChanges = true
+            changeCount += 1
             scheduleSave()
             rebuildSearchStructures()
         }
@@ -156,6 +170,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             guard generation == persistenceGeneration else { return }
             records = loaded
             recordCount = loaded.count
+            savedChangeCount = changeCount
             status = .ready
             rebuildSearchStructures()
         } catch {
@@ -173,16 +188,18 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard let save = captureSave() else { return }
         do {
             try writer.save(save.records, generation: save.generation, sequence: save.sequence)
+            savedChangeCount = max(savedChangeCount, save.changeCount)
         } catch {
-            saveFailed(error, generation: save.generation)
+            CotabbyLogger.app.error("Typing history could not be saved: \(error)")
         }
     }
 
     private func scheduleSave() {
         guard status == .ready else { return }
         saveTask?.cancel()
+        let delay = saveDelayNanoseconds
         saveTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
             guard let self, !Task.isCancelled else { return }
             self.materializeActiveRecording()
             guard let save = self.captureSave() else { return }
@@ -191,33 +208,32 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
                 try await Task.detached(priority: .utility) {
                     try writer.save(save.records, generation: save.generation, sequence: save.sequence)
                 }.value
+                // Only now are these changes on disk; until here a quit flushes them again.
+                self.savedChangeCount = max(self.savedChangeCount, save.changeCount)
             } catch {
-                self.saveFailed(error, generation: save.generation)
+                CotabbyLogger.app.error("Typing history could not be saved: \(error)")
             }
         }
     }
 
     /// A copy of the records for the writer, numbered and tagged with the deletion generation it
-    /// was taken in (see `TypingHistoryWriter`).
+    /// was taken in (see `TypingHistoryWriter`), and the change count it covers.
     nonisolated private struct PendingSave: Sendable {
         let records: [TypingHistoryRecord]
         let generation: Int
         let sequence: Int
+        let changeCount: Int
     }
 
-    /// Snapshots the records for the writer, or returns nil when they match what is already on disk.
+    /// Snapshots the records for the writer, or returns nil when a finished write already holds
+    /// them. A failed write leaves them unsaved, so the next save (or the termination flush) tries
+    /// again.
     private func captureSave() -> PendingSave? {
-        guard hasUnsavedChanges else { return nil }
-        hasUnsavedChanges = false
+        guard changeCount > savedChangeCount else { return nil }
         saveSequence += 1
-        return PendingSave(records: records, generation: persistenceGeneration, sequence: saveSequence)
-    }
-
-    /// A failed write leaves the records unsaved, so the next save (or the termination flush)
-    /// tries again. Not after a deletion, though: those records are gone.
-    private func saveFailed(_ error: Error, generation: Int) {
-        if generation == persistenceGeneration { hasUnsavedChanges = true }
-        CotabbyLogger.app.error("Typing history could not be saved: \(error)")
+        return PendingSave(
+            records: records, generation: persistenceGeneration, sequence: saveSequence, changeCount: changeCount
+        )
     }
 
     /// Rebuilds the index and phrase table off the main actor from a copy of the records. The field
@@ -242,10 +258,11 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
 
     /// Called for every focus snapshot. Cheap unless the field's text changed.
     ///
-    /// `isAllowed` carries Cotabby's own gates (globally on, not paused, app not disabled), so
-    /// history is only ever recorded where Cotabby itself is active. It is a closure because it
-    /// builds a settings snapshot, and this runs on every focus poll: it is only evaluated once
-    /// recording is on. Secure fields never reach here as supported, and are checked again below.
+    /// `isAllowed` carries Cotabby's own availability rule (on, not paused, app or site not
+    /// disabled; see `CotabbyAppEnvironment`), so history is only ever recorded where Cotabby itself
+    /// is active. It is a closure because it builds a settings snapshot, and this runs on every
+    /// focus change: it is only evaluated once recording is on and the field's text changed. Secure
+    /// fields never reach here as supported, and are checked again below.
     func observe(_ snapshot: FocusSnapshot, isAllowed: () -> Bool) {
         guard status == .ready, preferences.isRecording,
               case .supported = snapshot.capability,
@@ -270,10 +287,10 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
 
         let typedLength = input.precedingText.count
-        if let active = activeRecording, active.fieldKey == fieldKey,
-           !holdsNewDocument(active, text: text, isWindowed: input.precedingTextMayBeTruncated) {
+        if let active = activeRecording, active.fieldKey == fieldKey, !holdsNewDocument(active, input: input, text: text) {
             activeRecording?.rawText = text
             activeRecording?.rawTypedLength = typedLength
+            activeRecording?.windowTitle = input.windowTitle
             scheduleSave()
             return
         }
@@ -281,7 +298,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         // cleared, or another conversation's draft is showing): keep what was there as its own
         // record and start recording the new text.
         finishActiveRecording()
-        activeRecording = resumedRecording(fieldKey: fieldKey, text: text, typedLength: typedLength)
+        activeRecording = resumedRecording(fieldKey: fieldKey, input: input, text: text)
             ?? ActiveRecording(
                 fieldKey: fieldKey,
                 recordID: UUID(),
@@ -289,7 +306,8 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
                 domain: SurfaceContextComposer.registrableDomain(from: input.focusedURLString),
                 createdAt: Date(),
                 rawText: text,
-                rawTypedLength: typedLength
+                rawTypedLength: typedLength,
+                windowTitle: input.windowTitle
             )
     }
 
@@ -300,12 +318,15 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// those would overwrite each message with the next. Typing, deleting, or editing one spot
     /// leaves most of the text in place between two observations; sending or switching replaces it.
     ///
-    /// `isWindowed` means focus capture cut the text before the caret to its window
-    /// (`FocusedInputSnapshot.textWindowUTF16`): a long document, whose window start slides with
-    /// every keystroke, so comparing the two ends says nothing. It stays one record.
-    private func holdsNewDocument(_ active: ActiveRecording, text: String, isWindowed: Bool) -> Bool {
+    /// A long document is different: focus capture cuts the text before the caret to its window
+    /// (`FocusedInputSnapshot.textWindowUTF16`), whose start slides with every keystroke, and a
+    /// caret jump shows another part of the same document, so comparing the two ends says nothing.
+    /// There, only a new window title together with nothing of the old window left in the new one
+    /// marks another document (a different note or file shown in the same view).
+    private func holdsNewDocument(_ active: ActiveRecording, input: FocusedInputSnapshot, text: String) -> Bool {
         if Self.isWorthKeeping(active.rawText) {
-            return !isWindowed && !Self.keepsMostOf(active.rawText, in: text)
+            guard input.precedingTextMayBeTruncated else { return !Self.keepsMostOf(active.rawText, in: text) }
+            return active.windowTitle != input.windowTitle && !Self.sharesContent(active.rawText, with: text)
         }
         // Nothing worth keeping is being recorded, for example just after a message was sent. If
         // the field shows the writing it held a moment ago again (Accessibility briefly reported it
@@ -325,10 +346,11 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// can be reused by a different field (a new compose window, an empty composer), and resuming
     /// into the wrong record would overwrite writing the user already did. Anything else starts a
     /// new record: at worst a near-copy of an edited document, never a lost one.
-    private func resumedRecording(fieldKey: String, text: String, typedLength: Int) -> ActiveRecording? {
+    private func resumedRecording(fieldKey: String, input: FocusedInputSnapshot, text: String) -> ActiveRecording? {
         guard var recent = recentRecordings[fieldKey], text.hasPrefix(recent.rawText) else { return nil }
         recent.rawText = text
-        recent.rawTypedLength = typedLength
+        recent.rawTypedLength = input.precedingText.count
+        recent.windowTitle = input.windowTitle
         return recent
     }
 
@@ -382,6 +404,21 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         return (prefix + suffix) * 2 >= oldCount
     }
 
+    /// Whether `new` still contains a piece from inside `old`. Typing in a long document slides the
+    /// capture window a few characters at a time, so pieces from the middle of the old window are
+    /// still in the new one; another document contains none of them. Only asked for long text, and
+    /// only when the window title changed.
+    static func sharesContent(_ old: String, with new: String) -> Bool {
+        let probeLength = 48
+        let oldLength = old.count
+        guard oldLength > probeLength * 2 else { return new.contains(old) }
+        for quarter in 1...3 {
+            let start = old.index(old.startIndex, offsetBy: (oldLength - probeLength) * quarter / 4)
+            if new.contains(old[start..<old.index(start, offsetBy: probeLength)]) { return true }
+        }
+        return false
+    }
+
     /// Copies the active field's scrubbed text into `records`. Returns whether anything changed.
     @discardableResult
     private func materializeActiveRecording() -> Bool {
@@ -396,7 +433,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             if let existingIndex {
                 records.remove(at: existingIndex)
                 recordCount = records.count
-                hasUnsavedChanges = true
+                changeCount += 1
                 return true
             }
             return false
@@ -417,7 +454,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             trimToCapacity()
         }
         recordCount = records.count
-        hasUnsavedChanges = true
+        changeCount += 1
         return true
     }
 
@@ -453,7 +490,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             records.append(contentsOf: fresh)
             trimToCapacity()
             recordCount = records.count
-            hasUnsavedChanges = true
+            changeCount += 1
             scheduleSave()
             rebuildSearchStructures()
         } catch {
@@ -474,7 +511,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             // Settings never reports a deletion that did not happen and the user can try again.
             // A save captured before this attempt was dropped as stale, and the file may already be
             // gone, so the kept records count as unsaved until written again.
-            hasUnsavedChanges = true
+            changeCount += 1
             deletionError = "Typing history couldn't be deleted: \(error.localizedDescription)"
             CotabbyLogger.app.error("Typing history could not be deleted: \(error)")
             return
@@ -483,7 +520,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         recentRecordings = [:]
         records = []
         recordCount = 0
-        hasUnsavedChanges = false
+        savedChangeCount = changeCount
         index = nil
         phrases = nil
         exampleCache = nil
