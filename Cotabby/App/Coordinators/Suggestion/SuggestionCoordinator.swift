@@ -38,6 +38,10 @@ final class SuggestionCoordinator: ObservableObject {
     let suggestionEngine: any SuggestionGenerating
     let suggestionSettings: any SuggestionSettingsProviding
     let clipboardContextProvider: any ClipboardContextProviding
+    /// The focused window's own autocomplete choice from the field icon (nil: follow the app).
+    /// A closure rather than the concrete store so the coordinator stays testable without
+    /// `UserDefaults`; `CotabbyAppEnvironment` points it at `WindowFeatureOverrideStore`.
+    var windowAutocompleteOverride: @MainActor (FocusSnapshot) -> Bool? = { _ in nil }
     let clipboardRelevanceFilter: any ClipboardRelevanceFiltering
     let visualContextCoordinator: any VisualContextCoordinating
     let interactionState: SuggestionInteractionState

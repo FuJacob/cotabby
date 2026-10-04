@@ -1277,7 +1277,7 @@ extension SuggestionCoordinator {
             temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
             isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledAppBundleIdentifiers: disabledApps(for: focusSnapshot),
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,

@@ -40,8 +40,14 @@ final class CotabbyAppEnvironment {
     let huggingFaceSearchService: HuggingFaceSearchService
     let performanceMetricsStore: PerformanceMetricsStore
     let qualityMetricsStore: SuggestionQualityMetricsStore
+    let translationPreferences: TranslationPreferencesStore
+    let translationCoordinator: TranslationCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
+    /// Per-window Autocomplete/Translate choices made from the field icon.
+    let windowFeatureOverrides: WindowFeatureOverrideStore
+    /// The popup the field icon opens.
+    let fieldScopeMenuController: FieldScopeMenuController
     let focusDebugOverlayController: FocusDebugOverlayController?
 
     private var cancellables = Set<AnyCancellable>()
@@ -157,6 +163,34 @@ final class CotabbyAppEnvironment {
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
+
+        // Augmented translation: Apple Translation first, the selected Open Source model for pairs
+        // Apple does not cover. Off until the user turns it on in Settings → Translation.
+        let translationPreferences = TranslationPreferencesStore()
+        let translationService = TranslationService(
+            apple: AppleTranslationEngine(),
+            local: LocalModelTranslationEngine(
+                runtimeManager: runtimeManager,
+                hasModel: { [weak runtimeModel] in runtimeModel?.selectedModelFilename != nil }
+            )
+        )
+        let translationCoordinator = TranslationCoordinator(
+            preferences: translationPreferences,
+            service: translationService,
+            capture: WindowScreenshotService(),
+            overlay: TranslationOverlayController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            hotkey: TranslationHotkeyTap(suppressionController: suppressionController),
+            isAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
+                guard let suggestionSettings else { return false }
+                let settings = suggestionSettings.snapshot
+                let lowPower = (lowPowerModeMonitor?.isLowPowerModeEnabled ?? false)
+                    && settings.isLowPowerModeAutoDisableEnabled
+                return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
+                    && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
+            }
+        )
         // Commit accepted text through an IME-safe path (Accessibility / paste) while a composing IME
         // is active; a synthetic keystroke would be re-absorbed into composition and the accept would
         // silently fail.
@@ -169,6 +203,8 @@ final class CotabbyAppEnvironment {
             faceMemoryDefaults: .standard
         )
         let activationIndicatorController = ActivationIndicatorController()
+        let windowFeatureOverrides = WindowFeatureOverrideStore()
+        translationCoordinator.windowOverrides = windowFeatureOverrides
         let clipboardContextProvider = ClipboardContextProvider()
         let clipboardRelevanceFilter = ClipboardRelevanceFilter()
         let screenshotContextGenerator = ScreenshotContextGenerator()
@@ -247,7 +283,9 @@ final class CotabbyAppEnvironment {
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
-            clearEmojiHistory: { emojiUsageStore.clear() }
+            clearEmojiHistory: { emojiUsageStore.clear() },
+            translationPreferences: translationPreferences,
+            translationService: translationService
         )
 
         let interactionState = SuggestionInteractionState()
@@ -324,6 +362,16 @@ final class CotabbyAppEnvironment {
             macro: macroController,
             inputMonitor: inputMonitor
         )
+        // The coordinator asks for the focused window's own choice through a closure, so it does not
+        // depend on the concrete store (and its tests need no UserDefaults).
+        suggestionCoordinator.windowAutocompleteOverride = { [weak windowFeatureOverrides] snapshot in
+            windowFeatureOverrides?.override(
+                for: .autocomplete,
+                windowKey: WindowFeatureScope.windowKey(
+                    bundleIdentifier: snapshot.bundleIdentifier, windowTitle: snapshot.context?.featureScopeWindowTitle
+                )
+            )
+        }
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false
         }
@@ -352,8 +400,12 @@ final class CotabbyAppEnvironment {
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
+        self.translationPreferences = translationPreferences
+        self.translationCoordinator = translationCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
+        self.windowFeatureOverrides = windowFeatureOverrides
+        self.fieldScopeMenuController = FieldScopeMenuController()
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
             ? FocusDebugOverlayController()
             : nil

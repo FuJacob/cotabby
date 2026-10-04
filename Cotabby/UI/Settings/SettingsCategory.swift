@@ -17,6 +17,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case emoji
     case writing
     case context
+    case translation
     case engineAndModel
     case shortcuts
     case apps
@@ -34,6 +35,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "Emoji"
         case .writing: return "Writing"
         case .context: return "Context"
+        case .translation: return "Translation"
         case .engineAndModel: return "Engine & Model"
         case .shortcuts: return "Shortcuts"
         case .apps: return "Apps"
@@ -52,6 +54,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "face.smiling"
         case .writing: return "square.and.pencil"
         case .context: return "doc.text"
+        case .translation: return "character.bubble.fill"
         case .engineAndModel: return "cpu.fill"
         case .shortcuts: return "keyboard.fill"
         case .apps: return "app.badge.fill"
@@ -72,6 +75,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return .yellow
         case .writing: return .indigo
         case .context: return .teal
+        case .translation: return .blue
         case .engineAndModel: return .orange
         case .shortcuts: return .pink
         case .apps: return .red
@@ -90,6 +94,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "The inline emoji picker"
         case .writing: return "Length, profile, and corrections"
         case .context: return "What the model can reference"
+        case .translation: return "Translate messages and replies"
         case .engineAndModel: return "Choose the engine and models"
         case .shortcuts: return "Keys that accept suggestions"
         case .apps: return "Where Cotabby stays quiet"
@@ -106,7 +111,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     static let sidebarGroups: [[SettingsCategory]] = [
         [.home],
         [.general, .appearance, .emoji],
-        [.writing, .context, .engineAndModel],
+        [.writing, .context, .translation, .engineAndModel],
         [.shortcuts, .apps, .permissions],
         [.performance, .about]
     ]

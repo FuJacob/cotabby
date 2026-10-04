@@ -54,6 +54,20 @@ extension SuggestionCoordinator {
 
         CotabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
         settingsSnapshot = snapshot
+        resetAfterAvailabilityChange()
+    }
+
+    /// The field icon changed a window's autocomplete choice. That is an availability change the
+    /// settings snapshot cannot see (window choices live in `WindowFeatureOverrideStore`), so it
+    /// takes the same reset-and-maybe-restart path a settings change does.
+    func handleWindowFeatureOverrideChange() {
+        CotabbyLogger.suggestion.info("Window feature choice changed, resetting suggestion state")
+        resetAfterAvailabilityChange()
+    }
+
+    /// Drops in-flight work and the visible suggestion, then restarts context capture and
+    /// prediction only where the current settings and window choices still allow them.
+    private func resetAfterAvailabilityChange() {
         cancelPredictionWork()
         resetCachedGenerationContext()
         clearSuggestion(clearDiagnostics: true)
@@ -68,7 +82,7 @@ extension SuggestionCoordinator {
                temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
                isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
                isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-               disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+               disabledAppBundleIdentifiers: disabledApps(for: focusModel.snapshot),
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
@@ -86,7 +100,7 @@ extension SuggestionCoordinator {
             temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
             isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledAppBundleIdentifiers: disabledApps(for: focusModel.snapshot),
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
@@ -109,7 +123,7 @@ extension SuggestionCoordinator {
                 temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
                 isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
                 isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+                disabledAppBundleIdentifiers: disabledApps(for: snapshot),
                 disabledDomains: PerDomainDisableSettings.disabledDomains(),
                 suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
                 inputMonitoringGranted: permissionManager.inputMonitoringGranted,
@@ -118,5 +132,17 @@ extension SuggestionCoordinator {
                 isFastModeEnabled: settingsSnapshot.isFastModeEnabled
               ) else { return nil }
         return context
+    }
+}
+
+extension SuggestionCoordinator {
+    /// The disabled-apps set adjusted for the focused window's own choice, so every availability
+    /// gate honors "off in this chat" and "on in this chat" without learning about windows.
+    func disabledApps(for focusSnapshot: FocusSnapshot) -> Set<String> {
+        WindowFeatureScope.effectiveDisabledApps(
+            settingsSnapshot.disabledAppBundleIdentifiers,
+            bundleIdentifier: focusSnapshot.bundleIdentifier,
+            windowOverride: windowAutocompleteOverride(focusSnapshot)
+        )
     }
 }

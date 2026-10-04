@@ -1060,6 +1060,19 @@ enum AXHelper {
         return stringValue(for: kAXTitleAttribute as CFString, on: window)
     }
 
+    /// Title of the app's focused window, for hosts whose fields do not expose `kAXWindowAttribute`
+    /// (Chromium/Electron web content). Reads the application element's `kAXFocusedWindowAttribute`
+    /// and that window's title; nil on any miss.
+    static func focusedWindowTitle(processIdentifier: pid_t) -> String? {
+        let application = AXUIElementCreateApplication(processIdentifier)
+        guard let value = copyAttributeValue(kAXFocusedWindowAttribute as CFString, on: application),
+              CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return nil }
+        // Same Core Foundation bridging rule as `windowTitle(near:)`: the type ID was checked above.
+        let window = unsafeBitCast(value, to: AXUIElement.self)
+        return stringValue(for: kAXTitleAttribute as CFString, on: window)
+    }
+
     /// Best-effort read of the page URL for local navigation identity and per-site rules.
     /// Browsers expose `kAXURLAttribute` on the web area or window rather than the focused field, so
     /// this walks up a bounded number of ancestors. It returns nil on any miss (non-browser focus, an

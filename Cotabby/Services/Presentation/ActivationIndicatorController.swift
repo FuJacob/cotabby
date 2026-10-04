@@ -15,9 +15,18 @@ final class ActivationIndicatorController {
     private let fieldEdgeGap: CGFloat = 0
     private let screenInset: CGFloat = 2
 
-    private lazy var contentView: NSHostingView<AnyView> = {
-        NSHostingView(rootView: AnyView(EmptyView()))
+    private lazy var contentView: ClickableHostingView = {
+        let view = ClickableHostingView(rootView: AnyView(EmptyView()))
+        view.onClick = { [weak self] in
+            guard let self else { return }
+            self.onClick?(self.panel.frame)
+        }
+        return view
     }()
+
+    /// Called with the icon's screen frame when the user clicks it; `AppDelegate` opens the
+    /// field-scope popup from here.
+    var onClick: ((CGRect) -> Void)?
 
     private lazy var panel: ActivationIndicatorPanel = {
         let panel = ActivationIndicatorPanel(
@@ -29,7 +38,9 @@ final class ActivationIndicatorController {
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.ignoresMouseEvents = true
+        // Clickable: the icon opens the field-scope popup. It sits just outside the field's edge,
+        // so taking its 14pt of clicks never covers the host's own text.
+        panel.ignoresMouseEvents = false
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.level = .statusBar
@@ -44,7 +55,8 @@ final class ActivationIndicatorController {
     func show(
         enabled: Bool,
         caretRect: CGRect,
-        inputFrameRect: CGRect?
+        inputFrameRect: CGRect?,
+        dimmed: Bool = false
     ) {
         guard enabled else {
             hide(reason: "Activation indicator hidden because it is disabled.")
@@ -56,7 +68,7 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(FieldEdgeIconIndicatorView())
+        contentView.rootView = AnyView(FieldEdgeIconIndicatorView(dimmed: dimmed))
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = fieldEdgeIconOrigin(
@@ -145,4 +157,22 @@ final class ActivationIndicatorController {
 private final class ActivationIndicatorPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+/// Hosting view for the icon that turns a click into `onClick`.
+///
+/// `acceptsFirstMouse` returns true because the panel is never key (it is non-activating), and
+/// without it AppKit would spend the first click making the window key instead of delivering it.
+final class ClickableHostingView: NSHostingView<AnyView> {
+    var onClick: (() -> Void)?
+
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with _: NSEvent) {
+        onClick?()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
 }
