@@ -26,6 +26,28 @@ final class CotypistExportImporterTests: XCTestCase {
         XCTAssertTrue(records.allSatisfy { $0.source == .imported })
     }
 
+    func test_differentMessagesThatOpenTheSameWayAreBothKept() throws {
+        let data = try export([
+            ["appBundleIdentifier": "com.apple.mail",
+             "textUpToCursor": "Thanks for reaching out! I'd be happy to help with your billing question about the March invoice."],
+            ["appBundleIdentifier": "com.apple.mail",
+             "textUpToCursor": "Thanks for reaching out! I'd be happy to help. Unfortunately we cannot refund annual plans after thirty days."]
+        ])
+
+        XCTAssertEqual(try CotypistExportImporter.records(fromExport: data).count, 2)
+    }
+
+    func test_anEditedEarlierSnapshotStillCollapsesIntoTheFinalText() throws {
+        let final = "Hi Arnaud, the POC is ready for review. I tested it on the staging server and everything works. Let me know."
+        let data = try export([
+            ["appBundleIdentifier": "com.microsoft.Outlook",
+             "textUpToCursor": "Hi Arnaud, the POC is ready for review. I tested it on the stagng server and it works."],
+            ["appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": final]
+        ])
+
+        XCTAssertEqual(try CotypistExportImporter.records(fromExport: data).map(\.text), [final])
+    }
+
     func test_fragmentsAreDropped() throws {
         let data = try export([["appBundleIdentifier": "net.whatsapp.WhatsApp", "textUpToCursor": "ok"]])
         XCTAssertEqual(try CotypistExportImporter.records(fromExport: data), [])
