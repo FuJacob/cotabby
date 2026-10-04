@@ -14,6 +14,11 @@ struct KeybindRow: View {
     let clearLabel: String
     let clearHelp: String
     let conflictChecker: (CGKeyCode, ShortcutModifierMask) -> String?
+    /// Overrides the "is anything bound" check behind Clear, for a binding that is not a single
+    /// key code (a double tap). `nil` derives it from `keyCode`.
+    var isBound: Bool?
+    var doubleTapKey: DoubleTapRecordingKey?
+    var onDoubleTapRecorded: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -26,7 +31,14 @@ struct KeybindRow: View {
                         isRecording = false
                     },
                     onCancelled: { isRecording = false },
-                    conflictChecker: conflictChecker
+                    conflictChecker: conflictChecker,
+                    doubleTapKey: doubleTapKey,
+                    onDoubleTapRecorded: onDoubleTapRecorded.map { record in
+                        {
+                            record()
+                            isRecording = false
+                        }
+                    }
                 )
             } else {
                 Button("Change") {
@@ -41,7 +53,7 @@ struct KeybindRow: View {
                 }
             }
 
-            if keyCode != SuggestionSettingsModel.disabledKeyCode {
+            if isBound ?? (keyCode != SuggestionSettingsModel.disabledKeyCode) {
                 Button(clearLabel) {
                     onClear()
                     isRecording = false

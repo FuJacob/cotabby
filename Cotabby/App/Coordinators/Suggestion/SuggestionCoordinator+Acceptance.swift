@@ -19,6 +19,50 @@ extension SuggestionCoordinator {
         acceptSuggestion(fullText: true, keyName: "full-accept")
     }
 
+    /// Entry point for a real press of the Accept Word key.
+    ///
+    /// With double-tap enabled, the first press still accepts one word immediately, and a second
+    /// press within `DoubleTapAcceptanceState.window` on the same suggestion accepts what remains.
+    /// Promoting the second press instead of delaying the first keeps single-word acceptance as fast
+    /// as before; the pair still commits the whole suggestion. The queued post-exhaustion accept
+    /// calls `acceptCurrentSuggestion` directly, so a Tab buffered during regeneration never turns
+    /// into an accept-everything of a continuation the user has not seen yet.
+    ///
+    /// `isAutorepeat` marks a key-down the system generated because the key is held. Those keep
+    /// accepting word by word, as holding the key always has, but a held key is one long press:
+    /// a repeat neither completes a pending double tap nor arms a new one. Without this, holding
+    /// Accept Word past the first repeat (repeats arrive well inside the window) took everything.
+    ///
+    /// The focused app is resolved from the same focus snapshot the input monitor used to classify
+    /// this press, so an app with its own Accept Entire Suggestion binding keeps it here too.
+    func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
+        let doubleTapApplies = settingsSnapshot.isDoubleTapFullAcceptanceActive(
+            forBundleIdentifier: focusModel.snapshot.bundleIdentifier
+        )
+        guard doubleTapApplies, !isAutorepeat else {
+            doubleTapAcceptanceState.reset()
+            return acceptCurrentSuggestion()
+        }
+
+        let now = doubleTapUptimeProvider()
+        if let session = interactionState.activeSession, !session.kind.isCorrection,
+           doubleTapAcceptanceState.consumeDoubleTap(of: .init(session: session), at: now) {
+            return acceptSuggestion(fullText: true, keyName: "double-tap")
+        }
+
+        let accepted = acceptCurrentSuggestion()
+        // Arm only when this press left a continuation with text still to accept. An exhausted
+        // suggestion hands Tab to the post-exhaustion window instead, and a correction commits as
+        // a unit, so neither has a "rest" for a second press to take.
+        if accepted, let advanced = interactionState.activeSession, !advanced.kind.isCorrection,
+           !advanced.isExhausted {
+            doubleTapAcceptanceState.recordWordAccept(of: .init(session: advanced), at: now)
+        } else {
+            doubleTapAcceptanceState.reset()
+        }
+        return accepted
+    }
+
     /// Shared acceptance path used by both word-by-word and full acceptance.
     private func acceptSuggestion(
         fullText: Bool,

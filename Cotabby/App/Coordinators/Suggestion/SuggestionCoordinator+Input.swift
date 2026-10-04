@@ -287,8 +287,13 @@ extension SuggestionCoordinator {
         }
 
         if event.kind == .acceptance {
-            return acceptCurrentSuggestion()
+            return acceptForWordAcceptKeyPress(isAutorepeat: event.isAutorepeat)
         }
+
+        // Anything between two Accept Word presses (typing, navigation, the full-accept key) means
+        // they are not one double tap, even if both land inside the timing window. Modifier-only
+        // presses never get here: the observer tap listens for key-downs, not `flagsChanged`.
+        doubleTapAcceptanceState.reset()
 
         if event.kind == .fullAcceptance {
             return acceptEntireSuggestion()
