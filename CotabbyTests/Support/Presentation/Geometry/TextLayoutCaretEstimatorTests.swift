@@ -447,6 +447,58 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.caretRect.maxY, 190, accuracy: 0.01)
     }
 
+    func test_estimate_multiLineCaretLineIsVerticallyCalibratedOnlyByAMeasuredTop() throws {
+        // A multi-line field places its first line from the top inset. Without a measured text-block
+        // top that inset is the 4pt default, so the line's Y is a guess: a web textarea with 20pt of
+        // padding drew its text a whole line below it (Claude desktop, 2026-10-03). A line-query
+        // margin measures only the left edge and leaves the top a guess too.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let guessed = try XCTUnwrap(acceptedEstimate(for: makeInput(prefix: "The whole", frame: frame)))
+        let marginOnly = try XCTUnwrap(
+            acceptedEstimate(
+                for: makeInput(prefix: "The whole", frame: frame, observedContentEdges: .lineQueryMargin(leftX: 112))
+            )
+        )
+        let measured = try XCTUnwrap(
+            acceptedEstimate(
+                for: makeInput(
+                    prefix: "The whole", frame: frame, observedContentEdges: ObservedContentEdges(leftX: 112, topY: 180)
+                )
+            )
+        )
+
+        XCTAssertFalse(guessed.isVerticallyCalibrated)
+        XCTAssertFalse(marginOnly.isVerticallyCalibrated)
+        XCTAssertTrue(measured.isVerticallyCalibrated)
+    }
+
+    func test_estimate_laterLinesNeedAMeasuredLineHeightToo() throws {
+        // Below the first line the guessed line unit compounds per line, so a measured top alone
+        // does not place the caret's line; the host's line box has to be measured as well.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let edges = ObservedContentEdges(leftX: 112, topY: 180)
+        let guessedPitch = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(prefix: "one\ntwo", frame: frame, observedContentEdges: edges))
+        )
+        let measuredPitch = try XCTUnwrap(
+            acceptedEstimate(
+                for: makeInput(prefix: "one\ntwo", frame: frame, observedLineHeight: 20, observedContentEdges: edges)
+            )
+        )
+
+        XCTAssertEqual(guessedPitch.lineIndex, 1)
+        XCTAssertFalse(guessedPitch.isVerticallyCalibrated)
+        XCTAssertTrue(measuredPitch.isVerticallyCalibrated)
+    }
+
+    func test_estimate_singleLineFieldIsVerticallyCalibratedByCentering() throws {
+        // A single-line field centers its line in the frame, which needs no inset at all.
+        let estimate = try XCTUnwrap(acceptedEstimate(for: makeInput(prefix: "hello")))
+
+        XCTAssertFalse(estimate.isMultiLineField)
+        XCTAssertTrue(estimate.isVerticallyCalibrated)
+    }
+
     func test_estimate_observedCharWidthWithinTwoPercentDoesNotRescaleFont() throws {
         // The width calibration has a 2% dead band: an observed average that close to the layout
         // font's own average is measurement noise, and rescaling on it would jitter the font size
