@@ -60,13 +60,15 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
             return nil
         }
 
-        let lowered = word.lowercased()
+        // Case conversion follows the dictionary's language: Turkish "I" lowercases to "ı", not "i".
+        let locale = language.caseLocale
+        let lowered = word.lowercased(with: locale)
         guard let suggestion = symSpell.bestSuggestion(for: lowered),
               suggestion.distance > 0,
-              suggestion.term.lowercased() != lowered else {
+              suggestion.term.lowercased(with: locale) != lowered else {
             return nil
         }
-        return TypoCaseTransfer.applying(caseOf: word, to: suggestion.term)
+        return TypoCaseTransfer.applying(caseOf: word, to: suggestion.term, locale: locale)
     }
 
     /// Returns no candidates while the language is cold. Index construction shares the existing
@@ -86,7 +88,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     ) {
         let symSpell = makeEmptyIndex()
         symSpell.loadDictionary(contents: contents)
-        let prefixes = WordPrefixIndex(contents: contents)
+        let prefixes = WordPrefixIndex(contents: contents, locale: language.caseLocale)
 
         lock.lock()
         publish(symSpell, prefixes: prefixes, for: language)
@@ -144,7 +146,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
 
             let symSpell = makeEmptyIndex()
             symSpell.loadDictionary(contents: contents)
-            let prefixes = WordPrefixIndex(contents: contents)
+            let prefixes = WordPrefixIndex(contents: contents, locale: language.caseLocale)
 
             lock.lock()
             publish(symSpell, prefixes: prefixes, for: language)

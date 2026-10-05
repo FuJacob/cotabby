@@ -33,6 +33,9 @@ nonisolated struct SpellingLanguageResolver: Sendable {
         guard !sample.isEmpty else {
             return nil
         }
+        if let byLetters = Self.cyrillicLanguageByLetters(in: sample, enabledLanguages: enabledLanguages) {
+            return byLetters
+        }
 
         let recognizer = NLLanguageRecognizer()
         recognizer.languageConstraints = enabledLanguages.map(\.naturalLanguage)
@@ -56,6 +59,26 @@ nonisolated struct SpellingLanguageResolver: Sendable {
         }
         return best.key
     }
+
+    /// Macedonian and Russian share the Cyrillic script, and Natural Language has no Macedonian model
+    /// (it labels Macedonian text Bulgarian). Letters that exist in only one of the two alphabets
+    /// settle it without guessing: ѓ ќ ѕ ј љ њ џ are Macedonian, ы э ё щ ъ й are Russian. Only used
+    /// when Macedonian is enabled, so every other combination keeps its existing detection.
+    static func cyrillicLanguageByLetters(
+        in sample: String,
+        enabledLanguages: [SpellingDictionaryLanguage]
+    ) -> SpellingDictionaryLanguage? {
+        guard enabledLanguages.contains(.macedonian) else { return nil }
+        let lowered = sample.lowercased()
+        if lowered.contains(where: { macedonianOnlyLetters.contains($0) }) { return .macedonian }
+        if enabledLanguages.contains(.russian), lowered.contains(where: { russianOnlyLetters.contains($0) }) {
+            return .russian
+        }
+        return nil
+    }
+
+    private static let macedonianOnlyLetters: Set<Character> = ["ѓ", "ќ", "ѕ", "ј", "љ", "њ", "џ"]
+    private static let russianOnlyLetters: Set<Character> = ["ы", "э", "ё", "щ", "ъ", "й"]
 
     /// Removes the known typo from the end so a malformed current word cannot outweigh the valid
     /// sentence before it. When no earlier context exists, the word itself remains useful for
@@ -84,6 +107,10 @@ nonisolated private extension SpellingDictionaryLanguage {
         case .hebrew: return .hebrew
         case .italian: return .italian
         case .russian: return .russian
+        case .turkish: return .turkish
+        // Natural Language has no Macedonian model and reports Macedonian text as Bulgarian, so
+        // Bulgarian stands in for it when Macedonian competes with other enabled dictionaries.
+        case .macedonian: return .bulgarian
         }
     }
 }
