@@ -10,7 +10,7 @@ final class TerminalAppDetectorTests: XCTestCase {
     func test_isTerminal_recognizesEveryKnownEmulator() {
         let terminals = [
             "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "io.alacritty",
-            "co.zeit.hyper", "com.mitchellh.ghostty", "dev.warp.Warp-Stable", "com.github.wez.wezterm",
+            "co.zeit.hyper", "dev.warp.Warp-Stable", "com.github.wez.wezterm",
             "io.rio.terminal"
         ]
         for bundleIdentifier in terminals {
@@ -111,4 +111,15 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertEqual(reason, "Cotabby is turned off.",
                        "Global-off should take precedence over the terminal check")
     }
+
+    func test_herdrMAndGhosttyAreTerminalScreenFieldsNotBlockedTerminals() {
+        // Both keep suggestions; only the caret's line is compared there.
+        for bundleIdentifier in ["dev.bybee.herdrm", "com.mitchellh.ghostty"] {
+            XCTAssertTrue(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: bundleIdentifier), bundleIdentifier)
+            XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: bundleIdentifier), bundleIdentifier)
+        }
+        XCTAssertFalse(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: "com.apple.TextEdit"))
+        XCTAssertFalse(TerminalAppDetector.isTerminalScreenField(bundleIdentifier: nil))
+    }
+
 }

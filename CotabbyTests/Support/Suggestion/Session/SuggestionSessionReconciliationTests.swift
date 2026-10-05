@@ -516,4 +516,96 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertEqual(reconciledSession.acceptedText, "wor")
         XCTAssertEqual(reconciledSession.remainingText, "ld again")
     }
+
+    // MARK: - Terminal screen fields
+
+    /// HerdrM's terminal: one field holding the whole screen, caret on the prompt line, and a
+    /// status line below it that redraws on its own (measured: same length, new counters).
+    private func terminalContext(above: String, prompt: String, below: String) -> FocusedInputContext {
+        CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "dev.bybee.herdrm",
+            precedingText: above + "\n" + prompt,
+            trailingText: "\n" + below
+        )
+    }
+
+    private func terminalSession(fullText: String = "out main") -> ActiveSuggestionSession {
+        ActiveSuggestionSession(
+            baseContext: terminalContext(above: "● agent output", prompt: "❯ git check", below: "ctx:62% · 54,725 tok"),
+            fullText: fullText,
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+    }
+
+    func test_terminalScreen_redrawsOffTheCaretLineKeepTheSuggestion() {
+        let live = terminalContext(above: "● other output\n✻ Thinking", prompt: "❯ git check", below: "ctx:63% · 54,801 tok")
+        guard case let .valid(session, advancement, _) = SuggestionSessionReconciler.reconcile(
+            session: terminalSession(), with: live, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("a status line or output redraw must not drop the suggestion") }
+        XCTAssertNil(advancement)
+        XCTAssertEqual(session.consumedCharacterCount, 0)
+    }
+
+    func test_terminalScreen_typingOnThePromptLineAdvancesTheSuggestion() {
+        let live = terminalContext(above: "● agent output", prompt: "❯ git checkout", below: "ctx:63% · 54,801 tok")
+        guard case let .valid(session, _, _) = SuggestionSessionReconciler.reconcile(
+            session: terminalSession(), with: live, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("typing the suggestion on the prompt line must advance it") }
+        XCTAssertEqual(session.consumedCharacterCount, 3)
+    }
+
+    func test_terminalScreen_changesOnTheCaretLineStillInvalidate() {
+        let session = ActiveSuggestionSession(
+            baseContext: terminalContext(above: "out", prompt: "❯ git check", below: "status"),
+            fullText: "out main",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        let edited = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "dev.bybee.herdrm", precedingText: "out\n❯ git check", trailingText: " --x\nstatus"
+        )
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: session, with: edited, pendingInsertionConsumedCount: nil
+        ), reason: "Overlay hidden because text after the caret changed (0 -> 3 chars).")
+
+        let retyped = terminalContext(above: "out", prompt: "❯ git switch", below: "status")
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: session, with: retyped, pendingInsertionConsumedCount: nil
+        ), reason: "Overlay hidden because text before the caret no longer matches the suggestion anchor.")
+    }
+
+    func test_terminalScreen_tabAcceptShrinkingTheBlankCellsKeepsTheTail() {
+        // The prompt row is padded with blank cells to the pane's width; inserting the accepted
+        // chunk pushes as many blanks off the row (measured: 183 -> 176 after 7 characters).
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                bundleIdentifier: "dev.bybee.herdrm",
+                precedingText: "out\n❯ git check",
+                trailingText: String(repeating: " ", count: 183) + "\nstatus"
+            ),
+            fullText: "out main",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        let live = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "dev.bybee.herdrm",
+            precedingText: "out\n❯ git checkout",
+            trailingText: String(repeating: " ", count: 180) + "\nstatus"
+        )
+        guard case let .valid(reconciled, _, _) = SuggestionSessionReconciler.reconcile(
+            session: session, with: live, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("blank cells pushed off the row must not drop the rest of the suggestion") }
+        XCTAssertEqual(reconciled.consumedCharacterCount, 3)
+        XCTAssertEqual(reconciled.predictedRemainingText, " main")
+    }
+
+    func test_otherFieldsStillCompareTheWholeTextAfterTheCaret() {
+        let session = CotabbyTestFixtures.activeSession(basePrecedingText: "Hello", baseTrailingText: "\nfooter")
+        let live = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", trailingText: "\nfooter 2")
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: session, with: live, pendingInsertionConsumedCount: nil
+        ), reason: "Overlay hidden because text after the caret changed (7 -> 9 chars).")
+    }
+
 }
