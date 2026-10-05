@@ -72,17 +72,6 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     /// A request needs at least one non-whitespace character. No trailing space is required:
     /// debounce handles keystroke settling and the output normalizer handles spacing, so adding
     /// "one more guard" here would silently remove completions that used to work.
-    /// Budgets within the reserved output ceiling leave the prompt budget alone; larger ones (a
-    /// long range with multi-line, up to 120 tokens) take their excess out of the prompt, so the
-    /// context window always holds prompt plus the full decode.
-    func test_promptTokenBudget_reservesRoomForTheRequestsWholeOutput() {
-        let ceiling = SuggestionConfiguration.llamaPromptOutputCeilingTokens
-        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 26), 3982)
-        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: ceiling), 3982)
-        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 120), 3982 - (120 - ceiling))
-        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 10, maxPredictionTokens: 120), 0)
-    }
-
     func test_shouldGenerate_requiresNonWhitespaceButNotATrailingDelimiter() {
         for text in ["", "   \t  ", "\n\n", " \n\t \n  "] {
             XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text), text.debugDescription)
@@ -534,6 +523,55 @@ final class SuggestionRequestFactoryTests: XCTestCase {
                 )
                 XCTAssertEqual(result.request.isMultiLineEnabled, isMultiLineEnabled, testCase.name)
             }
+        }
+    }
+
+    /// Budgets within the reserved output ceiling leave the prompt budget alone; larger ones (a
+    /// long range with multi-line, up to 120 tokens) take their excess out of the prompt, so the
+    /// context window always holds prompt plus the full decode.
+    func test_promptTokenBudget_reservesRoomForTheRequestsWholeOutput() {
+        let ceiling = SuggestionConfiguration.llamaPromptOutputCeilingTokens
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 26), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: ceiling), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 120), 3982 - (120 - ceiling))
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 10, maxPredictionTokens: 120), 0)
+    }
+
+    /// The same guarantee through the factory and the shipped configuration: a prompt filled to its
+    /// budget leaves the larger of the standing reserve and the request's whole decode free, plus the
+    /// safety margin. The fixture is one whitespace-free "word" to the prefix window and exactly one
+    /// estimated token per two characters, so the prefix alone fills any budget.
+    func test_buildRequest_fullPromptLeavesTheWholeDecodeInsideTheContextWindow() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: String(repeating: "a.", count: 7_000))
+        let contextWindow = Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
+        let longRange = SuggestionWordRange(lowWords: 50, highWords: 50)
+        let cases: [(range: SuggestionWordRange, languages: [String], isMultiLineEnabled: Bool, outputTokens: Int)] = [
+            (SuggestionWordCountPreset.twelveToTwenty.range, [], false, 26),
+            (SuggestionWordCountPreset.twelveToTwenty.range, [], true, 52),
+            (longRange, ["Russian"], false, 100),
+            (longRange, ["Russian"], true, 120)
+        ]
+
+        for testCase in cases {
+            let request = SuggestionRequestFactory.buildRequest(
+                context: context,
+                settings: CotabbyTestFixtures.settingsSnapshot(
+                    isUsingCustomWordCountRange: true,
+                    customWordCountRange: testCase.range,
+                    responseLanguages: testCase.languages,
+                    isMultiLineEnabled: testCase.isMultiLineEnabled
+                ),
+                configuration: .standard
+            ).request
+            XCTAssertEqual(request.maxPredictionTokens, testCase.outputTokens)
+            let freeTokens = contextWindow
+                - SuggestionConfiguration.llamaPromptSafetyMarginTokens
+                - TokenCountEstimator.estimate(request.prompt)
+            XCTAssertEqual(
+                freeTokens,
+                max(SuggestionConfiguration.llamaPromptOutputCeilingTokens, request.maxPredictionTokens),
+                "\(testCase.outputTokens) output tokens"
+            )
         }
     }
 

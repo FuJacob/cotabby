@@ -98,17 +98,17 @@ enum SuggestionRequestFactory {
         // engine; dropping it here as well keeps that guarantee in the one pure place every request
         // passes through.
         let activeHistoryExamples = settings.selectedEngine == .openAICompatible ? [] : historyExamples
-        // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
-        // prompt is always the base render: no instruction blob, exact caret prefix last.
-        // Custom instructions and persona condition the output rather than being obeyed. The
-        // Foundation Models path builds its own messages from these same request fields, so this
-        // prompt string is only consumed by the llama engine.
         let maxPredictionTokens = activeMaxPredictionTokens(
             configuration: configuration,
             wordRange: settings.effectiveWordRange,
             responseLanguages: settings.responseLanguages,
             isMultiLineEnabled: settings.isMultiLineEnabled
         )
+        // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
+        // prompt is always the base render: no instruction blob, exact caret prefix last.
+        // Custom instructions and persona condition the output rather than being obeyed. The
+        // Foundation Models path builds its own messages from these same request fields, so this
+        // prompt string is only consumed by the llama engine and the endpoint.
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
@@ -128,6 +128,9 @@ enum SuggestionRequestFactory {
             contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
             maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
             screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
+            // One budget for every engine: the endpoint shares the llama prefix window, and an
+            // Apple request's prompt is what its llama fallback decodes. Either way the request's
+            // whole output allowance has to fit beside it (see `promptTokenBudget`).
             tokenBudget: promptTokenBudget(
                 configuredBudget: configuration.llamaPromptTokenBudget,
                 maxPredictionTokens: maxPredictionTokens
@@ -291,11 +294,13 @@ enum SuggestionRequestFactory {
         return isMultiLineEnabled ? min(base * 2, 120) : base
     }
 
-    /// The prompt's token budget for one request. The configured budget already holds back
+    /// The prompt's token budget for one request. The configured budget holds back
     /// `llamaPromptOutputCeilingTokens` of the context window for output, but a request can ask for
-    /// more than that (12-20 words with multi-line is 52 tokens; multi-line allows up to 120). The
-    /// excess comes out of the prompt, so a long prompt can never squeeze the decode the request
-    /// was budgeted for.
+    /// more: a 50-word range reaches 100 tokens in a 2-tokens-per-word language, and multi-line
+    /// doubles budgets up to 120 (the default 12-20 range becomes 52). `LlamaRuntimeCore` reserves
+    /// the whole decode before admitting the prompt, so an overflowing prompt loses its oldest raw
+    /// tokens there: the preface is cut mid-section and the request forfeits KV prefix reuse.
+    /// Taking the excess out of the budget here lets the renderer trim by section priority instead.
     static func promptTokenBudget(configuredBudget: Int, maxPredictionTokens: Int) -> Int {
         let excess = max(0, maxPredictionTokens - SuggestionConfiguration.llamaPromptOutputCeilingTokens)
         return max(0, configuredBudget - excess)
