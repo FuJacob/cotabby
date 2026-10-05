@@ -276,10 +276,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // The field's own frame, not `inputFrameRect`: that one is widened to the parent container
+        // (and a 500pt minimum) for card placement, which in WhatsApp is the whole chat bar, so the
+        // icon landed left of the attachment button instead of beside the message field.
         activationIndicatorController.show(
             enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
-            inputFrameRect: context.inputFrameRect
+            inputFrameRect: context.elementFrameRect ?? context.inputFrameRect
         )
     }
 
