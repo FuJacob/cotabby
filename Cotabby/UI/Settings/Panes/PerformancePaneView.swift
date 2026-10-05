@@ -218,10 +218,11 @@ struct PerformancePaneView: View {
     }
 
     /// The first reading only sets the baseline, so an empty GPU graph is normal for a second. Once
-    /// several readings have produced no share at all, the counters are missing on this Mac and
-    /// waiting longer won't help.
+    /// several readings have produced no share at all, say so plainly instead of promising data that
+    /// is not coming. The wording claims nothing about the Mac: a driver without the counters and a
+    /// Cotabby process that has not opened the GPU yet both end up here.
     private var gpuEmptyMessage: String {
-        systemMetricsStore.samples.count >= 3 ? "Not available on this Mac" : "Collecting…"
+        systemMetricsStore.samples.count >= 3 ? "No GPU readings for Cotabby" : "Collecting…"
     }
 
     private var gpuCurrentLabel: String {
