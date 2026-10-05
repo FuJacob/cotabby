@@ -19,9 +19,9 @@ final class GPUStatisticsReaderTests: XCTestCase {
         XCTAssertNil(GPUStatisticsReader.inUseMemoryBytes(from: [:]))
     }
 
-    func testGPUTimeIsSummedOverEveryClientAndAPI() {
+    func testGPUTimeIsSummedOverEveryClientAndQueue() {
         // Shape measured on a live Cotabby Dev: one client with two Metal entries.
-        let clients: [[[String: Any]]] = [
+        let clients: [[[String: Any]]?] = [
             [
                 ["API": "Metal", "accumulatedGPUTime": NSNumber(value: 0)],
                 ["API": "Metal", "accumulatedGPUTime": NSNumber(value: 1_651_666)]
@@ -29,8 +29,28 @@ final class GPUStatisticsReaderTests: XCTestCase {
             [["API": "Metal", "accumulatedGPUTime": NSNumber(value: 500)]]
         ]
         XCTAssertEqual(GPUStatisticsReader.accumulatedGPUTime(fromClients: clients), 1_652_166)
-        XCTAssertEqual(GPUStatisticsReader.accumulatedGPUTime(fromClients: [[]]), 0)
+        XCTAssertEqual(
+            GPUStatisticsReader.accumulatedGPUTime(fromClients: [[]]),
+            0,
+            "an empty AppUsage is a client with no work submitted yet, a real 0"
+        )
         XCTAssertNil(GPUStatisticsReader.accumulatedGPUTime(fromClients: []), "no GPU client is no data, not 0%")
+    }
+
+    func testGPUTimeIsUnknownWhenAnyCounterIsMissing() {
+        let readable: [[String: Any]] = [["API": "Metal", "accumulatedGPUTime": NSNumber(value: 500)]]
+        XCTAssertNil(
+            GPUStatisticsReader.accumulatedGPUTime(fromClients: [readable, nil]),
+            "a client without a readable AppUsage would make the sum an undercount"
+        )
+        XCTAssertNil(
+            GPUStatisticsReader.accumulatedGPUTime(fromClients: [readable + [["API": "Metal"]]]),
+            "an entry without accumulatedGPUTime is not an idle queue"
+        )
+        XCTAssertNil(
+            GPUStatisticsReader.accumulatedGPUTime(fromClients: [[["accumulatedGPUTime": "500"]]]),
+            "a counter of the wrong type is unusable"
+        )
     }
 
     func testProcessShareIsGPUTimeOverWallTime() {
