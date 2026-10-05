@@ -2,9 +2,9 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Behavior of the rolling CPU/RAM window behind the Performance pane graphs: reference-counted
-/// sampling, the immediate first reading, the 60-sample cap, identity reset, and the weak-timer
-/// teardown contract. The store declares `nonisolated deinit`, so instances may deallocate freely
+/// Behavior of the rolling CPU/RAM/GPU window behind the Performance pane graphs: reference-counted
+/// sampling, the immediate first reading, the 60-sample cap, identity reset, the GPU share baseline,
+/// and the weak-timer teardown contract. The store declares `nonisolated deinit`, so instances may deallocate freely
 /// inside the app-hosted runner; main-actor work still runs through `runOnMainActor` because the
 /// test class itself must not be `@MainActor`.
 final class SystemMetricsStoreTests: XCTestCase {
@@ -22,9 +22,40 @@ final class SystemMetricsStoreTests: XCTestCase {
         }
     }
 
+    /// Scripted GPU counters plus a fake monotonic clock. Each capture reads the next scripted GPU
+    /// time (repeating the last once the script runs out) and advances the clock by `step`, so the
+    /// store's GPU share is exact no matter how late the real timer fires.
+    private final class GPUProbe {
+        private let nanoseconds: [UInt64?]
+        private let step: TimeInterval
+        private var readCount = 0
+        private var clock: TimeInterval = 1_000
+
+        init(nanoseconds: [UInt64?], step: TimeInterval = 2) {
+            self.nanoseconds = nanoseconds
+            self.step = step
+        }
+
+        func read() -> GPUStatisticsReading {
+            let value = nanoseconds[min(readCount, nanoseconds.count - 1)]
+            readCount += 1
+            return GPUStatisticsReading(
+                deviceUtilizationPercent: 42,
+                inUseMemoryBytes: 1_024,
+                processGPUTimeNanoseconds: value
+            )
+        }
+
+        func uptime() -> TimeInterval {
+            clock += step
+            return clock
+        }
+    }
+
     private func makeStore(
         probe: SamplerProbe,
-        sampleInterval: TimeInterval = 600
+        sampleInterval: TimeInterval = 600,
+        gpu: GPUProbe? = nil
     ) -> SystemMetricsStore {
         // The default interval is deliberately huge so timer ticks can never interleave with
         // assertions; timer-driven tests override it explicitly.
@@ -32,8 +63,22 @@ final class SystemMetricsStoreTests: XCTestCase {
             SystemMetricsStore(
                 sampleInterval: sampleInterval,
                 physicalMemoryBytes: 8_589_934_592,
-                sampler: { probe.next() }
+                sampler: { probe.next() },
+                gpuSampler: { gpu?.read() ?? .unavailable },
+                uptime: { gpu?.uptime() ?? 0 }
             )
+        }
+    }
+
+    /// Starts sampling on a fast timer and returns the first `count` samples' GPU shares.
+    private func gpuShares(count: Int, from gpu: GPUProbe) -> [Double?] {
+        let store = makeStore(probe: SamplerProbe(), sampleInterval: 0.01, gpu: gpu)
+        runOnMainActor { store.beginSampling() }
+        let reached = pumpRunLoop(timeout: 10) { runOnMainActor { store.samples.count >= count } }
+        XCTAssertTrue(reached, "Timer never delivered \(count) samples")
+        return runOnMainActor {
+            defer { store.endSampling() }
+            return store.samples.prefix(count).map(\.gpuPercent)
         }
     }
 
@@ -48,6 +93,80 @@ final class SystemMetricsStoreTests: XCTestCase {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
         }
         return true
+    }
+
+    // MARK: - GPU
+
+    func test_gpuShare_isGPUTimeOverMonotonicTimeFromTheSecondSample() {
+        // 0.5 s of GPU time per 2 s step of the injected clock is a 25% share.
+        let gpu = GPUProbe(nanoseconds: [1_000_000_000, 1_500_000_000, 2_000_000_000])
+
+        let shares = gpuShares(count: 3, from: gpu)
+
+        XCTAssertEqual(shares, [nil, 25, 25], "The first reading has nothing to measure from")
+    }
+
+    func test_gpuShare_isMissingAcrossACounterResetAndThenResumes() {
+        // A released command queue takes its time with it, so the total can shrink between samples.
+        let gpu = GPUProbe(nanoseconds: [1_000_000_000, 2_000_000_000, 500_000_000, 1_500_000_000])
+
+        let shares = gpuShares(count: 4, from: gpu)
+
+        XCTAssertEqual(
+            shares,
+            [nil, 50, nil, 50],
+            "A reset is unknown, not negative usage, and the next sample measures from it"
+        )
+    }
+
+    func test_gpuShare_isMissingWhenACounterIsUnavailable() {
+        let gpu = GPUProbe(nanoseconds: [1_000_000_000, nil, 2_000_000_000, 3_000_000_000])
+
+        let shares = gpuShares(count: 4, from: gpu)
+
+        XCTAssertEqual(shares, [nil, nil, nil, 50], "Both sides of a share need a counter")
+    }
+
+    func test_gpuDeviceFigures_areCarriedOnEverySample() {
+        let probe = SamplerProbe()
+        let store = makeStore(probe: probe, gpu: GPUProbe(nanoseconds: [0]))
+
+        runOnMainActor {
+            store.beginSampling()
+            XCTAssertEqual(store.samples.first?.deviceGPUPercent, 42)
+            XCTAssertEqual(store.samples.first?.gpuMemoryBytes, 1_024)
+            store.endSampling()
+        }
+    }
+
+    func test_gpuBaseline_doesNotCarryIntoTheNextSession() {
+        let probe = SamplerProbe()
+        let store = makeStore(probe: probe, gpu: GPUProbe(nanoseconds: [1_000_000_000, 2_000_000_000]))
+
+        runOnMainActor {
+            store.beginSampling()
+            store.endSampling()
+
+            store.beginSampling()
+            // Measuring from the last session's reading would average over the time the pane was
+            // closed. The new session starts without a share, just like the first one did.
+            XCTAssertEqual(store.samples.count, 1)
+            XCTAssertNil(store.samples.first?.gpuPercent)
+            store.endSampling()
+        }
+    }
+
+    func test_unavailableGPU_leavesEveryGPUFieldEmpty() {
+        let store = makeStore(probe: SamplerProbe())
+
+        runOnMainActor {
+            store.beginSampling()
+            let sample = store.samples.first
+            XCTAssertNil(sample?.gpuPercent)
+            XCTAssertNil(sample?.deviceGPUPercent)
+            XCTAssertNil(sample?.gpuMemoryBytes)
+            store.endSampling()
+        }
     }
 
     // MARK: - Lifecycle and reference counting

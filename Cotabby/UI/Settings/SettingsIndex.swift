@@ -406,7 +406,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .screenRecording: return "Optional visual context from the focused window."
         case .performanceTracking: return "Record timing for every model request."
         case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
-        case .resourceUsage: return "Live CPU and memory graphs for the app."
+        case .resourceUsage: return "Live CPU, memory, and GPU graphs for the app."
         case .recentRequests: return "Latency log of the most recent generations."
         case .checkForUpdates: return "See if a newer Cotabby is available."
         case .support: return "Report bugs, suggest features, or contribute code."
@@ -645,8 +645,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["quality", "acceptance", "accepted", "shown", "suppressed", "withheld",
                     "rate", "stats", "counters", "suggestions"]
         case .resourceUsage:
-            return ["cpu", "memory", "ram", "usage", "resource", "graph", "chart",
-                    "live", "load", "monitor"]
+            return ["cpu", "memory", "ram", "gpu", "graphics", "metal", "usage", "resource", "graph",
+                    "chart", "live", "load", "monitor"]
         case .recentRequests:
             return ["recent", "requests", "history", "log", "completions", "latency",
                     "clear", "list", "past"]

@@ -4,7 +4,7 @@ import SwiftUI
 /// File overview:
 /// "Performance" detail pane of the redesigned Settings window. Combines two things a debugging
 /// session wants side by side: an opt-in, persisted log of per-request latencies (the table, plus a
-/// trend graph) and an always-live view of the app's own CPU and memory footprint. The live graphs
+/// trend graph) and an always-live view of the app's own CPU, memory, and GPU use. The live graphs
 /// only sample while this pane is on screen — `onAppear`/`onDisappear` drive `SystemMetricsStore` so
 /// there is zero background cost when the pane is closed. The latency table stays inert until the
 /// user enables tracking, since `SuggestionEngineRouter` short-circuits the recorder when it's off.
@@ -138,6 +138,7 @@ struct PerformancePaneView: View {
     private var liveResourceSection: some View {
         Section {
             MetricSparkline(
+                title: "CPU",
                 points: cpuPoints,
                 yDomainUpper: cpuDomainUpper,
                 tint: .blue,
@@ -145,17 +146,35 @@ struct PerformancePaneView: View {
             )
             .settingsItem(.resourceUsage)
             MetricSparkline(
+                title: "Memory",
                 points: ramPoints,
                 yDomainUpper: ramDomainUpperMB,
                 tint: .green,
                 valueLabel: ramCurrentLabel
             )
+            VStack(alignment: .leading, spacing: 6) {
+                MetricSparkline(
+                    title: "GPU",
+                    points: gpuPoints,
+                    yDomainUpper: 100,
+                    tint: .purple,
+                    valueLabel: gpuCurrentLabel,
+                    emptyMessage: gpuEmptyMessage
+                )
+                Text(deviceGPUSummary)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text("Live Resource Usage")
         } footer: {
             Text(
                 "Updated every second while this pane is open. CPU can exceed 100% across multiple " +
-                "cores. Memory is the app's physical footprint."
+                "cores. Memory is the app's physical footprint. GPU is Cotabby's own share of the " +
+                "GPU, where the Open Source engine runs its model. Apple Intelligence and endpoint " +
+                "servers such as Ollama run outside Cotabby, so they don't count toward it. The " +
+                "line below the GPU graph covers every app on this Mac."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -164,7 +183,7 @@ struct PerformancePaneView: View {
 
     private var cpuPoints: [MetricSparkline.Point] {
         systemMetricsStore.samples.map {
-            MetricSparkline.Point(id: String($0.id), label: "CPU", date: $0.timestamp, value: $0.cpuPercent)
+            MetricSparkline.Point(id: String($0.id), date: $0.timestamp, value: $0.cpuPercent)
         }
     }
 
@@ -172,11 +191,53 @@ struct PerformancePaneView: View {
         systemMetricsStore.samples.map {
             MetricSparkline.Point(
                 id: String($0.id),
-                label: "Memory",
                 date: $0.timestamp,
                 value: Double($0.footprintBytes) / Self.bytesPerMB
             )
         }
+    }
+
+    /// Cotabby's GPU share per sample. A sample without a share is skipped rather than drawn as a
+    /// false 0%: the first of a session has no previous reading to measure from, and a later one can
+    /// miss when the counters are unavailable or a released command queue shrank them. A skipped
+    /// sample also starts a new segment, so the chart leaves a gap instead of drawing a line across
+    /// time that was never measured.
+    private var gpuPoints: [MetricSparkline.Point] {
+        var segment = 0
+        var points: [MetricSparkline.Point] = []
+        for sample in systemMetricsStore.samples {
+            guard let percent = sample.gpuPercent else {
+                segment += 1
+                continue
+            }
+            points.append(
+                MetricSparkline.Point(id: String(sample.id), date: sample.timestamp, value: percent, segment: segment)
+            )
+        }
+        return points
+    }
+
+    /// The first reading only sets the baseline, so an empty GPU graph is normal for a second. Once
+    /// several readings have produced no share at all, say so plainly instead of promising data that
+    /// is not coming. The wording claims nothing about the Mac: a driver without the counters and a
+    /// Cotabby process that has not opened the GPU yet both end up here.
+    private var gpuEmptyMessage: String {
+        systemMetricsStore.samples.count >= 3 ? "No GPU readings for Cotabby" : "Collecting…"
+    }
+
+    private var gpuCurrentLabel: String {
+        guard let percent = systemMetricsStore.samples.last?.gpuPercent else { return "—" }
+        return String(format: "%.0f%%", percent)
+    }
+
+    /// Whole-Mac GPU utilization and GPU memory in use, from the latest sample.
+    private var deviceGPUSummary: String {
+        let latest = systemMetricsStore.samples.last
+        let utilization = latest?.deviceGPUPercent.map { String(format: "%.0f%%", $0) } ?? "—"
+        let memory = latest?.gpuMemoryBytes.map {
+            ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory)
+        } ?? "—"
+        return "All apps: GPU \(utilization) · GPU memory in use \(memory)"
     }
 
     /// Headroom above the recent peak so the line never clips the top of the frame. CPU never
@@ -206,6 +267,7 @@ struct PerformancePaneView: View {
 
     private var latencyChart: some View {
         MetricSparkline(
+            title: "Latency",
             points: latencyPoints,
             yDomainUpper: latencyDomainUpper,
             tint: .orange,
@@ -217,7 +279,6 @@ struct PerformancePaneView: View {
         performanceMetricsStore.entries.map {
             MetricSparkline.Point(
                 id: $0.id.uuidString,
-                label: "Latency",
                 date: $0.timestamp,
                 value: Double($0.latencyMs)
             )
@@ -320,30 +381,37 @@ struct PerformancePaneView: View {
     }()
 }
 
-/// A compact filled line graph for a single time series (CPU, memory, or latency). Renders a header
-/// with the metric name and its current value, then a fixed-height area+line chart. Kept generic
-/// over plain `Point`s so the pane can feed it three different sources without leaking chart code
-/// into the pane body.
+/// A compact filled line graph for a single time series (CPU, memory, GPU, or latency). Renders a
+/// header with the metric name and its current value, then a fixed-height area+line chart. Kept
+/// generic over plain `Point`s so the pane can feed it four different sources without leaking chart
+/// code into the pane body.
 private struct MetricSparkline: View {
     struct Point: Identifiable {
         // A `String` identity lets each source supply a naturally unique key (a UUID's `uuidString`
-        // for latency, the monotonic sample counter for CPU/RAM) without lossily folding a 128-bit
-        // UUID down into a collision-prone integer.
+        // for latency, the monotonic sample counter for CPU/RAM/GPU) without lossily folding a
+        // 128-bit UUID down into a collision-prone integer.
         let id: String
-        let label: String
         let date: Date
         let value: Double
+        /// Points are joined only within a segment. A source with unmeasured stretches (GPU) bumps
+        /// it after each gap; sources that never miss a reading leave every point in segment 0.
+        var segment = 0
     }
 
+    /// The metric name in the header. Passed separately rather than read off the first point so
+    /// the header stays labeled while the chart is still empty.
+    let title: String
     let points: [Point]
     let yDomainUpper: Double
     let tint: Color
     let valueLabel: String
+    /// Shown in place of the chart while there are no points.
+    var emptyMessage = "Collecting…"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(points.first?.label ?? "")
+                Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -364,22 +432,27 @@ private struct MetricSparkline: View {
                 .fill(Color.secondary.opacity(0.08))
                 .frame(height: 110)
                 .overlay(
-                    Text("Collecting…")
+                    Text(emptyMessage)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 )
         } else {
             Chart(points) { point in
+                // One series per segment keeps Charts from joining points across a gap. Segments
+                // never share an x value, so `.unstacked` only rules out stacking on principle.
                 AreaMark(
                     x: .value("Time", point.date),
-                    y: .value(point.label, point.value)
+                    y: .value(title, point.value),
+                    series: .value("Segment", point.segment),
+                    stacking: .unstacked
                 )
                 .foregroundStyle(tint.opacity(0.15))
                 .interpolationMethod(.monotone)
 
                 LineMark(
                     x: .value("Time", point.date),
-                    y: .value(point.label, point.value)
+                    y: .value(title, point.value),
+                    series: .value("Segment", point.segment)
                 )
                 .foregroundStyle(tint)
                 .interpolationMethod(.monotone)
