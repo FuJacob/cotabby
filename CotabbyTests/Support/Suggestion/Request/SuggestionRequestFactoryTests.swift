@@ -539,8 +539,10 @@ final class SuggestionRequestFactoryTests: XCTestCase {
 
     /// The same guarantee through the factory and the shipped configuration: a prompt filled to its
     /// budget leaves the larger of the standing reserve and the request's whole decode free, plus the
-    /// safety margin. The fixture is one whitespace-free "word" to the prefix window and exactly one
-    /// estimated token per two characters, so the prefix alone fills any budget.
+    /// safety margin. The fixture is one whitespace-free "word" to the prefix window with a uniform
+    /// one estimated token per two characters, so the prefix alone fills any budget and the
+    /// allocator's density-based cut lands exactly on it. That isolates the budget the factory
+    /// passes from the allocator's rounding on uneven text.
     func test_buildRequest_fullPromptLeavesTheWholeDecodeInsideTheContextWindow() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: String(repeating: "a.", count: 7_000))
         let contextWindow = Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
