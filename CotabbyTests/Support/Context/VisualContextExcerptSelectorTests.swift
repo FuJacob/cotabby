@@ -83,6 +83,37 @@ final class VisualContextExcerptSelectorTests: XCTestCase {
         XCTAssertEqual(select(lines, budget: -1), "")
     }
 
+    func test_dropsTheComposerAndItsChromeButKeepsTheConversationAbove() {
+        // Measured in ChatGPT: OCR read the draft before its last keystrokes, and the composer's
+        // toolbar (attachment icon + model picker) under it; the model copied both.
+        let lines = [
+            line("For 2027 Metallica has announced shows", x: 0.4, y: 0.5),
+            line("what is in", x: 0.4, y: 0.12),
+            line("4 5.6 Sol", x: 0.4, y: 0.05),
+            line("Sidebar item below the caret", x: 0, y: 0.05)
+        ]
+        XCTAssertEqual(
+            select(lines, budget: 4000),
+            "For 2027 Metallica has announced shows\nSidebar item below the caret"
+        )
+    }
+
+    func test_focusedFieldOrBelowIsLimitedToTheFieldsColumn() {
+        let focus = CGRect(x: 0.4, y: 0.1, width: 0.4, height: 0.1)
+        XCTAssertTrue(VisualContextExcerptSelector.isFocusedFieldOrBelow(
+            CGRect(x: 0.45, y: 0.12, width: 0.2, height: 0.03), focus: focus
+        ), "the caret line itself")
+        XCTAssertTrue(VisualContextExcerptSelector.isFocusedFieldOrBelow(
+            CGRect(x: 0.45, y: 0.02, width: 0.2, height: 0.03), focus: focus
+        ), "chrome under the field")
+        XCTAssertFalse(VisualContextExcerptSelector.isFocusedFieldOrBelow(
+            CGRect(x: 0.45, y: 0.3, width: 0.2, height: 0.03), focus: focus
+        ), "a message above the field")
+        XCTAssertFalse(VisualContextExcerptSelector.isFocusedFieldOrBelow(
+            CGRect(x: 0, y: 0.02, width: 0.2, height: 0.03), focus: focus
+        ), "another column")
+    }
+
     private func line(_ text: String, x: Double, y: Double) -> OCRTextHygiene.OCRLine {
         .init(text: text, confidence: 1, boundingBox: CGRect(x: x, y: y, width: 0.25, height: 0.03))
     }
