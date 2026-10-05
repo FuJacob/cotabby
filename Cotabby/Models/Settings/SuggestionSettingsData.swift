@@ -90,6 +90,9 @@ struct SuggestionPresentationSettings: Equatable {
     var mirrorPreference: MirrorPreference
     var fadeInSuggestions: Bool
     var fadeInDurationSeconds: Double
+    /// Draws the ghost at exactly the size measured for the host's own text, so the size multiplier
+    /// and the floor/ceiling above are not applied. Off by default, which keeps the user's tuning.
+    var matchesHostTextSize: Bool = false
     /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
     var showDevelopmentDebugOverlays: Bool = false
 }
@@ -418,6 +421,11 @@ extension SuggestionSettingsData {
     var fadeInDurationSeconds: Double {
         get { presentation.fadeInDurationSeconds }
         set { presentation.fadeInDurationSeconds = newValue }
+    }
+
+    var matchesHostTextSize: Bool {
+        get { presentation.matchesHostTextSize }
+        set { presentation.matchesHostTextSize = newValue }
     }
 
     var isEmojiPickerEnabled: Bool {
