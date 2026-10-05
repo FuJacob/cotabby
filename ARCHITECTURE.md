@@ -201,7 +201,9 @@ event payloads as complete field state.
 
 FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces (and
 Mail's compose header rows, [MailHeaderFieldDetector.swift](Cotabby/Support/Accessibility/MailHeaderFieldDetector.swift):
-Tab is the way from To to Subject to body there, not an accept), bounds
+Tab is the way from To to Subject to body there, not an accept; and single-line sign-in and
+verification fields, [CredentialFieldDetector.swift](Cotabby/Support/Accessibility/CredentialFieldDetector.swift):
+a completion there is a guess at the user's identity), bounds
 text on both sides of the caret, resolves the focused process, and publishes stable domain values.
 Chromium/Electron require accessibility priming, cursor hit-test recovery, and out-of-process iframe
 handling. All fallbacks are revalidated and yield to a valid system-focused element.

@@ -45,6 +45,17 @@ struct FocusSnapshotResolver {
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// The label and DOM-id reads behind `CredentialFieldDetector`: up to four AX round trips that
+    /// would otherwise repeat on every poll of every single-line field, for values that rarely
+    /// change while focus stays in one field. A navigation that reuses the element changes the URL,
+    /// title or placeholder, which starts a new focus session and so a fresh read. A field
+    /// relabelled in place (a reused input whose aria-label turns it into a code box) changes none
+    /// of those, so a reading is also refreshed after `credentialLabelRefreshInterval`.
+    private let credentialLabelCache = FocusSessionScopedCache<CredentialFieldLabelReading>()
+    /// How long a credential label reading is trusted within one focus session. One second bounds
+    /// how long an in-place relabel goes unnoticed, while the reads run about a dozen times less
+    /// often than the 80 ms active poll.
+    static let credentialLabelRefreshInterval: TimeInterval = 1
     /// The text margin the caret's paragraph wraps to, which a field's `AXFrame` does not reveal
     /// (Word's frame is the page edge, not the text margin). Up to three AX round trips, so each
     /// result is cached per focus session *and* per paragraph: the margin changes between an indented
@@ -72,8 +83,15 @@ struct FocusSnapshotResolver {
     /// answers no width query (Chromium contenteditables, Electron composers); see
     /// `CaretAdvanceSampler`. One sampler follows the focused field; a new field starts a new one.
     private let caretAdvanceSamples = CaretAdvanceSampleStore()
-    init(geometryResolver: AXTextGeometryResolver? = nil) {
+    /// Seconds since boot, for the credential label refresh. Injected so tests can step time.
+    private let uptime: () -> TimeInterval
+
+    init(
+        geometryResolver: AXTextGeometryResolver? = nil,
+        uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+        self.uptime = uptime
     }
 
     /// Drops the cached static-text-run walk so the next capture pays a fresh one. Called through
@@ -336,8 +354,12 @@ struct FocusSnapshotResolver {
             hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
         )
 
-        if let reason = Self.blockedReason(
-            for: resolvedCandidate, bundleIdentifier: bundleIdentifier, selection: selection, rawSelection: rawSelection
+        if let reason = blockedReason(
+            for: resolvedCandidate,
+            bundleIdentifier: bundleIdentifier,
+            selection: selection,
+            rawSelection: rawSelection,
+            focusChangeSequence: focusChangeSequence
         ) {
             return FocusSnapshot(
                 applicationName: applicationName,
@@ -356,12 +378,14 @@ struct FocusSnapshotResolver {
     }
 
     /// Why a field Cotabby can read is still one it must not complete in, or nil when it may: a
-    /// secure field, one of Mail's header rows, or a field with text selected.
-    private static func blockedReason(
+    /// secure field, one of Mail's header rows, a sign-in or verification field, or a field with
+    /// text selected.
+    private func blockedReason(
         for candidate: AXFocusCandidate,
         bundleIdentifier: String,
         selection: NSRange,
-        rawSelection: NSRange
+        rawSelection: NSRange,
+        focusChangeSequence: UInt64
     ) -> String? {
         if candidate.isSecure {
             return "Secure text input is active."
@@ -376,6 +400,21 @@ struct FocusSnapshotResolver {
                accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: candidate.element)
            ) {
             return MailHeaderFieldDetector.blockedReason
+        }
+
+        // Email, username, phone and code boxes, single-line fields only. The labels are read at
+        // most once a second per field; the typed text is checked on every poll, since typing
+        // "alice@" is what reveals an unlabelled address box.
+        if CredentialFieldDetector.mightBeCredentialField(role: candidate.role) {
+            let labelReading = credentialLabelReading(for: candidate, focusChangeSequence: focusChangeSequence)
+            if CredentialFieldDetector.isCredentialField(
+                role: candidate.role,
+                labels: labelReading.labels,
+                domIdentifier: labelReading.domIdentifier,
+                text: candidate.textValue
+            ) {
+                return CredentialFieldDetector.blockedReason
+            }
         }
 
         guard selection.length > 0 else { return nil }
@@ -1553,6 +1592,58 @@ struct FocusSnapshotResolver {
             title: AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element),
             descriptionLabel: AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)
         )
+    }
+
+    /// What a single-line field says about itself (title, description, placeholder, DOM id), read
+    /// through `credentialLabelCache`: once per focus session, refreshed after
+    /// `credentialLabelRefreshInterval`.
+    ///
+    /// An all-empty reading from web content is returned but not cached: a web field can be read
+    /// before the page has filled in its name, and caching that would leave a real sign-in box
+    /// unrecognized until the next refresh. Such a field keeps paying the reads until it answers.
+    /// A native field's attributes are there as soon as it is, so its empty reading is kept.
+    private func credentialLabelReading(
+        for candidate: AXFocusCandidate,
+        focusChangeSequence: UInt64
+    ) -> CredentialFieldLabelReading {
+        let now = uptime()
+        if let cached = credentialLabelCache.cachedValue(
+            forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+        ), now - cached.readAt < Self.credentialLabelRefreshInterval {
+            return cached
+        }
+
+        let reading = CredentialFieldLabelReading(
+            readAt: now,
+            labels: [
+                AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: candidate.element),
+                AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: candidate.element),
+                AXHelper.stringValue(for: kAXPlaceholderValueAttribute as CFString, on: candidate.element)
+            ],
+            // Only web content vends DOM ids; asking a native field is a wasted round trip.
+            domIdentifier: candidate.vendsDOMAttributes
+                ? AXHelper.stringValue(for: "AXDOMIdentifier" as CFString, on: candidate.element)
+                : nil
+        )
+        if !reading.isEmpty || !candidate.vendsDOMAttributes {
+            credentialLabelCache.store(
+                reading, forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+            )
+        }
+        return reading
+    }
+}
+
+/// The attributes `CredentialFieldDetector` judges a field by, cached per focus session.
+private struct CredentialFieldLabelReading {
+    /// `uptime()` when the attributes were read, so the reading can be refreshed.
+    let readAt: TimeInterval
+    let labels: [String?]
+    let domIdentifier: String?
+
+    /// True when the field answered nothing usable, so a web field's reading may simply be early.
+    var isEmpty: Bool {
+        (labels + [domIdentifier]).allSatisfy { ($0 ?? "").isEmpty }
     }
 }
 
