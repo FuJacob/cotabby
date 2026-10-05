@@ -36,7 +36,14 @@ struct GhostTextLayout: Equatable {
         let fullText: String
         /// UTF-16 units of `fullText` the host already contains (typed through or accepted).
         let consumedUTF16: Int
+        /// The face the ghost glyphs are drawn in.
         let font: NSFont
+        /// The face the host draws the consumed prefix in, when it differs from `font`: the user's
+        /// bold or italic suggestion style (`GhostFontStyler`) is the ghost's alone, and accepted
+        /// text lands in the host's plain face. The consumed prefix is measured in this face, so the
+        /// remaining ghost starts where the host's caret actually is after an accept. Nil means the
+        /// ghost is drawn in the host's own face and `font` measures both.
+        let measuringFont: NSFont?
         /// Global Cocoa point of the insertion point when nothing was consumed: the caret box's
         /// leading x and its top y.
         let anchorTopLeft: CGPoint
@@ -60,6 +67,7 @@ struct GhostTextLayout: Equatable {
             fullText: String,
             consumedUTF16: Int,
             font: NSFont,
+            measuringFont: NSFont? = nil,
             anchorTopLeft: CGPoint,
             boxHeight: CGFloat,
             baselineOffsetFromTop: CGFloat,
@@ -72,6 +80,7 @@ struct GhostTextLayout: Equatable {
             self.fullText = fullText
             self.consumedUTF16 = consumedUTF16
             self.font = font
+            self.measuringFont = measuringFont
             self.anchorTopLeft = anchorTopLeft
             self.boxHeight = boxHeight
             self.baselineOffsetFromTop = baselineOffsetFromTop
@@ -88,6 +97,7 @@ struct GhostTextLayout: Equatable {
                 fullText: fullText,
                 consumedUTF16: consumedUTF16,
                 font: font,
+                measuringFont: measuringFont,
                 anchorTopLeft: anchorTopLeft,
                 boxHeight: boxHeight,
                 baselineOffsetFromTop: baselineOffsetFromTop,
@@ -142,8 +152,7 @@ struct GhostTextLayout: Equatable {
             return nil
         }
         let attributed = NSAttributedString(string: input.fullText, attributes: [.font: input.font])
-        let fullLine = CTLineCreateWithAttributedString(attributed)
-        let consumedAdvance = CTLineGetOffsetForStringIndex(fullLine, input.consumedUTF16, nil)
+        let consumedAdvance = consumedPrefixAdvance(input, drawn: attributed)
         let firstBaselineY = input.anchorTopLeft.y - input.baselineOffsetFromTop
 
         if input.isRightToLeft {
@@ -173,6 +182,16 @@ struct GhostTextLayout: Equatable {
             isTruncated: wrapped.isTruncated,
             contentBounds: contentBounds(rows: wrapped.rows, keycapFrame: keycapFrame, input: input)
         )
+    }
+
+    /// Width of the consumed prefix as the host renders it: in `measuringFont` when the ghost is
+    /// drawn in a styled face, else in the drawing face itself.
+    private static func consumedPrefixAdvance(_ input: Input, drawn: NSAttributedString) -> CGFloat {
+        let measured = input.measuringFont.map {
+            NSAttributedString(string: input.fullText, attributes: [.font: $0])
+        } ?? drawn
+        let line = CTLineCreateWithAttributedString(measured)
+        return CTLineGetOffsetForStringIndex(line, input.consumedUTF16, nil)
     }
 
     // MARK: - Row construction

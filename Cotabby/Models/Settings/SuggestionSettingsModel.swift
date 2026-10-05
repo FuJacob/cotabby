@@ -142,6 +142,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `fadeInSuggestions`, so dragging the speed slider takes effect on the next suggestion. Lower is
     /// a faster fade. Like `fadeInSuggestions`, it never reaches generation, only the overlay renderer.
     @Published private(set) var fadeInDurationSeconds: Double
+    /// Whether suggestions are drawn bold and/or italic. Like the fade settings these are read live
+    /// by `OverlayController` when it draws, and never reach generation or the snapshot.
+    @Published private(set) var isGhostTextBold: Bool
+    @Published private(set) var isGhostTextItalic: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -283,6 +287,8 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -369,6 +375,8 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -473,6 +481,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
                 fadeInDurationSeconds: fadeInDurationSeconds,
+                isGhostTextBold: isGhostTextBold,
+                isGhostTextItalic: isGhostTextItalic,
                 showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
@@ -1059,6 +1069,22 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         fadeInSuggestions = enabled
         store.saveFadeInSuggestions(enabled)
+    }
+
+    func setGhostTextBold(_ enabled: Bool) {
+        guard isGhostTextBold != enabled else {
+            return
+        }
+        isGhostTextBold = enabled
+        store.saveGhostTextBold(enabled)
+    }
+
+    func setGhostTextItalic(_ enabled: Bool) {
+        guard isGhostTextItalic != enabled else {
+            return
+        }
+        isGhostTextItalic = enabled
+        store.saveGhostTextItalic(enabled)
     }
 
     func setFadeInDurationSeconds(_ seconds: Double) {

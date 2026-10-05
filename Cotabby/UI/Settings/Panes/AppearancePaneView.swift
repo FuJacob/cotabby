@@ -138,7 +138,9 @@ struct AppearancePaneView: View {
                 GhostTextPreview(
                     ghostColor: resolvedGhostTextColor,
                     opacity: suggestionSettings.ghostTextOpacity,
-                    fontSize: GhostTextPreview.baseFontSize * CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+                    fontSize: GhostTextPreview.baseFontSize * CGFloat(suggestionSettings.ghostTextSizeMultiplier),
+                    isBold: suggestionSettings.isGhostTextBold,
+                    isItalic: suggestionSettings.isGhostTextItalic
                 )
 
                 LabeledContent {
@@ -150,11 +152,27 @@ struct AppearancePaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Ghost Text Color",
-                        description: "The color of the inline suggestion. Automatic adapts to light and dark.",
+                        description: "The color of the inline suggestion. Automatic adapts to light and dark; " +
+                            "White suits dark editors.",
                         systemImage: "paintpalette"
                     )
                 }
                 .settingsItem(.ghostTextColor)
+
+                LabeledContent {
+                    HStack(spacing: 12) {
+                        Toggle("Bold", isOn: ghostTextBoldBinding)
+                        Toggle("Italic", isOn: ghostTextItalicBinding)
+                    }
+                    .toggleStyle(.checkbox)
+                } label: {
+                    SettingsRowLabel(
+                        title: "Ghost Text Style",
+                        description: "Draw suggestions bold, italic, or both. Accepted text keeps the field's own style.",
+                        systemImage: "bold.italic.underline"
+                    )
+                }
+                .settingsItem(.ghostTextStyle)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -265,6 +283,20 @@ struct AppearancePaneView: View {
         Binding(
             get: { suggestionSettings.streamSuggestionsWhileGenerating },
             set: { suggestionSettings.setStreamSuggestionsWhileGenerating($0) }
+        )
+    }
+
+    private var ghostTextBoldBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isGhostTextBold },
+            set: { suggestionSettings.setGhostTextBold($0) }
+        )
+    }
+
+    private var ghostTextItalicBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isGhostTextItalic },
+            set: { suggestionSettings.setGhostTextItalic($0) }
         )
     }
 
