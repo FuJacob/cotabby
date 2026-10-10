@@ -57,6 +57,20 @@ enum GhostWrapBandPolicy {
         return bandLeft...bandRight
     }
 
+    /// The lowest screen y (Cocoa, bottom-left origin) a ghost row's box may reach: the field's own
+    /// bottom edge when its frame holds the caret, else the screen's. Without it a ghost wrapping
+    /// from the field's last visible line drew its next row under the field (Safari's chat composer,
+    /// 2026-10-10). A frame that does not contain the caret describes another box (a stale or outer
+    /// frame) and is not trusted, so a real field is never cut short by a wrong one.
+    static func rowFloor(_ input: Input) -> CGFloat {
+        let screenFloor = input.screenVisibleFrame.minY + screenMargin
+        guard let element = input.elementFrame?.standardized, element.width > minimumContainerWidth,
+              element.height >= input.caretRect.height,
+              (element.minY...element.maxY).contains(input.caretRect.midY)
+        else { return screenFloor }
+        return max(element.minY, screenFloor)
+    }
+
     private static func contentInset(lineLeft: CGFloat?, elementLeft: CGFloat) -> CGFloat {
         guard let lineLeft else { return defaultContentInset }
         let measured = lineLeft - elementLeft

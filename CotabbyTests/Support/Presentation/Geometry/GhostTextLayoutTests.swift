@@ -13,7 +13,8 @@ final class GhostTextLayoutTests: XCTestCase {
         pitch: CGFloat? = 16,
         band: ClosedRange<CGFloat>? = 100...400,
         allowsMultipleRows: Bool = true,
-        keycapWidth: CGFloat = 0
+        keycapWidth: CGFloat = 0,
+        rowFloor: CGFloat? = nil
     ) -> GhostTextLayout.Input {
         GhostTextLayout.Input(
             fullText: text,
@@ -25,7 +26,8 @@ final class GhostTextLayoutTests: XCTestCase {
             linePitch: pitch,
             wrapBand: band,
             allowsMultipleRows: allowsMultipleRows,
-            keycapWidth: keycapWidth
+            keycapWidth: keycapWidth,
+            rowFloor: rowFloor
         )
     }
 
@@ -118,6 +120,43 @@ final class GhostTextLayoutTests: XCTestCase {
         XCTAssertEqual(keycap.width, 30)
         XCTAssertEqual(keycap.midY, 200 - 8, accuracy: 0.01)
         XCTAssertTrue(layout.contentBounds.contains(keycap))
+    }
+
+    // MARK: - The field's bottom edge
+
+    /// Safari, 2026-10-10: the caret sat on the composer's last visible line and the ghost
+    /// "?\nHi, I am interested in this bag." put its second row below the field. A row whose box
+    /// would reach below the floor is not drawn; the caret row shows its head and the rest is
+    /// revealed as the user accepts.
+    func testRowsStopAtTheFieldBottom() throws {
+        // The caret row's box spans y 184...200; the next row would span 168...184.
+        let layout = try XCTUnwrap(GhostTextLayout.make(input(text: "?\nHi, I am interested in this bag.", rowFloor: 182)))
+        XCTAssertEqual(layout.rows.count, 1)
+        XCTAssertEqual(layout.rows[0].text, "?", "the hard line break is not drawn at the end of the last row")
+        XCTAssertTrue(layout.isTruncated)
+    }
+
+    func testWrappedRowsStopAtTheFieldBottom() throws {
+        let text = " alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike"
+        // Room for the caret row and one more (168...184), not a third (152...168).
+        let layout = try XCTUnwrap(GhostTextLayout.make(input(text: text, anchor: CGPoint(x: 300, y: 200), rowFloor: 166)))
+        XCTAssertEqual(layout.rows.count, 2)
+        XCTAssertTrue(layout.isTruncated)
+        XCTAssertFalse(layout.rows[1].text.hasSuffix(" "), "the head ends at a word, not a hanging space")
+    }
+
+    func testRowsWithRoomBelowStillWrap() throws {
+        let layout = try XCTUnwrap(GhostTextLayout.make(input(text: "?\nHi, I am interested in this bag.", rowFloor: 100)))
+        XCTAssertEqual(layout.rows.count, 2)
+        XCTAssertFalse(layout.isTruncated)
+    }
+
+    /// A head cut at the field's bottom follows the rule every truncated head follows: the text
+    /// matters more than its hint, so the accept-key pill is dropped rather than squeezed in.
+    func testHeadCutAtTheFloorDropsTheKeycapLikeOtherTruncatedHeads() throws {
+        let layout = try XCTUnwrap(GhostTextLayout.make(input(text: "?\nHi, I am interested in this bag.", keycapWidth: 30, rowFloor: 182)))
+        XCTAssertEqual(layout.rows.map(\.text), ["?"])
+        XCTAssertNil(layout.keycapFrame)
     }
 
     func testFullyConsumedTextHasNoLayout() {
