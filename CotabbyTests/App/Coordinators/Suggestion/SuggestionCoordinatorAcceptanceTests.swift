@@ -600,6 +600,28 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.acceptedSuggestions, 1)
     }
 
+    func test_menuBarCountStartsAgainFromZeroOnANewDay() async {
+        let rig = retained(makeCoordinatorRig())
+        let firstDay = Date(timeIntervalSince1970: 1_800_000_000)
+        rig.coordinator.now = { firstDay }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        await waitUntil { rig.coordinator.todayTabAcceptedWordCount == 2 }
+
+        // Two days on, so the local day differs in every time zone the suite may run in.
+        rig.coordinator.now = { firstDay.addingTimeInterval(2 * 86_400) }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+
+        XCTAssertEqual(rig.coordinator.todayTabAcceptedWordCount, 0)
+        XCTAssertEqual(
+            rig.coordinator.userDefaults.integer(forKey: SuggestionCoordinator.dailyAcceptedWordCountDefaultsKey),
+            0
+        )
+        XCTAssertEqual(rig.coordinator.totalTabAcceptedWordCount, 2, "The lifetime total is not reset")
+    }
+
     func test_walkingOneSuggestionWordByWordCountsASingleAcceptedSuggestion() async {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " world again")

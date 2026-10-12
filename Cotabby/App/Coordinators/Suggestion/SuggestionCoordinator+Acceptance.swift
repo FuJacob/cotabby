@@ -751,7 +751,7 @@ extension SuggestionCoordinator {
         qualityMetricsStore.recordAcceptedSuggestion()
     }
 
-    /// Updates the global productivity counter from text accepted via Tab.
+    /// Updates the lifetime and per-day productivity counters from text accepted via Tab.
     func recordAcceptedWords(from acceptedChunk: String) {
         let acceptedWordCount = SuggestionSessionReconciler.acceptedWordCount(in: acceptedChunk)
         guard acceptedWordCount > 0 else {
@@ -760,6 +760,23 @@ extension SuggestionCoordinator {
 
         totalTabAcceptedWordCount += acceptedWordCount
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
+        // `adding` rolls to today first, so an accept just after midnight starts the new day's
+        // count even if the day-changed notification has not been delivered yet.
+        storeDailyAcceptedWordCount(dailyAcceptedWordCount.adding(acceptedWordCount, at: now()))
+    }
+
+    /// Zeroes the per-day counter once the local day has moved on; a no-op within the same day.
+    func rollDailyAcceptedWordCountIfDayChanged() {
+        let rolled = dailyAcceptedWordCount.rolled(to: now())
+        guard rolled != dailyAcceptedWordCount else { return }
+        storeDailyAcceptedWordCount(rolled)
+    }
+
+    private func storeDailyAcceptedWordCount(_ count: DailyWordCount) {
+        dailyAcceptedWordCount = count
+        todayTabAcceptedWordCount = count.count
+        userDefaults.set(count.count, forKey: Self.dailyAcceptedWordCountDefaultsKey)
+        userDefaults.set(count.dayStamp, forKey: Self.dailyAcceptedWordCountDayDefaultsKey)
     }
 
     /// Gives the host app ~30ms to process the synthetic keystroke, then forces an AX snapshot

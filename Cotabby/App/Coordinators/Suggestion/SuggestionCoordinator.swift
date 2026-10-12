@@ -22,7 +22,16 @@ final class SuggestionCoordinator: ObservableObject {
     var isHoldingForHostMarkedText = false
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
+    /// Lifetime accepted-word total, shown by the menu-bar badge when its period is All Time.
     @Published var totalTabAcceptedWordCount: Int = 0
+    /// Words accepted today, shown by the badge when its period is Today. Both totals are kept
+    /// current whichever period is selected, so switching shows the right number at once. Mirrors
+    /// `dailyAcceptedWordCount.count` as a plain `Int` so the label view observes one value.
+    @Published var todayTabAcceptedWordCount: Int = 0
+    /// The day-stamped source of truth behind `todayTabAcceptedWordCount`; see `DailyWordCount`.
+    var dailyAcceptedWordCount: DailyWordCount
+    /// Clock for the daily rollover. A `var` so tests can cross midnight without waiting.
+    var now: () -> Date
 
     // Core collaborators. The coordinator depends on capability-shaped protocols here so its
     // orchestration logic stays separated from concrete service implementations.
@@ -67,6 +76,8 @@ final class SuggestionCoordinator: ObservableObject {
     var inlineCommandObserver: ((CapturedInputEvent) -> Bool)?
 
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
+    static let dailyAcceptedWordCountDefaultsKey = "cotabbyDailyAcceptedWordCount"
+    static let dailyAcceptedWordCountDayDefaultsKey = "cotabbyDailyAcceptedWordCountDay"
 
     // Mutable coordinator state from here down. The session and the debounce/generation tasks
     // live in `interactionState` and `workController`; what remains is grouped by concern:
@@ -219,7 +230,8 @@ final class SuggestionCoordinator: ObservableObject {
         spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
         qualityMetricsStore: SuggestionQualityMetricsStore,
         historyProvider: (any SuggestionHistoryProviding)? = nil,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        now: @escaping () -> Date = Date.init
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
             forKey: Self.totalTabAcceptedWordCountDefaultsKey)
@@ -244,12 +256,19 @@ final class SuggestionCoordinator: ObservableObject {
         self.qualityMetricsStore = qualityMetricsStore
         self.historyProvider = historyProvider
         self.userDefaults = userDefaults
+        self.now = now
+        // A count stored on an earlier day (the app was quit overnight) rolls to zero here.
+        dailyAcceptedWordCount = DailyWordCount(
+            dayStamp: userDefaults.string(forKey: Self.dailyAcceptedWordCountDayDefaultsKey) ?? "",
+            count: userDefaults.integer(forKey: Self.dailyAcceptedWordCountDefaultsKey)
+        ).rolled(to: now())
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.
         overlayPresenter = SuggestionOverlayPresenter(overlayController: overlayController)
         logger = SuggestionDebugLogger()
         totalTabAcceptedWordCount = max(storedTotalTabAcceptedWordCount, 0)
+        todayTabAcceptedWordCount = dailyAcceptedWordCount.count
         visualContextStatus = visualContextCoordinator.status
         latestVisualContextText = visualContextCoordinator.latestExcerpt
 
@@ -270,6 +289,16 @@ final class SuggestionCoordinator: ObservableObject {
         permissionManager.screenRecordingGrantedPublisher
             .sink { [weak self] _ in
                 self?.handlePermissionChange()
+            }
+            .store(in: &cancellables)
+
+        // Without this a Today badge would keep showing yesterday's number until the next accepted
+        // word. macOS posts the notification at local midnight, or on wake when the Mac slept
+        // through it, and on an arbitrary thread, hence the hop to the main queue.
+        NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.rollDailyAcceptedWordCountIfDayChanged()
             }
             .store(in: &cancellables)
 

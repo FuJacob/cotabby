@@ -6,7 +6,8 @@ import SwiftUI
 ///
 /// This label lives in its own view because `MenuBarExtra` does not automatically observe
 /// plain properties hanging off `AppDelegate`. By observing the coordinator directly here,
-/// SwiftUI knows when to redraw the menu bar item as the accepted word count changes.
+/// SwiftUI knows when to redraw the menu bar item as the accepted word count changes. Which count
+/// it draws, today's or the lifetime total, is the user's `MenuBarWordCountPeriod` choice.
 struct MenuBarStatusLabelView: View {
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
@@ -27,7 +28,10 @@ struct MenuBarStatusLabelView: View {
 
             if suggestionSettings.isMenuBarWordCountVisible,
                let label = WordCountFormatter.compactLabel(
-                   for: suggestionCoordinator.totalTabAcceptedWordCount
+                   for: suggestionSettings.menuBarWordCountPeriod.displayedCount(
+                       today: suggestionCoordinator.todayTabAcceptedWordCount,
+                       allTime: suggestionCoordinator.totalTabAcceptedWordCount
+                   )
                ) {
                 Text(label)
                     .font(.system(size: 10, weight: .medium).monospacedDigit())

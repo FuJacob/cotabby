@@ -97,6 +97,9 @@ struct SuggestionPresentationSettings: Equatable {
     /// Draws the ghost at exactly the size measured for the host's own text, so the size multiplier
     /// and the floor/ceiling above are not applied. Off by default, which keeps the user's tuning.
     var matchesHostTextSize: Bool = false
+    /// Which total the menu-bar word-count badge shows. Defaulted so existing call sites that build
+    /// this value keep compiling and keep the lifetime badge.
+    var menuBarWordCountPeriod: MenuBarWordCountPeriod = .allTime
     /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
     var showDevelopmentDebugOverlays: Bool = false
 }
@@ -266,6 +269,8 @@ extension SuggestionSettingsData {
     var fadeInDurationSeconds: Double { presentation.fadeInDurationSeconds }
 
     var matchesHostTextSize: Bool { presentation.matchesHostTextSize }
+
+    var menuBarWordCountPeriod: MenuBarWordCountPeriod { presentation.menuBarWordCountPeriod }
 
     var isEmojiPickerEnabled: Bool { inlineFeatures.isEmojiPickerEnabled }
 
