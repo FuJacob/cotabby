@@ -26,6 +26,7 @@ Folders exist so a maintainer can predict where a responsibility lives before se
 Cotabby/
 ├── App/
 │   ├── Core/                         process entry, composition root, lifecycle
+│   │   └── ApplicationRelauncher.swift safe relaunch after interface localization changes
 │   └── Coordinators/
 │       ├── InlineFeatures/           emoji/macro capture arbitration
 │       ├── Suggestion/               autocomplete interaction state machine
@@ -41,7 +42,7 @@ Cotabby/
 │   ├── Permissions/                  TCC permission values
 │   ├── Runtime/
 │   │   └── Metrics/                  performance and system metric stores
-│   ├── Settings/                     durable and UI-facing settings values
+│   ├── Settings/                     durable settings and UI-facing settings models, including interface language
 │   ├── Spelling/                     spelling catalog values
 │   └── Suggestion/
 │       ├── Request/                  immutable request inputs and configuration
@@ -98,7 +99,8 @@ Cotabby/
 │   │   ├── LocalRuntimeResidencyPolicy.swift  when the local model stays loaded
 │   │   ├── TokenHealingPlan.swift    bounded word-fragment retokenization at the caret
 │   │   └── TokenHealingBuffer.swift  exact byte replay and lossless streamed UTF-8
-│   ├── Settings/                     persistence and settings policies
+│   ├── Settings/                     persistence, language normalization, relaunch planning, and settings policies
+│   │   └── InterfaceLanguageNormalizer.swift supported locale mapping without persisted-value mutation
 │   ├── Spelling/                     extraction, language, SymSpell, and typo rules
 │   ├── Suggestion/
 │   │   ├── Acceptance/               insertion safety and strategy
@@ -117,6 +119,7 @@ Cotabby/
     └── Settings/
         ├── Components/
         │   ├── Controls/              settings editors, pickers, and previews
+        │   │   └── InterfaceLanguageSectionView.swift interface selector and restart notice
         │   └── Structure/             pane scaffolds, rows, cards, and search results
         ├── ModelManagement/           model catalog and browser views
         └── Panes/

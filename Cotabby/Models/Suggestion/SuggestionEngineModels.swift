@@ -19,9 +19,9 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         case .appleIntelligence:
             return "Apple Intelligence"
         case .llamaOpenSource:
-            return "Open Source"
+            return String(localized: "Open Source")
         case .openAICompatible:
-            return "Local Endpoint"
+            return String(localized: "Local Endpoint")
         }
     }
 

@@ -24,6 +24,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showFollowingWords
     case inlineMacros
     case onboarding
+    case interfaceLanguage
     case resetAllSettings
     #if DEBUG
     case developmentDebugOverlays
@@ -109,91 +110,94 @@ enum SettingsItem: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Display copy is localized at its literal source; rawValue remains the stable navigation ID.
+    /// Search uses these same localized titles and summaries, while English synonyms remain aliases.
     var title: String {
         switch self {
-        case .enableGlobally: return "Enable Globally"
-        case .useScreenContext: return "Use screen context"
-        case .openAtLogin: return "Open at Login"
-        case .includeClipboardContext: return "Include Clipboard Context"
-        case .includeAppContext: return "Include App Context"
-        case .allowMultiLine: return "Allow Multi-line Suggestions"
-        case .predictAheadWhileTyping: return "Predict Ahead While Typing"
-        case .suggestWithinWords: return "Suggest while typing a word"
-        case .showFollowingWords: return "Show following words"
-        case .acceptPunctuation: return "Accept Punctuation With Word"
-        case .addSpaceAfterAccept: return "Add Space After Accepting"
-        case .inlineMacros: return "Inline Macros"
-        case .onboarding: return "Onboarding"
-        case .resetAllSettings: return "Reset All Settings"
+        case .enableGlobally: return String(localized: "Enable Globally")
+        case .useScreenContext: return String(localized: "Use screen context")
+        case .openAtLogin: return String(localized: "Open at Login")
+        case .includeClipboardContext: return String(localized: "Include Clipboard Context")
+        case .includeAppContext: return String(localized: "Include App Context")
+        case .allowMultiLine: return String(localized: "Allow Multi-line Suggestions")
+        case .predictAheadWhileTyping: return String(localized: "Predict Ahead While Typing")
+        case .suggestWithinWords: return String(localized: "Suggest while typing a word")
+        case .showFollowingWords: return String(localized: "Show following words")
+        case .acceptPunctuation: return String(localized: "Accept Punctuation With Word")
+        case .addSpaceAfterAccept: return String(localized: "Add Space After Accepting")
+        case .inlineMacros: return String(localized: "Inline Macros")
+        case .onboarding: return String(localized: "Onboarding")
+        case .interfaceLanguage: return String(localized: "Interface Language")
+        case .resetAllSettings: return String(localized: "Reset All Settings")
         #if DEBUG
-        case .developmentDebugOverlays: return "Show Development Debug Overlays"
+        case .developmentDebugOverlays: return String(localized: "Show Development Debug Overlays")
         #endif
-        case .suggestionDisplay: return "Suggestion Display"
-        case .streamWhileGenerating: return "Stream Suggestions While Generating"
-        case .fadeInSuggestions: return "Fade In Suggestions"
-        case .showFieldIndicator: return "Show Field Indicator"
-        case .showWordCount: return "Show Word Count in Menu Bar"
-        case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
-        case .showKeyHint: return "Show Accept-Key Hint"
-        case .ghostTextColor: return "Ghost Text Color"
-        case .ghostTextOpacity: return "Ghost Text Opacity"
-        case .ghostTextSize: return "Ghost Text Size"
-        case .ghostTextSizeFloor: return "Smallest Ghost Text"
-        case .ghostTextSizeCeiling: return "Largest Ghost Text"
-        case .emojiPicker: return "Inline Emoji Picker"
-        case .emojiSkinTone: return "Skin Tone"
-        case .emojiPeopleStyle: return "People Emoji Style"
-        case .emojiHistory: return "Emoji History"
-        case .length: return "Length"
-        case .name: return "Name"
-        case .languages: return "Languages"
-        case .customRules: return "Custom Rules"
-        case .hideSuggestionsOnTypo: return "Hide Suggestions on Typo"
-        case .offerTypoCorrections: return "Offer Corrections on Typo"
-        case .spellingDictionaries: return "Spelling Dictionaries"
-        case .automaticallyFixTypos: return "Automatically Fix Typos"
-        case .extendedContext: return "Extended Context"
-        case .typingHistory: return "Typing History"
-        case .contextLivePreview: return "Live Preview"
-        case .engine: return "Engine"
-        case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
-        case .appleLanguageFallback: return "Fall Back to Open Source Model"
-        case .keepFallbackModelLoaded: return "Keep Fallback Model Loaded"
-        case .appleLanguageFallbackModel: return "Fallback Model"
-        case .modelStatus: return "Model Status"
-        case .selectedModel: return "Selected Model"
-        case .lowPowerModeAutoDisable: return "Pause in Low Power Mode"
-        case .powerBasedModelSwitching: return "Switch Based on Power Source"
-        case .batteryModel: return "On Battery"
-        case .pluggedInModel: return "Plugged In"
-        case .downloadModels: return "Download Models"
-        case .huggingFaceBrowser: return "Hugging Face Model Browser"
-        case .modelsFolder: return "Models Folder"
-        case .lmStudio: return "LM Studio Models"
-        case .endpointBaseURL: return "Endpoint Server URL"
-        case .endpointAPIMode: return "Endpoint API Format"
-        case .endpointAPIKey: return "Endpoint API Key"
-        case .endpointStatus: return "Endpoint Status"
-        case .endpointModel: return "Endpoint Model"
-        case .acceptanceMode: return "Acceptance Mode"
-        case .acceptWord: return "Accept Word"
-        case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle Cotabby"
-        case .disabledApps: return "Disabled Apps"
-        case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
-        case .accessibility: return "Accessibility"
-        case .inputMonitoring: return "Input Monitoring"
-        case .screenRecording: return "Screen Recording"
-        case .performanceTracking: return "Enable Performance Tracking"
-        case .suggestionQualityStats: return "Suggestion Quality"
-        case .resourceUsage: return "Live Resource Usage"
-        case .recentRequests: return "Recent Requests"
-        case .checkForUpdates: return "Check for Updates"
-        case .support: return "Contribute to Cotabby"
-        case .githubRepository: return "GitHub Repository"
-        case .wiki: return "Contributor Guide"
-        case .acknowledgements: return "Acknowledgements"
-        case .uninstall: return "Uninstall"
+        case .suggestionDisplay: return String(localized: "Suggestion Display")
+        case .streamWhileGenerating: return String(localized: "Stream Suggestions While Generating")
+        case .fadeInSuggestions: return String(localized: "Fade In Suggestions")
+        case .showFieldIndicator: return String(localized: "Show Field Indicator")
+        case .showWordCount: return String(localized: "Show Word Count in Menu Bar")
+        case .showMenuBarIcon: return String(localized: "Show Cotabby in Menu Bar")
+        case .showKeyHint: return String(localized: "Show Accept-Key Hint")
+        case .ghostTextColor: return String(localized: "Ghost Text Color")
+        case .ghostTextOpacity: return String(localized: "Ghost Text Opacity")
+        case .ghostTextSize: return String(localized: "Ghost Text Size")
+        case .ghostTextSizeFloor: return String(localized: "Smallest Ghost Text")
+        case .ghostTextSizeCeiling: return String(localized: "Largest Ghost Text")
+        case .emojiPicker: return String(localized: "Inline Emoji Picker")
+        case .emojiSkinTone: return String(localized: "Skin Tone")
+        case .emojiPeopleStyle: return String(localized: "People Emoji Style")
+        case .emojiHistory: return String(localized: "Emoji History")
+        case .length: return String(localized: "Length")
+        case .name: return String(localized: "Name")
+        case .languages: return String(localized: "Languages")
+        case .customRules: return String(localized: "Custom Rules")
+        case .hideSuggestionsOnTypo: return String(localized: "Hide Suggestions on Typo")
+        case .offerTypoCorrections: return String(localized: "Offer Corrections on Typo")
+        case .spellingDictionaries: return String(localized: "Spelling Dictionaries")
+        case .automaticallyFixTypos: return String(localized: "Automatically Fix Typos")
+        case .extendedContext: return String(localized: "Extended Context")
+        case .typingHistory: return String(localized: "Typing History")
+        case .contextLivePreview: return String(localized: "Live Preview")
+        case .engine: return String(localized: "Engine")
+        case .appleIntelligenceAvailability: return String(localized: "Apple Intelligence Availability")
+        case .appleLanguageFallback: return String(localized: "Fall Back to Open Source Model")
+        case .keepFallbackModelLoaded: return String(localized: "Keep Fallback Model Loaded")
+        case .appleLanguageFallbackModel: return String(localized: "Fallback Model")
+        case .modelStatus: return String(localized: "Model Status")
+        case .selectedModel: return String(localized: "Selected Model")
+        case .lowPowerModeAutoDisable: return String(localized: "Pause in Low Power Mode")
+        case .powerBasedModelSwitching: return String(localized: "Switch Based on Power Source")
+        case .batteryModel: return String(localized: "On Battery")
+        case .pluggedInModel: return String(localized: "Plugged In")
+        case .downloadModels: return String(localized: "Download Models")
+        case .huggingFaceBrowser: return String(localized: "Hugging Face Model Browser")
+        case .modelsFolder: return String(localized: "Models Folder")
+        case .lmStudio: return String(localized: "LM Studio Models")
+        case .endpointBaseURL: return String(localized: "Endpoint Server URL")
+        case .endpointAPIMode: return String(localized: "Endpoint API Format")
+        case .endpointAPIKey: return String(localized: "Endpoint API Key")
+        case .endpointStatus: return String(localized: "Endpoint Status")
+        case .endpointModel: return String(localized: "Endpoint Model")
+        case .acceptanceMode: return String(localized: "Acceptance Mode")
+        case .acceptWord: return String(localized: "Accept Word")
+        case .acceptEntireSuggestion: return String(localized: "Accept Entire Suggestion")
+        case .toggleTabby: return String(localized: "Toggle Cotabby")
+        case .disabledApps: return String(localized: "Disabled Apps")
+        case .suggestInIntegratedTerminals: return String(localized: "Suggest in Integrated Terminals")
+        case .accessibility: return String(localized: "Accessibility")
+        case .inputMonitoring: return String(localized: "Input Monitoring")
+        case .screenRecording: return String(localized: "Screen Recording")
+        case .performanceTracking: return String(localized: "Enable Performance Tracking")
+        case .suggestionQualityStats: return String(localized: "Suggestion Quality")
+        case .resourceUsage: return String(localized: "Live Resource Usage")
+        case .recentRequests: return String(localized: "Recent Requests")
+        case .checkForUpdates: return String(localized: "Check for Updates")
+        case .support: return String(localized: "Contribute to Cotabby")
+        case .githubRepository: return String(localized: "GitHub Repository")
+        case .wiki: return String(localized: "Contributor Guide")
+        case .acknowledgements: return String(localized: "Acknowledgements")
+        case .uninstall: return String(localized: "Uninstall")
         }
     }
 
@@ -212,6 +216,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
+        case .interfaceLanguage: return "globe"
         case .resetAllSettings: return "arrow.counterclockwise"
         #if DEBUG
         case .developmentDebugOverlays: return "ladybug"
@@ -292,7 +297,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         #endif
         case .enableGlobally, .useScreenContext, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
-             .inlineMacros, .onboarding, .resetAllSettings:
+             .inlineMacros, .onboarding, .interfaceLanguage, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
@@ -329,91 +334,101 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     /// phrasing the title doesn't carry ("looks too big", "on every keystroke").
     var summary: String {
         switch self {
-        case .enableGlobally: return "Turn Cotabby on or off everywhere without quitting."
-        case .useScreenContext: return "Help suggestions understand surrounding text using screenshots of the focused window."
-        case .openAtLogin: return "Start Cotabby automatically when you log in."
-        case .includeClipboardContext: return "Let suggestions reference what you last copied."
-        case .includeAppContext: return "Tell the model which app and window you are typing in."
-        case .allowMultiLine: return "Allow continuations that span more than one line."
-        case .predictAheadWhileTyping: return "Keep on-device predictions ready through matching typing for a faster pause."
-        case .suggestWithinWords: return "Show new suggestions inside a word, or wait for a space or punctuation."
-        case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
-        case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
-        case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
-        case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
-        case .onboarding: return "Replay the first-run setup walkthrough."
-        case .resetAllSettings: return "Restore every Cotabby setting to its original default."
+        case .enableGlobally: return String(localized: "Turn Cotabby on or off everywhere without quitting.")
+        case .useScreenContext: return String(localized: """
+        Help suggestions understand surrounding text using screenshots of the focused window.
+        """)
+        case .openAtLogin: return String(localized: "Start Cotabby automatically when you log in.")
+        case .includeClipboardContext: return String(localized: "Let suggestions reference what you last copied.")
+        case .includeAppContext: return String(localized: "Tell the model which app and window you are typing in.")
+        case .allowMultiLine: return String(localized: "Allow continuations that span more than one line.")
+        case .predictAheadWhileTyping: return String(localized: """
+        Keep on-device predictions ready through matching typing for a faster pause.
+        """)
+        case .suggestWithinWords: return String(localized: "Show new suggestions inside a word, or wait for a space or punctuation.")
+        case .showFollowingWords: return String(localized: """
+        Preview the following phrase, or reveal one word at a time as you type or accept.
+        """)
+        case .acceptPunctuation: return String(localized: "Also accept trailing commas and periods with a word.")
+        case .addSpaceAfterAccept: return String(localized: "Add a space when an accept finishes a word.")
+        case .inlineMacros: return String(localized: "Type / for dates, math, units, currency, and randoms.")
+        case .onboarding: return String(localized: "Replay the first-run setup walkthrough.")
+        case .interfaceLanguage:
+            return String(localized: "Choose the language used in Cotabby's interface. Changes apply after restarting.")
+        case .resetAllSettings: return String(localized: "Restore every Cotabby setting to its original default.")
         #if DEBUG
-        case .developmentDebugOverlays: return "Show caret, field, focus polling, and screen-context debug panels."
+        case .developmentDebugOverlays: return String(localized: "Show caret, field, focus polling, and screen-context debug panels.")
         #endif
-        case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
-        case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
-        case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
-        case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
-        case .showWordCount: return "Count accepted words next to the menu bar icon."
-        case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
-        case .showKeyHint: return "Show the accept-key badge beside the ghost text."
-        case .ghostTextColor: return "Pick the color of the inline suggestion."
-        case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
-        case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
+        case .suggestionDisplay: return String(localized: "Inline ghost text, popup card, or automatic per app.")
+        case .streamWhileGenerating: return String(localized: "Reveal ghost text token by token as the model writes.")
+        case .fadeInSuggestions: return String(localized: "Fade new suggestions in smoothly instead of all at once.")
+        case .showFieldIndicator: return String(localized: "Show a small icon when a field is ready for suggestions.")
+        case .showWordCount: return String(localized: "Count accepted words next to the menu bar icon.")
+        case .showMenuBarIcon: return String(localized: "Hide menu bar clutter while Cotabby keeps running.")
+        case .showKeyHint: return String(localized: "Show the accept-key badge beside the ghost text.")
+        case .ghostTextColor: return String(localized: "Pick the color of the inline suggestion.")
+        case .ghostTextOpacity: return String(localized: "How faint the suggestion looks before you accept it.")
+        case .ghostTextSize: return String(localized: "Scale suggestions if the ghost text looks too big or small.")
         case .ghostTextSizeFloor:
-            return "The smallest point size ghost text may render at."
+            return String(localized: "The smallest point size ghost text may render at.")
         case .ghostTextSizeCeiling:
-            return "The largest point size ghost text may render at."
-        case .emojiPicker: return "Type :name to search and insert emoji inline."
-        case .emojiSkinTone: return "Prefer a skin tone in emoji suggestions."
-        case .emojiPeopleStyle: return "Person, man, or woman variants when available."
-        case .emojiHistory: return "Clear recently and frequently used emoji."
-        case .length: return "How many words Cotabby aims for per suggestion."
-        case .name: return "What Cotabby should call you."
-        case .languages: return "Languages suggestions should be written in."
-        case .customRules: return "Your own style rules passed to the model."
-        case .hideSuggestionsOnTypo: return "Pause completions while a word looks misspelled."
-        case .offerTypoCorrections: return "Offer a green replacement for the misspelled word."
-        case .spellingDictionaries: return "Dictionaries used to detect typos."
-        case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
-        case .extendedContext: return "A glossary or notes sent with every suggestion."
-        case .typingHistory: return "Learn from what you type, and import Cotypist history."
-        case .contextLivePreview: return "A real field that exercises the full pipeline."
-        case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
-        case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
-        case .appleLanguageFallback: return "Use the local model for languages Apple Intelligence doesn't support."
-        case .keepFallbackModelLoaded: return "Preload the fallback model so its first suggestion is fast."
-        case .appleLanguageFallbackModel: return "Which downloaded model the language fallback uses."
-        case .modelStatus: return "Whether the local model is loaded and ready."
-        case .selectedModel: return "Which downloaded model generates suggestions."
-        case .lowPowerModeAutoDisable: return "Pause suggestions while Low Power Mode is active."
-        case .powerBasedModelSwitching: return "Use a different engine or model by power source."
-        case .batteryModel: return "Engine and model used while on battery."
-        case .pluggedInModel: return "Engine and model used while plugged in."
-        case .downloadModels: return "Curated models you can download and run."
-        case .huggingFaceBrowser: return "Search Hugging Face for GGUF models."
-        case .modelsFolder: return "Where downloaded model files live on this Mac."
-        case .lmStudio: return "Also load models from your LM Studio library."
-        case .endpointBaseURL: return "The OpenAI-compatible server address; /v1 is added when omitted."
-        case .endpointAPIMode: return "Choose Chat Completions or Text Completions for this model."
-        case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
-        case .endpointStatus: return "Whether Cotabby can reach the server and list its models."
-        case .endpointModel: return "The model identifier sent to the configured endpoint."
-        case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
-        case .acceptWord: return "The key that inserts the next word."
-        case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
-        case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
-        case .disabledApps: return "Apps where Cotabby never autocompletes."
-        case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
-        case .accessibility: return "Required to read the focused field and caret."
-        case .inputMonitoring: return "Required to see keystrokes and the accept key."
-        case .screenRecording: return "Optional visual context from the focused window."
-        case .performanceTracking: return "Record timing for every model request."
-        case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
-        case .resourceUsage: return "Live CPU, memory, and GPU graphs for the app."
-        case .recentRequests: return "Latency log of the most recent generations."
-        case .checkForUpdates: return "See if a newer Cotabby is available."
-        case .support: return "Report bugs, suggest features, or contribute code."
-        case .githubRepository: return "Browse the source code and issues."
-        case .wiki: return "Documentation and the contributor guide."
-        case .acknowledgements: return "Third-party packages Cotabby ships with."
-        case .uninstall: return "Remove Cotabby and its data from this Mac."
+            return String(localized: "The largest point size ghost text may render at.")
+        case .emojiPicker: return String(localized: "Type :name to search and insert emoji inline.")
+        case .emojiSkinTone: return String(localized: "Prefer a skin tone in emoji suggestions.")
+        case .emojiPeopleStyle: return String(localized: "Person, man, or woman variants when available.")
+        case .emojiHistory: return String(localized: "Clear recently and frequently used emoji.")
+        case .length: return String(localized: "How many words Cotabby aims for per suggestion.")
+        case .name: return String(localized: "What Cotabby should call you.")
+        case .languages: return String(localized: "Languages suggestions should be written in.")
+        case .customRules: return String(localized: "Your own style rules passed to the model.")
+        case .hideSuggestionsOnTypo: return String(localized: "Pause completions while a word looks misspelled.")
+        case .offerTypoCorrections: return String(localized: "Offer a green replacement for the misspelled word.")
+        case .spellingDictionaries: return String(localized: "Dictionaries used to detect typos.")
+        case .automaticallyFixTypos: return String(localized: "Replace a misspelled word right after you press Space.")
+        case .extendedContext: return String(localized: "A glossary or notes sent with every suggestion.")
+        case .typingHistory: return String(localized: "Learn from what you type, and import Cotypist history.")
+        case .contextLivePreview: return String(localized: "A real field that exercises the full pipeline.")
+        case .engine: return String(localized: "Apple Intelligence, bundled Open Source, or a local endpoint.")
+        case .appleIntelligenceAvailability: return String(localized: "Whether this Mac can run Apple Intelligence.")
+        case .appleLanguageFallback: return String(localized: "Use the local model for languages Apple Intelligence doesn't support.")
+        case .keepFallbackModelLoaded: return String(localized: "Preload the fallback model so its first suggestion is fast.")
+        case .appleLanguageFallbackModel: return String(localized: "Which downloaded model the language fallback uses.")
+        case .modelStatus: return String(localized: "Whether the local model is loaded and ready.")
+        case .selectedModel: return String(localized: "Which downloaded model generates suggestions.")
+        case .lowPowerModeAutoDisable: return String(localized: "Pause suggestions while Low Power Mode is active.")
+        case .powerBasedModelSwitching: return String(localized: "Use a different engine or model by power source.")
+        case .batteryModel: return String(localized: "Engine and model used while on battery.")
+        case .pluggedInModel: return String(localized: "Engine and model used while plugged in.")
+        case .downloadModels: return String(localized: "Curated models you can download and run.")
+        case .huggingFaceBrowser: return String(localized: "Search Hugging Face for GGUF models.")
+        case .modelsFolder: return String(localized: "Where downloaded model files live on this Mac.")
+        case .lmStudio: return String(localized: "Also load models from your LM Studio library.")
+        case .endpointBaseURL: return String(localized: "The OpenAI-compatible server address; /v1 is added when omitted.")
+        case .endpointAPIMode: return String(localized: "Choose Chat Completions or Text Completions for this model.")
+        case .endpointAPIKey: return String(localized: "Optional bearer token stored securely in Keychain.")
+        case .endpointStatus: return String(localized: "Whether Cotabby can reach the server and list its models.")
+        case .endpointModel: return String(localized: "The model identifier sent to the configured endpoint.")
+        case .acceptanceMode: return String(localized: "Whether the accept key takes a word or a phrase.")
+        case .acceptWord: return String(localized: "The key that inserts the next word.")
+        case .acceptEntireSuggestion: return String(localized: """
+        The key, or the Accept Word key pressed twice, that inserts the whole suggestion.
+        """)
+        case .toggleTabby: return String(localized: "A global hotkey that turns Cotabby on or off.")
+        case .disabledApps: return String(localized: "Apps where Cotabby never autocompletes.")
+        case .suggestInIntegratedTerminals: return String(localized: "Ghost text in VS Code and Cursor terminals.")
+        case .accessibility: return String(localized: "Required to read the focused field and caret.")
+        case .inputMonitoring: return String(localized: "Required to see keystrokes and the accept key.")
+        case .screenRecording: return String(localized: "Optional visual context from the focused window.")
+        case .performanceTracking: return String(localized: "Record timing for every model request.")
+        case .suggestionQualityStats: return String(localized: "Shown, accepted, and withheld counters.")
+        case .resourceUsage: return String(localized: "Live CPU, memory, and GPU graphs for the app.")
+        case .recentRequests: return String(localized: "Latency log of the most recent generations.")
+        case .checkForUpdates: return String(localized: "See if a newer Cotabby is available.")
+        case .support: return String(localized: "Report bugs, suggest features, or contribute code.")
+        case .githubRepository: return String(localized: "Browse the source code and issues.")
+        case .wiki: return String(localized: "Documentation and the contributor guide.")
+        case .acknowledgements: return String(localized: "Third-party packages Cotabby ships with.")
+        case .uninstall: return String(localized: "Remove Cotabby and its data from this Mac.")
         }
     }
 
@@ -464,6 +479,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding:
             return ["welcome", "guide", "tutorial", "intro", "help", "getting started",
                     "first run", "walkthrough"]
+        case .interfaceLanguage:
+            return ["interface", "language", "locale", "localization", "display", "system", "restart"]
         case .resetAllSettings:
             return ["reset", "defaults", "default", "restore", "factory reset", "factory settings",
                     "clear settings", "start over", "revert", "wipe", "erase", "restore defaults",

@@ -38,10 +38,10 @@ struct KeyRecorderView: View {
             return conflictMessage
         }
         if pendingFirstTapTimestamp != nil, let doubleTapKey {
-            return "Press \(doubleTapKey.label) again…"
+            return String(localized: "Press \(doubleTapKey.label) again…")
         }
         let glyphs = KeyCodeLabels.modifierGlyphs(liveModifiers)
-        return glyphs.isEmpty ? "Press a key…" : "\(glyphs) + key…"
+        return glyphs.isEmpty ? String(localized: "Press a key…") : String(localized: "\(glyphs) + key…")
     }
 
     private func installMonitor() {
@@ -87,7 +87,7 @@ struct KeyRecorderView: View {
         // committing or cancelling) lets the user immediately try a different key, and the red
         // prompt explains why the press was ignored.
         if let conflict = conflictChecker?(keyCode, modifiers) {
-            conflictMessage = "Already used by \(conflict). Try another key."
+            conflictMessage = String(localized: "Already used by \(conflict). Try another key.")
             return nil
         }
 
@@ -126,8 +126,8 @@ struct KeyRecorderView: View {
             // Only the press that scheduled this timeout may turn into an error.
             guard pendingFirstTapTimestamp == timestamp else { return }
             pendingFirstTapTimestamp = nil
-            let owner = conflictChecker?(key.keyCode, key.modifiers) ?? "another shortcut"
-            conflictMessage = "Already used by \(owner). Press it twice quickly for a double tap."
+            let owner = conflictChecker?(key.keyCode, key.modifiers) ?? String(localized: "another shortcut")
+            conflictMessage = String(localized: "Already used by \(owner). Press it twice quickly for a double tap.")
         }
         return nil
     }

@@ -16,7 +16,7 @@ enum FoundationModelAvailabilityState: Equatable, Sendable {
     var summary: String {
         switch self {
         case .available:
-            return "Apple Intelligence is available."
+            return String(localized: "Apple Intelligence is available.")
         case .unavailable(let reason):
             return reason
         }
@@ -132,7 +132,7 @@ extension FoundationModelAvailabilityService {
         #endif
 
         return UnsupportedAvailabilityProvider(
-            reason: "Apple Intelligence requires macOS 26 or later. Use Open Source on this Mac."
+            reason: String(localized: "Apple Intelligence requires macOS 26 or later. Use Open Source on this Mac.")
         )
     }
 }
@@ -208,13 +208,13 @@ private final class SystemAvailabilityProvider: FoundationModelAvailabilityProvi
         case .available:
             return .available
         case .unavailable(.deviceNotEligible):
-            return .unavailable("This Mac is not eligible for Apple Intelligence.")
+            return .unavailable(String(localized: "This Mac is not eligible for Apple Intelligence."))
         case .unavailable(.appleIntelligenceNotEnabled):
-            return .unavailable("Apple Intelligence is turned off in System Settings.")
+            return .unavailable(String(localized: "Apple Intelligence is turned off in System Settings."))
         case .unavailable(.modelNotReady):
-            return .unavailable("The Apple on-device model is still preparing or downloading.")
+            return .unavailable(String(localized: "The Apple on-device model is still preparing or downloading."))
         @unknown default:
-            return .unavailable("The Apple on-device model is unavailable for an unknown reason.")
+            return .unavailable(String(localized: "The Apple on-device model is unavailable for an unknown reason."))
         }
     }
 }

@@ -16,10 +16,10 @@ enum OpenAICompatibleClientError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse: return "The endpoint returned an invalid HTTP response."
-        case .server(let code): return "The endpoint returned HTTP \(code)."
-        case .malformedResponse: return "The endpoint returned an invalid OpenAI-compatible response."
-        case .streamError(let message): return "The endpoint reported an error: \(message)"
+        case .invalidResponse: return String(localized: "The endpoint returned an invalid HTTP response.")
+        case .server(let code): return String(localized: "The endpoint returned HTTP \(code).")
+        case .malformedResponse: return String(localized: "The endpoint returned an invalid OpenAI-compatible response.")
+        case .streamError(let message): return String(localized: "The endpoint reported an error: \(message)")
         }
     }
 }

@@ -21,6 +21,7 @@ final class CotabbyAppEnvironment {
     let appUpdateManager: AppUpdateManager
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
+    let interfaceLanguageSettings: InterfaceLanguageSettingsModel
     let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
@@ -62,6 +63,7 @@ final class CotabbyAppEnvironment {
             configuration: configuration,
             endpointCredentialStore: endpointCredentialStore
         )
+        let interfaceLanguageSettings = InterfaceLanguageSettingsModel()
         let openAICompatibleClient = OpenAICompatibleAPIClient()
         let openAICompatibleConnectionModel = OpenAICompatibleConnectionModel(
             client: openAICompatibleClient
@@ -248,6 +250,7 @@ final class CotabbyAppEnvironment {
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
             suggestionSettings: suggestionSettings,
+            interfaceLanguageSettings: interfaceLanguageSettings,
             openAICompatibleConnectionModel: openAICompatibleConnectionModel,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
@@ -351,6 +354,7 @@ final class CotabbyAppEnvironment {
         self.appUpdateManager = appUpdateManager
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
+        self.interfaceLanguageSettings = interfaceLanguageSettings
         self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.powerSourceMonitor = powerSourceMonitor

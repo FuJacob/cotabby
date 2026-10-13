@@ -15,14 +15,14 @@ struct WelcomePersonalizeStepView: View {
         VStack(spacing: 24) {
             OnboardingStepHeader(
                 systemImage: "person.crop.circle.fill",
-                title: "Make it yours",
-                subtitle: "Cotabby writes in your languages and can address you by name."
+                title: String(localized: "Make it yours"),
+                subtitle: String(localized: "Cotabby writes in your languages and can address you by name.")
             )
             .onboardingReveal(0)
 
             VStack(spacing: 12) {
-                personalizeCard(icon: "textformat", title: "Your name", index: 1) {
-                    TextField("What should Cotabby call you? (Optional)", text: Binding(
+                personalizeCard(icon: "textformat", title: String(localized: "Your name"), index: 1) {
+                    TextField(String(localized: "What should Cotabby call you? (Optional)"), text: Binding(
                         get: { suggestionSettings.userName },
                         set: { suggestionSettings.setUserName($0) }
                     ))
@@ -30,12 +30,12 @@ struct WelcomePersonalizeStepView: View {
                     .controlSize(.large)
                 }
 
-                personalizeCard(icon: "globe", title: "Languages", index: 2) {
+                personalizeCard(icon: "globe", title: String(localized: "Languages"), index: 2) {
                     LanguageTagsEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                 }
 
                 if CustomRulesCatalog.isUserFacingEnabled {
-                    personalizeCard(icon: "character.cursor.ibeam", title: "Writing style", index: 3) {
+                    personalizeCard(icon: "character.cursor.ibeam", title: String(localized: "Writing style"), index: 3) {
                         CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                     }
                 }

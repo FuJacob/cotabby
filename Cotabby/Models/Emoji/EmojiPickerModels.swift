@@ -61,12 +61,12 @@ enum EmojiSkinTone: String, CaseIterable, Equatable, Sendable {
 
     var displayName: String {
         switch self {
-        case .neutral: return "Default"
-        case .light: return "Light"
-        case .mediumLight: return "Medium Light"
-        case .medium: return "Medium"
-        case .mediumDark: return "Medium Dark"
-        case .dark: return "Dark"
+        case .neutral: return String(localized: "Default")
+        case .light: return String(localized: "Light")
+        case .mediumLight: return String(localized: "Medium Light")
+        case .medium: return String(localized: "Medium")
+        case .mediumDark: return String(localized: "Medium Dark")
+        case .dark: return String(localized: "Dark")
         }
     }
 
@@ -86,9 +86,9 @@ enum EmojiGender: String, CaseIterable, Equatable, Sendable {
 
     var displayName: String {
         switch self {
-        case .neutral: return "Person"
-        case .male: return "Man"
-        case .female: return "Woman"
+        case .neutral: return String(localized: "Person")
+        case .male: return String(localized: "Man")
+        case .female: return String(localized: "Woman")
         }
     }
 

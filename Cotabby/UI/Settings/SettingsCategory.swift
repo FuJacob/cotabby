@@ -28,18 +28,18 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
 
     var label: String {
         switch self {
-        case .home: return "Home"
-        case .general: return "General"
-        case .appearance: return "Appearance"
-        case .emoji: return "Emoji"
-        case .writing: return "Writing"
-        case .context: return "Context"
-        case .engineAndModel: return "Engine & Model"
-        case .shortcuts: return "Shortcuts"
-        case .apps: return "Apps"
-        case .permissions: return "Permissions"
-        case .performance: return "Performance"
-        case .about: return "About"
+        case .home: return String(localized: "Home")
+        case .general: return String(localized: "General")
+        case .appearance: return String(localized: "Appearance")
+        case .emoji: return String(localized: "Emoji")
+        case .writing: return String(localized: "Writing")
+        case .context: return String(localized: "Context")
+        case .engineAndModel: return String(localized: "Engine & Model")
+        case .shortcuts: return String(localized: "Shortcuts")
+        case .apps: return String(localized: "Apps")
+        case .permissions: return String(localized: "Permissions")
+        case .performance: return String(localized: "Performance")
+        case .about: return String(localized: "About")
         }
     }
 
@@ -84,18 +84,18 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     /// One-line caption used by the Home quick-link cards.
     var summary: String {
         switch self {
-        case .home: return "Overview and search"
-        case .general: return "Core toggles and behavior"
-        case .appearance: return "Ghost text style and display"
-        case .emoji: return "The inline emoji picker"
-        case .writing: return "Length, profile, and corrections"
-        case .context: return "What the model can reference"
-        case .engineAndModel: return "Choose the engine and models"
-        case .shortcuts: return "Keys that accept suggestions"
-        case .apps: return "Where Cotabby stays quiet"
-        case .permissions: return "System access and privacy"
-        case .performance: return "Latency, quality, and resources"
-        case .about: return "Version, support, and licenses"
+        case .home: return String(localized: "Overview and search")
+        case .general: return String(localized: "Core toggles and behavior")
+        case .appearance: return String(localized: "Ghost text style and display")
+        case .emoji: return String(localized: "The inline emoji picker")
+        case .writing: return String(localized: "Length, profile, and corrections")
+        case .context: return String(localized: "What the model can reference")
+        case .engineAndModel: return String(localized: "Choose the engine and models")
+        case .shortcuts: return String(localized: "Keys that accept suggestions")
+        case .apps: return String(localized: "Where Cotabby stays quiet")
+        case .permissions: return String(localized: "System access and privacy")
+        case .performance: return String(localized: "Latency, quality, and resources")
+        case .about: return String(localized: "Version, support, and licenses")
         }
     }
 

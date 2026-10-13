@@ -174,7 +174,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             status = .ready
             rebuildSearchStructures()
         } catch {
-            status = .unavailable("Typing history couldn't be opened, so it's paused to avoid overwriting it.")
+            status = .unavailable(String(localized: "Typing history couldn't be opened, so it's paused to avoid overwriting it."))
             CotabbyLogger.app.error("Typing history archive could not be loaded: \(error)")
         }
     }
@@ -479,13 +479,17 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             }.value
             // Delete All ran while the file was being read; adding the import now would partly undo it.
             guard generation == persistenceGeneration else {
-                lastImportMessage = "Import cancelled because typing history was deleted."
+                lastImportMessage = String(localized: "Import cancelled because typing history was deleted.")
                 return
             }
             let knownTexts = Set(records.map(\.text))
             let fresh = imported.filter { !knownTexts.contains($0.text) }
-            lastImportMessage = "Imported \(fresh.count) entries"
-                + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
+            let duplicateCount = imported.count - fresh.count
+            if duplicateCount > 0 {
+                lastImportMessage = String(localized: "Imported \(fresh.count) entries (\(duplicateCount) were already in your history).")
+            } else {
+                lastImportMessage = String(localized: "Imported \(fresh.count) entries.")
+            }
             guard !fresh.isEmpty else { return }
             records.append(contentsOf: fresh)
             trimToCapacity()
@@ -494,7 +498,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             scheduleSave()
             rebuildSearchStructures()
         } catch {
-            lastImportMessage = (error as? LocalizedError)?.errorDescription ?? "Import failed: \(error.localizedDescription)"
+            lastImportMessage = (error as? LocalizedError)?.errorDescription ?? String(localized: """
+            Import failed: \(error.localizedDescription)
+            """)
         }
     }
 
@@ -512,7 +518,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             // A save captured before this attempt was dropped as stale, and the file may already be
             // gone, so the kept records count as unsaved until written again.
             changeCount += 1
-            deletionError = "Typing history couldn't be deleted: \(error.localizedDescription)"
+            deletionError = String(localized: "Typing history couldn't be deleted: \(error.localizedDescription)")
             CotabbyLogger.app.error("Typing history could not be deleted: \(error)")
             return
         }

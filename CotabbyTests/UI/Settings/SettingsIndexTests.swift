@@ -68,8 +68,11 @@ final class SettingsIndexTests: XCTestCase {
             ("unsupported language", .appleLanguageFallback),
             ("fallback model", .appleLanguageFallbackModel),
             ("keep loaded", .keepFallbackModelLoaded),
-            ("preload", .keepFallbackModelLoaded)
+            ("preload", .keepFallbackModelLoaded),
+            ("interface language", .interfaceLanguage),
+            ("localization", .interfaceLanguage)
         ]
+        XCTAssertEqual(SettingsItem.interfaceLanguage.category, .general)
         for expectation in expectations {
             XCTAssertTrue(
                 SettingsItem.results(for: expectation.query).contains(expectation.item),

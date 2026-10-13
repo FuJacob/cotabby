@@ -44,10 +44,12 @@ struct EngineAndModelPaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Engine",
-                        description: "Apple Intelligence runs on-device using macOS's built-in model " +
-                            "(newer Apple Silicon Macs only). Open Source runs a downloaded model file. " +
-                            "Local Endpoint connects to an OpenAI-compatible server you manage.",
+                        title: String(localized: "Engine"),
+                        description: String(localized: """
+                        Apple Intelligence runs on-device using macOS's built-in model (newer Apple Silicon Macs \
+                        only). Open Source runs a downloaded model file. Local Endpoint connects to an \
+                        OpenAI-compatible server you manage.
+                        """),
                         systemImage: "cpu"
                     )
                 }
@@ -96,7 +98,7 @@ struct EngineAndModelPaneView: View {
             }
         }
         .alert(
-            "Delete Model?",
+            String(localized: "Delete Model?"),
             isPresented: pendingDeletionAlertBinding,
             presenting: pendingDeletionModel
         ) { model in

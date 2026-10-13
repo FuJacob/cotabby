@@ -299,25 +299,25 @@ final class FoundationModelSuggestionEngine {
     ) -> SuggestionClientError {
         switch error {
         case .assetsUnavailable:
-            return .unavailable("Apple Intelligence assets are unavailable right now.")
+            return .unavailable(String(localized: "Apple Intelligence assets are unavailable right now."))
         case .unsupportedLanguageOrLocale:
             return .unsupportedLanguageOrLocale(
-                "Apple Intelligence does not support the current language or locale for this request."
+                String(localized: "Apple Intelligence does not support the current language or locale for this request.")
             )
         case .exceededContextWindowSize:
-            return .generationFailed("The Apple on-device model rejected the prompt because it was too large.")
+            return .generationFailed(String(localized: "The Apple on-device model rejected the prompt because it was too large."))
         case .guardrailViolation:
-            return .generationFailed("Apple Intelligence rejected this request because of model guardrails.")
+            return .generationFailed(String(localized: "Apple Intelligence rejected this request because of model guardrails."))
         case .unsupportedGuide:
-            return .generationFailed("Apple Intelligence rejected a guided-generation request Cotabby sent.")
+            return .generationFailed(String(localized: "Apple Intelligence rejected a guided-generation request Cotabby sent."))
         case .decodingFailure:
-            return .generationFailed("Apple Intelligence returned a response Cotabby could not decode.")
+            return .generationFailed(String(localized: "Apple Intelligence returned a response Cotabby could not decode."))
         case .rateLimited:
-            return .generationFailed("Apple Intelligence is temporarily rate limited.")
+            return .generationFailed(String(localized: "Apple Intelligence is temporarily rate limited."))
         case .concurrentRequests:
-            return .generationFailed("Apple Intelligence rejected a concurrent request for this session.")
+            return .generationFailed(String(localized: "Apple Intelligence rejected a concurrent request for this session."))
         case .refusal:
-            return .generationFailed("Apple Intelligence refused to answer this prompt.")
+            return .generationFailed(String(localized: "Apple Intelligence refused to answer this prompt."))
         @unknown default:
             return .generationFailed(error.localizedDescription)
         }

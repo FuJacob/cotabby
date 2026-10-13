@@ -4,7 +4,7 @@ nonisolated enum ModelDownloadSessionError: LocalizedError, Equatable {
     case alreadyStarted
 
     var errorDescription: String? {
-        "A model download session can only be started once."
+        String(localized: "A model download session can only be started once.")
     }
 }
 

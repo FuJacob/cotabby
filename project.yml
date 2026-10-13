@@ -5,6 +5,8 @@ options:
   deploymentTarget:
     macOS: "14.0"
   developmentLanguage: en
+  # XcodeGen does not discover languages inside String Catalogs; keep generated metadata in sync.
+  postGenCommand: python3 scripts/localization.py sync-regions
   groupSortPosition: top
   xcodeVersion: "2600"
 packages:
@@ -216,6 +218,9 @@ schemes:
         -cotabby-debug: true
     test:
       config: Debug
+      # Existing search/ranking fixtures assert English titles. Resource tests select each locale
+      # explicitly; keep these fixtures independent of the contributor's macOS/app preference.
+      language: en
       gatherCoverageData: false
       targets:
         - CotabbyTests

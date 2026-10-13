@@ -127,9 +127,9 @@ extension EngineAndModelPaneView {
 
     var endpointConnectButtonTitle: String {
         if case .ready = openAICompatibleConnectionModel.state {
-            return "Refresh"
+            return String(localized: "Refresh")
         }
-        return "Connect"
+        return String(localized: "Connect")
     }
 
     var endpointConnectionSymbol: String {
@@ -155,14 +155,14 @@ extension EngineAndModelPaneView {
         }
         let enteredURL = suggestionSettings.openAICompatibleBaseURL
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return enteredURL.isEmpty ? "No endpoint configured" : enteredURL
+        return enteredURL.isEmpty ? String(localized: "No endpoint configured") : enteredURL
     }
 
     var endpointModelMenuHelp: String {
         if openAICompatibleConnectionModel.models.isEmpty {
-            return "Connect to load models, or enter an identifier manually."
+            return String(localized: "Connect to load models, or enter an identifier manually.")
         }
-        return "Choose from \(openAICompatibleConnectionModel.models.count) discovered models."
+        return String(localized: "Choose from \(openAICompatibleConnectionModel.models.count) discovered models.")
     }
 
     var pendingDeletionAlertBinding: Binding<Bool> {

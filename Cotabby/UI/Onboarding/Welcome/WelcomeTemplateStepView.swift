@@ -24,8 +24,8 @@ struct WelcomeTemplateStepView: View {
         VStack(spacing: 24) {
             OnboardingStepHeader(
                 systemImage: "wand.and.stars",
-                title: "Choose a starting point",
-                subtitle: "Pick one to get set up. You can fine-tune everything later in Settings."
+                title: String(localized: "Choose a starting point"),
+                subtitle: String(localized: "Pick one to get set up. You can fine-tune everything later in Settings.")
             )
             .onboardingReveal(0)
 
@@ -67,7 +67,7 @@ struct WelcomeTemplateStepView: View {
             EngineChoiceCard(
                 title: SuggestionEngineKind.appleIntelligence.displayLabel,
                 subtitle: appleAvailable
-                    ? "Built into macOS"
+                    ? String(localized: "Built into macOS")
                     : foundationModelAvailabilityService.userVisibleMessage,
                 systemImageName: SuggestionEngineKind.appleIntelligence.systemImageName,
                 isSelected: selectedEngine == .appleIntelligence,
@@ -77,7 +77,7 @@ struct WelcomeTemplateStepView: View {
 
             EngineChoiceCard(
                 title: SuggestionEngineKind.llamaOpenSource.displayLabel,
-                subtitle: "Local models on your Mac",
+                subtitle: String(localized: "Local models on your Mac"),
                 systemImageName: SuggestionEngineKind.llamaOpenSource.systemImageName,
                 isSelected: selectedEngine == .llamaOpenSource,
                 isDisabled: false,
@@ -254,7 +254,7 @@ private struct TemplateCard: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(isFeatureListExpanded ? "Hide details" : "What's included")
+                    Text(isFeatureListExpanded ? String(localized: "Hide details") : String(localized: "What's included"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                     Image(systemName: "chevron.down")
@@ -327,12 +327,12 @@ private struct TemplateCard: View {
     private var engineLabel: String {
         switch plan.engine {
         case .appleIntelligence:
-            return "Apple Intelligence · built into macOS"
+            return String(localized: "Apple Intelligence · built into macOS")
         case .llamaOpenSource:
-            guard let model = plan.modelToDownload else { return "Local model" }
-            return "\(model.displayName) · \(model.approximateSizeLabel) download"
+            guard let model = plan.modelToDownload else { return String(localized: "Local model") }
+            return String(localized: "\(model.displayName) · \(model.approximateSizeLabel) download")
         case .openAICompatible:
-            return "Local endpoint · configure later in Settings"
+            return String(localized: "Local endpoint · configure later in Settings")
         }
     }
 

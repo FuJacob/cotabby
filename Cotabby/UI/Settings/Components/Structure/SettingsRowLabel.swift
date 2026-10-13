@@ -6,6 +6,9 @@ import SwiftUI
 ///
 /// Always-visible subtext beats `.help()` here because tooltips are invisible to users who don't
 /// know to hover; the cost is one extra line of vertical space per row, which we accept.
+/// Callers resolve fixed app copy with `String(localized:)` before it crosses this String
+/// boundary. Keeping the values as String also lets model names and user content render verbatim;
+/// looking up every received value as a translation key would accidentally translate that data.
 struct SettingsRowLabel: View {
     let title: String
     let description: String

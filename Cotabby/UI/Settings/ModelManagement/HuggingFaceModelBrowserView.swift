@@ -28,7 +28,7 @@ struct HuggingFaceModelBrowserView: View {
     @ViewBuilder
     private var searchBar: some View {
         HStack(spacing: 8) {
-            TextField("Search GGUF models…", text: $searchService.searchQuery)
+            TextField(String(localized: "Search GGUF models…"), text: $searchService.searchQuery)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { searchService.search() }
 

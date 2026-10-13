@@ -19,8 +19,8 @@ extension EngineAndModelPaneView {
                 )
             ) {
                 SettingsRowLabel(
-                    title: "Pause in Low Power Mode",
-                    description: "Pause suggestions while Low Power Mode is on to reduce battery use.",
+                    title: String(localized: "Pause in Low Power Mode"),
+                    description: String(localized: "Pause suggestions while Low Power Mode is on to reduce battery use."),
                     systemImage: "bolt.slash.circle"
                 )
             }
@@ -33,10 +33,11 @@ extension EngineAndModelPaneView {
                 )
             ) {
                 SettingsRowLabel(
-                    title: "Switch Based on Power Source",
-                    description: "Use a different engine or model on battery vs. while plugged in. " +
-                        "For example, Apple Intelligence on battery to save power and a larger local " +
-                        "model while charging.",
+                    title: String(localized: "Switch Based on Power Source"),
+                    description: String(localized: """
+                    Use a different engine or model on battery vs. while plugged in. For example, Apple Intelligence \
+                    on battery to save power and a larger local model while charging.
+                    """),
                     systemImage: "battery.100.bolt"
                 )
             }
@@ -44,14 +45,14 @@ extension EngineAndModelPaneView {
 
             if suggestionSettings.isPowerBasedModelSwitchingEnabled {
                 powerProfilePicker(
-                    title: "On Battery",
+                    title: String(localized: "On Battery"),
                     systemImage: "battery.25",
                     selection: batteryProfileBinding
                 )
                 .settingsItem(.batteryModel)
 
                 powerProfilePicker(
-                    title: "Plugged In",
+                    title: String(localized: "Plugged In"),
                     systemImage: "powerplug",
                     selection: pluggedInProfileBinding
                 )
@@ -83,7 +84,7 @@ extension EngineAndModelPaneView {
         } label: {
             SettingsRowLabel(
                 title: title,
-                description: "Engine and model to use while on this power source.",
+                description: String(localized: "Engine and model to use while on this power source."),
                 systemImage: systemImage
             )
         }

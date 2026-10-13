@@ -16,7 +16,7 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
 
     var id: String { rawValue }
 
-    /// English name used in logs, documentation, and accessibility descriptions.
+    /// English name used in diagnostic logs, so log output stays stable across app locales.
     var displayName: String {
         switch self {
         case .english: return "English"
@@ -32,13 +32,13 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
     /// Native-script label shown in Settings so speakers can identify their language quickly.
     var settingsLabel: String {
         switch self {
-        case .english: return "English"
-        case .german: return "Deutsch (German)"
-        case .spanish: return "Español (Spanish)"
-        case .french: return "Français (French)"
-        case .hebrew: return "עברית (Hebrew)"
-        case .italian: return "Italiano (Italian)"
-        case .russian: return "Русский (Russian)"
+        case .english: return String(localized: "English")
+        case .german: return String(localized: "Deutsch (German)")
+        case .spanish: return String(localized: "Español (Spanish)")
+        case .french: return String(localized: "Français (French)")
+        case .hebrew: return String(localized: "עברית (Hebrew)")
+        case .italian: return String(localized: "Italiano (Italian)")
+        case .russian: return String(localized: "Русский (Russian)")
         }
     }
 

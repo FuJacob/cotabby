@@ -17,7 +17,7 @@ struct ModelDownloadTransferControls: View {
                 actionButton(
                     systemName: "pause.circle.fill",
                     color: .secondary,
-                    label: "Pause download",
+                    label: String(localized: "Pause download"),
                     action: onPause
                 )
                 cancelButton
@@ -30,7 +30,7 @@ struct ModelDownloadTransferControls: View {
                 actionButton(
                     systemName: "play.circle.fill",
                     color: .blue,
-                    label: "Resume download",
+                    label: String(localized: "Resume download"),
                     action: onResume
                 )
                 cancelButton
@@ -62,7 +62,7 @@ struct ModelDownloadTransferControls: View {
         actionButton(
             systemName: "xmark.circle.fill",
             color: .secondary,
-            label: "Cancel download",
+            label: String(localized: "Cancel download"),
             action: onCancel
         )
     }

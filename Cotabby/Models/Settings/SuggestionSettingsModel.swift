@@ -12,9 +12,9 @@ enum ShortcutAction: CaseIterable {
 
     var displayName: String {
         switch self {
-        case .acceptWord: return "Accept Word"
-        case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle Cotabby"
+        case .acceptWord: return String(localized: "Accept Word")
+        case .acceptEntireSuggestion: return String(localized: "Accept Entire Suggestion")
+        case .toggleTabby: return String(localized: "Toggle Cotabby")
         }
     }
 }

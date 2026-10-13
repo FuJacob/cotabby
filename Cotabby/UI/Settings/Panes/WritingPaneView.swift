@@ -17,9 +17,11 @@ struct WritingPaneView: View {
                     Text("Custom range…").tag(LengthChoice.custom)
                 } label: {
                     SettingsRowLabel(
-                        title: "Length",
-                        description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
-                            "longer covers more thoughts but takes longer to generate.",
+                        title: String(localized: "Length"),
+                        description: String(localized: """
+                        How many words Cotabby aims for per suggestion. Shorter is snappier; longer covers more \
+                        thoughts but takes longer to generate.
+                        """),
                         systemImage: "ruler"
                     )
                 }
@@ -33,13 +35,15 @@ struct WritingPaneView: View {
                 // the curated picker stays the common path.
                 if suggestionSettings.isUsingCustomWordCountRange {
                     LabeledContent("Minimum") {
-                        wordCountField(value: customLowBinding, label: "Minimum word count")
+                        wordCountField(value: customLowBinding, label: String(localized: "Minimum word count"))
                     }
                     LabeledContent("Maximum") {
-                        wordCountField(value: customHighBinding, label: "Maximum word count")
+                        wordCountField(value: customHighBinding, label: String(localized: "Maximum word count"))
                     }
-                    Text("Token budget scales by your selected language. Multiple languages or a " +
-                        "language Cotabby doesn't recognize use the English ratio.")
+                    Text("""
+                    Token budget scales by your selected language. Multiple languages or a language Cotabby doesn't \
+                    recognize use the English ratio.
+                    """)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -51,9 +55,11 @@ struct WritingPaneView: View {
             Section("Acceptance") {
                 Toggle(isOn: autoAcceptTrailingPunctuationBinding) {
                     SettingsRowLabel(
-                        title: "Accept Punctuation With Word",
-                        description: "When you accept a word, also accept the punctuation that follows it " +
-                            "(commas, periods) so you don't have to type it.",
+                        title: String(localized: "Accept Punctuation With Word"),
+                        description: String(localized: """
+                        When you accept a word, also accept the punctuation that follows it (commas, periods) so you \
+                        don't have to type it.
+                        """),
                         systemImage: "textformat.abc"
                     )
                 }
@@ -61,9 +67,11 @@ struct WritingPaneView: View {
 
                 Toggle(isOn: addSpaceAfterAcceptBinding) {
                     SettingsRowLabel(
-                        title: "Add Space After Accepting",
-                        description: "When accepting a suggestion finishes a word, also add a space so you can " +
-                            "keep typing. Skipped when it already ends in punctuation or a space.",
+                        title: String(localized: "Add Space After Accepting"),
+                        description: String(localized: """
+                        When accepting a suggestion finishes a word, also add a space so you can keep typing. \
+                        Skipped when it already ends in punctuation or a space.
+                        """),
                         systemImage: "space"
                     )
                 }
@@ -82,9 +90,11 @@ struct WritingPaneView: View {
             Section("Typos") {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
-                        title: "Hide Suggestions on Typo",
-                        description: "Pauses normal completions when a finished word looks misspelled. " +
-                            "Turn this on to use the correction options.",
+                        title: String(localized: "Hide Suggestions on Typo"),
+                        description: String(localized: """
+                        Pauses normal completions when a finished word looks misspelled. Turn this on to use the \
+                        correction options.
+                        """),
                         systemImage: "eye.slash"
                     )
                 }
@@ -95,8 +105,10 @@ struct WritingPaneView: View {
                 Section("Corrections") {
                     Toggle(isOn: offerTypoCorrectionsBinding) {
                         SettingsRowLabel(
-                            title: "Offer Corrections on Typo",
-                            description: "After you finish a word, shows a green replacement you can apply with your accept key.",
+                            title: String(localized: "Offer Corrections on Typo"),
+                            description: String(localized: """
+                            After you finish a word, shows a green replacement you can apply with your accept key.
+                            """),
                             systemImage: "checkmark.bubble"
                         )
                     }
@@ -104,8 +116,10 @@ struct WritingPaneView: View {
 
                     Toggle(isOn: automaticallyFixTyposBinding) {
                         SettingsRowLabel(
-                            title: "Automatically Fix Typos",
-                            description: "After you press Space, replaces a misspelled word without requiring your accept key.",
+                            title: String(localized: "Automatically Fix Typos"),
+                            description: String(localized: """
+                            After you press Space, replaces a misspelled word without requiring your accept key.
+                            """),
                             systemImage: "checkmark.circle"
                         )
                     }
@@ -127,8 +141,8 @@ struct WritingPaneView: View {
                     // is gated (CustomRulesCatalog.isUserFacingEnabled), so this copy and the Rules
                     // section below are dropped together while the feature is hidden.
                     Text(CustomRulesCatalog.isUserFacingEnabled
-                        ? "Your name, languages, and rules are passed to the AI to help personalize your completions."
-                        : "Your name and languages are passed to the AI to help personalize your completions.")
+                        ? String(localized: "Your name, languages, and rules are passed to the AI to help personalize your completions.")
+                        : String(localized: "Your name and languages are passed to the AI to help personalize your completions."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +151,7 @@ struct WritingPaneView: View {
                         Text("Name")
                             .font(.system(size: 13, weight: .medium))
 
-                        TextField("What should Cotabby call you?", text: Binding(
+                        TextField(String(localized: "What should Cotabby call you?"), text: Binding(
                             get: { suggestionSettings.userName },
                             set: { suggestionSettings.setUserName($0) }
                         ))

@@ -242,7 +242,7 @@ struct WelcomeButton: View {
 struct WelcomeNavigation: View {
     var canGoBack: Bool = false
     var canContinue: Bool = true
-    var continueTitle: String = "Continue"
+    var continueTitle: String = String(localized: "Continue")
     var disabledHint: String?
     var onBack: (() -> Void)?
     let onContinue: () -> Void

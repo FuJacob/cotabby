@@ -30,8 +30,8 @@ struct PermissionReminderView: View {
             OnboardingStepHeader(
                 systemImage: "exclamationmark.shield.fill",
                 tint: .orange,
-                title: "Permissions needed",
-                subtitle: "Cotabby needs these permissions to work.\nGrant them in System Settings, then come back here."
+                title: String(localized: "Permissions needed"),
+                subtitle: String(localized: "Cotabby needs these permissions to work.\nGrant them in System Settings, then come back here.")
             )
             .onboardingReveal(0)
 
@@ -60,7 +60,11 @@ struct PermissionReminderView: View {
                 }
             }
 
-            WelcomeButton(title: permissionManager.requiredPermissionsGranted ? "Done" : "I'll do this later") {
+            WelcomeButton(
+                title: permissionManager.requiredPermissionsGranted
+                    ? String(localized: "Done")
+                    : String(localized: "I'll do this later")
+            ) {
                 onDismiss()
             }
             .onboardingReveal(1 + requiredPermissions.count + optionalPermissions.count)

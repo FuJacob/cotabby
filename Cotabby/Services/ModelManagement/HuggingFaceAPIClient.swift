@@ -14,13 +14,13 @@ enum HuggingFaceAPIClient {
         var errorDescription: String? {
             switch self {
             case .invalidURL:
-                return "Invalid HuggingFace API URL."
+                return String(localized: "Invalid HuggingFace API URL.")
             case .httpError(let statusCode):
-                return "HuggingFace returned HTTP \(statusCode)."
+                return String(localized: "HuggingFace returned HTTP \(statusCode).")
             case .rateLimited:
-                return "Too many requests — please wait a moment and try again."
+                return String(localized: "Too many requests — please wait a moment and try again.")
             case .decodingFailed(let error):
-                return "Failed to parse HuggingFace response: \(error.localizedDescription)"
+                return String(localized: "Failed to parse HuggingFace response: \(error.localizedDescription)")
             }
         }
     }

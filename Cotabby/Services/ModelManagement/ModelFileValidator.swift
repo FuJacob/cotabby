@@ -29,14 +29,16 @@ nonisolated enum ModelFileValidator {
         var errorDescription: String? {
             switch self {
             case let .sizeMismatch(expected, actual):
-                return "Downloaded file is \(actual) bytes; expected \(expected). The download may have been truncated."
+                return String(localized: "Downloaded file is \(actual) bytes; expected \(expected). The download may have been truncated.")
             case let .checksumMismatch(expected, actual):
                 let expectedShort = String(expected.lowercased().prefix(16))
                 let actualShort = String(actual.lowercased().prefix(16))
-                return "Downloaded file's checksum (\(actualShort)…) doesn't match the " +
-                    "expected (\(expectedShort)…). The file may be corrupt."
+                return String(localized: """
+                Downloaded file's checksum (\(actualShort)…) doesn't match the expected (\(expectedShort)…). The \
+                file may be corrupt.
+                """)
             case let .fileUnreadable(url):
-                return "Couldn't read \(url.lastPathComponent) for validation."
+                return String(localized: "Couldn't read \(url.lastPathComponent) for validation.")
             }
         }
     }

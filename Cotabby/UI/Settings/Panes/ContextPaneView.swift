@@ -45,8 +45,10 @@ struct ContextPaneView: View {
     private var livePreviewSection: some View {
         Section("Live preview") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Type below and Cotabby completes as you go, using the same engine and settings " +
-                    "it uses everywhere. Press Tab to accept the gray suggestion, Esc to dismiss.")
+                Text("""
+                Type below and Cotabby completes as you go, using the same engine and settings it uses everywhere. \
+                Press Tab to accept the gray suggestion, Esc to dismiss.
+                """)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -86,10 +88,12 @@ struct ContextPaneView: View {
     static func livePreviewPrivacyNote(for engine: SuggestionEngineKind) -> String {
         switch engine {
         case .appleIntelligence, .llamaOpenSource:
-            return "Nothing here is saved or shared; it only exercises the on-device model."
+            return String(localized: "Nothing here is saved or shared; it only exercises the on-device model.")
         case .openAICompatible:
-            return "Cotabby doesn't save this text, but like any other field it's sent to your configured endpoint, "
-                + "which may keep it."
+            return String(localized: """
+            Cotabby doesn't save this text, but like any other field it's sent to your configured endpoint, which \
+            may keep it.
+            """)
         }
     }
 
@@ -103,15 +107,17 @@ struct ContextPaneView: View {
                 SettingsCalloutView(
                     callout: SettingsPaneCallout(
                         tone: .warning,
-                        message: "Everything here is sent to the model on every keystroke. Long blocks " +
-                            "slow down completions and may crowd out the surrounding text the model " +
-                            "needs to continue accurately."
+                        message: String(localized: """
+                        Everything here is sent to the model on every keystroke. Long blocks slow down completions \
+                        and may crowd out the surrounding text the model needs to continue accurately.
+                        """)
                     )
                 )
 
-                Text("Paste a glossary, jargon list, style guide excerpt, or any reference the model " +
-                    "should keep in mind. Markdown structure (headings, bullet lists, examples) is " +
-                    "preserved verbatim.")
+                Text("""
+                Paste a glossary, jargon list, style guide excerpt, or any reference the model should keep in mind. \
+                Markdown structure (headings, bullet lists, examples) is preserved verbatim.
+                """)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -153,19 +159,22 @@ struct ContextPaneView: View {
         Section("How this is used") {
             VStack(alignment: .leading, spacing: 8) {
                 bulletLine(
-                    "Sent on every suggestion as reference material, not as instructions."
+                    String(localized: "Sent on every suggestion as reference material, not as instructions.")
                 )
                 bulletLine(
-                    "Subordinate to Cotabby's base autocomplete rules, so it cannot override " +
-                        "core behavior."
+                    String(localized: "Subordinate to Cotabby's base autocomplete rules, so it cannot override core behavior.")
                 )
                 bulletLine(
-                    "Capped at \(SuggestionSettingsModel.maximumExtendedContextCharacters) " +
-                        "characters. Anything pasted beyond that is trimmed automatically."
+                    String(localized: """
+                    Capped at \(SuggestionSettingsModel.maximumExtendedContextCharacters) characters. Anything \
+                    pasted beyond that is trimmed automatically.
+                    """)
                 )
                 bulletLine(
-                    "Stored locally on this Mac. Included in requests to your selected " +
-                        "engine, including a configured endpoint."
+                    String(localized: """
+                    Stored locally on this Mac. Included in requests to your selected engine, including a configured \
+                    endpoint.
+                    """)
                 )
             }
             .font(.caption)
@@ -186,7 +195,7 @@ struct ContextPaneView: View {
     private var characterCountLabel: String {
         let current = suggestionSettings.extendedContext.count
         let maximum = SuggestionSettingsModel.maximumExtendedContextCharacters
-        return "\(current) / \(maximum) characters"
+        return String(localized: "\(current) / \(maximum) characters")
     }
 
     /// Visual nudge when the user is within 10% of the cap so a long paste doesn't silently truncate

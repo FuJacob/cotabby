@@ -48,7 +48,7 @@ struct CustomRulesEditor: View {
             }
 
             TextField(
-                atCap ? "Rule limit reached" : "Add a rule, e.g. Use British spelling",
+                atCap ? String(localized: "Rule limit reached") : String(localized: "Add a rule, e.g. Use British spelling"),
                 text: $inputText
             )
             .textFieldStyle(.roundedBorder)

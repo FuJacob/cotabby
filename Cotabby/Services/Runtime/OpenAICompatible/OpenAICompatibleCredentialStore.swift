@@ -84,8 +84,8 @@ private struct KeychainCredentialError: LocalizedError {
 
     var errorDescription: String? {
         if let message = SecCopyErrorMessageString(status, nil) as String? {
-            return "The endpoint API key could not be updated: \(message)"
+            return String(localized: "The endpoint API key could not be updated: \(message)")
         }
-        return "The endpoint API key could not be updated (Keychain status \(status))."
+        return String(localized: "The endpoint API key could not be updated (Keychain status \(status)).")
     }
 }

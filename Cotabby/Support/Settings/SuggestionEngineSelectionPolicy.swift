@@ -36,7 +36,7 @@ enum SuggestionEngineSelectionPolicy {
         foundationModelAvailable: Bool
     ) -> String {
         guard isSelectable(engine, foundationModelAvailable: foundationModelAvailable) else {
-            return "\(engine.displayLabel) (Unavailable)"
+            return String(localized: "\(engine.displayLabel) (Unavailable)")
         }
         return engine.displayLabel
     }

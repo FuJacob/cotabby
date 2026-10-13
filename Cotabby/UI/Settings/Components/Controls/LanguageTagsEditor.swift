@@ -50,7 +50,7 @@ struct LanguageTagsEditor: View {
             }
 
             TextField(
-                atCap ? "Language limit reached" : "Add a language, e.g. German",
+                atCap ? String(localized: "Language limit reached") : String(localized: "Add a language, e.g. German"),
                 text: $inputText
             )
             .textFieldStyle(.roundedBorder)
@@ -79,8 +79,10 @@ struct LanguageTagsEditor: View {
 
             // The hint can only ask the model to use a language; whether it actually can depends on
             // the chosen engine, so we say so plainly rather than implying universal support.
-            Text("Language support depends on your selected model. Apple Intelligence covers a fixed "
-                + "set of languages, and local models vary, so some languages may not work.")
+            Text("""
+            Language support depends on your selected model. Apple Intelligence covers a fixed set of languages, and \
+            local models vary, so some languages may not work.
+            """)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 

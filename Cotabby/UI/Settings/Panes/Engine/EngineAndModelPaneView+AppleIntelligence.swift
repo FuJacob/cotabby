@@ -17,9 +17,11 @@ extension EngineAndModelPaneView {
                     .fixedSize(horizontal: false, vertical: true)
             } label: {
                 SettingsRowLabel(
-                    title: "Availability",
-                    description: "Whether this Mac can run Apple Intelligence. Requires a supported " +
-                        "Apple Silicon Mac with Apple Intelligence turned on in System Settings.",
+                    title: String(localized: "Availability"),
+                    description: String(localized: """
+                    Whether this Mac can run Apple Intelligence. Requires a supported Apple Silicon Mac with Apple \
+                    Intelligence turned on in System Settings.
+                    """),
                     systemImage: "apple.logo"
                 )
             }
@@ -30,9 +32,11 @@ extension EngineAndModelPaneView {
                 set: { suggestionSettings.setAppleLanguageFallbackEnabled($0) }
             )) {
                 SettingsRowLabel(
-                    title: "Fall Back to Open Source Model",
-                    description: "When Apple Intelligence doesn't support the language you're writing in, " +
-                        "suggest with \(fallbackModelName) instead. Turn off to get no suggestion in those languages.",
+                    title: String(localized: "Fall Back to Open Source Model"),
+                    description: String(localized: """
+                    When Apple Intelligence doesn't support the language you're writing in, suggest with \
+                    \(fallbackModelName) instead. Turn off to get no suggestion in those languages.
+                    """),
                     systemImage: "arrow.triangle.branch"
                 )
             }
@@ -43,9 +47,11 @@ extension EngineAndModelPaneView {
                 set: { suggestionSettings.setKeepsFallbackModelLoaded($0) }
             )) {
                 SettingsRowLabel(
-                    title: "Keep Fallback Model Loaded",
-                    description: "Load the fallback model in advance so its first suggestion doesn't wait for it " +
-                        "to load. Uses the model's memory (up to several GB) while Apple Intelligence is selected.",
+                    title: String(localized: "Keep Fallback Model Loaded"),
+                    description: String(localized: """
+                    Load the fallback model in advance so its first suggestion doesn't wait for it to load. Uses the \
+                    model's memory (up to several GB) while Apple Intelligence is selected.
+                    """),
                     systemImage: "memorychip"
                 )
             }
@@ -58,8 +64,10 @@ extension EngineAndModelPaneView {
             if runtimeModel.availableModels.isEmpty {
                 // Only worth a warning while the fallback is on; with it off, no model is needed.
                 if suggestionSettings.isAppleLanguageFallbackEnabled {
-                    Text("No downloaded models were found, so there is nothing to fall back to. " +
-                        "Switch the engine to Open Source to download one.")
+                    Text("""
+                    No downloaded models were found, so there is nothing to fall back to. Switch the engine to Open \
+                    Source to download one.
+                    """)
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -70,12 +78,16 @@ extension EngineAndModelPaneView {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Fallback Model",
+                        title: String(localized: "Fallback Model"),
                         description: suggestionSettings.isPowerBasedModelSwitchingEnabled
-                            ? "Set automatically by power source. Turn off power-based switching in the " +
-                                "Power section to choose it here."
-                            : "The downloaded model used when Apple Intelligence can't handle the " +
-                                "language. It is also your Open Source engine's model.",
+                            ? String(localized: """
+                            Set automatically by power source. Turn off power-based switching in the Power section \
+                            to choose it here.
+                            """)
+                            : String(localized: """
+                            The downloaded model used when Apple Intelligence can't handle the language. It is also \
+                            your Open Source engine's model.
+                            """),
                         systemImage: "shippingbox"
                     )
                 }
@@ -92,7 +104,7 @@ extension EngineAndModelPaneView {
     /// model at a time, so the fallback cannot use a different one without swapping it in. Uses the
     /// catalog name so the toggle names the model the same way the picker below lists it.
     private var fallbackModelName: String {
-        runtimeModel.selectedModelFilename.map { RuntimeModelCatalog.displayName(for: $0) } ?? "your Open Source model"
+        runtimeModel.selectedModelFilename.map { RuntimeModelCatalog.displayName(for: $0) } ?? String(localized: "your Open Source model")
     }
 
     /// Shares the Open Source selection, but picking a model here must not load it on its own.
