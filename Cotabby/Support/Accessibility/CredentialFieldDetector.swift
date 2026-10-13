@@ -131,8 +131,9 @@ enum CredentialFieldDetector {
         credentialIdentifierWords.map { (Array($0), true) } + qualifierIdentifierWords.map { (Array($0), false) }
 
     /// `keyword` appears in `label` with no letter or digit directly before or after it, so "pin"
-    /// matches "Enter PIN" but not "shipping".
-    private static func containsWord(_ keyword: String, in label: String) -> Bool {
+    /// matches "Enter PIN" but not "shipping". Shared with `SearchFieldDetector`, which judges
+    /// labels the same way.
+    static func containsWord(_ keyword: String, in label: String) -> Bool {
         var searchRange = label.startIndex..<label.endIndex
         while let found = label.range(of: keyword, range: searchRange) {
             let before = found.lowerBound == label.startIndex ? nil : label[label.index(before: found.lowerBound)]

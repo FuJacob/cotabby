@@ -221,7 +221,7 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
 
     /// Hosts one editing `NSTextField` and returns its AX element, or skips where self-process AX
     /// is unavailable.
-    private func makeFieldElement(placeholder: String, text: String) throws -> AXUIElement {
+    private func makeFieldElement(placeholder: String, text: String, searchField: Bool = false) throws -> AXUIElement {
         let window = NSWindow(
             contentRect: NSRect(x: 220, y: 220, width: 360, height: 80),
             styleMask: [.titled],
@@ -229,7 +229,8 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
             defer: false
         )
         window.isReleasedWhenClosed = false
-        let field = NSTextField(frame: NSRect(x: 10, y: 28, width: 300, height: 24))
+        let frame = NSRect(x: 10, y: 28, width: 300, height: 24)
+        let field = searchField ? NSSearchField(frame: frame) : NSTextField(frame: frame)
         field.placeholderString = placeholder
         field.setAccessibilityIdentifier(Self.fieldIdentifier)
         window.contentView?.addSubview(field)
@@ -285,7 +286,7 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         var now: TimeInterval = 100
         let resolver = FocusSnapshotResolver(uptime: { now })
         let credentialBlock = FocusCapability.blocked(CredentialFieldDetector.blockedReason)
-        let interval = FocusSnapshotResolver.credentialLabelRefreshInterval
+        let interval = FocusSnapshotResolver.fieldLabelRefreshInterval
 
         XCTAssertEqual(capability(of: element, focusChangeSequence: 7, resolver: resolver), credentialBlock)
 
@@ -311,5 +312,34 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         // Same focus session: the typed text is judged on every poll, unlike the cached labels.
         setText("alice@")
         XCTAssertEqual(capability(of: element, focusChangeSequence: 3, resolver: resolver), credentialBlock)
+    }
+
+    func test_searchPlaceholderBlocksAPlainTextField() throws {
+        // Teams' search box: a plain input whose placeholder is the only sign it searches.
+        let element = try makeFieldElement(placeholder: "Look for people, messages, files, and more.", text: "san")
+
+        XCTAssertEqual(
+            capability(of: element, focusChangeSequence: 4, resolver: FocusSnapshotResolver()),
+            .blocked(SearchFieldDetector.blockedReason)
+        )
+    }
+
+    func test_searchFieldSubroleBlocksTheField() throws {
+        // NSSearchField reports role AXTextField with subrole AXSearchField; no label is needed.
+        let element = try makeFieldElement(placeholder: "", text: "san", searchField: true)
+
+        XCTAssertEqual(
+            capability(of: element, focusChangeSequence: 5, resolver: FocusSnapshotResolver()),
+            .blocked(SearchFieldDetector.blockedReason)
+        )
+    }
+
+    func test_ordinaryTextFieldIsNotTakenForASearchBox() throws {
+        let element = try makeFieldElement(placeholder: "Type a message", text: "san")
+
+        XCTAssertNotEqual(
+            capability(of: element, focusChangeSequence: 6, resolver: FocusSnapshotResolver()),
+            .blocked(SearchFieldDetector.blockedReason)
+        )
     }
 }
