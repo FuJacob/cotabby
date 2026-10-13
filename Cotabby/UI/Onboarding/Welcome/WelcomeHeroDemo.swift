@@ -25,19 +25,39 @@ struct WelcomeHeroDemo: View {
     /// Insertion-point blink, driven by its own short-period task while the demo is on screen.
     @State private var caretVisible = true
 
-    private struct Example {
-        let base: String
-        let ghost: String
-    }
-
-    /// Rotating phrases so the loop conveys "any writing, anywhere" rather than one canned email.
+    /// Rotating whole sentences so each translation can put the typed/ghost boundary where its
+    /// grammar needs it, while the animation still reveals only the typed run.
     private let examples = [
-        Example(base: "Thanks for the", ghost: " quick reply!"),
-        Example(base: "Let's meet", ghost: " tomorrow at 10."),
-        Example(base: "Here's the", ghost: " final draft.")
+        CompletionPreviewText(
+            resolvedSentence: String(
+                localized: "Thanks for the¦ quick reply!",
+                comment: """
+                Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text \
+                begins; move it to fit the translated sentence naturally.
+                """
+            )
+        ),
+        CompletionPreviewText(
+            resolvedSentence: String(
+                localized: "Let's meet¦ tomorrow at 10.",
+                comment: """
+                Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text \
+                begins; move it to fit the translated sentence naturally.
+                """
+            )
+        ),
+        CompletionPreviewText(
+            resolvedSentence: String(
+                localized: "Here's the¦ final draft.",
+                comment: """
+                Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text \
+                begins; move it to fit the translated sentence naturally.
+                """
+            )
+        )
     ]
 
-    private var example: Example {
+    private var example: CompletionPreviewText {
         examples[exampleIndex % examples.count]
     }
 
@@ -73,7 +93,7 @@ struct WelcomeHeroDemo: View {
     private var mockTextField: some View {
         HStack(alignment: .center, spacing: 6) {
             HStack(alignment: .center, spacing: 0) {
-                Text(String(example.base.prefix(typedCount)))
+                Text(String(example.typedText.prefix(typedCount)))
                     .foregroundStyle(.primary)
 
                 // The insertion point sits between the typed text and the ghost, exactly where the
@@ -85,7 +105,7 @@ struct WelcomeHeroDemo: View {
                     .padding(.horizontal, 1)
 
                 if showGhost {
-                    Text(example.ghost)
+                    Text(example.ghostText)
                         .foregroundStyle(accepted ? Color.primary : ghostColor)
                 }
             }
@@ -126,7 +146,7 @@ struct WelcomeHeroDemo: View {
 
     private func runLoop() async {
         guard !reduceMotion else {
-            typedCount = example.base.count
+            typedCount = example.typedText.count
             showGhost = true
             accepted = true
             caretVisible = true
@@ -140,7 +160,7 @@ struct WelcomeHeroDemo: View {
             try? await Task.sleep(nanoseconds: 450 * nsPerMillisecond)
             if Task.isCancelled { return }
 
-            for index in 1...example.base.count {
+            for index in 1...example.typedText.count {
                 typedCount = index
                 try? await Task.sleep(nanoseconds: 52 * nsPerMillisecond)
                 if Task.isCancelled { return }

@@ -10,15 +10,15 @@ nonisolated enum Aria2DownloadError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .executableNotFound:
-            return "aria2c executable was not found on the system."
+            return String(localized: "aria2c executable was not found on the system.")
         case .invalidFilename:
-            return "The model filename is not valid."
+            return String(localized: "The model filename is not valid.")
         case .cancelled:
-            return "Download was cancelled by the user."
+            return String(localized: "Download was cancelled by the user.")
         case .paused:
-            return "Download was paused by the user."
+            return String(localized: "Download was paused by the user.")
         case .processFailed(let code, let message):
-            return "aria2c download failed (exit code \(code)): \(message)"
+            return String(localized: "aria2c download failed (exit code \(code)): \(message)")
         }
     }
 }
@@ -205,7 +205,7 @@ nonisolated final class Aria2DownloadService: @unchecked Sendable {
         guard status == 0 else {
             let trimmedMessage = errorMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             let message = trimmedMessage.isEmpty
-                ? "Process terminated with exit code \(status)"
+                ? String(localized: "Process terminated with exit code \(status)")
                 : trimmedMessage
             return .failure(Aria2DownloadError.processFailed(exitCode: status, message: message))
         }

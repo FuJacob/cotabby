@@ -33,9 +33,11 @@ struct WelcomePermissionStepView: View {
         VStack(spacing: 24) {
             OnboardingStepHeader(
                 systemImage: "lock.shield.fill",
-                title: "Two quick permissions",
-                subtitle: "Cotabby needs to read the field you're typing in and watch for the accept key.\n"
-                    + "The optional one unlocks smarter, screen-aware suggestions."
+                title: String(localized: "Two quick permissions"),
+                subtitle: String(localized: """
+                Cotabby needs to read the field you're typing in and watch for the accept key.\nThe optional one \
+                unlocks smarter, screen-aware suggestions.
+                """)
             )
             .onboardingReveal(0)
 
@@ -69,8 +71,10 @@ struct WelcomePermissionStepView: View {
                     .font(.system(size: 10, weight: .medium))
 
                 Text(
-                    "Apple Intelligence and Open Source run on your Mac. " +
-                        "If you choose an endpoint, enabled text context is sent to that server."
+                    String(localized: """
+                    Apple Intelligence and Open Source run on your Mac. If you choose an endpoint, enabled text \
+                    context is sent to that server.
+                    """)
                 )
                     .font(.system(size: 12, design: .rounded))
             }

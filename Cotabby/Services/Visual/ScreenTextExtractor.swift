@@ -42,9 +42,9 @@ enum ScreenTextExtractionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noRecognizedText:
-            return "No usable visible text was recognized in the screenshot."
+            return String(localized: "No usable visible text was recognized in the screenshot.")
         case let .ocrFailed(message):
-            return "Screenshot OCR failed: \(message)"
+            return String(localized: "Screenshot OCR failed: \(message)")
         }
     }
 }

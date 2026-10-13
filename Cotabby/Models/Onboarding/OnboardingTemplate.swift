@@ -32,13 +32,13 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     var title: String {
         switch self {
         case .quick:
-            return "Quick"
+            return String(localized: "Quick")
         case .everyday:
-            return "Everyday"
+            return String(localized: "Everyday")
         case .powerful:
-            return "Powerful"
+            return String(localized: "Powerful")
         case .custom:
-            return "Custom"
+            return String(localized: "Custom")
         }
     }
 
@@ -46,13 +46,13 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     var tagline: String {
         switch self {
         case .quick:
-            return "Fast and lightweight"
+            return String(localized: "Fast and lightweight")
         case .everyday:
-            return "Balanced for daily writing"
+            return String(localized: "Balanced for daily writing")
         case .powerful:
-            return "Highest quality"
+            return String(localized: "Highest quality")
         case .custom:
-            return "Keep your settings, or start from defaults"
+            return String(localized: "Keep your settings, or start from defaults")
         }
     }
 
@@ -62,14 +62,16 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     var detail: String {
         switch self {
         case .quick:
-            return "Short, snappy completions that keep up with fast typing and stay light on resources."
+            return String(localized: "Short, snappy completions that keep up with fast typing and stay light on resources.")
         case .everyday:
-            return "A balance of speed and quality for everyday writing."
+            return String(localized: "A balance of speed and quality for everyday writing.")
         case .powerful:
-            return "Longer suggestions and higher quality on harder prompts."
+            return String(localized: "Longer suggestions and higher quality on harder prompts.")
         case .custom:
-            return "Returning users keep every setting they've already tuned. "
-                + "New users start from Cotabby's lean defaults and fine-tune length, model, and behavior in Settings."
+            return String(localized: """
+            Returning users keep every setting they've already tuned. New users start from Cotabby's lean defaults \
+            and fine-tune length, model, and behavior in Settings.
+            """)
         }
     }
 

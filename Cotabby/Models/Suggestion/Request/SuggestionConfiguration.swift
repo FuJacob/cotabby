@@ -24,7 +24,8 @@ struct SuggestionWordRange: Equatable, Hashable, Sendable {
         return SuggestionWordRange(lowWords: clampedLow, highWords: clampedHigh)
     }
 
-    var compactLabel: String { "\(lowWords)-\(highWords) w" }
+    var compactLabel: String { String(localized: "\(lowWords)-\(highWords) w") }
+    /// Prompt instructions stay in the engine vocabulary even when the interface language changes.
     var promptInstruction: String { "Return only the next \(lowWords) to \(highWords) words." }
 }
 
@@ -39,7 +40,7 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     var id: String { rawValue }
 
     var displayLabel: String {
-        "\(rawValue) words"
+        String(localized: "\(rawValue) words")
     }
 
     /// The shared `SuggestionWordRange` shape so the prompt builder and token-budget math can

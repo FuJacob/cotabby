@@ -39,6 +39,6 @@ struct MenuBarStatusLabelView: View {
     /// Global disable takes precedence when both states are present because it remains in effect
     /// after the temporary pause is cleared.
     private var inactiveAccessibilityLabel: String {
-        suggestionSettings.isGloballyEnabled ? "Cotabby paused" : "Cotabby disabled"
+        suggestionSettings.isGloballyEnabled ? String(localized: "Cotabby paused") : String(localized: "Cotabby disabled")
     }
 }

@@ -31,11 +31,11 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .accessibility:
-            "Accessibility"
+            String(localized: "Accessibility")
         case .inputMonitoring:
-            "Input Monitoring"
+            String(localized: "Input Monitoring")
         case .screenRecording:
-            "Screen Recording"
+            String(localized: "Screen Recording")
         }
     }
 
@@ -45,7 +45,7 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     /// this suffix is the only thing that marks it optional there. Card surfaces (onboarding, the
     /// reminder window) carry their own "Optional" capsule instead, so they keep using `title`.
     var compactRowTitle: String {
-        isOptionalEnhancement ? "\(title) (Optional)" : title
+        isOptionalEnhancement ? String(localized: "\(title) (Optional)") : title
     }
 
     var systemImageName: String {
@@ -62,11 +62,11 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     var onboardingSubtitle: String {
         switch self {
         case .accessibility:
-            "Read text fields and caret position."
+            String(localized: "Read text fields and caret position.")
         case .inputMonitoring:
-            "Detect typing and accept with Tab."
+            String(localized: "Detect typing and accept with Tab.")
         case .screenRecording:
-            "Optional: capture screen context for richer suggestions."
+            String(localized: "Optional: capture screen context for richer suggestions.")
         }
     }
 

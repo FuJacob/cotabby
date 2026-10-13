@@ -265,7 +265,7 @@ private final class PermissionOverlayContentView: NSView {
         let dismissButton = NSButton()
         dismissButton.translatesAutoresizingMaskIntoConstraints = false
         dismissButton.isBordered = false
-        dismissButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Dismiss")
+        dismissButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: String(localized: "Dismiss"))
         dismissButton.contentTintColor = NSColor.labelColor.withAlphaComponent(0.72)
         dismissButton.target = self
         dismissButton.action = #selector(dismissPressed)
@@ -283,8 +283,9 @@ private final class PermissionOverlayContentView: NSView {
 
         let titleLabel = NSTextField(labelWithAttributedString: title(hostApp: hostApp, permission: permission))
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.maximumNumberOfLines = 1
-        titleLabel.lineBreakMode = .byTruncatingTail
+        // Translated permission names are longer than English; two lines fit above the drag row.
+        titleLabel.maximumNumberOfLines = 2
+        titleLabel.lineBreakMode = .byWordWrapping
         materialView.addSubview(titleLabel)
 
         let dragSource = PermissionDragSourceView(hostApp: hostApp)
@@ -332,7 +333,7 @@ private final class PermissionOverlayContentView: NSView {
 
     private func title(hostApp: PermissionHostApp, permission: CotabbyPermissionKind) -> NSAttributedString {
         NSAttributedString(
-            string: "Drag \(hostApp.displayName) to the list above to allow \(permission.title)",
+            string: String(localized: "Drag \(hostApp.displayName) to the list above to allow \(permission.title)"),
             attributes: [
                 .font: NSFont.systemFont(ofSize: 14, weight: .medium),
                 .foregroundColor: NSColor.labelColor.withAlphaComponent(0.82)

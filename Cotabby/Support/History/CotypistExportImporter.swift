@@ -18,7 +18,7 @@ nonisolated enum CotypistExportImporter {
         case unrecognizedFormat
 
         var errorDescription: String? {
-            "This file isn't a Cotypist user_inputs export (a JSON list of typing-history rows)."
+            String(localized: "This file isn't a Cotypist user_inputs export (a JSON list of typing-history rows).")
         }
     }
 

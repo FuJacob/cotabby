@@ -97,17 +97,24 @@ private struct GhostTextDemoCard: View {
     /// Whether the ghost has been "accepted" and turned solid.
     @State private var accepted = false
 
-    private let base = "Thanks for the"
-    private let ghost = " quick reply!"
+    private let preview = CompletionPreviewText(
+        resolvedSentence: String(
+            localized: "Thanks for the¦ quick reply!",
+            comment: """
+            Onboarding autocomplete demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; \
+            move it to fit the translated sentence naturally.
+            """
+        )
+    )
 
     var body: some View {
-        DemoCard(caption: "Autocomplete", contentHeight: 40) {
+        DemoCard(caption: String(localized: "Autocomplete"), contentHeight: 40) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(String(base.prefix(typedCount)))
+                    Text(String(preview.typedText.prefix(typedCount)))
                         .foregroundStyle(.primary)
                     if showGhost {
-                        Text(ghost)
+                        Text(preview.ghostText)
                             .foregroundStyle(accepted ? Color.primary : ghostColor)
                     }
                 }
@@ -135,7 +142,7 @@ private struct GhostTextDemoCard: View {
         // Idle (not animating) shows the same finished frame as reduce-motion, so the card looks
         // complete at rest and only plays the full typing demo while hovered.
         guard animating, !reduceMotion else {
-            typedCount = base.count
+            typedCount = preview.typedText.count
             showGhost = true
             accepted = true
             return
@@ -148,7 +155,7 @@ private struct GhostTextDemoCard: View {
             try? await Task.sleep(nanoseconds: 350 * nsPerMillisecond)
             if Task.isCancelled { return }
 
-            for index in 1...base.count {
+            for index in 1...preview.typedText.count {
                 typedCount = index
                 try? await Task.sleep(nanoseconds: 55 * nsPerMillisecond)
                 if Task.isCancelled { return }
@@ -216,13 +223,15 @@ private struct AutocorrectDemoCard: View {
     /// Whether the correction has been accepted (turns solid).
     @State private var accepted = false
 
+    // This is sample writing for an English spelling correction (teh → the), not interface copy.
+    // Keeping the entire sample English avoids combining a translated prefix with English words.
     private let leading = "Pass me "
     private let typo = "teh"
     private let correction = "the"
     private var fullTyped: String { leading + typo }
 
     var body: some View {
-        DemoCard(caption: "Autocorrect", contentHeight: 40) {
+        DemoCard(caption: String(localized: "Autocorrect"), contentHeight: 40) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                     Text(String(leading.prefix(min(typedCount, leading.count))))
@@ -326,7 +335,7 @@ private struct EmojiPickerDemoCard: View {
     /// Whether the chosen emoji has replaced the trigger text.
     @State private var committed = false
 
-    private let leadIn = "Nice work "
+    private let leadIn = String(localized: "Nice work ")
     private let trigger = ":smi"
     private let chosenGlyph = "😄"
     private let candidates: [(glyph: String, alias: String)] = [
@@ -334,7 +343,7 @@ private struct EmojiPickerDemoCard: View {
     ]
 
     var body: some View {
-        DemoCard(caption: "Inline emoji", contentHeight: 124) {
+        DemoCard(caption: String(localized: "Inline emoji"), contentHeight: 124) {
             ZStack(alignment: .topLeading) {
                 Text(fieldText)
                     .font(.system(size: 16))
@@ -486,7 +495,7 @@ private struct MacroDemoCard: View {
     }
 
     var body: some View {
-        DemoCard(caption: "Inline macros", contentHeight: 30) {
+        DemoCard(caption: String(localized: "Inline macros"), contentHeight: 30) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let example = currentExample {
                     Text(example.category)
@@ -519,7 +528,7 @@ private struct MacroDemoCard: View {
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                     }
                     .buttonStyle(.borderless)
-                    .help("See every inline macro and what it does")
+                    .help(String(localized: "See every inline macro and what it does"))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -560,14 +569,14 @@ private struct MacroDemoCard: View {
             engine.evaluate(input).map { Example(category: category, input: input, result: $0.insertionText) }
         }
         return [
-            example("Math", "5+5="),
-            example("Convert", "10km->mi"),
-            example("Currency", "100usd->eur"),
-            example("Date", "today"),
-            example("Math", "2^10="),
-            example("Convert", "100f->c"),
-            example("Currency", "50gbp->jpy"),
-            example("Date", "next-fri")
+            example(String(localized: "Math"), "5+5="),
+            example(String(localized: "Convert"), "10km->mi"),
+            example(String(localized: "Currency"), "100usd->eur"),
+            example(String(localized: "Date"), "today"),
+            example(String(localized: "Math"), "2^10="),
+            example(String(localized: "Convert"), "100f->c"),
+            example(String(localized: "Currency"), "50gbp->jpy"),
+            example(String(localized: "Date"), "next-fri")
         ].compactMap { $0 }
     }
 }

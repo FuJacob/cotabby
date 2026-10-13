@@ -13,11 +13,11 @@ nonisolated enum SuggestionPauseDuration: CaseIterable, Identifiable {
 
     var menuLabel: String {
         switch self {
-        case .fifteenMinutes: return "Pause for 15 Minutes"
-        case .thirtyMinutes: return "Pause for 30 Minutes"
-        case .oneHour: return "Pause for 1 Hour"
-        case .untilTomorrow: return "Pause Until Tomorrow"
-        case .indefinitely: return "Pause Until I Turn It Back On"
+        case .fifteenMinutes: return String(localized: "Pause for 15 Minutes")
+        case .thirtyMinutes: return String(localized: "Pause for 30 Minutes")
+        case .oneHour: return String(localized: "Pause for 1 Hour")
+        case .untilTomorrow: return String(localized: "Pause Until Tomorrow")
+        case .indefinitely: return String(localized: "Pause Until I Turn It Back On")
         }
     }
 
@@ -78,7 +78,7 @@ nonisolated enum SuggestionPauseState: Codable, Equatable, Sendable {
 
         switch self {
         case .indefinitely:
-            return "Paused until enabled"
+            return String(localized: "Paused until enabled")
         case let .until(expiration):
             let tomorrow = calendar.date(
                 byAdding: .day,
@@ -86,12 +86,12 @@ nonisolated enum SuggestionPauseState: Codable, Equatable, Sendable {
                 to: calendar.startOfDay(for: now)
             )
             if let tomorrow, expiration == tomorrow {
-                return "Paused until tomorrow"
+                return String(localized: "Paused until tomorrow")
             }
             if calendar.isDate(expiration, inSameDayAs: now) {
-                return "Paused until \(expiration.formatted(date: .omitted, time: .shortened))"
+                return String(localized: "Paused until \(expiration.formatted(date: .omitted, time: .shortened))")
             }
-            return "Paused until \(expiration.formatted(date: .abbreviated, time: .shortened))"
+            return String(localized: "Paused until \(expiration.formatted(date: .abbreviated, time: .shortened))")
         }
     }
 }

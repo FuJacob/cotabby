@@ -74,7 +74,7 @@ final class LlamaRuntimeManager: ObservableObject {
         CotabbyLogger.runtime.info("Selecting model: \(filename)")
         guard let normalizedFilename = normalizedModelFilename(filename) else {
             let error = LlamaRuntimeError.unavailable(
-                "The selected model \(filename) is unavailable.")
+                String(localized: "The selected model \(filename) is unavailable."))
             diagnostics.lastError = error.localizedDescription
             throw error
         }
@@ -265,7 +265,7 @@ final class LlamaRuntimeManager: ObservableObject {
 
         cachedRuntime = nil
 
-        state = .starting("Initializing the in-process llama runtime.")
+        state = .starting(String(localized: "Initializing the in-process llama runtime."))
         diagnostics.lastError = nil
         diagnostics.lastLoadStatus = "Starting"
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
@@ -278,7 +278,7 @@ final class LlamaRuntimeManager: ObservableObject {
         self.startupTask = startupTask
         startupModelFilename = requestedModelFilename
         CotabbyLogger.runtime.info("Loading \(resolvedRuntime.modelDisplayName) into memory")
-        state = .loading("Loading \(resolvedRuntime.modelDisplayName) into memory.")
+        state = .loading(String(localized: "Loading \(resolvedRuntime.modelDisplayName) into memory."))
 
         return try await awaitPreparedRuntime(startupTask)
     }
@@ -369,7 +369,7 @@ final class LlamaRuntimeManager: ObservableObject {
         diagnostics.lastLoadStatus = "Loaded"
         diagnostics.lastError = nil
 
-        state = .ready("Loaded \(preparedRuntime.resolvedRuntime.modelDisplayName) in-process.")
+        state = .ready(String(localized: "Loaded \(preparedRuntime.resolvedRuntime.modelDisplayName) in-process."))
     }
 }
 

@@ -117,7 +117,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Settings"
+        window.title = String(localized: "Settings")
         window.center()
         window.isReleasedWhenClosed = false
         window.level = .normal

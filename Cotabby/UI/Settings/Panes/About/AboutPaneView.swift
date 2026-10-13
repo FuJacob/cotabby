@@ -64,13 +64,17 @@ struct AboutPaneView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(
-                    "Cotabby started from a simple belief: AI should run on your device, "
-                    + "respect your privacy, and remain open to everyone."
+                    String(localized: """
+                    Cotabby started from a simple belief: AI should run on your device, respect your privacy, and \
+                    remain open to everyone.
+                    """)
                 )
 
                 Text(
-                    "We're building Cotabby in our spare time, one release at a time. "
-                    + "If Cotabby has helped you, your support helps us keep improving it."
+                    String(localized: """
+                    We're building Cotabby in our spare time, one release at a time. If Cotabby has helped you, your \
+                    support helps us keep improving it.
+                    """)
                 )
             }
             .foregroundStyle(.secondary)
@@ -127,13 +131,13 @@ struct AboutPaneView: View {
 
         switch (shortVersion, buildNumber) {
         case (let shortVersion?, let buildNumber?) where shortVersion != buildNumber:
-            return "Version \(shortVersion) (\(buildNumber))"
+            return String(localized: "Version \(shortVersion) (\(buildNumber))")
         case (let shortVersion?, _):
-            return "Version \(shortVersion)"
+            return String(localized: "Version \(shortVersion)")
         case (_, let buildNumber?):
-            return "Build \(buildNumber)"
+            return String(localized: "Build \(buildNumber)")
         default:
-            return "Unknown version"
+            return String(localized: "Unknown version")
         }
     }
 }

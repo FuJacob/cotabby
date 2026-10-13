@@ -58,7 +58,7 @@ struct SettingsSidebarView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField("Search settings", text: $searchText)
+            TextField(String(localized: "Search settings"), text: $searchText)
                 .textFieldStyle(.plain)
                 .onSubmit(openTopResult)
 

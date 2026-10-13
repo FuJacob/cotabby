@@ -123,10 +123,19 @@ struct HomePaneView: View {
                 }
             }
 
-            // The tagline demos the product in one line: the trailing half renders like the ghost
-            // text Cotabby draws at the caret.
-            (Text("Write faster, ").foregroundColor(.primary)
-                + Text("everywhere you type").foregroundColor(ghostTextColor))
+            // Keep the sentence whole for translation, then color the portion after the marker like
+            // the ghost text Cotabby draws at the caret.
+            let preview = CompletionPreviewText(
+                resolvedSentence: String(
+                    localized: "Write faster, ¦everywhere you type",
+                    comment: """
+                    Home hero tagline preview. Keep exactly one ¦ to mark where typed text ends and ghost text \
+                    begins; move it to fit the translated sentence naturally.
+                    """
+                )
+            )
+            (Text(preview.typedText).foregroundColor(.primary)
+                + Text(preview.ghostText).foregroundColor(ghostTextColor))
                 .font(.system(size: 15, design: .rounded))
         }
         .frame(maxWidth: .infinity)
@@ -151,7 +160,7 @@ struct HomePaneView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField("Search every setting", text: $query)
+            TextField(String(localized: "Search every setting"), text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .focused($isSearchFocused)
@@ -259,7 +268,7 @@ struct HomePaneView: View {
             systemImage: "power",
             tint: suggestionSettings.isGloballyEnabled ? .green : .gray,
             title: "Cotabby",
-            caption: suggestionSettings.isGloballyEnabled ? "Active" : "Paused"
+            caption: suggestionSettings.isGloballyEnabled ? String(localized: "Active") : String(localized: "Paused")
         ) {
             Toggle("", isOn: globallyEnabledBinding)
                 .toggleStyle(.switch)
@@ -286,18 +295,21 @@ struct HomePaneView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Engine: \(suggestionSettings.selectedEngine.displayLabel), \(engineCaption)")
-        .accessibilityHint("Opens Engine & Model settings")
+        .accessibilityHint(String(localized: "Opens Engine & Model settings"))
     }
 
     private var permissionsCard: some View {
-        Button {
+        let status = permissionManager.requiredPermissionsGranted
+            ? String(localized: "all set")
+            : String(localized: "needs attention")
+        return Button {
             navigation.open(.permissions)
         } label: {
             HomeStatusCard(
                 systemImage: permissionManager.requiredPermissionsGranted ? "checkmark.shield.fill" : "exclamationmark.shield.fill",
                 tint: permissionManager.requiredPermissionsGranted ? SettingsCategory.permissions.tint : .orange,
-                title: "Permissions",
-                caption: permissionManager.requiredPermissionsGranted ? "All set" : "Needs attention",
+                title: String(localized: "Permissions"),
+                caption: permissionManager.requiredPermissionsGranted ? String(localized: "All set") : String(localized: "Needs attention"),
                 captionStyle: permissionManager.requiredPermissionsGranted ? .normal : .warning
             ) {
                 HomeStatusChevron()
@@ -305,9 +317,9 @@ struct HomePaneView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "Permissions: \(permissionManager.requiredPermissionsGranted ? "all set" : "needs attention")"
+            String(localized: "Permissions: \(status)")
         )
-        .accessibilityHint("Opens Permissions settings")
+        .accessibilityHint(String(localized: "Opens Permissions settings"))
     }
 
     private var engineNeedsAttention: Bool {
@@ -321,17 +333,19 @@ struct HomePaneView: View {
     private var engineCaption: String {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
-            return foundationModelAvailabilityService.isAvailable ? "Ready on this Mac" : "Unavailable"
+            return foundationModelAvailabilityService.isAvailable
+                ? String(localized: "Ready on this Mac")
+                : String(localized: "Unavailable")
         case .llamaOpenSource:
             let selected = runtimeModel.availableModels
                 .first { $0.filename == runtimeModel.selectedModelFilename }
-            return selected?.displayName ?? "No model selected"
+            return selected?.displayName ?? String(localized: "No model selected")
         case .openAICompatible:
             if openAICompatibleConnectionModel.state.failureDetail != nil {
-                return "Connection failed"
+                return String(localized: "Connection failed")
             }
             return suggestionSettings.openAICompatibleModelName.isEmpty
-                ? "No model selected"
+                ? String(localized: "No model selected")
                 : suggestionSettings.openAICompatibleModelName
         }
     }
@@ -348,8 +362,8 @@ struct HomePaneView: View {
     private var quickLinksSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                "Quick settings",
-                caption: "Jump straight to the controls you reach for most."
+                String(localized: "Quick settings"),
+                caption: String(localized: "Jump straight to the controls you reach for most.")
             )
 
             // Two columns at the default window width: three fit, but the captions truncate,
@@ -372,8 +386,8 @@ struct HomePaneView: View {
     private var showcaseSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                "See it in action",
-                caption: "Hover a card to watch it play."
+                String(localized: "See it in action"),
+                caption: String(localized: "Hover a card to watch it play.")
             )
             OnboardingFeatureShowcase(autoplay: false, showsMacroReference: true)
         }
@@ -452,12 +466,12 @@ private struct HomeStatusCard<Accessory: View>: View {
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(caption)
                     .font(.caption)
                     .foregroundStyle(captionStyle == .warning ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 4)

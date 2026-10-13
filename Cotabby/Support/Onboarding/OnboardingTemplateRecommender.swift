@@ -66,14 +66,16 @@ enum OnboardingTemplateRecommender {
                 break
             case .everyday, .custom:
                 if gigabytes < everydayWarnBelowGigabytes {
-                    warning = "Uses a \(modelSizeLabel(for: template)) model, which may run slowly on this Mac."
+                    warning = String(localized: "Uses a \(modelSizeLabel(for: template)) model, which may run slowly on this Mac.")
                 }
             case .powerful:
                 if gigabytes < powerfulDisableBelowGigabytes {
                     isDisabled = true
-                    warning = "Needs more memory than this Mac has (uses a \(modelSizeLabel(for: template)) model)."
+                    warning = String(localized: "Needs more memory than this Mac has (uses a \(modelSizeLabel(for: template)) model).")
                 } else if gigabytes < powerfulWarnBelowGigabytes {
-                    warning = "Uses a \(modelSizeLabel(for: template)) model; may run slowly with less than 16 GB of memory."
+                    warning = String(localized: """
+                    Uses a \(modelSizeLabel(for: template)) model; may run slowly with less than 16 GB of memory.
+                    """)
                 }
             }
         }
@@ -111,6 +113,6 @@ enum OnboardingTemplateRecommender {
     /// in sync with the actual model instead of a hardcoded number. Falls back to a generic phrase if
     /// the filename is missing from the catalog.
     private static func modelSizeLabel(for template: OnboardingTemplate) -> String {
-        downloadableModel(filename: template.openSourceModelFilename)?.approximateSizeLabel ?? "local"
+        downloadableModel(filename: template.openSourceModelFilename)?.approximateSizeLabel ?? String(localized: "local")
     }
 }

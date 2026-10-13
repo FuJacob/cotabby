@@ -16,7 +16,7 @@ enum SuggestionClientError: LocalizedError {
             let .generationFailed(message):
             return message
         case .cancelled:
-            return "Generation was cancelled."
+            return String(localized: "Generation was cancelled.")
         }
     }
 }

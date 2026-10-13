@@ -37,13 +37,13 @@ struct ShortcutsPaneView: View {
                                 label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
                             )
                         },
-                        resetLabel: "Reset",
+                        resetLabel: String(localized: "Reset"),
                         shouldShowReset: suggestionSettings.acceptanceKeyCode
                             != SuggestionSettingsModel.defaultAcceptanceKeyCode
                             || !suggestionSettings.acceptanceKeyModifiers.isEmpty,
                         onClear: { suggestionSettings.clearAcceptanceKey() },
-                        clearLabel: "Clear",
-                        clearHelp: "Unbind this shortcut. No key will accept word-by-word.",
+                        clearLabel: String(localized: "Clear"),
+                        clearHelp: String(localized: "Unbind this shortcut. No key will accept word-by-word."),
                         conflictChecker: { keyCode, modifiers in
                             suggestionSettings.conflictingShortcutName(
                                 keyCode: keyCode,
@@ -54,8 +54,8 @@ struct ShortcutsPaneView: View {
                     )
                 } label: {
                     SettingsRowLabel(
-                        title: "Accept Word",
-                        description: "Insert the next word of the suggestion.",
+                        title: String(localized: "Accept Word"),
+                        description: String(localized: "Insert the next word of the suggestion."),
                         systemImage: "arrow.right.to.line"
                     )
                 }
@@ -82,11 +82,11 @@ struct ShortcutsPaneView: View {
                                 label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                             )
                         },
-                        resetLabel: "Reset",
+                        resetLabel: String(localized: "Reset"),
                         shouldShowReset: !suggestionSettings.isFullAcceptanceShortcutDefault,
                         onClear: { suggestionSettings.clearFullAcceptanceKey() },
-                        clearLabel: "Clear",
-                        clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once.",
+                        clearLabel: String(localized: "Clear"),
+                        clearHelp: String(localized: "Unbind this shortcut. No key will accept the whole suggestion at once."),
                         conflictChecker: { keyCode, modifiers in
                             suggestionSettings.conflictingShortcutName(
                                 keyCode: keyCode,
@@ -100,7 +100,7 @@ struct ShortcutsPaneView: View {
                     )
                 } label: {
                     SettingsRowLabel(
-                        title: "Accept Entire Suggestion",
+                        title: String(localized: "Accept Entire Suggestion"),
                         description: fullAcceptanceDescription,
                         systemImage: "text.insert"
                     )
@@ -121,11 +121,11 @@ struct ShortcutsPaneView: View {
                             )
                         },
                         onReset: nil,
-                        resetLabel: "Reset",
+                        resetLabel: String(localized: "Reset"),
                         shouldShowReset: false,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
-                        clearLabel: "Clear",
-                        clearHelp: "Unbind this shortcut. No key will toggle Cotabby on or off.",
+                        clearLabel: String(localized: "Clear"),
+                        clearHelp: String(localized: "Unbind this shortcut. No key will toggle Cotabby on or off."),
                         conflictChecker: { keyCode, modifiers in
                             suggestionSettings.conflictingShortcutName(
                                 keyCode: keyCode,
@@ -136,8 +136,8 @@ struct ShortcutsPaneView: View {
                     )
                 } label: {
                     SettingsRowLabel(
-                        title: "Toggle Cotabby",
-                        description: "Turn Cotabby on or off globally without opening the menu bar.",
+                        title: String(localized: "Toggle Cotabby"),
+                        description: String(localized: "Turn Cotabby on or off globally without opening the menu bar."),
                         systemImage: "power.circle"
                     )
                 }
@@ -163,13 +163,19 @@ struct ShortcutsPaneView: View {
         let wordKey = suggestionSettings.acceptanceKeyLabel
         if suggestionSettings.isDoubleTapFullAcceptanceActive {
             // The first press of the pair follows the Mode picker above, so name what it inserts.
-            let singlePress = suggestionSettings.acceptanceGranularity == .phrase ? "phrase" : "word"
-            return "Press \(wordKey) twice quickly to insert the whole suggestion. "
-                + "A single press still inserts the next \(singlePress)."
+            let singlePress = suggestionSettings.acceptanceGranularity == .phrase
+                ? String(localized: "phrase")
+                : String(localized: "word")
+            return String(localized: """
+            Press \(wordKey) twice quickly to insert the whole suggestion. A single press still inserts the next \
+            \(singlePress).
+            """)
         }
         if acceptWordDoubleTapKey != nil {
-            return "Insert the whole remaining suggestion at once. For a double tap, click Change and press \(wordKey) twice."
+            return String(localized: """
+            Insert the whole remaining suggestion at once. For a double tap, click Change and press \(wordKey) twice.
+            """)
         }
-        return "Insert the whole remaining suggestion in one keystroke."
+        return String(localized: "Insert the whole remaining suggestion in one keystroke.")
     }
 }

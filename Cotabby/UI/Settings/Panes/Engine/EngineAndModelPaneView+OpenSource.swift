@@ -16,9 +16,11 @@ extension EngineAndModelPaneView {
                     .fixedSize(horizontal: false, vertical: true)
             } label: {
                 SettingsRowLabel(
-                    title: "Model Status",
-                    description: "Whether the local model is loaded and ready to generate. " +
-                        "Loading takes a few seconds the first time.",
+                    title: String(localized: "Model Status"),
+                    description: String(localized: """
+                    Whether the local model is loaded and ready to generate. Loading takes a few seconds the first \
+                    time.
+                    """),
                     systemImage: "info.circle"
                 )
             }
@@ -40,12 +42,16 @@ extension EngineAndModelPaneView {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Selected Model",
+                        title: String(localized: "Selected Model"),
                         description: suggestionSettings.isPowerBasedModelSwitchingEnabled
-                            ? "Set automatically by power source. Use the On Battery / Plugged In " +
-                                "pickers in the Power section, or turn off power-based switching."
-                            : "Which downloaded model file generates suggestions. " +
-                                "Larger models are slower but write better.",
+                            ? String(localized: """
+                            Set automatically by power source. Use the On Battery / Plugged In pickers in the Power \
+                            section, or turn off power-based switching.
+                            """)
+                            : String(localized: """
+                            Which downloaded model file generates suggestions. Larger models are slower but write \
+                            better.
+                            """),
                         systemImage: "shippingbox"
                     )
                 }
@@ -90,8 +96,8 @@ extension EngineAndModelPaneView {
                 }
             } label: {
                 SettingsRowLabel(
-                    title: "Models Folder",
-                    description: "Where downloaded model files are stored on this Mac.",
+                    title: String(localized: "Models Folder"),
+                    description: String(localized: "Where downloaded model files are stored on this Mac."),
                     systemImage: "folder"
                 )
             }
@@ -99,11 +105,13 @@ extension EngineAndModelPaneView {
 
             Toggle(isOn: $lmStudioSourceEnabled) {
                 SettingsRowLabel(
-                    title: "Also Use LM Studio Models",
+                    title: String(localized: "Also Use LM Studio Models"),
                     description: lmStudioModelsURL == nil
-                        ? "Install LM Studio to load models from its library here."
-                        : "Add models from your LM Studio library (~/.lmstudio/models) to the picker " +
-                            "above. Downloads still save to Cotabby's own folder.",
+                        ? String(localized: "Install LM Studio to load models from its library here.")
+                        : String(localized: """
+                        Add models from your LM Studio library (~/.lmstudio/models) to the picker above. Downloads \
+                        still save to Cotabby's own folder.
+                        """),
                     systemImage: "square.stack.3d.up"
                 )
             }

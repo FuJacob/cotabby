@@ -129,9 +129,9 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
         case .loopback:
             return nil
         case .localNetwork:
-            return "Cotabby will send typed text and any enabled context to this server on your local network."
+            return String(localized: "Cotabby will send typed text and any enabled context to this server on your local network.")
         case .publicInternet:
-            return "This server is outside your Mac. Typed text and any enabled context will leave your device."
+            return String(localized: "This server is outside your Mac. Typed text and any enabled context will leave your device.")
         }
     }
 
@@ -189,11 +189,11 @@ nonisolated enum OpenAICompatibleEndpointError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL:
-            return "Enter an HTTP or HTTPS base URL without credentials, a query, or a fragment."
+            return String(localized: "Enter an HTTP or HTTPS base URL without credentials, a query, or a fragment.")
         case .insecurePublicHTTP:
-            return "Public endpoints must use HTTPS. HTTP is limited to this Mac or the local network."
+            return String(localized: "Public endpoints must use HTTPS. HTTP is limited to this Mac or the local network.")
         case .emptyModelName:
-            return "Choose or enter a model before generating suggestions."
+            return String(localized: "Choose or enter a model before generating suggestions.")
         }
     }
 }
@@ -207,9 +207,12 @@ enum OpenAICompatibleConnectionState: Equatable {
 
     var summary: String {
         switch self {
-        case .idle: return "Not connected"
-        case .connecting: return "Connecting…"
-        case .ready(let count): return count == 1 ? "Connected · 1 model" : "Connected · \(count) models"
+        case .idle: return String(localized: "Not connected")
+        case .connecting: return String(localized: "Connecting…")
+        case .ready(let count):
+            return count == 1
+                ? String(localized: "Connected · 1 model")
+                : String(localized: "Connected · \(count) models")
         case .failed(let message): return message
         }
     }

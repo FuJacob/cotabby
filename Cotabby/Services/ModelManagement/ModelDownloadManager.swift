@@ -15,25 +15,25 @@ enum ModelDownloadState: Equatable {
     var statusText: String {
         switch self {
         case .idle:
-            return "Not installed"
+            return String(localized: "Not installed")
         case .downloading(let progress, let speed, let eta):
             if let progress {
                 let percent = Int((progress * 100).rounded())
                 if let speed, let eta {
-                    return "Downloading \(percent)% (\(speed) · ETA \(eta))"
+                    return String(localized: "Downloading \(percent)% (\(speed) · ETA \(eta))")
                 } else if let speed {
-                    return "Downloading \(percent)% (\(speed))"
+                    return String(localized: "Downloading \(percent)% (\(speed))")
                 }
-                return "Downloading \(percent)%"
+                return String(localized: "Downloading \(percent)%")
             }
-            return "Downloading"
+            return String(localized: "Downloading")
         case .paused(let progress):
             if let progress {
-                return "Paused (\(Int((progress * 100).rounded()))%)"
+                return String(localized: "Paused (\(Int((progress * 100).rounded()))%)")
             }
-            return "Paused"
+            return String(localized: "Paused")
         case .downloaded:
-            return "Installed"
+            return String(localized: "Installed")
         case .failed(let message):
             return message
         }
@@ -265,8 +265,10 @@ final class ModelDownloadManager: ObservableObject {
         trackedModelsByID[downloadID] = model
         if let conflictingModel = conflictingTransfer(for: model) {
             modelStates[downloadID] = .failed(
-                "Another source is already downloading \(model.filename). "
-                    + "Cancel that transfer before downloading this file."
+                String(localized: """
+                Another source is already downloading \(model.filename). Cancel that transfer before downloading \
+                this file.
+                """)
             )
             CotabbyLogger.models.info(
                 "Blocked a conflicting model download",
@@ -359,8 +361,8 @@ final class ModelDownloadManager: ObservableObject {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [UTType(filenameExtension: "gguf") ?? .data]
-        panel.prompt = "Import"
-        panel.message = "Choose .gguf models to import into Cotabby"
+        panel.prompt = String(localized: "Import")
+        panel.message = String(localized: "Choose .gguf models to import into Cotabby")
 
         guard panel.runModal() == .OK else {
             return
@@ -688,7 +690,7 @@ final class ModelDownloadManager: ObservableObject {
 
         guard (200...299).contains(httpResponse.statusCode) else {
             throw LlamaRuntimeError.unavailable(
-                "Model download failed with status code \(httpResponse.statusCode)."
+                String(localized: "Model download failed with status code \(httpResponse.statusCode).")
             )
         }
     }

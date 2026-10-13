@@ -189,7 +189,7 @@ final class SuggestionEngineRouter {
             throw SuggestionClientError.cancelled
         } catch {
             throw SuggestionClientError.unavailable(
-                "\(appleFailureMessage) Open Source fallback also failed: \(error.localizedDescription)"
+                String(localized: "\(appleFailureMessage) Open Source fallback also failed: \(error.localizedDescription)")
             )
         }
     }

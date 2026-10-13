@@ -133,40 +133,48 @@ struct MacroReferenceSheet: View {
         return [
             make(
                 "math",
-                title: "Arithmetic",
-                summary: "Safe arithmetic: + - * / ^, parentheses, decimals, and trailing % (percent). " +
-                    "Accepting inserts only the result.",
+                title: String(localized: "Arithmetic"),
+                summary: String(localized: """
+                Safe arithmetic: + - * / ^, parentheses, decimals, and trailing % (percent). Accepting inserts only \
+                the result.
+                """),
                 systemImage: "plus.forwardslash.minus",
                 inputs: ["5+5=", "2^10=", "(3+4)*5=", "100*15%=", "12/4="]
             ),
             make(
                 "units",
-                title: "Unit conversion",
-                summary: "Same-quantity conversions across length, mass, temperature, and volume. " +
-                    "Fully offline via Foundation Measurement.",
+                title: String(localized: "Unit conversion"),
+                summary: String(localized: """
+                Same-quantity conversions across length, mass, temperature, and volume. Fully offline via Foundation \
+                Measurement.
+                """),
                 systemImage: "ruler",
                 inputs: ["10km->mi", "100f->c", "5ft->m", "2lb->kg", "3cup->ml"]
             ),
             make(
                 "currency",
-                title: "Currency",
-                summary: "Offline currency conversions using a bundled approximate rate table. " +
-                    "Accepts ISO codes, symbols, and common names.",
+                title: String(localized: "Currency"),
+                summary: String(localized: """
+                Offline currency conversions using a bundled approximate rate table. Accepts ISO codes, symbols, and \
+                common names.
+                """),
                 systemImage: "dollarsign.circle",
                 inputs: ["100usd->eur", "50gbp->jpy", "100 dollars to yen", "$25 to cad"]
             ),
             make(
                 "date",
-                title: "Date and time",
-                summary: "Locale-aware dates and times. Supports weekday navigation, relative offsets, " +
-                    "and format hints like (iso), (long), (short), (24h).",
+                title: String(localized: "Date and time"),
+                summary: String(localized: """
+                Locale-aware dates and times. Supports weekday navigation, relative offsets, and format hints like \
+                (iso), (long), (short), (24h).
+                """),
                 systemImage: "calendar",
                 inputs: ["today", "now", "tomorrow", "next-fri", "+3d", "+1week", "today(iso)", "now(24h)"]
             ),
             make(
                 "random",
-                title: "Random and generators",
-                summary: "Random numbers, dice (`/d20`), coin flips, and UUIDs.",
+                title: String(localized: "Random and generators"),
+                summary: String(localized: "Random numbers, dice (`/d20`), coin flips, and UUIDs."),
                 systemImage: "dice",
                 inputs: ["random", "random(100)", "random(1,6)", "d20", "coin", "uuid"]
             )

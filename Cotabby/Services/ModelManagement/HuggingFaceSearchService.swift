@@ -116,7 +116,7 @@ final class HuggingFaceSearchService: ObservableObject {
                     .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
 
                 if ggufFiles.isEmpty {
-                    detailState = .failed("No GGUF files found in this repository.")
+                    detailState = .failed(String(localized: "No GGUF files found in this repository."))
                 } else {
                     detailState = .loaded(repoId: repoId, ggufFiles: ggufFiles)
                 }

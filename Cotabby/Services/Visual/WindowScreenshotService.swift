@@ -39,11 +39,11 @@ enum WindowScreenshotError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .screenRecordingPermissionMissing:
-            return "Screen Recording permission is required to capture screenshot context."
+            return String(localized: "Screen Recording permission is required to capture screenshot context.")
         case let .noVisibleWindowForProcess(processIdentifier):
-            return "No visible frontmost window was found for process \(processIdentifier)."
+            return String(localized: "No visible frontmost window was found for process \(processIdentifier).")
         case let .captureFailed(message):
-            return "Unable to capture the frontmost window screenshot: \(message)"
+            return String(localized: "Unable to capture the frontmost window screenshot: \(message)")
         }
     }
 }

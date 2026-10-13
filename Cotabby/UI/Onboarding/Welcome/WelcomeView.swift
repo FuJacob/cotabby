@@ -231,7 +231,7 @@ extension WelcomeView {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: permissionManager.requiredPermissionsGranted,
-                disabledHint: "Grant all permissions to continue.",
+                disabledHint: String(localized: "Grant all permissions to continue."),
                 onBack: { go(to: .welcome) },
                 onContinue: { go(to: .template) }
             )
@@ -241,7 +241,7 @@ extension WelcomeView {
                 canContinue: canContinueFromTemplate,
                 // With no curated tier chosen, the primary button becomes "Set up later" and applies
                 // the neutral Custom path under the hood, so the user is never blocked on a card.
-                continueTitle: selectedTemplate == nil ? "Set up later" : "Continue",
+                continueTitle: selectedTemplate == nil ? String(localized: "Set up later") : String(localized: "Continue"),
                 disabledHint: templateStepDisabledHint,
                 onBack: { go(to: .permissions) },
                 onContinue: {
@@ -255,7 +255,7 @@ extension WelcomeView {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: !suggestionSettings.responseLanguages.isEmpty,
-                disabledHint: "Add at least one language so Cotabby knows what to write in.",
+                disabledHint: String(localized: "Add at least one language so Cotabby knows what to write in."),
                 onBack: { go(to: .template) },
                 onContinue: { go(to: .keybind) }
             )
@@ -304,13 +304,13 @@ extension WelcomeView {
                     .onboardingReveal(2)
 
                 HStack(spacing: 8) {
-                    WelcomeFeatureChip(systemImage: "lock.fill", label: "Local-first")
-                    WelcomeFeatureChip(systemImage: "chevron.left.forwardslash.chevron.right", label: "Open source")
-                    WelcomeFeatureChip(systemImage: "macwindow", label: "Works everywhere")
+                    WelcomeFeatureChip(systemImage: "lock.fill", label: String(localized: "Local-first"))
+                    WelcomeFeatureChip(systemImage: "chevron.left.forwardslash.chevron.right", label: String(localized: "Open source"))
+                    WelcomeFeatureChip(systemImage: "macwindow", label: String(localized: "Works everywhere"))
                 }
                 .onboardingReveal(3)
 
-                WelcomeButton(title: "Get Started") {
+                WelcomeButton(title: String(localized: "Get Started")) {
                     go(to: .permissions)
                 }
                 .padding(.top, 4)
@@ -380,7 +380,7 @@ extension WelcomeView {
             VStack(spacing: 12) {
                 doneStepModelStatus
 
-                WelcomeButton(title: "Start Using Cotabby") {
+                WelcomeButton(title: String(localized: "Start Using Cotabby")) {
                     onDismiss()
                 }
             }
@@ -446,14 +446,14 @@ extension WelcomeView {
     private var doneStepSubtitle: String {
         let wordKey = suggestionSettings.acceptanceKeyLabel
         let fullKey = suggestionSettings.isDoubleTapFullAcceptanceActive
-            ? "\(wordKey) twice"
+            ? String(localized: "\(wordKey) twice")
             : suggestionSettings.fullAcceptanceKeyLabel
         let hasFullAccept = suggestionSettings.hasFullAcceptanceShortcut
 
         if hasFullAccept {
-            return "Start typing anywhere.\nPress \(wordKey) to accept a word, \(fullKey) for the full suggestion."
+            return String(localized: "Start typing anywhere.\nPress \(wordKey) to accept a word, \(fullKey) for the full suggestion.")
         }
-        return "Start typing anywhere.\nPress \(wordKey) to accept."
+        return String(localized: "Start typing anywhere.\nPress \(wordKey) to accept.")
     }
 
     /// A compact reassurance line on the final step when a local model is still downloading or has
@@ -540,7 +540,7 @@ extension WelcomeView {
     /// Source download hasn't started yet — with no tier chosen the button is "Set up later" and
     /// always enabled, so there is no longer a "pick something" hint.
     fileprivate var templateStepDisabledHint: String {
-        "Hang on while your model starts downloading."
+        String(localized: "Hang on while your model starts downloading.")
     }
 
     fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {

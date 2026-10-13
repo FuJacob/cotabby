@@ -22,11 +22,11 @@ enum MirrorPreference: String, Codable, CaseIterable, Identifiable, Equatable, S
     var displayLabel: String {
         switch self {
         case .auto:
-            return "Auto"
+            return String(localized: "Auto")
         case .alwaysInline:
-            return "Inline"
+            return String(localized: "Inline")
         case .alwaysMirror:
-            return "Popup"
+            return String(localized: "Popup")
         }
     }
 }

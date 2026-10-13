@@ -17,8 +17,7 @@ struct AcknowledgementsView: View {
                         AcknowledgementRow(entry: entry)
                     }
                     Text(
-                        "Each project ships under its own license; see the linked repository for the "
-                        + "verbatim text."
+                        String(localized: "Each project ships under its own license; see the linked repository for the verbatim text.")
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -45,48 +44,50 @@ struct AcknowledgementsView: View {
     private static let entries: [AcknowledgementEntry] = [
         AcknowledgementEntry(
             name: "Cotabby",
-            summary: "Cotabby was originally created by FuJacob "
-                + "and developed with jam-cai, akramj13, and other contributors. "
-                + "Includes contributions by McHamster and other contributors. "
-                + "Distributed under AGPLv3, without warranty; redistribution is permitted under that license.",
+            summary: String(localized: """
+            Cotabby was originally created by FuJacob and developed with jam-cai, akramj13, and other contributors. \
+            Includes contributions by McHamster and other contributors. Distributed under AGPLv3, without warranty; \
+            redistribution is permitted under that license.
+            """),
             url: "https://github.com/FuJacob/cotabby"
         ),
         AcknowledgementEntry(
-            name: "This build’s source & license",
-            summary: "Source code, build instructions, and the GNU Affero General Public License v3.0.",
+            name: String(localized: "This build’s source & license"),
+            summary: String(localized: "Source code, build instructions, and the GNU Affero General Public License v3.0."),
             url: "https://github.com/FuJacob/cotabby"
         ),
         AcknowledgementEntry(
-            name: "Sparkle",
-            summary: "Secure automatic updates for production builds of Cotabby.",
+            name: String(localized: "Sparkle"),
+            summary: String(localized: "Secure automatic updates for production builds of Cotabby."),
             url: "https://github.com/sparkle-project/Sparkle"
         ),
         AcknowledgementEntry(
             name: "LaunchAtLogin",
-            summary: "Login-item integration for starting Cotabby with macOS.",
+            summary: String(localized: "Login-item integration for starting Cotabby with macOS."),
             url: "https://github.com/sindresorhus/LaunchAtLogin-Modern"
         ),
         AcknowledgementEntry(
             name: "llama.cpp",
-            summary: "On-device inference engine for GGUF models on the Open Source path.",
+            summary: String(localized: "On-device inference engine for GGUF models on the Open Source path."),
             url: "https://github.com/ggml-org/llama.cpp"
         ),
         AcknowledgementEntry(
             name: "swift-log",
-            summary: "Logging façade Cotabby uses across runtime, focus, and suggestion subsystems.",
+            summary: String(localized: "Logging façade Cotabby uses across runtime, focus, and suggestion subsystems."),
             url: "https://github.com/apple/swift-log"
         ),
         AcknowledgementEntry(
             name: "SymSpell",
-            summary: "Symmetric-delete spelling correction (MIT, by Wolf Garbe), ported to Swift for "
-                + "inline autocorrect. Bundled language dictionaries derive from Google Books Ngram "
-                + "data (CC BY 3.0) and licensed SCOWL/Hunspell word lists. See "
-                + "THIRD_PARTY_LICENSES.md for the notices.",
+            summary: String(localized: """
+            Symmetric-delete spelling correction (MIT, by Wolf Garbe), ported to Swift for inline autocorrect. \
+            Bundled language dictionaries derive from Google Books Ngram data (CC BY 3.0) and licensed \
+            SCOWL/Hunspell word lists. See THIRD_PARTY_LICENSES.md for the notices.
+            """),
             url: "https://github.com/wolfgarbe/SymSpell"
         ),
         AcknowledgementEntry(
             name: "CotabbyInference",
-            summary: "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against.",
+            summary: String(localized: "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against."),
             url: "https://github.com/FuJacob/cotabbyinference"
         )
     ]

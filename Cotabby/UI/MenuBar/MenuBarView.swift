@@ -173,7 +173,7 @@ struct MenuBarView: View {
             // Wrapped in a Group so the four rows plus the toggles and dividers above stay under
             // SwiftUI's 10-child ViewBuilder limit for the enclosing VStack.
             Group {
-                MenuBarPickerRow(title: "Engine") {
+                MenuBarPickerRow(title: String(localized: "Engine")) {
                     Picker("Engine", selection: selectedEngineBinding) {
                         // Same gating as Settings and onboarding: an unavailable engine is shown
                         // greyed out with an "(Unavailable)" suffix and cannot be picked.
@@ -203,7 +203,7 @@ struct MenuBarView: View {
                     modelRow
                 }
 
-                MenuBarPickerRow(title: "Length") {
+                MenuBarPickerRow(title: String(localized: "Length")) {
                     Picker("Length", selection: lengthChoiceBinding) {
                         ForEach(SuggestionWordCountPreset.allCases) { preset in
                             Text(preset.displayLabel)
@@ -231,7 +231,7 @@ struct MenuBarView: View {
     /// for the selected-value label.
     @ViewBuilder
     private var modelRow: some View {
-        MenuBarPickerRow(title: "Model") {
+        MenuBarPickerRow(title: String(localized: "Model")) {
             HStack(spacing: 6) {
                 if runtimeModel.availableModels.isEmpty {
                     Text("No models found")

@@ -31,7 +31,7 @@ struct WelcomeKeybindStepView: View {
 
             VStack(spacing: 10) {
                 keybindRow(
-                    title: "Accept word",
+                    title: String(localized: "Accept word"),
                     keyLabel: suggestionSettings.acceptanceKeyLabel,
                     action: .acceptWord,
                     onKeyRecorded: { keyCode, modifiers, label in
@@ -57,7 +57,7 @@ struct WelcomeKeybindStepView: View {
                 .onboardingReveal(2)
 
                 keybindRow(
-                    title: "Accept entire suggestion",
+                    title: String(localized: "Accept entire suggestion"),
                     keyLabel: suggestionSettings.fullAcceptanceDisplayLabel,
                     action: .acceptEntireSuggestion,
                     onKeyRecorded: { keyCode, modifiers, label in
@@ -90,7 +90,7 @@ struct WelcomeKeybindStepView: View {
                 // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
                 // only meaningful "reset" is unbind, which the Clear button already covers.
                 keybindRow(
-                    title: "Toggle Cotabby",
+                    title: String(localized: "Toggle Cotabby"),
                     keyLabel: suggestionSettings.globalToggleKeyLabel,
                     action: .toggleTabby,
                     onKeyRecorded: { keyCode, modifiers, label in

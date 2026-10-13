@@ -163,13 +163,13 @@ private struct DownloadableModelRow: View {
         let installationStatus: String
         switch state {
         case .idle:
-            installationStatus = "Not installed"
+            installationStatus = String(localized: "Not installed")
         case .downloading, .paused:
             installationStatus = state.statusText
         case .downloaded:
-            installationStatus = "Installed"
+            installationStatus = String(localized: "Installed")
         case .failed:
-            installationStatus = "Download failed"
+            installationStatus = String(localized: "Download failed")
         }
 
         return "\(installationStatus)  •  \(model.approximateSizeLabel)"

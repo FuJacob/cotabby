@@ -14,9 +14,11 @@ extension EngineAndModelPaneView {
         Section("Connection") {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRowLabel(
-                    title: "Server URL",
-                    description: "The OpenAI-compatible server address. Cotabby adds /v1 when the " +
-                        "address has no path; Ollama uses http://127.0.0.1:11434 by default.",
+                    title: String(localized: "Server URL"),
+                    description: String(localized: """
+                    The OpenAI-compatible server address. Cotabby adds /v1 when the address has no path; Ollama uses \
+                    http://127.0.0.1:11434 by default.
+                    """),
                     systemImage: "network"
                 )
 
@@ -75,8 +77,8 @@ extension EngineAndModelPaneView {
                 }
             } label: {
                 SettingsRowLabel(
-                    title: "API Key",
-                    description: "Optional bearer token stored in Keychain. Ollama does not require one.",
+                    title: String(localized: "API Key"),
+                    description: String(localized: "Optional bearer token stored in Keychain. Ollama does not require one."),
                     systemImage: "key"
                 )
             }
@@ -119,8 +121,8 @@ extension EngineAndModelPaneView {
                 }
             } label: {
                 SettingsRowLabel(
-                    title: "Model",
-                    description: "Choose a model returned by the server or enter its identifier manually.",
+                    title: String(localized: "Model"),
+                    description: String(localized: "Choose a model returned by the server or enter its identifier manually."),
                     systemImage: "shippingbox"
                 )
             }
@@ -131,9 +133,11 @@ extension EngineAndModelPaneView {
                 Text("Text Completions").tag(OpenAICompatibleAPIMode.completions)
             } label: {
                 SettingsRowLabel(
-                    title: "API Format",
-                    description: "Chat uses /v1/chat/completions (recommended). Text uses " +
-                        "/v1/completions for base models that continue a raw prompt.",
+                    title: String(localized: "API Format"),
+                    description: String(localized: """
+                    Chat uses /v1/chat/completions (recommended). Text uses /v1/completions for base models that \
+                    continue a raw prompt.
+                    """),
                     systemImage: "arrow.left.arrow.right"
                 )
             }

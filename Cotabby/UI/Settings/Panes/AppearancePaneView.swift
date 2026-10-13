@@ -19,9 +19,11 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Suggestion Display",
-                        description: "Auto picks inline ghost text when the app's caret position is reliable, " +
-                            "and a popup card when it isn't. Inline or Popup pins one style for every app.",
+                        title: String(localized: "Suggestion Display"),
+                        description: String(localized: """
+                        Auto picks inline ghost text when the app's caret position is reliable, and a popup card \
+                        when it isn't. Inline or Popup pins one style for every app.
+                        """),
                         systemImage: "text.cursor"
                     )
                 }
@@ -30,9 +32,11 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: streamWhileGeneratingBinding) {
                     SettingsRowLabel(
-                        title: "Stream Suggestions While Generating",
-                        description: "Reveal ghost text token-by-token as the model writes it, and let you accept " +
-                            "early. Off shows each suggestion once it's fully written.",
+                        title: String(localized: "Stream Suggestions While Generating"),
+                        description: String(localized: """
+                        Reveal ghost text token-by-token as the model writes it, and let you accept early. Off shows \
+                        each suggestion once it's fully written.
+                        """),
                         systemImage: "text.append"
                     )
                 }
@@ -40,9 +44,11 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: fadeInSuggestionsBinding) {
                     SettingsRowLabel(
-                        title: "Fade In Suggestions",
-                        description: "Let a new suggestion fade in smoothly instead of appearing all at once. " +
-                            "Follows the system Reduce Motion setting.",
+                        title: String(localized: "Fade In Suggestions"),
+                        description: String(localized: """
+                        Let a new suggestion fade in smoothly instead of appearing all at once. Follows the system \
+                        Reduce Motion setting.
+                        """),
                         systemImage: "sparkles"
                     )
                 }
@@ -70,8 +76,8 @@ struct AppearancePaneView: View {
                         }
                     } label: {
                         SettingsRowLabel(
-                            title: "Fade Speed",
-                            description: "Drag toward Fast to make a new suggestion fade in more quickly.",
+                            title: String(localized: "Fade Speed"),
+                            description: String(localized: "Drag toward Fast to make a new suggestion fade in more quickly."),
                             systemImage: "speedometer"
                         )
                     }
@@ -79,8 +85,8 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
-                        title: "Show Field Indicator",
-                        description: "Show a small icon at the edge of a field when Cotabby is ready to suggest.",
+                        title: String(localized: "Show Field Indicator"),
+                        description: String(localized: "Show a small icon at the edge of a field when Cotabby is ready to suggest."),
                         systemImage: "dot.viewfinder"
                     )
                 }
@@ -88,8 +94,8 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: menuBarWordCountVisibleBinding) {
                     SettingsRowLabel(
-                        title: "Show Word Count in Menu Bar",
-                        description: "Show a running count of words you've accepted next to the menu bar icon.",
+                        title: String(localized: "Show Word Count in Menu Bar"),
+                        description: String(localized: "Show a running count of words you've accepted next to the menu bar icon."),
                         systemImage: "number"
                     )
                 }
@@ -98,8 +104,10 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: menuBarIconVisibleBinding) {
                     SettingsRowLabel(
-                        title: "Show Cotabby in Menu Bar",
-                        description: "Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.",
+                        title: String(localized: "Show Cotabby in Menu Bar"),
+                        description: String(localized: """
+                        Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.
+                        """),
                         systemImage: "menubar.rectangle"
                     )
                 }
@@ -149,8 +157,8 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Ghost Text Color",
-                        description: "The color of the inline suggestion. Automatic adapts to light and dark.",
+                        title: String(localized: "Ghost Text Color"),
+                        description: String(localized: "The color of the inline suggestion. Automatic adapts to light and dark."),
                         systemImage: "paintpalette"
                     )
                 }
@@ -174,8 +182,8 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Ghost Text Opacity",
-                        description: "How faint the inline suggestion looks before you accept it.",
+                        title: String(localized: "Ghost Text Opacity"),
+                        description: String(localized: "How faint the inline suggestion looks before you accept it."),
                         systemImage: "circle.lefthalf.filled"
                     )
                 }
@@ -199,8 +207,8 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Ghost Text Size",
-                        description: "Fine-tune how large suggestions appear. Lower it if the ghost text looks too big.",
+                        title: String(localized: "Ghost Text Size"),
+                        description: String(localized: "Fine-tune how large suggestions appear. Lower it if the ghost text looks too big."),
                         systemImage: "textformat.size"
                     )
                 }
@@ -224,8 +232,8 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Smallest Ghost Text",
-                        description: "Suggestions never render below this size, even in fields that report tiny text.",
+                        title: String(localized: "Smallest Ghost Text"),
+                        description: String(localized: "Suggestions never render below this size, even in fields that report tiny text."),
                         systemImage: "arrow.down.to.line"
                     )
                 }
@@ -249,8 +257,10 @@ struct AppearancePaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Largest Ghost Text",
-                        description: "Suggestions never render above this size. Lower it if ghost text ever appears oversized.",
+                        title: String(localized: "Largest Ghost Text"),
+                        description: String(localized: """
+                        Suggestions never render above this size. Lower it if ghost text ever appears oversized.
+                        """),
                         systemImage: "arrow.up.to.line"
                     )
                 }

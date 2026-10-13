@@ -23,10 +23,11 @@ struct PerformancePaneView: View {
             Section("Tracking") {
                 Toggle(isOn: trackingEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Enable Performance Tracking",
-                        description: "Record the timestamp, model, and elapsed time of every LLM " +
-                            "request. Only the most recent " +
-                            "\(PerformanceMetricsStore.maximumEntries) requests are retained.",
+                        title: String(localized: "Enable Performance Tracking"),
+                        description: String(localized: """
+                        Record the timestamp, model, and elapsed time of every LLM request. Only the most recent \
+                        \(PerformanceMetricsStore.maximumEntries) requests are retained.
+                        """),
                         systemImage: "stopwatch"
                     )
                 }
@@ -74,13 +75,13 @@ struct PerformancePaneView: View {
     /// per-request latency log below, which records timestamps and stays opt-in.
     private var suggestionQualitySection: some View {
         Section {
-            qualityCounterRow(label: "Suggestions shown", value: "\(qualityMetricsStore.counters.shown)")
+            qualityCounterRow(label: String(localized: "Suggestions shown"), value: "\(qualityMetricsStore.counters.shown)")
                 .settingsItem(.suggestionQualityStats)
-            qualityCounterRow(label: "Accepted", value: acceptedLabel)
-            qualityCounterRow(label: "Generations", value: "\(qualityMetricsStore.counters.generated)")
+            qualityCounterRow(label: String(localized: "Accepted"), value: acceptedLabel)
+            qualityCounterRow(label: String(localized: "Generations"), value: "\(qualityMetricsStore.counters.generated)")
             if !topSuppressionReasons.isEmpty {
                 qualityCounterRow(
-                    label: "Withheld (\(qualityMetricsStore.counters.suppressedTotal))",
+                    label: String(localized: "Withheld (\(qualityMetricsStore.counters.suppressedTotal))"),
                     value: topSuppressionReasons
                 )
             }
@@ -127,10 +128,10 @@ struct PerformancePaneView: View {
 
     private var qualityHeaderLabel: String {
         guard let since = qualityMetricsStore.counters.firstRecordedAt else {
-            return "Suggestion Quality"
+            return String(localized: "Suggestion Quality")
         }
         let formatted = since.formatted(date: .abbreviated, time: .omitted)
-        return "Suggestion Quality (since \(formatted))"
+        return String(localized: "Suggestion Quality (since \(formatted))")
     }
 
     // MARK: - Live resource graphs
@@ -146,7 +147,7 @@ struct PerformancePaneView: View {
             )
             .settingsItem(.resourceUsage)
             MetricSparkline(
-                title: "Memory",
+                title: String(localized: "Memory"),
                 points: ramPoints,
                 yDomainUpper: ramDomainUpperMB,
                 tint: .green,
@@ -170,11 +171,12 @@ struct PerformancePaneView: View {
             Text("Live Resource Usage")
         } footer: {
             Text(
-                "Updated every second while this pane is open. CPU can exceed 100% across multiple " +
-                "cores. Memory is the app's physical footprint. GPU is Cotabby's own share of the " +
-                "GPU, where the Open Source engine runs its model. Apple Intelligence and endpoint " +
-                "servers such as Ollama run outside Cotabby, so they don't count toward it. The " +
-                "line below the GPU graph covers every app on this Mac."
+                String(localized: """
+                Updated every second while this pane is open. CPU can exceed 100% across multiple cores. Memory is \
+                the app's physical footprint. GPU is Cotabby's own share of the GPU, where the Open Source engine \
+                runs its model. Apple Intelligence and endpoint servers such as Ollama run outside Cotabby, so they \
+                don't count toward it. The line below the GPU graph covers every app on this Mac.
+                """)
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -222,7 +224,7 @@ struct PerformancePaneView: View {
     /// is not coming. The wording claims nothing about the Mac: a driver without the counters and a
     /// Cotabby process that has not opened the GPU yet both end up here.
     private var gpuEmptyMessage: String {
-        systemMetricsStore.samples.count >= 3 ? "No GPU readings for Cotabby" : "Collecting…"
+        systemMetricsStore.samples.count >= 3 ? String(localized: "No GPU readings for Cotabby") : String(localized: "Collecting…")
     }
 
     private var gpuCurrentLabel: String {
@@ -237,7 +239,7 @@ struct PerformancePaneView: View {
         let memory = latest?.gpuMemoryBytes.map {
             ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory)
         } ?? "—"
-        return "All apps: GPU \(utilization) · GPU memory in use \(memory)"
+        return String(localized: "All apps: GPU \(utilization) · GPU memory in use \(memory)")
     }
 
     /// Headroom above the recent peak so the line never clips the top of the frame. CPU never
@@ -267,7 +269,7 @@ struct PerformancePaneView: View {
 
     private var latencyChart: some View {
         MetricSparkline(
-            title: "Latency",
+            title: String(localized: "Latency"),
             points: latencyPoints,
             yDomainUpper: latencyDomainUpper,
             tint: .orange,
@@ -359,16 +361,16 @@ struct PerformancePaneView: View {
         let count = performanceMetricsStore.entries.count
         let cap = PerformanceMetricsStore.maximumEntries
         if count == 0 {
-            return "Recent Requests"
+            return String(localized: "Recent Requests")
         }
-        return "Recent Requests (\(count) of \(cap))"
+        return String(localized: "Recent Requests (\(count) of \(cap))")
     }
 
     private var emptyStateMessage: String {
         if suggestionSettings.isPerformanceTrackingEnabled {
-            return "No requests recorded yet. Trigger a suggestion to start populating this list."
+            return String(localized: "No requests recorded yet. Trigger a suggestion to start populating this list.")
         }
-        return "Performance tracking is off. Enable the toggle above to start recording requests."
+        return String(localized: "Performance tracking is off. Enable the toggle above to start recording requests.")
     }
 
     private static let bytesPerMB: Double = 1024 * 1024
@@ -406,7 +408,7 @@ private struct MetricSparkline: View {
     let tint: Color
     let valueLabel: String
     /// Shown in place of the chart while there are no points.
-    var emptyMessage = "Collecting…"
+    var emptyMessage = String(localized: "Collecting…")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -441,18 +443,18 @@ private struct MetricSparkline: View {
                 // One series per segment keeps Charts from joining points across a gap. Segments
                 // never share an x value, so `.unstacked` only rules out stacking on principle.
                 AreaMark(
-                    x: .value("Time", point.date),
+                    x: .value(String(localized: "Time"), point.date),
                     y: .value(title, point.value),
-                    series: .value("Segment", point.segment),
+                    series: .value(String(localized: "Segment"), point.segment),
                     stacking: .unstacked
                 )
                 .foregroundStyle(tint.opacity(0.15))
                 .interpolationMethod(.monotone)
 
                 LineMark(
-                    x: .value("Time", point.date),
+                    x: .value(String(localized: "Time"), point.date),
                     y: .value(title, point.value),
-                    series: .value("Segment", point.segment)
+                    series: .value(String(localized: "Segment"), point.segment)
                 )
                 .foregroundStyle(tint)
                 .interpolationMethod(.monotone)

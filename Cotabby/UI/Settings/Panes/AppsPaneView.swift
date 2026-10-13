@@ -16,8 +16,10 @@ struct AppsPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Per-App Shortcuts") {
-                Text("Give a specific app its own accept key, disable an accept action there, or "
-                    + "keep inheriting the global shortcut from the Shortcuts pane.")
+                Text("""
+                Give a specific app its own accept key, disable an accept action there, or keep inheriting the \
+                global shortcut from the Shortcuts pane.
+                """)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -37,8 +39,10 @@ struct AppsPaneView: View {
             }
 
             Section("Disabled Apps") {
-                Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
-                    + "menu bar, like a launcher that closes the moment it loses focus.")
+                Text("""
+                Cotabby won't autocomplete in these apps. Add an app you can't disable from the menu bar, like a \
+                launcher that closes the moment it loses focus.
+                """)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .settingsItem(.disabledApps)
@@ -61,10 +65,11 @@ struct AppsPaneView: View {
             Section("Integrated Terminals") {
                 Toggle(isOn: suggestInIntegratedTerminalsBinding) {
                     SettingsRowLabel(
-                        title: "Suggest in Integrated Terminals",
-                        description: "Show ghost text in VS Code and Cursor integrated terminals. "
-                            + "Off by default so suggestions stay out of shell prompts; the editor "
-                            + "and chat in the same window keep suggesting either way.",
+                        title: String(localized: "Suggest in Integrated Terminals"),
+                        description: String(localized: """
+                        Show ghost text in VS Code and Cursor integrated terminals. Off by default so suggestions \
+                        stay out of shell prompts; the editor and chat in the same window keep suggesting either way.
+                        """),
                         systemImage: "terminal"
                     )
                 }
@@ -157,23 +162,27 @@ struct AppsPaneView: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Remove per-app shortcuts for \(override.displayName)")
-                .help("Remove this app's overrides. Cotabby will use the global accept keys here.")
+                .help(String(localized: "Remove this app's overrides. Cotabby will use the global accept keys here."))
             }
 
             perAppBindingRow(
                 override: override,
                 action: .acceptWord,
-                title: "Accept Word",
-                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.acceptanceKeyLabel)). "
-                    + "Click Change to set a custom key for \(override.displayName)."
+                title: String(localized: "Accept Word"),
+                inheritsHelp: String(localized: """
+                Uses the global shortcut (\(suggestionSettings.acceptanceKeyLabel)). Click Change to set a custom \
+                key for \(override.displayName).
+                """)
             )
             perAppBindingRow(
                 override: override,
                 action: .acceptEntireSuggestion,
-                title: "Accept Entire Suggestion",
-                inheritsHelp: "Uses the global shortcut ("
-                    + "\(suggestionSettings.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: override.bundleIdentifier))). "
-                    + "Click Change to set a custom key for \(override.displayName)."
+                title: String(localized: "Accept Entire Suggestion"),
+                inheritsHelp: String(localized: """
+                Uses the global shortcut \
+                (\(suggestionSettings.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: override.bundleIdentifier))). Click \
+                Change to set a custom key for \(override.displayName).
+                """)
             )
         }
         .padding(.vertical, 4)
@@ -231,7 +240,7 @@ struct AppsPaneView: View {
                     Button("Disable") {
                         disablePerAppBinding(override: override, action: action)
                     }
-                    .help("No key will perform \(title.lowercased()) in \(override.displayName).")
+                    .help(String(localized: "No key will perform \(title.lowercased()) in \(override.displayName)."))
                 }
             } else {
                 KeybindRow(
@@ -248,11 +257,11 @@ struct AppsPaneView: View {
                         )
                     },
                     onReset: { clearPerAppBinding(override: override, action: action) },
-                    resetLabel: "Use Global",
+                    resetLabel: String(localized: "Use Global"),
                     shouldShowReset: true,
                     onClear: { disablePerAppBinding(override: override, action: action) },
-                    clearLabel: "Disable",
-                    clearHelp: "No key will perform \(title.lowercased()) in \(override.displayName).",
+                    clearLabel: String(localized: "Disable"),
+                    clearHelp: String(localized: "No key will perform \(title.lowercased()) in \(override.displayName)."),
                     conflictChecker: perAppConflictChecker(
                         bundleIdentifier: override.bundleIdentifier,
                         action: action
@@ -379,8 +388,8 @@ struct AppsPaneView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Add"
-        panel.message = "Choose apps that should get their own accept shortcut."
+        panel.prompt = String(localized: "Add")
+        panel.message = String(localized: "Choose apps that should get their own accept shortcut.")
 
         guard panel.runModal() == .OK else { return }
 
@@ -453,8 +462,8 @@ struct AppsPaneView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Disable"
-        panel.message = "Choose apps where Cotabby should not autocomplete."
+        panel.prompt = String(localized: "Disable")
+        panel.message = String(localized: "Choose apps where Cotabby should not autocomplete.")
 
         guard panel.runModal() == .OK else {
             return

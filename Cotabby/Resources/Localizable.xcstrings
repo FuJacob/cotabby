@@ -1,0 +1,2473 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "": {
+      "shouldTranslate": false
+    },
+    "%@ (Optional)": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift"
+    },
+    "%@ (Unavailable)": {
+      "comment": "Used in: Support/Settings/SuggestionEngineSelectionPolicy.swift"
+    },
+    "%@ + key…": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "%@ / %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ / %2$@"
+          }
+        }
+      },
+      "shouldTranslate": false
+    },
+    "%@ Open Source fallback also failed: %@": {
+      "comment": "Used in: Services/Runtime/SuggestionEngineRouter.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ Open Source fallback also failed: %2$@"
+          }
+        }
+      }
+    },
+    "%@ settings": {
+      "comment": "Used in: UI/Settings/Components/Structure/SettingsQuickLinkCard.swift"
+    },
+    "%@ skin tone": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "%@ twice": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "%@ variant": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "%@ words": {
+      "comment": "Used in: Models/Suggestion/Request/SuggestionConfiguration.swift"
+    },
+    "%@ | %@ | %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ | %2$@ | %3$@"
+          }
+        }
+      },
+      "shouldTranslate": false
+    },
+    "%@ · %@ download": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$@ download"
+          }
+        }
+      }
+    },
+    "%@, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$@"
+          }
+        }
+      },
+      "shouldTranslate": false
+    },
+    "%@, in %@": {
+      "comment": "Used in: UI/Settings/Components/Structure/SettingsSearchResultRow.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, in %2$@"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "shouldTranslate": false
+    },
+    "%lld / %lld characters": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld / %2$lld characters"
+          }
+        }
+      }
+    },
+    "%lld entries stored": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld entry stored"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld entries stored"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld ms": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "%lld%%": {
+      "shouldTranslate": false
+    },
+    "%lld-%lld w": {
+      "comment": "Used in: Models/Suggestion/Request/SuggestionConfiguration.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld-%2$lld w"
+          }
+        }
+      }
+    },
+    "(%@)": {
+      "shouldTranslate": false
+    },
+    "/%@": {
+      "shouldTranslate": false
+    },
+    "1 entry stored": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    ":": {
+      "shouldTranslate": false
+    },
+    "A balance of speed and quality for everyday writing.": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "A global hotkey that turns Cotabby on or off.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "A glossary or notes sent with every suggestion.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "A model download session can only be started once.": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadSessionDelegate.swift"
+    },
+    "A real field that exercises the full pipeline.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "API Format": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "API Key": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "About": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Accept Entire Suggestion": {
+      "comment": "Used in: Models/Settings/SuggestionSettingsModel.swift, UI/Settings/Panes/AppsPaneView.swift, UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Accept Punctuation With Word": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Accept Word": {
+      "comment": "Used in: Models/Settings/SuggestionSettingsModel.swift, UI/Settings/Panes/AppsPaneView.swift, UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Accept entire suggestion": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift"
+    },
+    "Accept suggestions without leaving the keyboard.\nYou can change these anytime in Settings.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift"
+    },
+    "Accept word": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift"
+    },
+    "Acceptance": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Acceptance Mode": {
+      "comment": "Used in: UI/Settings/Components/Controls/AcceptanceModePickerView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Accepted": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Accessibility": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Acknowledgements": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift, UI/Settings/Panes/About/AcknowledgementsView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Active": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Add": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Add App…": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Add Space After Accepting": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Add Your Own": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift"
+    },
+    "Add a language, e.g. German": {
+      "comment": "Used in: UI/Settings/Components/Controls/LanguageTagsEditor.swift"
+    },
+    "Add a rule, e.g. Use British spelling": {
+      "comment": "Used in: UI/Settings/Components/Controls/CustomRulesEditor.swift"
+    },
+    "Add a space when an accept finishes a word.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Add at least one language so Cotabby knows what to write in.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Add models from your LM Studio library (~/.lmstudio/models) to the picker above. Downloads still save to Cotabby's own folder.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "After you finish a word, shows a green replacement you can apply with your accept key.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "After you press Space, replaces a misspelled word without requiring your accept key.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "All apps: GPU %@ · GPU memory in use %@": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "All apps: GPU %1$@ · GPU memory in use %2$@"
+          }
+        }
+      }
+    },
+    "All macros": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "All set": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Allow": {
+      "comment": "Used in: UI/Onboarding/PermissionReminderView.swift, UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Allow Multi-line Suggestions": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Allow continuations that span more than one line.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Allow continuations that span more than one line. Off keeps suggestions to a single line.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Already used by %@. Press it twice quickly for a double tap.": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "Already used by %@. Try another key.": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "Also Use LM Studio Models": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Also accept trailing commas and periods with a word.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Also load models from your LM Studio library.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Another source is already downloading %@. Cancel that transfer before downloading this file.": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Appearance": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsCategory.swift"
+    },
+    "Apple Intelligence": {
+      "shouldTranslate": false
+    },
+    "Apple Intelligence Availability": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Apple Intelligence and Open Source run on your Mac. If you choose an endpoint, enabled text context is sent to that server.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Apple Intelligence assets are unavailable right now.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence does not support the current language or locale for this request.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence is available.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "Apple Intelligence is temporarily rate limited.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence is turned off in System Settings.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "Apple Intelligence refused to answer this prompt.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence rejected a concurrent request for this session.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence rejected a guided-generation request Cotabby sent.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence rejected this request because of model guardrails.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence requires macOS 26 or later. Use Open Source on this Mac.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "Apple Intelligence returned a response Cotabby could not decode.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "Apple Intelligence runs on-device using macOS's built-in model (newer Apple Silicon Macs only). Open Source runs a downloaded model file. Local Endpoint connects to an OpenAI-compatible server you manage.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView.swift"
+    },
+    "Apple Intelligence · built into macOS": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Apple Intelligence, bundled Open Source, or a local endpoint.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Apps": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Apps where Cotabby never autocompletes.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Arithmetic": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Auto": {
+      "comment": "Used in: Support/Presentation/Policy/CompletionRenderModePolicy.swift"
+    },
+    "Auto picks inline ghost text when the app's caret position is reliable, and a popup card when it isn't. Inline or Popup pins one style for every app.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Autocomplete": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Autocorrect": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Automatically Fix Typos": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Availability": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "Back": {
+      "comment": "Used in: UI/Onboarding/OnboardingStyle.swift"
+    },
+    "Balanced for daily writing": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Browse HuggingFace": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Browse the source code and issues.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Build %@": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Built into macOS": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Cancel": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView.swift, UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Cancel download": {
+      "comment": "Used in: UI/Settings/ModelManagement/ModelDownloadTransferControls.swift"
+    },
+    "Capped at %lld characters. Anything pasted beyond that is trimmed automatically.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Change": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift, UI/Settings/Components/KeybindRow.swift, UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Chat Completions": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Chat uses /v1/chat/completions (recommended). Text uses /v1/completions for base models that continue a raw prompt.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Check for Updates": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/About/AboutPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Choose .gguf models to import into Cotabby": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Choose Chat Completions or Text Completions for this model.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Choose a discovered model": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Choose a model returned by the server or enter its identifier manually.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Choose a starting point": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Choose apps that should get their own accept shortcut.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Choose apps where Cotabby should not autocomplete.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Choose from %lld discovered models.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift"
+    },
+    "Choose or enter a model before generating suggestions.": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Choose person, man, or woman variants when an emoji offers them.": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Choose the engine and models": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Choose user_inputs.json from your Cotypist export.": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Choose which bundled dictionaries Cotabby may use for frequency-ranked corrections. With several enabled, Cotabby selects one from the surrounding text.": {
+      "comment": "Used in: UI/Settings/Components/Controls/SpellingDictionaryPicker.swift"
+    },
+    "Clear": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift, UI/Settings/Panes/ContextPaneView.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Clear History": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Clear recently and frequently used emoji.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Clear search": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift, UI/Settings/SettingsSidebarView.swift"
+    },
+    "Click the cat to pause suggestions, switch models, or open Settings.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Collecting…": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Connect": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift"
+    },
+    "Connect to load models, or enter an identifier manually.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift"
+    },
+    "Connected · %lld models": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Connected · %lld model"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Connected · %lld models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Connected · 1 model": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Connecting…": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Connection": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Connection failed": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Context": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsCategory.swift"
+    },
+    "Continue": {
+      "comment": "Used in: UI/Onboarding/OnboardingStyle.swift, UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Contribute": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Contribute to Cotabby": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Contributor Guide": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Convert": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Core toggles and behavior": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Corrections": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Cotabby": {
+      "shouldTranslate": false
+    },
+    "Cotabby Settings": {
+      "comment": "Used in: UI/Settings/SettingsContainerView.swift"
+    },
+    "Cotabby disabled": {
+      "comment": "Used in: UI/MenuBar/MenuBarStatusLabelView.swift"
+    },
+    "Cotabby doesn't save this text, but like any other field it's sent to your configured endpoint, which may keep it.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Cotabby is turned off": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Cotabby lives in your menu bar": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Cotabby needs Accessibility and Input Monitoring for autocomplete. Screen Recording is optional and adds on-screen visual context.": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Cotabby needs more access to run. Grant the permissions below to enable autocomplete.": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Cotabby needs these permissions to work.\nGrant them in System Settings, then come back here.": {
+      "comment": "Used in: UI/Onboarding/PermissionReminderView.swift"
+    },
+    "Cotabby needs to read the field you're typing in and watch for the accept key.\nThe optional one unlocks smarter, screen-aware suggestions.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Cotabby paused": {
+      "comment": "Used in: UI/MenuBar/MenuBarStatusLabelView.swift"
+    },
+    "Cotabby started from a simple belief: AI should run on your device, respect your privacy, and remain open to everyone.": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Cotabby was originally created by FuJacob and developed with jam-cai, akramj13, and other contributors. Includes contributions by McHamster and other contributors. Distributed under AGPLv3, without warranty; redistribution is permitted under that license.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Cotabby will send typed text and any enabled context to this server on your local network.": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Cotabby won't autocomplete in these apps. Add an app you can't disable from the menu bar, like a launcher that closes the moment it loses focus.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Cotabby writes in your languages and can address you by name.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift"
+    },
+    "Cotabby — Permissions": {
+      "comment": "Used in: App/Coordinators/WelcomeCoordinator.swift"
+    },
+    "Couldn't read %@ for validation.": {
+      "comment": "Used in: Services/ModelManagement/ModelFileValidator.swift"
+    },
+    "Count accepted words next to the menu bar icon.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Curated models you can download and run.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Currency": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift, UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Currently running apps you can disable with one click.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Custom": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Custom (%@)": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Custom Rules": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Custom range…": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Dark": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Date": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Date and time": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Default": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Delete": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView.swift"
+    },
+    "Delete All %lld Entries": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Delete All…": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Delete Model?": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView.swift"
+    },
+    "Delete Typing History": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Delete all typing history?": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Detect typing and accept with Tab.": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift"
+    },
+    "Deutsch (German)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "Development": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Dictionaries used to detect typos.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Disable": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Disabled Apps": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Dismiss": {
+      "comment": "Used in: Services/Permission/Guidance/PermissionOverlayWindowController.swift"
+    },
+    "Display": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Documentation and the contributor guide.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Don't Record in an App": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Done": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift, UI/Onboarding/PermissionReminderView.swift, UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Download Models": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Download a model or add your own below. Models are stored locally on your Mac.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Download failed": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift"
+    },
+    "Download was cancelled by the user.": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift"
+    },
+    "Download was paused by the user.": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift"
+    },
+    "Downloaded file is %lld bytes; expected %lld. The download may have been truncated.": {
+      "comment": "Used in: Services/ModelManagement/ModelFileValidator.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Downloaded file is %1$lld bytes; expected %2$lld. The download may have been truncated."
+          }
+        }
+      }
+    },
+    "Downloaded file's checksum (%@…) doesn't match the expected (%@…). The file may be corrupt.": {
+      "comment": "Used in: Services/ModelManagement/ModelFileValidator.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Downloaded file's checksum (%1$@…) doesn't match the expected (%2$@…). The file may be corrupt."
+          }
+        }
+      }
+    },
+    "Downloading": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Downloading %lld%%": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Downloading %lld%% (%@ · ETA %@)": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Downloading %1$lld%% (%2$@ · ETA %3$@)"
+          }
+        }
+      }
+    },
+    "Downloading %lld%% (%@)": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Downloading %1$lld%% (%2$@)"
+          }
+        }
+      }
+    },
+    "Downloading your model…": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Downloading your model… %lld%%": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Drag %@ to the list above to allow %@": {
+      "comment": "Used in: Services/Permission/Guidance/PermissionOverlayWindowController.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Drag %1$@ to the list above to allow %2$@"
+          }
+        }
+      }
+    },
+    "Drag toward Fast to make a new suggestion fade in more quickly.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Duration": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Each project ships under its own license; see the linked repository for the verbatim text.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Emoji": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Emoji History": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Emoji Picker": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Enable Cotabby": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Enable Cotabby globally": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Enable Globally": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Enable Performance Tracking": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint API Format": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint API Key": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint Model": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint Server URL": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint Status": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Endpoint · %@": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift"
+    },
+    "Engine": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Engine & Model": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Engine and model to use while on this power source.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift"
+    },
+    "Engine and model used while on battery.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Engine and model used while plugged in.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Engine: %@, %@": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Engine: %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "English": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "Enter an HTTP or HTTPS base URL without credentials, a query, or a fragment.": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Enter model identifier": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Español (Spanish)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "Every Cotabby setting returns to its original default. This can't be undone.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Every macro Cotabby can resolve from a `/` query.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Everyday": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Everything here is sent to the model on every keystroke. Long blocks slow down completions and may crowd out the surrounding text the model needs to continue accurately.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Exclude an App…": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Extended Context": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Extended context notes": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Fade In Suggestions": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Fade Speed": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Fade new suggestions in smoothly instead of all at once.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Failed to parse HuggingFace response: %@": {
+      "comment": "Used in: Services/ModelManagement/HuggingFaceAPIClient.swift"
+    },
+    "Fall Back to Open Source Model": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Fallback Model": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Fast": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Fast and lightweight": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Fine-tune how large suggestions appear. Lower it if the ghost text looks too big.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Finishes phrases you often type and shows the model examples of how you write. Only Apple Intelligence and the local model use it; it is never sent to an endpoint.": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Folder": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "For non-default tones, suggestions show your selected tone first and keep the default emoji next.": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Forget recently and frequently used emoji so the picker ranks from scratch.": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Français (French)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "Free & open source": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "General": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Generation was cancelled.": {
+      "comment": "Used in: Models/Suggestion/Result/SuggestionClientError.swift"
+    },
+    "Generations": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Get": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift, UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Get Started": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Ghost Text Color": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Ghost Text Opacity": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Ghost Text Size": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Ghost text in VS Code and Cursor terminals.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Ghost text style and display": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Ghost-text autocomplete in every app,\ngenerated entirely on your Mac.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "GitHub": {
+      "shouldTranslate": false
+    },
+    "GitHub Repository": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Give a specific app its own accept key, disable an accept action there, or keep inheriting the global shortcut from the Shortcuts pane.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Grant": {
+      "comment": "Used in: UI/MenuBar/MenuBarSections.swift"
+    },
+    "Grant Access": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Grant all permissions to continue.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Granted": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Hang on while your model starts downloading.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Help": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Help suggestions understand surrounding text using screenshots of the focused window.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Here's the¦ final draft.": {
+      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/Welcome/WelcomeHeroDemo.swift"
+    },
+    "Hide Suggestions on Typo": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Hide details": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Hide menu bar clutter while Cotabby keeps running.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Highest quality": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Home": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Homebrew could not install aria2. Cotabby will use its standard downloader.": {
+      "comment": "Used in: Services/ModelManagement/Aria2Provisioner.swift"
+    },
+    "Homebrew is not available, so Cotabby will use its standard downloader.": {
+      "comment": "Used in: Services/ModelManagement/Aria2Provisioner.swift"
+    },
+    "Hover a card to watch it play.": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "How faint the inline suggestion looks before you accept it.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "How faint the suggestion looks before you accept it.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "How many words Cotabby aims for per suggestion.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "How many words Cotabby aims for per suggestion. Shorter is snappier; longer covers more thoughts but takes longer to generate.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "How this is used": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Hugging Face Model Browser": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "HuggingFace returned HTTP %lld.": {
+      "comment": "Used in: Services/ModelManagement/HuggingFaceAPIClient.swift"
+    },
+    "I'll do this later": {
+      "comment": "Used in: UI/Onboarding/PermissionReminderView.swift"
+    },
+    "Idle": {
+      "comment": "Used in: Models/Runtime/LlamaRuntimeModels.swift"
+    },
+    "Import": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Import Cotypist Export": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Import Cotypist Export…": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Import any .gguf model from your computer.": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift"
+    },
+    "Import cancelled because typing history was deleted.": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift"
+    },
+    "Import failed: %@": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift"
+    },
+    "Imported %lld entries (%lld were already in your history).": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Imported %1$lld entries (%2$lld were already in your history)."
+          }
+        }
+      }
+    },
+    "Imported %lld entries.": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift"
+    },
+    "Importing…": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Include App Context": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Include Clipboard Context": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Include the app and window name in suggestions. With an endpoint selected, this context is sent to that server.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Indexes load on demand and Cotabby keeps at most two in memory. If no bundled dictionary matches, macOS supplies the correction.": {
+      "comment": "Used in: UI/Settings/Components/Controls/SpellingDictionaryPicker.swift"
+    },
+    "Initializing the in-process llama runtime.": {
+      "comment": "Used in: Services/Runtime/Llama/LlamaRuntimeManager.swift"
+    },
+    "Inline": {
+      "comment": "Used in: Support/Presentation/Policy/CompletionRenderModePolicy.swift"
+    },
+    "Inline Emoji Picker": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Inline Macros": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Inline emoji": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Inline ghost text, popup card, or automatic per app.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Inline macros": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift, UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Input Monitoring": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Insert the next word of the suggestion.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Insert the whole remaining suggestion at once. For a double tap, click Change and press %@ twice.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Insert the whole remaining suggestion in one keystroke.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Install LM Studio to load models from its library here.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Installed": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift, UI/Settings/ModelManagement/DownloadableModelCatalogView.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Installing aria2 timed out. Cotabby will use its standard downloader.": {
+      "comment": "Used in: Services/ModelManagement/Aria2Provisioner.swift"
+    },
+    "Integrated Terminals": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Invalid HuggingFace API URL.": {
+      "comment": "Used in: Services/ModelManagement/HuggingFaceAPIClient.swift"
+    },
+    "Italiano (Italian)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "Jump straight to the controls you reach for most.": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Keep Fallback Model Loaded": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Keep on-device predictions ready as you type, then show matching suggestions when you pause. May use more power. Applies to Apple Intelligence and Open Source models.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Keep on-device predictions ready through matching typing for a faster pause.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Keep your settings, or start from defaults": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Key Hint": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Keys": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Keys that accept suggestions": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "LM Studio Models": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Language limit reached": {
+      "comment": "Used in: UI/Settings/Components/Controls/LanguageTagsEditor.swift"
+    },
+    "Language support depends on your selected model. Apple Intelligence covers a fixed set of languages, and local models vary, so some languages may not work.": {
+      "comment": "Used in: UI/Settings/Components/Controls/LanguageTagsEditor.swift"
+    },
+    "Languages": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift, UI/Settings/Components/Controls/LanguageTagsEditor.swift, UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Languages suggestions should be written in.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Largest Ghost Text": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Latency": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Latency log of the most recent generations.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Latency, quality, and resources": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Learn from what you type, and import Cotypist history.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Learn your keys": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift"
+    },
+    "Length": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Length, profile, and corrections": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Let a new suggestion fade in smoothly instead of appearing all at once. Follows the system Reduce Motion setting.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Let suggestions reference what you last copied.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Let suggestions reference whatever you most recently copied.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Let's meet¦ tomorrow at 10.": {
+      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/Welcome/WelcomeHeroDemo.swift"
+    },
+    "Lets Cotabby see which text field has focus and read its contents so it knows what to continue.": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Lets Cotabby see your keystrokes so it can detect when to suggest and which key you used to accept.": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Light": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Live CPU, memory, and GPU graphs for the app.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Live Preview": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Live Resource Usage": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Live preview": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Live preview input": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Load More": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Load the fallback model in advance so its first suggestion doesn't wait for it to load. Uses the model's memory (up to several GB) while Apple Intelligence is selected.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "Loaded %@ in-process.": {
+      "comment": "Used in: Services/Runtime/Llama/LlamaRuntimeManager.swift"
+    },
+    "Loading %@ into memory.": {
+      "comment": "Used in: Services/Runtime/Llama/LlamaRuntimeManager.swift"
+    },
+    "Loading files…": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Loading…": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Local Endpoint": {
+      "comment": "Used in: Models/Suggestion/SuggestionEngineModels.swift"
+    },
+    "Local endpoint · configure later in Settings": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Local macOS AI Autocomplete": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Local model": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Local models on your Mac": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Local-first": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Locale-aware dates and times. Supports weekday navigation, relative offsets, and format hints like (iso), (long), (short), (24h).": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Logging façade Cotabby uses across runtime, focus, and suggestion subsystems.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Login-item integration for starting Cotabby with macOS.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Longer suggestions and higher quality on harder prompts.": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Make it yours": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift"
+    },
+    "Man": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Math": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "Maximum": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Maximum word count": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Medium": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Medium Dark": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Medium Light": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Memory": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Minimum": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Minimum word count": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Mode": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Model": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift, UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Model Status": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Model download failed with status code %lld.": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Model download paused": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Model download paused (%lld%%)": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Model ready": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Models": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Models Folder": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Name": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Needs Access": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Needs attention": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift, UI/Settings/SettingsSidebarView.swift"
+    },
+    "Needs more memory than this Mac has (uses a %@ model).": {
+      "comment": "Used in: Support/Onboarding/OnboardingTemplateRecommender.swift"
+    },
+    "Nice work ": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "No GGUF files found in this repository.": {
+      "comment": "Used in: Services/ModelManagement/HuggingFaceSearchService.swift"
+    },
+    "No GGUF model was found at %@.": {
+      "comment": "Used in: Support/Runtime/BundledRuntimeLocator.swift"
+    },
+    "No GGUF models found.": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "No GPU readings for Cotabby": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "No apps are disabled. Cotabby is active in every supported field.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "No downloaded models were found, so there is nothing to fall back to. Switch the engine to Open Source to download one.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "No emoji": {
+      "comment": "Used in: UI/InlineFeatures/EmojiPickerView.swift"
+    },
+    "No endpoint configured": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift"
+    },
+    "No key will perform %@ in %@.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "No key will perform %1$@ in %2$@."
+          }
+        }
+      }
+    },
+    "No local GGUF models found. Download one below or add your own model file.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "No model selected": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "No models found": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "No per-app shortcuts. Cotabby uses the global accept key everywhere.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "No requests recorded yet. Trigger a suggestion to start populating this list.": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "No settings match “%@”": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift, UI/Settings/SettingsSidebarView.swift"
+    },
+    "No usable visible text was recognized in the screenshot.": {
+      "comment": "Used in: Services/Visual/ScreenTextExtractor.swift"
+    },
+    "No visible frontmost window was found for process %d.": {
+      "comment": "Used in: Services/Visual/WindowScreenshotService.swift"
+    },
+    "Not connected": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Not installed": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift, UI/Settings/ModelManagement/DownloadableModelCatalogView.swift"
+    },
+    "Not recorded: %@": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Nothing here is saved or shared; it only exercises the on-device model.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Offer Corrections on Typo": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Offer a green replacement for the misspelled word.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Offline currency conversions using a bundled approximate rate table. Accepts ISO codes, symbols, and common names.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "On Battery": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "On-device inference engine for GGUF models on the Open Source path.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Onboarding": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Open Folder": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Open Source": {
+      "comment": "Used in: Models/Suggestion/SuggestionEngineModels.swift"
+    },
+    "Open Welcome Guide": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Open at Login": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Open source": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Opening typing history…": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Opens Engine & Model settings": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Opens Permissions settings": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Optional": {
+      "comment": "Used in: UI/Onboarding/PermissionReminderView.swift, UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Optional bearer token stored in Keychain. Ollama does not require one.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Optional bearer token stored securely in Keychain.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Optional visual context from the focused window.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Optional. Lets Cotabby screenshot the focused window for extra context. Without it, suggestions still work, but screen context is unavailable.": {
+      "comment": "Used in: UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Optional: capture screen context for richer suggestions.": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift"
+    },
+    "Overview and search": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Paste API key": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Paste a glossary, jargon list, style guide excerpt, or any reference the model should keep in mind. Markdown structure (headings, bullet lists, examples) is preserved verbatim.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Pause Cotabby": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Pause Until I Turn It Back On": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pause Until Tomorrow": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pause completions while a word looks misspelled.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Pause download": {
+      "comment": "Used in: UI/Settings/ModelManagement/ModelDownloadTransferControls.swift"
+    },
+    "Pause for 1 Hour": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pause for 15 Minutes": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pause for 30 Minutes": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pause in Low Power Mode": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Pause suggestions while Low Power Mode is active.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Pause suggestions while Low Power Mode is on to reduce battery use.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift"
+    },
+    "Paused": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift, UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Paused (%lld%%)": {
+      "comment": "Used in: Services/ModelManagement/ModelDownloadManager.swift"
+    },
+    "Paused until %@": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Paused until enabled": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Paused until tomorrow": {
+      "comment": "Used in: Models/Suggestion/Session/SuggestionPauseModels.swift"
+    },
+    "Pauses normal completions when a finished word looks misspelled. Turn this on to use the correction options.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "People Emoji Style": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Per-App Shortcuts": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Performance": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Performance tracking is off. Enable the toggle above to start recording requests.": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Permissions": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/HomePaneView.swift, UI/Settings/Panes/PermissionsPaneView.swift"
+    },
+    "Permissions needed": {
+      "comment": "Used in: UI/Onboarding/PermissionReminderView.swift"
+    },
+    "Permissions: %@": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Person": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Person, man, or woman variants when available.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Phrase": {
+      "comment": "Used in: UI/Settings/Components/Controls/AcceptanceModePickerView.swift"
+    },
+    "Pick one to get set up. You can fine-tune everything later in Settings.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Pick the color of the inline suggestion.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Plugged In": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Poll %lld": {
+      "shouldTranslate": false
+    },
+    "Popup": {
+      "comment": "Used in: Support/Presentation/Policy/CompletionRenderModePolicy.swift"
+    },
+    "Power": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift"
+    },
+    "Powerful": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Predict Ahead While Typing": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Prefer a skin tone in emoji suggestions.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Preload the fallback model so its first suggestion is fast.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Preparing download…": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Press %@ again…": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "Press %@ twice quickly to insert the whole suggestion. A single press still inserts the next %@.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Press %1$@ twice quickly to insert the whole suggestion. A single press still inserts the next %2$@."
+          }
+        }
+      }
+    },
+    "Press a key…": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "Preview of how suggestions will appear": {
+      "comment": "Used in: UI/Settings/Components/Controls/GhostTextPreview.swift"
+    },
+    "Preview the following phrase, or reveal one word at a time as you type or accept.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Preview the phrase after the current word. Turn off to see one word at a time; the next words stay ready as you finish typing or accept each word.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Process terminated with exit code %d": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift"
+    },
+    "Profile": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Public endpoints must use HTTPS. HTTP is limited to this Mac or the local network.": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Quick": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Quick settings": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Quit": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Quit Cotabby": {
+      "comment": "Used in: UI/Settings/SettingsSidebarView.swift"
+    },
+    "Random and generators": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Random numbers, dice (`/d20`), coin flips, and UUIDs.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Read text fields and caret position.": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift"
+    },
+    "Ready on this Mac": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Recent Requests": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Recent Requests (%lld of %lld)": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Recent Requests (%1$lld of %2$lld)"
+          }
+        }
+      }
+    },
+    "Recommended": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "Recommended Models": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift"
+    },
+    "Record What I Type": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Record the timestamp, model, and elapsed time of every LLM request. Only the most recent %lld requests are retained.": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Record timing for every model request.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Refresh": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift, UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Remove": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Remove %@ from Cotabby's local models folder?": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView.swift"
+    },
+    "Remove Cotabby and its data from this Mac.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Remove Cotabby from Applications. To fully clean up model data, delete %@.": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Remove per-app shortcuts for %@": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Remove this app's overrides. Cotabby will use the global accept keys here.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Replace a misspelled word right after you press Space.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Replay the first-run setup walkthrough.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Report Bug": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Report bugs, suggest features, or contribute code.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Required to read the focused field and caret.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Required to see keystrokes and the accept key.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Reset": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeKeybindStepView.swift, UI/Settings/Components/Controls/CustomRulesEditor.swift, UI/Settings/Components/Controls/LanguageTagsEditor.swift"
+    },
+    "Reset All Settings": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Reset All Settings…": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Reset all settings to their defaults?": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Resources": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Restore every Cotabby setting to its original default.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Restore every Cotabby setting to its original default. This does not change macOS permissions, your Open at Login choice, or your accepted-word count.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Resume download": {
+      "comment": "Used in: UI/Settings/ModelManagement/ModelDownloadTransferControls.swift"
+    },
+    "Retry": {
+      "comment": "Used in: UI/Settings/ModelManagement/DownloadableModelCatalogView.swift, UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Returning users keep every setting they've already tuned. New users start from Cotabby's lean defaults and fine-tune length, model, and behavior in Settings.": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Reveal ghost text token by token as the model writes.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Reveal ghost text token-by-token as the model writes it, and let you accept early. Off shows each suggestion once it's fully written.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Rule limit reached": {
+      "comment": "Used in: UI/Settings/Components/Controls/CustomRulesEditor.swift"
+    },
+    "Rules": {
+      "comment": "Used in: UI/Settings/Components/Controls/CustomRulesEditor.swift, UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Runtime": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Runtime directory is missing at %@.": {
+      "comment": "Used in: Support/Runtime/BundledRuntimeLocator.swift"
+    },
+    "Runtime work was cancelled.": {
+      "comment": "Used in: Models/Runtime/LlamaRuntimeModels.swift"
+    },
+    "Safe arithmetic: + - * / ^, parentheses, decimals, and trailing % (percent). Accepting inserts only the result.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Same-quantity conversions across length, mass, temperature, and volume. Fully offline via Foundation Measurement.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Saves the text of fields where Cotabby is active, encrypted on this Mac. Password fields, terminals, and disabled apps are never recorded.": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Scale suggestions if the ghost text looks too big or small.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Screen Recording": {
+      "comment": "Used in: Models/Permissions/PermissionModels.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Screen Recording permission is required to capture screenshot context.": {
+      "comment": "Used in: Services/Visual/WindowScreenshotService.swift"
+    },
+    "Screenshot OCR failed: %@": {
+      "comment": "Used in: Services/Visual/ScreenTextExtractor.swift"
+    },
+    "Search": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Search GGUF models…": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Search Hugging Face for GGUF models.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Search every setting": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Search settings": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift, UI/Settings/SettingsSidebarView.swift"
+    },
+    "Searching…": {
+      "comment": "Used in: UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift"
+    },
+    "Secure automatic updates for production builds of Cotabby.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "See every inline macro and what it does": {
+      "comment": "Used in: UI/Onboarding/OnboardingFeatureShowcase.swift"
+    },
+    "See if a newer Cotabby is available.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "See it in action": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Segment": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Selected": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Selected Model": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Sent on every suggestion as reference material, not as instructions.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Server URL": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Server status": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift"
+    },
+    "Set automatically by power source. Turn off power-based switching in the Power section to choose it here.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "Set automatically by power source. Use the On Battery / Plugged In pickers in the Power section, or turn off power-based switching.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Set up later": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Settings": {
+      "comment": "Used in: App/Coordinators/SettingsCoordinator.swift, UI/MenuBar/MenuBarView.swift"
+    },
+    "Short, snappy completions that keep up with fast typing and stay light on resources.": {
+      "comment": "Used in: Models/Onboarding/OnboardingTemplate.swift"
+    },
+    "Shortcuts": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Show": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Show Accept-Key Hint": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Show Cotabby in Menu Bar": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Show Development Debug Overlays": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Show Field Indicator": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Show Word Count in Menu Bar": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Show a running count of words you've accepted next to the menu bar icon.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Show a small icon at the edge of a field when Cotabby is ready to suggest.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Show a small icon when a field is ready for suggestions.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Show caret and field outlines, focus polling, and screen-context status. Changes apply immediately.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Show caret, field, focus polling, and screen-context debug panels.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Show following words": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Show ghost text in VS Code and Cursor integrated terminals. Off by default so suggestions stay out of shell prompts; the editor and chat in the same window keep suggesting either way.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Show new suggestions before you finish a word. Turn off to wait for a space or punctuation. Suggestions already on screen still follow your typing.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Show new suggestions inside a word, or wait for a space or punctuation.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Show the accept-key badge beside the ghost text.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Show the accept-key badge next to the ghost text so you remember which key inserts it.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Shown, accepted, and withheld counters.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Skin Tone": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Slow": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Smallest Ghost Text": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Source code, build instructions, and the GNU Affero General Public License v3.0.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Sparkle": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Spelling Dictionaries": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Start Cotabby automatically when you log in to your Mac.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Start Cotabby automatically when you log in.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Start Using Cotabby": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Start typing anywhere.\nPress %@ to accept a word, %@ for the full suggestion.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Start typing anywhere.\nPress %1$@ to accept a word, %2$@ for the full suggestion."
+          }
+        }
+      }
+    },
+    "Start typing anywhere.\nPress %@ to accept.": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Status": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Step %lld of %lld": {
+      "comment": "Used in: UI/Onboarding/OnboardingStyle.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Step %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Stored history can't be read": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Stored locally on this Mac. Included in requests to your selected engine, including a configured endpoint.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Stream Suggestions While Generating": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Subordinate to Cotabby's base autocomplete rules, so it cannot override core behavior.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Suggest in Integrated Terminals": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Suggest while typing a word": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Suggestion Display": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Suggestion Quality": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Suggestion Quality (since %@)": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Suggestions": {
+      "comment": "Used in: UI/Settings/Components/Controls/CustomRulesEditor.swift, UI/Settings/Components/Controls/LanguageTagsEditor.swift, UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Suggestions never render above this size. Lower it if ghost text ever appears oversized.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Suggestions never render below this size, even in fields that report tiny text.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "Suggestions shown": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Support": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Support Cotabby": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "Switch Based on Power Source": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Symmetric-delete spelling correction (MIT, by Wolf Garbe), ported to Swift for inline autocorrect. Bundled language dictionaries derive from Google Books Ngram data (CC BY 3.0) and licensed SCOWL/Hunspell word lists. See THIRD_PARTY_LICENSES.md for the notices.": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "System access and privacy": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Tab": {
+      "shouldTranslate": false
+    },
+    "Tell the model which app and window you are typing in.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Text Completions": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Thanks for the¦ quick reply!": {
+      "comment": "Onboarding autocomplete demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nWelcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/OnboardingFeatureShowcase.swift, UI/Onboarding/Welcome/WelcomeHeroDemo.swift"
+    },
+    "The Apple on-device model is still preparing or downloading.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "The Apple on-device model is unavailable for an unknown reason.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "The Apple on-device model rejected the prompt because it was too large.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift"
+    },
+    "The OpenAI-compatible server address. Cotabby adds /v1 when the address has no path; Ollama uses http://127.0.0.1:11434 by default.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "The OpenAI-compatible server address; /v1 is added when omitted.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "The color of the inline suggestion. Automatic adapts to light and dark.": {
+      "comment": "Used in: UI/Settings/Panes/AppearancePaneView.swift"
+    },
+    "The downloaded model used when Apple Intelligence can't handle the language. It is also your Open Source engine's model.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "The endpoint API key could not be updated (Keychain status %d).": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleCredentialStore.swift"
+    },
+    "The endpoint API key could not be updated: %@": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleCredentialStore.swift"
+    },
+    "The endpoint reported an error: %@": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClient.swift"
+    },
+    "The endpoint returned HTTP %lld.": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClient.swift"
+    },
+    "The endpoint returned an invalid HTTP response.": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClient.swift"
+    },
+    "The endpoint returned an invalid OpenAI-compatible response.": {
+      "comment": "Used in: Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClient.swift"
+    },
+    "The inline emoji picker": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "The key that inserts the next word.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "The key, or the Accept Word key pressed twice, that inserts the whole suggestion.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "The largest point size ghost text may render at.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "The local model %@ was not found.": {
+      "comment": "Used in: Support/Runtime/BundledRuntimeLocator.swift"
+    },
+    "The model filename is not valid.": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift"
+    },
+    "The model identifier sent to the configured endpoint.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "The selected model %@ is unavailable.": {
+      "comment": "Used in: Services/Runtime/Llama/LlamaRuntimeManager.swift"
+    },
+    "The smallest point size ghost text may render at.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Third-party packages Cotabby ships with.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "This Mac is not eligible for Apple Intelligence.": {
+      "comment": "Used in: Services/Runtime/AppleIntelligence/FoundationModelAvailabilityService.swift"
+    },
+    "This build’s source & license": {
+      "comment": "Used in: UI/Settings/Panes/About/AcknowledgementsView.swift"
+    },
+    "This file isn't a Cotypist user_inputs export (a JSON list of typing-history rows).": {
+      "comment": "Used in: Support/History/CotypistExportImporter.swift"
+    },
+    "This is how your¦ suggestions will look": {
+      "comment": "Appearance settings preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Settings/Components/Controls/GhostTextPreview.swift"
+    },
+    "This removes every recorded and imported entry and its encryption key. It can't be undone.": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "This server is outside your Mac. Typed text and any enabled context will leave your device.": {
+      "comment": "Used in: Models/Runtime/OpenAICompatibleEndpointModels.swift"
+    },
+    "Time": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Toggle Cotabby": {
+      "comment": "Used in: Models/Settings/SuggestionSettingsModel.swift, UI/Onboarding/Welcome/WelcomeKeybindStepView.swift, UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Token budget scales by your selected language. Multiple languages or a language Cotabby doesn't recognize use the English ratio.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Too many requests — please wait a moment and try again.": {
+      "comment": "Used in: Services/ModelManagement/HuggingFaceAPIClient.swift"
+    },
+    "Tracking": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Try “color”, “shortcut”, “battery”, or “privacy”.": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Turn Cotabby off everywhere without quitting the app.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Turn Cotabby on or off everywhere without quitting.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Turn Cotabby on or off globally without opening the menu bar.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Two quick permissions": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePermissionStepView.swift"
+    },
+    "Type / for dates, math, units, currency, and randoms.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Type / then a macro: dates (today, tmrw, next-fri), math (5+5=), units (10km to mi), currency ($100 to eur), or random (dice, random(1,6)). Then press your accept-word shortcut to insert the result.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Type :name to search and insert emoji inline.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Type `/` in any text field, then the macro. Press Tab to accept.": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Type a name like :smile to search inline, then press your accept-word shortcut to insert the selected emoji.": {
+      "comment": "Used in: UI/Settings/Panes/EmojiPaneView.swift"
+    },
+    "Type below and Cotabby completes as you go, using the same engine and settings it uses everywhere. Press Tab to accept the gray suggestion, Esc to dismiss.": {
+      "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift"
+    },
+    "Typing History": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Typing history couldn't be deleted: %@": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift"
+    },
+    "Typing history couldn't be opened, so it's paused to avoid overwriting it.": {
+      "comment": "Used in: Services/History/TypingHistoryStore.swift"
+    },
+    "Typos": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Unable to capture the frontmost window screenshot: %@": {
+      "comment": "Used in: Services/Visual/WindowScreenshotService.swift"
+    },
+    "Unavailable": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Unavailable while Screen Recording is off": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift"
+    },
+    "Unavailable while Screen Recording is off. Grant permission to help suggestions understand surrounding text.": {
+      "comment": "Used in: UI/Settings/Panes/GeneralPaneView.swift"
+    },
+    "Unbind this shortcut. No key will accept the whole suggestion at once.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Unbind this shortcut. No key will accept word-by-word.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Unbind this shortcut. No key will toggle Cotabby on or off.": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "Uninstall": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Unit conversion": {
+      "comment": "Used in: UI/InlineFeatures/MacroReferenceSheet.swift"
+    },
+    "Unknown version": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Updated every second while this pane is open. CPU can exceed 100% across multiple cores. Memory is the app's physical footprint. GPU is Cotabby's own share of the GPU, where the Open Source engine runs its model. Apple Intelligence and endpoint servers such as Ollama run outside Cotabby, so they don't count toward it. The line below the GPU graph covers every app on this Mac.": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Use Global": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Use My Typing History": {
+      "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift"
+    },
+    "Use Ollama Default": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift"
+    },
+    "Use a different engine or model by power source.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Use a different engine or model on battery vs. while plugged in. For example, Apple Intelligence on battery to save power and a larger local model while charging.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift"
+    },
+    "Use screen context": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/GeneralPaneView.swift, UI/Settings/SettingsIndex.swift"
+    },
+    "Use the local model for languages Apple Intelligence doesn't support.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Uses a %@ model, which may run slowly on this Mac.": {
+      "comment": "Used in: Support/Onboarding/OnboardingTemplateRecommender.swift"
+    },
+    "Uses a %@ model; may run slowly with less than 16 GB of memory.": {
+      "comment": "Used in: Support/Onboarding/OnboardingTemplateRecommender.swift"
+    },
+    "Uses global (%@)": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift"
+    },
+    "Uses the global shortcut (%@). Click Change to set a custom key for %@.": {
+      "comment": "Used in: UI/Settings/Panes/AppsPaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Uses the global shortcut (%1$@). Click Change to set a custom key for %2$@."
+          }
+        }
+      }
+    },
+    "Version %@": {
+      "comment": "Used in: UI/MenuBar/MenuBarView.swift, UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Version %@ (%@)": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Version %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Version, support, and licenses": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Visual context": {
+      "shouldTranslate": false
+    },
+    "We're building Cotabby in our spare time, one release at a time. If Cotabby has helped you, your support helps us keep improving it.": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Welcome to Cotabby": {
+      "comment": "Used in: App/Coordinators/WelcomeCoordinator.swift, UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "What Cotabby should call you.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "What should Cotabby call you?": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "What should Cotabby call you? (Optional)": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift"
+    },
+    "What the Accept Word key takes per press. Word inserts one word at a time; Phrase inserts up to the next sentence break.": {
+      "comment": "Used in: UI/Settings/Components/Controls/AcceptanceModePickerView.swift"
+    },
+    "What the model can reference": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "What's included": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeTemplateStepView.swift"
+    },
+    "When Apple Intelligence doesn't support the language you're writing in, suggest with %@ instead. Turn off to get no suggestion in those languages.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "When accepting a suggestion finishes a word, also add a space so you can keep typing. Skipped when it already ends in punctuation or a space.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "When you accept a word, also accept the punctuation that follows it (commas, periods) so you don't have to type it.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Where Cotabby stays quiet": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Where downloaded model files are stored on this Mac.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Where downloaded model files live on this Mac.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Whether Cotabby can reach the server and list its models.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Whether the accept key takes a word or a phrase.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Whether the local model is loaded and ready to generate. Loading takes a few seconds the first time.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Whether the local model is loaded and ready.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Whether this Mac can run Apple Intelligence.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Whether this Mac can run Apple Intelligence. Requires a supported Apple Silicon Mac with Apple Intelligence turned on in System Settings.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "Which downloaded model file generates suggestions. Larger models are slower but write better.": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift"
+    },
+    "Which downloaded model generates suggestions.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Which downloaded model the language fallback uses.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "Wiki & Contributor Guide": {
+      "comment": "Used in: UI/Settings/Panes/About/AboutPaneView.swift"
+    },
+    "Withheld (%lld)": {
+      "comment": "Used in: UI/Settings/Panes/PerformancePaneView.swift"
+    },
+    "Woman": {
+      "comment": "Used in: Models/Emoji/EmojiPickerModels.swift"
+    },
+    "Word": {
+      "comment": "Used in: UI/Settings/Components/Controls/AcceptanceModePickerView.swift"
+    },
+    "Word Dictionaries": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Works everywhere": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Write faster, ¦everywhere you type": {
+      "comment": "Home hero tagline preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "Writing": {
+      "comment": "Used in: UI/Settings/SettingsCategory.swift"
+    },
+    "Writing style": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift"
+    },
+    "You're all set": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Your model is ready": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomeView.swift"
+    },
+    "Your name": {
+      "comment": "Used in: UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift"
+    },
+    "Your name and languages are passed to the AI to help personalize your completions.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Your name, languages, and rules are passed to the AI to help personalize your completions.": {
+      "comment": "Used in: UI/Settings/Panes/WritingPaneView.swift"
+    },
+    "Your own style rules passed to the model.": {
+      "comment": "Used in: UI/Settings/SettingsIndex.swift"
+    },
+    "all set": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "another shortcut": {
+      "comment": "Used in: UI/Settings/Components/Controls/KeyRecorderView.swift"
+    },
+    "aria2c download failed (exit code %d): %@": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "aria2c download failed (exit code %1$d): %2$@"
+          }
+        }
+      }
+    },
+    "aria2c executable was not found on the system.": {
+      "comment": "Used in: Services/ModelManagement/Aria2DownloadService.swift"
+    },
+    "context %lldc": {
+      "shouldTranslate": false
+    },
+    "focusSeq %llu": {
+      "shouldTranslate": false
+    },
+    "local": {
+      "comment": "Used in: Support/Onboarding/OnboardingTemplateRecommender.swift"
+    },
+    "needs attention": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    },
+    "phrase": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "word": {
+      "comment": "Used in: UI/Settings/Panes/ShortcutsPaneView.swift"
+    },
+    "your Open Source model": {
+      "comment": "Used in: UI/Settings/Panes/Engine/EngineAndModelPaneView+AppleIntelligence.swift"
+    },
+    "·": {
+      "shouldTranslate": false
+    },
+    "Русский (Russian)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "עברית (Hebrew)": {
+      "comment": "Used in: Models/Spelling/SpellingDictionaryCatalog.swift"
+    },
+    "•": {
+      "shouldTranslate": false
+    },
+    "→": {
+      "shouldTranslate": false
+    },
+    "⌘F": {
+      "comment": "Used in: UI/Settings/Panes/HomePaneView.swift"
+    }
+  },
+  "version": "1.0"
+}

@@ -337,3 +337,40 @@ PRs into `main` run:
 
 If CI fails because of your change, fix the root cause in the same PR. If the failure is unrelated
 infrastructure noise, note that clearly in the PR description.
+
+## UI Localization
+
+The interface follows the macOS app language preference. English is the source language;
+Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Spanish, Brazilian
+Portuguese, Italian, Russian, Arabic, Hindi, Indonesian, and Turkish are supported localizations.
+The interface language is independent of completion languages and model configuration.
+
+Fixed copy passed through a plain `String` boundary uses `String(localized:)` at its literal
+source. Direct SwiftUI literals use native localization. Keep user text, model identifiers,
+persistence keys, HTTP fields, prompts, parsing formats, and log messages unchanged. Settings
+search uses localized titles and summaries, with the existing English keywords as aliases.
+
+`Cotabby/Resources/Localizable.xcstrings` owns the common interface. The XcodeGen post-generation
+hook synchronizes project regions from the catalogs; adding a translation survives regeneration. Fork-only feature catalogs
+use an explicit `table` or `tableName`; they do not implicitly share the default lookup table.
+Completion demo sentences contain exactly one `¦` marker: translators may move it to fit the
+sentence, but must preserve it so the preview can distinguish typed text from ghost text.
+
+After building, synchronize source keys from the compiler-generated `.stringsdata` files using
+Xcode's String Catalog editor or `xcstringstool sync`. Do not guess interpolation types from
+lightweight extraction. Export a translator job and import one language at a time:
+
+```sh
+python3 scripts/localization.py export --output build/localization/source.json
+python3 scripts/localization.py merge --language ja --input build/localization/ja.json
+python3 scripts/localization.py validate
+python3 -m unittest discover -s scripts/tests -p test_localization.py
+```
+
+Jobs contain one object per catalog, mapping exact source keys to translated strings. Plural
+entries use the locale's plural-category object. Import validates complete coverage, format
+argument types and positions, escaped percent signs, line breaks, and preview markers before
+writing. Separate language jobs may run in parallel; only the integration step edits catalogs.
+Translations are authored by language agents without local inference or translation services;
+native-speaker review remains welcome. Check long labels and right-to-left layouts visually
+before release, as a structurally valid translation can still be awkward or clipped.

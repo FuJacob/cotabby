@@ -12,11 +12,11 @@ enum BundledRuntimeLocatorError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .runtimeDirectoryMissing(let path):
-            return "Runtime directory is missing at \(path)."
+            return String(localized: "Runtime directory is missing at \(path).")
         case .modelMissing(let path):
-            return "No GGUF model was found at \(path)."
+            return String(localized: "No GGUF model was found at \(path).")
         case .namedModelMissing(let filename):
-            return "The local model \(filename) was not found."
+            return String(localized: "The local model \(filename) was not found.")
         }
     }
 }

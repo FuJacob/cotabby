@@ -15,7 +15,7 @@ enum RuntimeBootstrapState: Equatable, Sendable {
     var summary: String {
         switch self {
         case .idle:
-            return "Idle"
+            return String(localized: "Idle")
         case .starting(let detail),
             .loading(let detail),
             .ready(let detail),
@@ -256,7 +256,7 @@ enum LlamaRuntimeError: LocalizedError {
         case .unavailable(let message), .generationFailed(let message):
             return message
         case .cancelled:
-            return "Runtime work was cancelled."
+            return String(localized: "Runtime work was cancelled.")
         }
     }
 }

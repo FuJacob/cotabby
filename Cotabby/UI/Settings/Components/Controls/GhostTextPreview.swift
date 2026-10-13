@@ -32,12 +32,19 @@ struct GhostTextPreview: View {
 
     /// The whole sentence reads naturally with the ghost half completing the typed half, and labels
     /// itself as a sample so the user understands this is a preview rather than a real input.
-    private let typedText = "This is how your "
-    private let ghostText = "suggestions will look"
+    private let preview = CompletionPreviewText(
+        resolvedSentence: String(
+            localized: "This is how your¦ suggestions will look",
+            comment: """
+            Appearance settings preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; \
+            move it to fit the translated sentence naturally.
+            """
+        )
+    )
 
     var body: some View {
-        let sample = Text(typedText).foregroundStyle(.primary)
-            + Text(ghostText).foregroundStyle(ghostColor.opacity(opacity))
+        let sample = Text(preview.typedText).foregroundStyle(.primary)
+            + Text(preview.ghostText).foregroundStyle(ghostColor.opacity(opacity))
 
         return sample
             .font(.system(size: fontSize))

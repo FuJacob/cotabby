@@ -13,9 +13,11 @@ struct EmojiPaneView: View {
             Section("Emoji Picker") {
                 Toggle(isOn: emojiPickerEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Inline Emoji Picker",
-                        description: "Type a name like :smile to search inline, then press your accept-word " +
-                            "shortcut to insert the selected emoji.",
+                        title: String(localized: "Inline Emoji Picker"),
+                        description: String(localized: """
+                        Type a name like :smile to search inline, then press your accept-word shortcut to insert the \
+                        selected emoji.
+                        """),
                         systemImage: "face.smiling"
                     )
                 }
@@ -32,9 +34,11 @@ struct EmojiPaneView: View {
                         }
                     } label: {
                         SettingsRowLabel(
-                            title: "Skin Tone",
-                            description: "For non-default tones, suggestions show your selected tone first " +
-                                "and keep the default emoji next.",
+                            title: String(localized: "Skin Tone"),
+                            description: String(localized: """
+                            For non-default tones, suggestions show your selected tone first and keep the default \
+                            emoji next.
+                            """),
                             systemImage: "hand.raised.fingers.spread"
                         )
                     }
@@ -48,8 +52,8 @@ struct EmojiPaneView: View {
                         }
                     } label: {
                         SettingsRowLabel(
-                            title: "People Emoji Style",
-                            description: "Choose person, man, or woman variants when an emoji offers them.",
+                            title: String(localized: "People Emoji Style"),
+                            description: String(localized: "Choose person, man, or woman variants when an emoji offers them."),
                             systemImage: "person.2"
                         )
                     }
@@ -61,8 +65,8 @@ struct EmojiPaneView: View {
                         }
                     } label: {
                         SettingsRowLabel(
-                            title: "Emoji History",
-                            description: "Forget recently and frequently used emoji so the picker ranks from scratch.",
+                            title: String(localized: "Emoji History"),
+                            description: String(localized: "Forget recently and frequently used emoji so the picker ranks from scratch."),
                             systemImage: "clock.arrow.circlepath"
                         )
                     }
@@ -117,9 +121,9 @@ struct EmojiPaneView: View {
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help("\(tone.displayName) skin tone")
+        .help(String(localized: "\(tone.displayName) skin tone"))
         .accessibilityLabel("\(tone.displayName) skin tone")
-        .accessibilityValue(isSelected ? "Selected" : "")
+        .accessibilityValue(isSelected ? String(localized: "Selected") : "")
     }
 
     @ViewBuilder
@@ -158,6 +162,6 @@ struct EmojiPaneView: View {
         .buttonStyle(.plain)
         .help("\(gender.displayName) variant")
         .accessibilityLabel("\(gender.displayName) variant")
-        .accessibilityValue(isSelected ? "Selected" : "")
+        .accessibilityValue(isSelected ? String(localized: "Selected") : "")
     }
 }

@@ -15,9 +15,11 @@ struct TypingHistorySectionView: View {
         Section("Typing History") {
             Toggle(isOn: Binding(get: { store.preferences.isUsingHistory }, set: { store.setUsingHistory($0) })) {
                 SettingsRowLabel(
-                    title: "Use My Typing History",
-                    description: "Finishes phrases you often type and shows the model examples of how you " +
-                        "write. Only Apple Intelligence and the local model use it; it is never sent to an endpoint.",
+                    title: String(localized: "Use My Typing History"),
+                    description: String(localized: """
+                    Finishes phrases you often type and shows the model examples of how you write. Only Apple \
+                    Intelligence and the local model use it; it is never sent to an endpoint.
+                    """),
                     systemImage: "clock.arrow.circlepath"
                 )
             }
@@ -25,9 +27,11 @@ struct TypingHistorySectionView: View {
 
             Toggle(isOn: Binding(get: { store.preferences.isRecording }, set: { store.setRecording($0) })) {
                 SettingsRowLabel(
-                    title: "Record What I Type",
-                    description: "Saves the text of fields where Cotabby is active, encrypted on this Mac. " +
-                        "Password fields, terminals, and disabled apps are never recorded.",
+                    title: String(localized: "Record What I Type"),
+                    description: String(localized: """
+                    Saves the text of fields where Cotabby is active, encrypted on this Mac. Password fields, \
+                    terminals, and disabled apps are never recorded.
+                    """),
                     systemImage: "record.circle"
                 )
             }
@@ -83,29 +87,32 @@ struct TypingHistorySectionView: View {
     }
 
     private var deleteAllConfirmationTitle: String {
-        store.recordCount > 0 ? "Delete All \(store.recordCount) Entries" : "Delete Typing History"
+        store.recordCount > 0 ? String(localized: "Delete All \(store.recordCount) Entries") : String(localized: "Delete Typing History")
     }
 
     private var entryCountLabel: String {
         switch store.status {
-        case .loading: return "Opening typing history…"
-        case .unavailable: return "Stored history can't be read"
-        case .ready: return store.recordCount == 1 ? "1 entry stored" : "\(store.recordCount) entries stored"
+        case .loading: return String(localized: "Opening typing history…")
+        case .unavailable: return String(localized: "Stored history can't be read")
+        case .ready:
+            return store.recordCount == 1
+                ? String(localized: "1 entry stored")
+                : String(localized: "\(store.recordCount) entries stored")
         }
     }
 
     private var statusMessage: (text: String, isError: Bool)? {
         if let deletionError = store.deletionError { return (deletionError, true) }
         if case let .unavailable(message) = store.status { return (message, true) }
-        if store.isImporting { return ("Importing…", false) }
+        if store.isImporting { return (String(localized: "Importing…"), false) }
         return store.lastImportMessage.map { ($0, false) }
     }
 
     /// Asks for the `user_inputs.json` file from a decrypted Cotypist export.
     private func chooseExportToImport() {
         let panel = NSOpenPanel()
-        panel.title = "Import Cotypist Export"
-        panel.message = "Choose user_inputs.json from your Cotypist export."
+        panel.title = String(localized: "Import Cotypist Export")
+        panel.message = String(localized: "Choose user_inputs.json from your Cotypist export.")
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -114,7 +121,7 @@ struct TypingHistorySectionView: View {
 
     private func chooseAppToExclude() {
         let panel = NSOpenPanel()
-        panel.title = "Don't Record in an App"
+        panel.title = String(localized: "Don't Record in an App")
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.allowedContentTypes = [.application]
         panel.allowsMultipleSelection = false

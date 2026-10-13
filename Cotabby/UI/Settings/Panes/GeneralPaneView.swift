@@ -20,8 +20,8 @@ struct GeneralPaneView: View {
             Section("Status") {
                 Toggle(isOn: globallyEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Enable Globally",
-                        description: "Turn Cotabby off everywhere without quitting the app.",
+                        title: String(localized: "Enable Globally"),
+                        description: String(localized: "Turn Cotabby off everywhere without quitting the app."),
                         systemImage: "power"
                     )
                 }
@@ -32,8 +32,8 @@ struct GeneralPaneView: View {
                 // it in System Settings while Cotabby is open.
                 LaunchAtLogin.Toggle {
                     SettingsRowLabel(
-                        title: "Open at Login",
-                        description: "Start Cotabby automatically when you log in to your Mac.",
+                        title: String(localized: "Open at Login"),
+                        description: String(localized: "Start Cotabby automatically when you log in to your Mac."),
                         systemImage: "arrow.right.circle"
                     )
                 }
@@ -47,7 +47,7 @@ struct GeneralPaneView: View {
             Section("Context") {
                 Toggle(isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Use screen context",
+                        title: String(localized: "Use screen context"),
                         description: screenContextDescription,
                         systemImage: "text.viewfinder"
                     )
@@ -57,8 +57,8 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: clipboardContextEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Include Clipboard Context",
-                        description: "Let suggestions reference whatever you most recently copied.",
+                        title: String(localized: "Include Clipboard Context"),
+                        description: String(localized: "Let suggestions reference whatever you most recently copied."),
                         systemImage: "doc.on.clipboard"
                     )
                 }
@@ -66,9 +66,11 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: surfaceContextEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Include App Context",
-                        description: "Include the app and window name in suggestions. " +
-                            "With an endpoint selected, this context is sent to that server.",
+                        title: String(localized: "Include App Context"),
+                        description: String(localized: """
+                        Include the app and window name in suggestions. With an endpoint selected, this context is \
+                        sent to that server.
+                        """),
                         systemImage: "macwindow"
                     )
                 }
@@ -78,9 +80,11 @@ struct GeneralPaneView: View {
             Section("Suggestions") {
                 Toggle(isOn: predictAheadWhileTypingBinding) {
                     SettingsRowLabel(
-                        title: "Predict Ahead While Typing",
-                        description: "Keep on-device predictions ready as you type, then show matching suggestions " +
-                            "when you pause. May use more power. Applies to Apple Intelligence and Open Source models.",
+                        title: String(localized: "Predict Ahead While Typing"),
+                        description: String(localized: """
+                        Keep on-device predictions ready as you type, then show matching suggestions when you pause. \
+                        May use more power. Applies to Apple Intelligence and Open Source models.
+                        """),
                         systemImage: "bolt.horizontal.circle"
                     )
                 }
@@ -88,9 +92,11 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: suggestWithinWordsBinding) {
                     SettingsRowLabel(
-                        title: "Suggest while typing a word",
-                        description: "Show new suggestions before you finish a word. Turn off to wait for a space " +
-                            "or punctuation. Suggestions already on screen still follow your typing.",
+                        title: String(localized: "Suggest while typing a word"),
+                        description: String(localized: """
+                        Show new suggestions before you finish a word. Turn off to wait for a space or punctuation. \
+                        Suggestions already on screen still follow your typing.
+                        """),
                         systemImage: "text.cursor"
                     )
                 }
@@ -98,9 +104,11 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: showFollowingWordsBinding) {
                     SettingsRowLabel(
-                        title: "Show following words",
-                        description: "Preview the phrase after the current word. Turn off to see one word at a time; " +
-                            "the next words stay ready as you finish typing or accept each word.",
+                        title: String(localized: "Show following words"),
+                        description: String(localized: """
+                        Preview the phrase after the current word. Turn off to see one word at a time; the next \
+                        words stay ready as you finish typing or accept each word.
+                        """),
                         systemImage: "text.word.spacing"
                     )
                 }
@@ -108,8 +116,10 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: multiLineEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Allow Multi-line Suggestions",
-                        description: "Allow continuations that span more than one line. Off keeps suggestions to a single line.",
+                        title: String(localized: "Allow Multi-line Suggestions"),
+                        description: String(localized: """
+                        Allow continuations that span more than one line. Off keeps suggestions to a single line.
+                        """),
                         systemImage: "text.alignleft"
                     )
                 }
@@ -117,10 +127,12 @@ struct GeneralPaneView: View {
 
                 Toggle(isOn: macroExpansionEnabledBinding) {
                     SettingsRowLabel(
-                        title: "Inline Macros",
-                        description: "Type / then a macro: dates (today, tmrw, next-fri), math (5+5=), " +
-                            "units (10km to mi), currency ($100 to eur), or random (dice, random(1,6)). " +
-                            "Then press your accept-word shortcut to insert the result.",
+                        title: String(localized: "Inline Macros"),
+                        description: String(localized: """
+                        Type / then a macro: dates (today, tmrw, next-fri), math (5+5=), units (10km to mi), \
+                        currency ($100 to eur), or random (dice, random(1,6)). Then press your accept-word shortcut \
+                        to insert the result.
+                        """),
                         systemImage: "slash.circle"
                     )
                 }
@@ -134,9 +146,11 @@ struct GeneralPaneView: View {
                     set: { suggestionSettings.setShowDevelopmentDebugOverlays($0) }
                 )) {
                     SettingsRowLabel(
-                        title: "Show Development Debug Overlays",
-                        description: "Show caret and field outlines, focus polling, and screen-context status. " +
-                            "Changes apply immediately.",
+                        title: String(localized: "Show Development Debug Overlays"),
+                        description: String(localized: """
+                        Show caret and field outlines, focus polling, and screen-context status. Changes apply \
+                        immediately.
+                        """),
                         systemImage: "ladybug"
                     )
                 }
@@ -151,8 +165,8 @@ struct GeneralPaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Onboarding",
-                        description: "Replay the first-run setup walkthrough.",
+                        title: String(localized: "Onboarding"),
+                        description: String(localized: "Replay the first-run setup walkthrough."),
                         systemImage: "graduationcap"
                     )
                 }
@@ -166,9 +180,11 @@ struct GeneralPaneView: View {
                     }
                 } label: {
                     SettingsRowLabel(
-                        title: "Reset All Settings",
-                        description: "Restore every Cotabby setting to its original default. This does not change " +
-                            "macOS permissions, your Open at Login choice, or your accepted-word count.",
+                        title: String(localized: "Reset All Settings"),
+                        description: String(localized: """
+                        Restore every Cotabby setting to its original default. This does not change macOS \
+                        permissions, your Open at Login choice, or your accepted-word count.
+                        """),
                         systemImage: "arrow.counterclockwise"
                     )
                 }
@@ -228,10 +244,12 @@ struct GeneralPaneView: View {
 
     private var screenContextDescription: String {
         if screenContextUnavailable {
-            return "Unavailable while Screen Recording is off. Grant permission to help suggestions " +
-                "understand surrounding text."
+            return String(localized: """
+            Unavailable while Screen Recording is off. Grant permission to help suggestions understand surrounding \
+            text.
+            """)
         }
-        return "Help suggestions understand surrounding text using screenshots of the focused window."
+        return String(localized: "Help suggestions understand surrounding text using screenshots of the focused window.")
     }
 
     private var multiLineEnabledBinding: Binding<Bool> {

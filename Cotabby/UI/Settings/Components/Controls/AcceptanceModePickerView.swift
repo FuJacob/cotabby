@@ -18,9 +18,11 @@ struct AcceptanceModePickerView: View {
             Text("Phrase").tag(AcceptanceGranularity.phrase)
         } label: {
             SettingsRowLabel(
-                title: "Acceptance Mode",
-                description: "What the Accept Word key takes per press. Word inserts one word at a time; " +
-                    "Phrase inserts up to the next sentence break.",
+                title: String(localized: "Acceptance Mode"),
+                description: String(localized: """
+                What the Accept Word key takes per press. Word inserts one word at a time; Phrase inserts up to the \
+                next sentence break.
+                """),
                 systemImage: "textformat.abc"
             )
         }
