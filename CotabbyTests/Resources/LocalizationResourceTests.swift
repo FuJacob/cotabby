@@ -24,6 +24,25 @@ struct LocalizationResourceTests {
         #expect(!description.isEmpty)
         #expect(description != "Turn Cotabby off everywhere without quitting the app.")
 
+        let interfaceLanguage = String(localized: "Interface Language", bundle: bundle, locale: locale)
+        let followSystem = String(localized: "Follow System", bundle: bundle, locale: locale)
+        let restartNow = String(localized: "Restart Now", bundle: bundle, locale: locale)
+        #expect(!interfaceLanguage.isEmpty)
+        #expect(interfaceLanguage != "Interface Language")
+        #expect(!followSystem.isEmpty)
+        #expect(followSystem != "Follow System")
+        #expect(!restartNow.isEmpty)
+        #expect(restartNow != "Restart Now")
+
+        let code = "xx-ZZ"
+        let unsupportedLanguage = String(
+            localized: "Existing app language: \(code)",
+            bundle: bundle,
+            locale: locale
+        )
+        #expect(unsupportedLanguage.contains(code))
+        #expect(!unsupportedLanguage.contains("%@"))
+
         let example = String(localized: "Thanks for the¦ quick reply!", bundle: bundle, locale: locale)
         #expect(example.components(separatedBy: "¦").count == 2)
         #expect(example != "Thanks for the¦ quick reply!")

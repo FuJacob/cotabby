@@ -340,7 +340,11 @@ infrastructure noise, note that clearly in the PR description.
 
 ## UI Localization
 
-The interface follows the macOS app language preference. English is the source language;
+Choose an interface language under Settings → General → Interface Language. Follow System uses
+the macOS language preference; an explicit choice overrides it for Cotabby only. A changed choice
+takes effect after restarting the app. Restart Now uses the normal shutdown path before reopening
+the same app bundle and Settings, so runtime resources are released before the next instance starts.
+English is the source language;
 Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Spanish, Brazilian
 Portuguese, Italian, Russian, Arabic, Hindi, Indonesian, and Turkish are supported localizations.
 The interface language is independent of completion languages and model configuration.
@@ -374,3 +378,7 @@ writing. Separate language jobs may run in parallel; only the integration step e
 Translations are authored by language agents without local inference or translation services;
 native-speaker review remains welcome. Check long labels and right-to-left layouts visually
 before release, as a structurally valid translation can still be awkward or clipped.
+
+The shared test scheme runs in English because existing search fixtures assert English titles.
+Compiled-resource tests explicitly check every translated locale. When checking a non-English
+test host, select the localization and interface-language suites rather than the English fixtures.

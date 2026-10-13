@@ -24,6 +24,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showFollowingWords
     case inlineMacros
     case onboarding
+    case interfaceLanguage
     case resetAllSettings
     #if DEBUG
     case developmentDebugOverlays
@@ -126,6 +127,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return String(localized: "Add Space After Accepting")
         case .inlineMacros: return String(localized: "Inline Macros")
         case .onboarding: return String(localized: "Onboarding")
+        case .interfaceLanguage: return String(localized: "Interface Language")
         case .resetAllSettings: return String(localized: "Reset All Settings")
         #if DEBUG
         case .developmentDebugOverlays: return String(localized: "Show Development Debug Overlays")
@@ -214,6 +216,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
+        case .interfaceLanguage: return "globe"
         case .resetAllSettings: return "arrow.counterclockwise"
         #if DEBUG
         case .developmentDebugOverlays: return "ladybug"
@@ -294,7 +297,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         #endif
         case .enableGlobally, .useScreenContext, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
-             .inlineMacros, .onboarding, .resetAllSettings:
+             .inlineMacros, .onboarding, .interfaceLanguage, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
@@ -350,6 +353,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return String(localized: "Add a space when an accept finishes a word.")
         case .inlineMacros: return String(localized: "Type / for dates, math, units, currency, and randoms.")
         case .onboarding: return String(localized: "Replay the first-run setup walkthrough.")
+        case .interfaceLanguage:
+            return String(localized: "Choose the language used in Cotabby's interface. Changes apply after restarting.")
         case .resetAllSettings: return String(localized: "Restore every Cotabby setting to its original default.")
         #if DEBUG
         case .developmentDebugOverlays: return String(localized: "Show caret, field, focus polling, and screen-context debug panels.")
@@ -474,6 +479,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding:
             return ["welcome", "guide", "tutorial", "intro", "help", "getting started",
                     "first run", "walkthrough"]
+        case .interfaceLanguage:
+            return ["interface", "language", "locale", "localization", "display", "system", "restart"]
         case .resetAllSettings:
             return ["reset", "defaults", "default", "restore", "factory reset", "factory settings",
                     "clear settings", "start over", "revert", "wipe", "erase", "restore defaults",

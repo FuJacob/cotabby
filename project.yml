@@ -218,6 +218,9 @@ schemes:
         -cotabby-debug: true
     test:
       config: Debug
+      # Existing search/ranking fixtures assert English titles. Resource tests select each locale
+      # explicitly; keep these fixtures independent of the contributor's macOS/app preference.
+      language: en
       gatherCoverageData: false
       targets:
         - CotabbyTests

@@ -15,6 +15,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let permissionManager: PermissionManager
     private let permissionGuidanceController: PermissionGuidanceController
     private let suggestionSettings: SuggestionSettingsModel
+    private let interfaceLanguageSettings: InterfaceLanguageSettingsModel
     private let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
@@ -26,6 +27,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
     private let typingHistoryStore: TypingHistoryStore
+    private let applicationRelauncher = ApplicationRelauncher()
 
     private var settingsWindowController: NSWindowController?
 
@@ -41,6 +43,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         permissionManager: PermissionManager,
         permissionGuidanceController: PermissionGuidanceController,
         suggestionSettings: SuggestionSettingsModel,
+        interfaceLanguageSettings: InterfaceLanguageSettingsModel,
         openAICompatibleConnectionModel: OpenAICompatibleConnectionModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
@@ -57,6 +60,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.permissionManager = permissionManager
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
+        self.interfaceLanguageSettings = interfaceLanguageSettings
         self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
@@ -87,6 +91,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     permissionManager: permissionManager,
                     permissionGuidanceController: permissionGuidanceController,
                     suggestionSettings: suggestionSettings,
+                    interfaceLanguageSettings: interfaceLanguageSettings,
                     openAICompatibleConnectionModel: openAICompatibleConnectionModel,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
                     runtimeModel: runtimeModel,
@@ -96,6 +101,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     qualityMetricsStore: qualityMetricsStore,
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
+                    onRestart: { [applicationRelauncher] in try applicationRelauncher.restart() },
                     clearEmojiHistory: clearEmojiHistory,
                     typingHistoryStore: typingHistoryStore,
                     onQuit: { NSApplication.shared.terminate(nil) }

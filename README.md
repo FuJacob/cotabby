@@ -148,6 +148,11 @@ Start typing in almost any text field. When a gray suggestion appears:
 
 Every shortcut is rebindable under Settings → Shortcuts.
 
+Choose the interface language under Settings → General → Interface Language. Cotabby supports
+English and 14 translated languages, or Follow System. Changes apply after restarting; the
+Restart Now button reopens Cotabby and Settings. This choice affects the interface independently
+of the languages used for autocomplete.
+
 ## Permissions
 
 Cotabby works inside other apps, so macOS asks for a few permissions. Each one maps to a specific feature, and Cotabby walks you through them on first launch:

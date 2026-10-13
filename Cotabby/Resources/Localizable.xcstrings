@@ -10097,6 +10097,95 @@
         }
       }
     },
+    "Choose the language used in Cotabby's interface. Changes apply after restarting.": {
+      "comment": "SettingsRowLabel description under the language Picker.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اختر لغة واجهة Cotabby. تُطبّق التغييرات بعد إعادة تشغيل التطبيق."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle die Sprache der Cotabby-Oberfläche. Änderungen werden nach einem Neustart wirksam."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el idioma de la interfaz de Cotabby. Los cambios se aplican al reiniciar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez la langue de l’interface de Cotabby. Les modifications prennent effet après le redémarrage."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby के इंटरफ़ेस की भाषा चुनें। बदलाव ऐप को फिर से शुरू करने के बाद लागू होंगे।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pilih bahasa antarmuka Cotabby. Perubahan berlaku setelah aplikasi dimulai ulang."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli la lingua dell’interfaccia di Cotabby. Le modifiche si applicano dopo il riavvio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabbyのインターフェイスで使用する言語を選択します。変更は再起動後に反映されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby 인터페이스에 사용할 언어를 선택합니다. 변경 사항은 재시동 후 적용됩니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escolha o idioma da interface do Cotabby. As alterações são aplicadas após reiniciar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите язык интерфейса Cotabby. Изменения вступят в силу после перезапуска."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby arayüzünde kullanılacak dili seçin. Değişiklikler yeniden başlatma sonrasında uygulanır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Cotabby 界面使用的语言。重启后生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 Cotabby 介面使用的語言。重新啟動後生效。"
+          }
+        }
+      }
+    },
     "Choose user_inputs.json from your Cotypist export.": {
       "comment": "Used in: UI/Settings/Panes/TypingHistorySectionView.swift",
       "localizations": {
@@ -12448,6 +12537,95 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cotabby 設定"
+          }
+        }
+      }
+    },
+    "Cotabby could not restart. Quit and reopen it to apply the selected language.": {
+      "comment": "Error shown if relaunch helper cannot launch. The app remains running; language choice stays saved for a later restart. Give the user the manual recovery step.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذرت إعادة تشغيل Cotabby. أغلق Cotabby ثم افتحه مجددًا لتطبيق اللغة المحددة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby konnte nicht neu gestartet werden. Beende die App und öffne sie erneut, um die ausgewählte Sprache anzuwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo reiniciar Cotabby. Cierra la app y vuelve a abrirla para aplicar el idioma seleccionado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby n’a pas pu redémarrer. Quittez puis rouvrez l’app pour appliquer la langue choisie."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby को फिर से शुरू नहीं किया जा सका। चुनी गई भाषा लागू करने के लिए इसे बंद करके फिर खोलें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby tidak dapat dimulai ulang. Tutup lalu buka kembali Cotabby untuk menerapkan bahasa yang dipilih."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby non è riuscito a riavviarsi. Chiudi e riapri l’app per applicare la lingua selezionata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabbyを再起動できませんでした。選択した言語を適用するには、Cotabbyを終了して再度開いてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby를 재시동하지 못했습니다. 선택한 언어를 적용하려면 Cotabby를 종료한 뒤 다시 실행하세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível reiniciar o Cotabby. Feche o app e abra-o novamente para aplicar o idioma selecionado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось перезапустить Cotabby. Закройте Cotabby и откройте его снова, чтобы применить выбранный язык."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby yeniden başlatılamadı. Seçilen dili uygulamak için uygulamayı kapatıp yeniden açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby 无法重启。请退出并重新打开 Cotabby，以应用所选语言。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cotabby 無法重新啟動。請結束並重新開啟 Cotabby，以套用所選語言。"
           }
         }
       }
@@ -20498,6 +20676,95 @@
         }
       }
     },
+    "Existing app language: %@": {
+      "comment": "Conditional Picker option for an unsupported pre-existing macOS app-language override. %@ is a verbatim locale code. Keep the single %@ placeholder.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لغة التطبيق الحالية: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuelle App-Sprache: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma actual de la app: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue actuelle de l’app : %@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऐप की मौजूदा भाषा: %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bahasa aplikasi saat ini: %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lingua attuale dell’app: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在のアプリの言語：%@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 앱 언어: %@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma atual do app: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущий язык приложения: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mevcut uygulama dili: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前应用语言：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前的 App 語言：%@"
+          }
+        }
+      }
+    },
     "Extended Context": {
       "comment": "Used in: UI/Settings/Panes/ContextPaneView.swift, UI/Settings/SettingsIndex.swift",
       "localizations": {
@@ -21651,6 +21918,95 @@
           "stringUnit": {
             "state": "translated",
             "value": "資料夾"
+          }
+        }
+      }
+    },
+    "Follow System": {
+      "comment": "Picker option that removes the app-only language override, using macOS language preference.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اتباع لغة النظام"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS-Sprache verwenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar el idioma de macOS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser la langue de macOS"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिस्टम की भाषा अपनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikuti bahasa sistem"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa la lingua di macOS"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システムの言語に従う"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 언어 사용"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar o idioma do macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Язык системы"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem dilini kullan"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨系統"
           }
         }
       }
@@ -23795,7 +24151,7 @@
       }
     },
     "Here's the¦ final draft.": {
-      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/Welcome/WelcomeHeroDemo.swift",
+      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.",
       "localizations": {
         "ar": {
           "stringUnit": {
@@ -27894,6 +28250,184 @@
         }
       }
     },
+    "Interface": {
+      "comment": "General settings Section heading for interface language. Refers to the app user interface.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الواجهة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzeroberfläche"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interfaz"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इंटरफ़ेस"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antarmuka"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interfaccia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インターフェイス"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인터페이스"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arayüz"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "界面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介面"
+          }
+        }
+      }
+    },
+    "Interface Language": {
+      "comment": "General settings title and searchable setting name. Interface language, not completion language.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لغة الواجهة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprache der Benutzeroberfläche"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma de la interfaz"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue de l’interface"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इंटरफ़ेस की भाषा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bahasa antarmuka"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lingua dell’interfaccia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インターフェイスの言語"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인터페이스 언어"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma da interface"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Язык интерфейса"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arayüz Dili"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "界面语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介面語言"
+          }
+        }
+      }
+    },
     "Invalid HuggingFace API URL.": {
       "comment": "Used in: Services/ModelManagement/HuggingFaceAPIClient.swift",
       "localizations": {
@@ -30298,7 +30832,7 @@
       }
     },
     "Let's meet¦ tomorrow at 10.": {
-      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/Welcome/WelcomeHeroDemo.swift",
+      "comment": "Welcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.",
       "localizations": {
         "ar": {
           "stringUnit": {
@@ -45715,6 +46249,273 @@
         }
       }
     },
+    "Restart Cotabby to apply the selected interface language.": {
+      "comment": "Pending-change notice, entire interface switches after app restart.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعد تشغيل Cotabby لتطبيق لغة الواجهة المحددة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starte Cotabby neu, um die ausgewählte Sprache der Benutzeroberfläche anzuwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicia Cotabby para aplicar el idioma de la interfaz seleccionado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrez Cotabby pour appliquer la langue d’interface choisie."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "चुनी गई इंटरफ़ेस भाषा लागू करने के लिए Cotabby को फिर से शुरू करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mulai ulang Cotabby untuk menerapkan bahasa antarmuka yang dipilih."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvia Cotabby per applicare la lingua dell’interfaccia selezionata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したインターフェイス言語を適用するには、Cotabbyを再起動してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 인터페이스 언어를 적용하려면 Cotabby를 재시동하세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicie o Cotabby para aplicar o idioma da interface selecionado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустите Cotabby, чтобы применить выбранный язык интерфейса."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçilen arayüz dilini uygulamak için Cotabby'yi yeniden başlatın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启 Cotabby 以应用所选界面语言。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動 Cotabby 以套用所選介面語言。"
+          }
+        }
+      }
+    },
+    "Restart Now": {
+      "comment": "Native button action that gracefully quits and reopens Cotabby.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعد التشغيل الآن"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt neu starten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar ahora"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer maintenant"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अभी फिर से शुरू करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mulai ulang sekarang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvia ora"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ再起動"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 재시동"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar agora"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустить сейчас"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi yeniden başlat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即重启"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即重新啟動"
+          }
+        }
+      }
+    },
+    "Restart Required": {
+      "comment": "SettingsRowLabel title next to the restart button when language change is pending.",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يلزم إعادة التشغيل"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neustart erforderlich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es necesario reiniciar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrage requis"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिर से शुरू करना ज़रूरी है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perlu dimulai ulang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvio necessario"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動が必要です"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재시동 필요"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "É necessário reiniciar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуется перезапуск"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden başlatma gerekli"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要重启"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要重新啟動"
+          }
+        }
+      }
+    },
     "Restore every Cotabby setting to its original default.": {
       "comment": "Used in: UI/Settings/SettingsIndex.swift",
       "localizations": {
@@ -54008,7 +54809,7 @@
       }
     },
     "Thanks for the¦ quick reply!": {
-      "comment": "Onboarding autocomplete demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nWelcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Onboarding/OnboardingFeatureShowcase.swift, UI/Onboarding/Welcome/WelcomeHeroDemo.swift",
+      "comment": "Onboarding autocomplete demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nWelcome hero completion demo. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.",
       "localizations": {
         "ar": {
           "stringUnit": {
@@ -56411,7 +57212,7 @@
       }
     },
     "This is how your¦ suggestions will look": {
-      "comment": "Appearance settings preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Settings/Components/Controls/GhostTextPreview.swift",
+      "comment": "Appearance settings preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.",
       "localizations": {
         "ar": {
           "stringUnit": {
@@ -63279,7 +64080,7 @@
       }
     },
     "Write faster, ¦everywhere you type": {
-      "comment": "Home hero tagline preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.\nUsed in: UI/Settings/Panes/HomePaneView.swift",
+      "comment": "Home hero tagline preview. Keep exactly one ¦ to mark where typed text ends and ghost text begins; move it to fit the translated sentence naturally.",
       "localizations": {
         "ar": {
           "stringUnit": {

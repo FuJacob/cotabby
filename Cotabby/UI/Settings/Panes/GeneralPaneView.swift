@@ -9,7 +9,9 @@ import SwiftUI
 struct GeneralPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var permissionManager: PermissionManager
+    @ObservedObject var interfaceLanguageSettings: InterfaceLanguageSettingsModel
     let onShowWelcome: () -> Void
+    let onRestart: () throws -> Void
 
     /// Gates the destructive reset behind an explicit confirmation so a stray click can't wipe a
     /// user's entire configuration.
@@ -17,6 +19,11 @@ struct GeneralPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
+            InterfaceLanguageSectionView(
+                languageSettings: interfaceLanguageSettings,
+                onRestart: onRestart
+            )
+
             Section("Status") {
                 Toggle(isOn: globallyEnabledBinding) {
                     SettingsRowLabel(
@@ -198,6 +205,7 @@ struct GeneralPaneView: View {
         ) {
             Button("Reset All Settings", role: .destructive) {
                 suggestionSettings.resetToDefaults()
+                interfaceLanguageSettings.resetToFollowSystem()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
