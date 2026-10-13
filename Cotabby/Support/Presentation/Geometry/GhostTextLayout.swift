@@ -55,6 +55,10 @@ struct GhostTextLayout: Equatable {
         let allowsMultipleRows: Bool
         /// Width reserved after the text for the accept-key pill (0 when hidden).
         let keycapWidth: CGFloat
+        /// The lowest screen y a row's box may reach: the field's bottom edge
+        /// (`GhostWrapBandPolicy.rowFloor`). A row that would reach below it is not drawn; the rows
+        /// above show the head of the text and the rest is revealed as the user accepts. Nil: no limit.
+        let rowFloor: CGFloat?
 
         init(
             fullText: String,
@@ -67,7 +71,8 @@ struct GhostTextLayout: Equatable {
             wrapBand: ClosedRange<CGFloat>? = nil,
             isRightToLeft: Bool = false,
             allowsMultipleRows: Bool = true,
-            keycapWidth: CGFloat = 0
+            keycapWidth: CGFloat = 0,
+            rowFloor: CGFloat? = nil
         ) {
             self.fullText = fullText
             self.consumedUTF16 = consumedUTF16
@@ -80,6 +85,7 @@ struct GhostTextLayout: Equatable {
             self.isRightToLeft = isRightToLeft
             self.allowsMultipleRows = allowsMultipleRows
             self.keycapWidth = keycapWidth
+            self.rowFloor = rowFloor
         }
 
         /// The same input with no room reserved for the accept-key pill.
@@ -95,7 +101,8 @@ struct GhostTextLayout: Equatable {
                 wrapBand: wrapBand,
                 isRightToLeft: isRightToLeft,
                 allowsMultipleRows: allowsMultipleRows,
-                keycapWidth: 0
+                keycapWidth: 0,
+                rowFloor: rowFloor
             )
         }
     }
@@ -231,11 +238,42 @@ struct GhostTextLayout: Equatable {
             rows.append(row(attributed, range: NSRange(location: start, length: breakIndex - start), penX: penX, baselineY: baselineY))
             start = breakIndex
             if start < total, let pitch = input.linePitch, let band = input.wrapBand {
+                if let floor = input.rowFloor, !rowFits(baselineY: baselineY - pitch, floor: floor, input) {
+                    return headEndingAtTheFloor(rows, attributed: attributed)
+                }
                 penX = band.lowerBound
                 baselineY -= pitch
             }
         }
         return rows.isEmpty ? nil : WrappedRows(rows: rows, isTruncated: false)
+    }
+
+    /// Whether a row on `baselineY` keeps its box (down to the descender side of the caret box) at
+    /// or above the field's floor.
+    private static func rowFits(baselineY: CGFloat, floor: CGFloat, _ input: Input) -> Bool {
+        baselineY - (input.boxHeight - input.baselineOffsetFromTop) >= floor
+    }
+
+    /// The rows that fit above the field's bottom edge, marked truncated. The last row loses its
+    /// trailing whitespace and hard line break, which have nothing to show at the end of the head.
+    /// Nil when nothing visible is left (the caret row held only a line break): no ghost beats an
+    /// empty one.
+    private static func headEndingAtTheFloor(_ rows: [Row], attributed: NSAttributedString) -> WrappedRows? {
+        guard let last = rows.last else { return nil }
+        let text = attributed.string as NSString
+        var end = NSMaxRange(last.utf16Range)
+        while end > last.utf16Range.location,
+              let scalar = Unicode.Scalar(text.character(at: end - 1)),
+              CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            end -= 1
+        }
+        var head = Array(rows.dropLast())
+        if end > last.utf16Range.location {
+            head.append(row(attributed, range: NSRange(location: last.utf16Range.location, length: end - last.utf16Range.location),
+                            penX: last.penX, baselineY: last.baselineY))
+        }
+        guard head.contains(where: { !$0.text.isEmpty }) else { return nil }
+        return WrappedRows(rows: head, isTruncated: true)
     }
 
     /// The one row a host without a second line gets: the head that fits, stopping short of a hard

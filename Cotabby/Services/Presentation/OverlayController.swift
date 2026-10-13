@@ -1337,7 +1337,9 @@ final class OverlayController: SuggestionOverlayControlling {
                 // the caret the ghost keeps to the caret row and reveals the rest as it is accepted.
                 // A single-line field has no line below at all: its text scrolls sideways.
                 allowsMultipleRows: !geometry.hasTrailingContent && !geometry.isSingleLineField,
-                keycapWidth: keycapWidth
+                keycapWidth: keycapWidth,
+                // Rows never reach below the field's own bottom edge (see `GhostWrapBandPolicy.rowFloor`).
+                rowFloor: rowFloor(for: geometry)
             )
         )
     }
@@ -1411,6 +1413,19 @@ final class OverlayController: SuggestionOverlayControlling {
             GhostWrapBandPolicy.Input(
                 caretRect: geometry.caretRect,
                 elementFrame: isCodeEditor ? nil : geometry.elementFrameRect,
+                inputFrame: geometry.inputFrameRect,
+                lineLeft: geometry.hostTextMetrics?.lineRect?.minX,
+                screenVisibleFrame: targetScreenVisibleFrame(for: geometry.caretRect)
+            )
+        )
+    }
+
+    /// The lowest y a ghost row may reach: the field's bottom edge, else the screen's.
+    private func rowFloor(for geometry: SuggestionOverlayGeometry) -> CGFloat {
+        GhostWrapBandPolicy.rowFloor(
+            GhostWrapBandPolicy.Input(
+                caretRect: geometry.caretRect,
+                elementFrame: geometry.elementFrameRect,
                 inputFrame: geometry.inputFrameRect,
                 lineLeft: geometry.hostTextMetrics?.lineRect?.minX,
                 screenVisibleFrame: targetScreenVisibleFrame(for: geometry.caretRect)
@@ -1613,6 +1628,9 @@ final class OverlayController: SuggestionOverlayControlling {
             "line_left": .stringConvertible(Double(session.geometry.hostTextMetrics?.lineRect?.minX ?? 0)),
             "element_x": .stringConvertible(Double(session.geometry.elementFrameRect?.minX ?? 0)),
             "element_w": .stringConvertible(Double(session.geometry.elementFrameRect?.width ?? 0)),
+            "element_y": .stringConvertible(Double(session.geometry.elementFrameRect?.minY ?? 0)),
+            "element_h": .stringConvertible(Double(session.geometry.elementFrameRect?.height ?? 0)),
+            "row_floor": .stringConvertible(Double(rowFloor(for: session.geometry))),
             "band": .string(wrapBand(for: session.geometry).map { String(format: "%.1f-%.1f", $0.lowerBound, $0.upperBound) } ?? ""),
             "style_size": .stringConvertible(Double(session.geometry.resolvedFieldStyle?.fontPointSize ?? 0)),
             "style_name": .string(session.geometry.resolvedFieldStyle?.fontName ?? "")
