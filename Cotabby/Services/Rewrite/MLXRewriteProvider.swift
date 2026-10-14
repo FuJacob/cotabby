@@ -120,13 +120,8 @@ final class MLXRewriteProvider: RewriteProviding {
                     onPartialRawText: onPartial
                 )
             }
-            return try await client.generate(
-                configuration: configuration,
-                apiKey: nil,
-                prompt: RewritePromptBuilder.basePrompt(request),
-                options: LocalEndpointRewriteProvider.completionOptions(for: request),
-                onPartialRawText: onPartial
-            )
+            return try await LocalEndpointRewriteProvider.generateBase(
+                client: client, configuration: configuration, apiKey: nil, request: request, onPartial: onPartial)
         } catch let error as OpenAICompatibleClientError {
             // A 404 may mean the generator died or just that this request failed; `/health` decides.
             if let reason = MLXGeneratorFailure.reason(for: error), let port = configuration.baseURL.port {

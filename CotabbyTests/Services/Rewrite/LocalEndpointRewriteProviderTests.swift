@@ -99,6 +99,18 @@ final class LocalEndpointRewriteProviderTests: XCTestCase {
         XCTAssertEqual(LocalEndpointStubURLProtocol.requested, ["http://127.0.0.1:11434/v1/completions"])
     }
 
+    /// A server that ignores `stop` (or streams part of one) must not put the next example's label
+    /// in the preview or the field: partials and the result are cut at the first stop sequence.
+    func test_completionsModeCutsTheStopTextAServerLeftIn() async throws {
+        let provider = makeProvider(mode: .completions)
+        LocalEndpointStubURLProtocol.handler = { _ in Self.sse("Fixed text.\\n\\nDraft: next one") }
+        var partials: [String] = []
+        let text = try await provider.rewrite(RewriteRequest(selection: "fixd text", action: .fixOnly),
+                                              onPartial: { partials.append($0) })
+        XCTAssertEqual(text, "Fixed text.")
+        XCTAssertFalse(partials.contains { $0.contains("Draft") }, "\(partials)")
+    }
+
     func test_anUnusableConfigurationThrowsWithoutTraffic() async {
         let provider = makeProvider(model: "", mode: .chatCompletions)
         do {

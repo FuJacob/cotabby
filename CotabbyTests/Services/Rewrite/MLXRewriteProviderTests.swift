@@ -114,6 +114,26 @@ final class MLXRewriteProviderTests: XCTestCase {
         XCTAssertEqual(MLXRewriteStubURLProtocol.requested, ["http://127.0.0.1:50300/v1/completions"])
     }
 
+    /// The base path cuts at the first stop sequence like the llama path, so "Draft:" never reaches
+    /// the preview even if the server streams it.
+    func test_baseModelOutputIsCutAtTheStopText() async throws {
+        let rig = makeRig(modelID: baseModel)
+        MLXRewriteStubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "text/event-stream"])!
+            let body = "data: {\"choices\":[{\"text\":\"Fixed text.\\n\\nDraft: next\"}]}\n\ndata: [DONE]\n\n"
+            return (response, Data(body.utf8))
+        }
+        var partials: [String] = []
+        async let result = rig.provider.rewrite(
+            RewriteRequest(selection: "fixd text", action: .fixOnly), onPartial: { partials.append($0) })
+        await waitUntil { rig.probe.waiting >= 1 }
+        rig.probe.succeedNext()
+        let text = try await result
+        XCTAssertEqual(text, "Fixed text.")
+        XCTAssertFalse(partials.contains { $0.contains("Draft") }, "\(partials)")
+    }
+
     func test_aReadyAutocompleteServerIsReusedWithoutStartingASecondOne() async throws {
         let rig = makeRig(autocomplete: .mlx)
         await readyAutocompleteServer(rig, modelID: model)

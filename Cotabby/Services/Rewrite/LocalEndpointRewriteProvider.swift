@@ -65,14 +65,31 @@ final class LocalEndpointRewriteProvider: RewriteProviding {
                 onPartialRawText: onPartial
             )
         case .completions:
-            return try await client.generate(
-                configuration: configuration,
-                apiKey: apiKey,
-                prompt: RewritePromptBuilder.basePrompt(request),
-                options: Self.completionOptions(for: request),
-                onPartialRawText: onPartial
-            )
+            return try await Self.generateBase(
+                client: client, configuration: configuration, apiKey: apiKey, request: request, onPartial: onPartial)
         }
+    }
+
+    /// A base-model rewrite on a completions route, shared with the MLX provider. The `stop` field
+    /// asks the server to end before the next example, but not every server honours it, and one
+    /// that does may still stream part of a stop sequence before it matches; the text is cut at the
+    /// first stop sequence either way, in every partial and in the result, so "Draft:" never
+    /// reaches the preview or the field (the same cut the llama path makes).
+    static func generateBase(
+        client: OpenAICompatibleAPIClient,
+        configuration: OpenAICompatibleEndpointConfiguration,
+        apiKey: String?,
+        request: RewriteRequest,
+        onPartial: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        let output = try await client.generate(
+            configuration: configuration,
+            apiKey: apiKey,
+            prompt: RewritePromptBuilder.basePrompt(request),
+            options: completionOptions(for: request),
+            onPartialRawText: { onPartial(RewritePromptBuilder.cutAtBaseStop($0)) }
+        )
+        return RewritePromptBuilder.cutAtBaseStop(output)
     }
 
     /// Sampling for a base-model rewrite, shared with the MLX provider's base path: a low
