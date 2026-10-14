@@ -26,6 +26,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
     private let typingHistoryStore: TypingHistoryStore
+    private let rewritePreferences: RewritePreferencesStore
+    private let rewriteCredentials: RewriteCredentialVault
+    private let rewriteModelList: RewriteModelListService
 
     private var settingsWindowController: NSWindowController?
 
@@ -51,7 +54,10 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void,
-        typingHistoryStore: TypingHistoryStore
+        typingHistoryStore: TypingHistoryStore,
+        rewritePreferences: RewritePreferencesStore,
+        rewriteCredentials: RewriteCredentialVault,
+        rewriteModelList: RewriteModelListService
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
@@ -68,6 +74,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
         self.typingHistoryStore = typingHistoryStore
+        self.rewritePreferences = rewritePreferences
+        self.rewriteCredentials = rewriteCredentials
+        self.rewriteModelList = rewriteModelList
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -98,6 +107,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory,
                     typingHistoryStore: typingHistoryStore,
+                    rewritePreferences: rewritePreferences,
+                    rewriteCredentials: rewriteCredentials,
+                    rewriteModelList: rewriteModelList,
                     onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )

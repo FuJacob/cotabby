@@ -61,6 +61,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case extendedContext
     case typingHistory
     case contextLivePreview
+    // Rewrite
+    case rewriteEnabled
+    case rewriteProvider
+    case rewriteButton
     // Engine & Model
     case engine
     case appleIntelligenceAvailability
@@ -155,6 +159,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .extendedContext: return "Extended Context"
         case .typingHistory: return "Typing History"
         case .contextLivePreview: return "Live Preview"
+        case .rewriteEnabled: return "Rewrite Selected Text"
+        case .rewriteProvider: return "Rewrite Model"
+        case .rewriteButton: return "Rewrite Button"
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
         case .appleLanguageFallback: return "Fall Back to Open Source Model"
@@ -243,6 +250,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .extendedContext: return "doc.text"
         case .typingHistory: return "clock.arrow.circlepath"
         case .contextLivePreview: return "text.cursor"
+        case .rewriteEnabled: return "wand.and.stars"
+        case .rewriteProvider: return "cpu"
+        case .rewriteButton: return "wand.and.stars"
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
         case .appleLanguageFallback: return "arrow.triangle.branch"
@@ -305,6 +315,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .writing
         case .extendedContext, .contextLivePreview, .typingHistory:
             return .context
+        case .rewriteEnabled, .rewriteProvider, .rewriteButton:
+            return .rewrite
         case .engine, .appleIntelligenceAvailability, .appleLanguageFallback, .keepFallbackModelLoaded,
              .appleLanguageFallbackModel, .modelStatus, .selectedModel, .lowPowerModeAutoDisable,
              .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
@@ -375,6 +387,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .extendedContext: return "A glossary or notes sent with every suggestion."
         case .typingHistory: return "Learn from what you type, and import Cotypist history."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
+        case .rewriteEnabled: return "Turn selection rewrite on or off."
+        case .rewriteProvider: return "Rewrite on this Mac, or with a cloud service and your own key."
+        case .rewriteButton: return "Turn the field icon into a rewrite button on selection, or use ⌃⌥R."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
         case .appleLanguageFallback: return "Use the local model for languages Apple Intelligence doesn't support."
@@ -552,6 +567,12 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview:
             return ["live", "preview", "test", "ghost", "try", "playground", "sandbox",
                     "demo", "try it", "test field"]
+        case .rewriteEnabled:
+            return ["rewrite", "selection", "turn off", "disable", "enable", "rephrase"]
+        case .rewriteProvider:
+            return ["rewrite", "rephrase", "api", "openai", "claude", "anthropic", "cloud", "model", "polish", "tone"]
+        case .rewriteButton:
+            return ["selection", "button", "shortcut", "rewrite", "select text", "wand"]
         case .engine:
             return ["engine", "apple intelligence", "open source", "llama", "backend",
                     "provider", "runtime", "foundation models", "oss", "local", "endpoint",

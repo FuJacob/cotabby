@@ -41,6 +41,8 @@ final class CotabbyAppEnvironment {
     let performanceMetricsStore: PerformanceMetricsStore
     let qualityMetricsStore: SuggestionQualityMetricsStore
     let typingHistoryStore: TypingHistoryStore
+    /// Selection rewrite: the popup flow, started and stopped by `AppDelegate`.
+    let selectionRewriteCoordinator: SelectionRewriteCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -243,6 +245,54 @@ final class CotabbyAppEnvironment {
         // "Clear History" control can reach it, and before the picker which reads and writes it.
         let emojiUsageStore = EmojiUsageStore()
 
+        // Selection rewrite: its own preferences and Keychain items, a local and a cloud provider,
+        // and the shared inserter and llama runtime. Built once here: the same store and credential
+        // instances feed the Settings pane and the engine, so a saved change applies at once.
+        let rewritePreferences = RewritePreferencesStore()
+        // One Keychain item per cloud service, so switching services keeps every key.
+        let rewriteCredentials = RewriteCredentialVault()
+        let anthropicClient = AnthropicMessagesClient()
+        let rewriteModelList = RewriteModelListService(client: openAICompatibleClient, anthropic: anthropicClient)
+        let rewriteEngine = RewriteEngine(
+            local: LocalRewriteProvider(
+                runtimeManager: runtimeManager,
+                hasLocalModel: { [weak runtimeModel] in runtimeModel?.selectedModelFilename != nil },
+                availability: foundationModelAvailabilityService
+            ),
+            api: APIRewriteProvider(
+                client: openAICompatibleClient,
+                anthropic: anthropicClient,
+                preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults },
+                credentials: { [weak rewriteCredentials] service in
+                    rewriteCredentials?.store(for: service) ?? InMemoryOpenAICompatibleCredentialStore()
+                }
+            ),
+            preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults }
+        )
+        let selectionRewriteCoordinator = SelectionRewriteCoordinator(
+            snapshots: focusModel.$snapshot.eraseToAnyPublisher(),
+            // `@Published` emits the new value before the store's property changes, so the coordinator
+            // acts on the emitted value; `dropFirst` skips the replayed current one.
+            enabledChanges: rewritePreferences.$preferences.map(\.isEnabled).removeDuplicates().dropFirst().eraseToAnyPublisher(),
+            currentSnapshot: { [weak focusModel] in focusModel?.snapshot ?? .inactive },
+            refreshFocus: { [weak focusModel] in focusModel?.refreshNow() },
+            presenter: SelectionRewritePanelController(indicator: activationIndicatorController),
+            output: LiveSelectionRewriteTextOutput(inserter: suggestionInserter),
+            engine: rewriteEngine,
+            preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults },
+            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
+                Self.isRewriteAllowed(
+                    in: bundleIdentifier,
+                    settings: suggestionSettings?.snapshot,
+                    isLowPowerModeEnabled: lowPowerModeMonitor?.isLowPowerModeEnabled ?? false
+                )
+            },
+            hotkey: TemporaryKeyTap(suppressionController: suppressionController),
+            keyTap: TemporaryKeyTap(suppressionController: suppressionController),
+            writingLanguages: { [weak suggestionSettings] in suggestionSettings?.responseLanguages ?? [] },
+            setFixesMistakes: { [weak rewritePreferences] in rewritePreferences?.setFixesMistakes($0) }
+        )
+
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
@@ -260,7 +310,10 @@ final class CotabbyAppEnvironment {
                 welcomeCoordinator?.showWelcome()
             },
             clearEmojiHistory: { emojiUsageStore.clear() },
-            typingHistoryStore: typingHistoryStore
+            typingHistoryStore: typingHistoryStore,
+            rewritePreferences: rewritePreferences,
+            rewriteCredentials: rewriteCredentials,
+            rewriteModelList: rewriteModelList
         )
 
         let interactionState = SuggestionInteractionState()
@@ -367,6 +420,7 @@ final class CotabbyAppEnvironment {
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
         self.typingHistoryStore = typingHistoryStore
+        self.selectionRewriteCoordinator = selectionRewriteCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
@@ -507,6 +561,19 @@ final class CotabbyAppEnvironment {
     /// invalidate discovery: the selected model and generation route do not affect `GET /models`,
     /// so changing either must keep the catalog and connected status alive. Settings still owns
     /// explicit Connect/Return refreshes and avoids network traffic per keystroke.
+    /// Selection rewrite follows Cotabby's own on/off state: nothing in an app Cotabby is off in,
+    /// while paused, or while Low Power Mode has turned it off. Nil settings (torn down) mean no.
+    private static func isRewriteAllowed(
+        in bundleIdentifier: String,
+        settings: SuggestionSettingsSnapshot?,
+        isLowPowerModeEnabled: Bool
+    ) -> Bool {
+        guard let settings else { return false }
+        let lowPower = isLowPowerModeEnabled && settings.isLowPowerModeAutoDisableEnabled
+        return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
+            && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
+    }
+
     private func observeOpenAICompatibleSelection() {
         suggestionSettings.$selectedEngine
             .removeDuplicates()
