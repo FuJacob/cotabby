@@ -789,6 +789,10 @@ final class CotabbyAppEnvironment {
             let previous = self.mlxApplyChain
             self.mlxApplyChain = Task { [weak self] in
                 await previous?.value
+                // Rewrite's on-demand server runs this same MLX model, and only while autocomplete
+                // is not on MLX. Before autocomplete's server starts, wait for that one to stop
+                // (after a rewrite still streaming on it), so the weights are never loaded twice.
+                if case .running = desire { await self?.mlxRewriteServer.stop() }
                 await self?.mlxServerManager.apply(desire)
             }
         }

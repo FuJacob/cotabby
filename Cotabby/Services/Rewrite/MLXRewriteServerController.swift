@@ -41,6 +41,9 @@ final class MLXRewriteServerController {
     private var inFlight = 0
     /// A `stop()` that arrived while a rewrite was in flight; it runs when the last one ends.
     private var stopWhenIdle = false
+    /// Callers of a deferred `stop()`, resumed once the stop ran, a new rewrite cancelled it, or the
+    /// app began to quit.
+    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
     private var isShutDown = false
 
     init(
@@ -111,6 +114,7 @@ final class MLXRewriteServerController {
         // example a change that was undone before the in-flight rewrite ended) no longer applies.
         // The apply below still restarts the server if the model differs.
         stopWhenIdle = false
+        resumeStopWaiters()
         await enqueue { await $0.apply(wanted) }
         // The same desire again changes nothing in the manager, so a failed server needs retry().
         if case .failed = manager.state {
@@ -136,7 +140,10 @@ final class MLXRewriteServerController {
         guard inFlight == 0 else { return }
         if stopWhenIdle {
             stopWhenIdle = false
-            Task { await self.stop() }
+            Task {
+                await self.stop()
+                self.resumeStopWaiters()
+            }
         } else {
             armIdleTimer()
         }
@@ -159,14 +166,26 @@ final class MLXRewriteServerController {
     /// Stops the server, but never under a running rewrite: Settings changes (provider, engine,
     /// model) call this, and killing the server mid-stream would surface a raw connection error in
     /// the popup. While a rewrite is in flight the stop is deferred to its `endUse()`.
+    ///
+    /// It returns once the server has stopped, so a caller can wait for the model's memory to be
+    /// released: the environment does before autocomplete starts its own MLX server, which loads
+    /// the same model. A deferred stop returns when it has run, or early when a new rewrite that
+    /// wants the server cancelled it or the app began to quit.
     func stop() async {
         idleTask?.cancel()
         idleTask = nil
         guard inFlight == 0 else {
             stopWhenIdle = true
+            await withCheckedContinuation { stopWaiters.append($0) }
             return
         }
         await enqueue { await $0.apply(.stopped) }
+    }
+
+    private func resumeStopWaiters() {
+        let waiters = stopWaiters
+        stopWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     /// Blocking stop for the app's termination path. `AppDelegate` prefers
@@ -183,6 +202,9 @@ final class MLXRewriteServerController {
         isShutDown = true
         idleTask?.cancel()
         idleTask = nil
+        // The quit path stops the server itself; nobody should wait on a deferred stop now.
+        stopWhenIdle = false
+        resumeStopWaiters()
     }
 
     private func enqueue(_ work: @escaping @MainActor (MLXServerManager) async -> Void) async {
