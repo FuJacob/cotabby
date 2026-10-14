@@ -19,6 +19,14 @@ nonisolated enum RewritePromptBuilder {
 
     static let baseStopSequences = ["\nDraft:", "\n\nDraft", "\n\n\n"]
 
+    /// The base model's output up to the earliest stop sequence. Decoding stops once the text
+    /// contains one, so the text still ends with it ("Fine.\n\nDraft:"); left in, the next example's
+    /// label would be previewed and pasted.
+    static func cutAtBaseStop(_ text: String) -> String {
+        let cut = baseStopSequences.compactMap { text.range(of: $0)?.lowerBound }.min()
+        return cut.map { String(text[..<$0]) } ?? text
+    }
+
     static func actionLine(_ action: RewriteAction) -> String {
         switch action {
         case .fixOnly: return "Fix only spelling, grammar and punctuation mistakes; keep the wording."
@@ -92,7 +100,16 @@ nonisolated enum RewritePromptBuilder {
     static func basePrompt(_ request: RewriteRequest) -> String {
         let example = baseExample(request.action)
         let languageNote = request.language.map { "Written in \($0), same meaning." } ?? "Same language, same meaning."
-        var prompt = "Each draft below is rewritten. \(actionLine(request.action)) \(languageNote)\n\n"
+        var header = "Each draft below is rewritten. \(actionLine(request.action))"
+        // A refinement keeps the tone that produced its draft, as in the instruct prompt.
+        if let tone = request.tone, let description = toneDescription(tone) {
+            header += " Keep the same tone: \(description)."
+        }
+        // The examples already fix typos, so only the opposite choice needs a line of its own.
+        if !request.fixesMistakes, let fixLine = fixLine(request) {
+            header += " \(fixLine)"
+        }
+        var prompt = "\(header) \(languageNote)\n\n"
         prompt += "Draft: \(example.draft)\nRewritten: \(example.rewritten)\n\n"
         prompt += "Draft: \(request.selection)\nRewritten:"
         return prompt

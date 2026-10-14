@@ -65,14 +65,17 @@ final class LocalRewriteProvider: RewriteProviding {
         defer { relay.finish() }
         let output = try await runtimeManager.generate(
             prompt: RewritePromptBuilder.basePrompt(request), options: options,
-            onPartialRawText: { text in relay.send(text) }
+            onPartialRawText: { text in relay.send(RewritePromptBuilder.cutAtBaseStop(text)) }
         )
-        return output.text
+        return RewritePromptBuilder.cutAtBaseStop(output.text)
     }
 
-    /// About 1.5× the selection's tokens (≈4 characters per token) plus a margin, capped.
+    /// About 1.5× the selection's tokens (≈4 characters per token) plus a margin, capped. Longer
+    /// gets room for what `RewriteOutputCleaner` lets it grow to (8× plus 400 characters), so a
+    /// fuller message is not cut off mid-sentence and previewed as if it were complete.
     static func tokenBudget(_ request: RewriteRequest) -> Int {
-        min(800, request.selection.count * 3 / 8 + 48)
+        let count = request.selection.count
+        return min(800, request.action == .longer ? count * 2 + 100 : count * 3 / 8 + 48)
     }
 }
 

@@ -100,4 +100,29 @@ final class RewritePromptBuilderTests: XCTestCase {
         XCTAssertTrue(system.contains(RewritePromptBuilder.actionLine(.shorter)))
         XCTAssertTrue(system.contains("Keep the same tone: warm and caring, for a family member."))
     }
+
+    // MARK: - Base model output and choices
+
+    /// Decoding stops once the text holds a stop sequence, so the label is cut before it reaches
+    /// the preview or the field.
+    func test_baseOutputIsCutAtTheEarliestStopSequence() {
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\n\nDraft:"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\nDraft: next"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\n\n\n"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine, no stop yet"), " Fine, no stop yet")
+    }
+
+    func test_basePromptKeepsARefinementsTone() {
+        var request = RewriteRequest(selection: "Are you coming on Sunday?", action: .shorter)
+        request.tone = .family
+        XCTAssertTrue(RewritePromptBuilder.basePrompt(request).contains("Keep the same tone: warm and caring, for a family member."))
+    }
+
+    /// The examples fix typos, so the default prompt is unchanged; turning the tick box off says so.
+    func test_basePromptFollowsTheFixTickBox() {
+        var request = RewriteRequest(selection: draft, action: .formal)
+        XCTAssertFalse(RewritePromptBuilder.basePrompt(request).contains("spelling"))
+        request.fixesMistakes = false
+        XCTAssertTrue(RewritePromptBuilder.basePrompt(request).contains("Do not correct the user's spelling"))
+    }
 }

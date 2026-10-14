@@ -223,6 +223,7 @@
 		32F8F271C53D0F3782C7375D /* ChromiumAccessibilityEnabler.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB13342992EEF2BDEEAB1236 /* ChromiumAccessibilityEnabler.swift */; };
 		332131F39C273A96D66130B7 /* RewriteSpecificsCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2C71176A129183C1FDC3C3 /* RewriteSpecificsCheck.swift */; };
 		332F2AE6277FB6E871589E4D /* MacroControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C64BFD7273D1B637AD880AA /* MacroControllerTests.swift */; };
+		33565E2368D2F9ACE85A1082 /* LocalRewriteProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7106E05AB62C293014C53A1 /* LocalRewriteProviderTests.swift */; };
 		3368DFBAA36527B7BB09EA67 /* ApplicationBundleMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C151BF4D39485E5CFACFECB /* ApplicationBundleMetadataTests.swift */; };
 		33EC776945F8CE612A8E85A3 /* CustomRulesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7D1184F0BC707F0A9148DD /* CustomRulesEditor.swift */; };
 		34C6CA29ABBB2068A61D39C2 /* SelectionRewriteEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571E1104643DA15A56CE42B6 /* SelectionRewriteEligibility.swift */; };
@@ -1747,6 +1748,7 @@
 		F4B98B1ABB36E600D7ECA185 /* SpeculativeAcceptanceContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeculativeAcceptanceContextTests.swift; sourceTree = "<group>"; };
 		F6809474A7C1B57F1D13AA6F /* SuggestionDismissalMemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionDismissalMemoryTests.swift; sourceTree = "<group>"; };
 		F7014E6E969FD4579028BAC4 /* TypingCadence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingCadence.swift; sourceTree = "<group>"; };
+		F7106E05AB62C293014C53A1 /* LocalRewriteProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRewriteProviderTests.swift; sourceTree = "<group>"; };
 		F7F3F983901FC3648076B23D /* MacroReferenceSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroReferenceSheet.swift; sourceTree = "<group>"; };
 		F7F727A325ECE687B32CDC38 /* Aria2ProvisionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aria2ProvisionerTests.swift; sourceTree = "<group>"; };
 		F86E2E28EBDFA1FEBE6CC90A /* DoubleTapAcceptanceStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapAcceptanceStateTests.swift; sourceTree = "<group>"; };
@@ -2091,6 +2093,7 @@
 			isa = PBXGroup;
 			children = (
 				1213E73D299BD710EEB9F339 /* APIRewriteProviderTests.swift */,
+				F7106E05AB62C293014C53A1 /* LocalRewriteProviderTests.swift */,
 				8DC55C52D88BCEB573BA336E /* RewriteEngineTests.swift */,
 				59E3F5D068DCFC0A1746E52E /* RewritePreferencesStoreTests.swift */,
 			);
@@ -4992,6 +4995,7 @@
 				EA91121F23229B9BA8474680 /* LlamaSuggestionEngineTests.swift in Sources */,
 				BE16C2851265AB659A322835 /* LlamaSuggestionEvalTests.swift in Sources */,
 				67C36958132793C76843F875 /* LlamaTypingSessionEvalTests.swift in Sources */,
+				33565E2368D2F9ACE85A1082 /* LocalRewriteProviderTests.swift in Sources */,
 				E79834E768C2001098CE6132 /* LocalRuntimeResidencyPolicyTests.swift in Sources */,
 				C4ED7301D4DC86DC558B0C04 /* LowPowerModeMonitorTests.swift in Sources */,
 				332F2AE6277FB6E871589E4D /* MacroControllerTests.swift in Sources */,
