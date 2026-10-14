@@ -18,7 +18,8 @@ struct MemoryIndexSection: View {
 
     var body: some View {
         if let saved = control.configuration?.index {
-            let binding = Binding(get: { draft ?? saved }, set: { draft = $0 })
+            // Clamped on every edit: shrinking the passage size takes the overlap down with it.
+            let binding = Binding(get: { draft ?? saved }, set: { draft = $0.clamped() })
             Section {
                 indexStatus
                 Stepper("Results per suggestion: \(binding.wrappedValue.topK)", value: binding.topK, in: 1...20)

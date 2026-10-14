@@ -297,9 +297,10 @@ final class MemoryHistoryReaderTests: XCTestCase {
         ], "short paragraphs and other file types are skipped")
         XCTAssertEqual(page.records.first?.conversationID, "pricing.md")
         XCTAssertEqual(page.records.last?.conversationID, "sub/notes.txt")
-        XCTAssertEqual(page.nextCursor, "2000.0")
+        XCTAssertEqual(page.records.first?.timestamp, Date(timeIntervalSince1970: 1_000), "records keep the file's own date")
+        // The cursor follows when files changed or arrived (here: just now), not their content dates.
+        XCTAssertGreaterThan(Double(page.nextCursor ?? "") ?? 0, 2_000)
         XCTAssertTrue(try reader.read(after: page.nextCursor, since: nil, limit: 100).records.isEmpty)
-        XCTAssertEqual(try reader.read(after: "1000.0", since: nil, limit: 100).records.count, 1)
     }
 
     /// A changed note is read whole (so its removed paragraphs leave memory), and the notes still
@@ -319,6 +320,25 @@ final class MemoryHistoryReaderTests: XCTestCase {
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
         XCTAssertNil(reader.liveConversationIDs(), "a folder that cannot be read is not a folder whose notes were deleted")
         XCTAssertNil(DocumentsHistoryReader(folder: directory.appendingPathComponent("none").path).liveConversationIDs())
+    }
+
+    /// A note that arrives with an old modification date (copied or moved in with its date kept)
+    /// is still read: the cursor follows when a file changed or arrived, not its content date.
+    func test_aNoteArrivingWithAnOldDateIsStillRead() throws {
+        let folder = directory.appendingPathComponent("Notes", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let reader = DocumentsHistoryReader(folder: folder.path)
+        try "The first note is long enough to keep.".write(to: folder.appendingPathComponent("a.md"), atomically: true, encoding: .utf8)
+        let first = try reader.read(after: nil, since: nil, limit: 100)
+        XCTAssertEqual(first.records.count, 1)
+        Thread.sleep(forTimeInterval: 1.1)
+
+        let moved = folder.appendingPathComponent("moved.md")
+        try "A note moved in with its old date kept.".write(to: moved, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: moved.path)
+        let next = try reader.read(after: first.nextCursor, since: nil, limit: 100)
+        XCTAssertEqual(next.records.map(\.conversationID), ["moved.md"])
+        XCTAssertEqual(next.records.first?.timestamp, Date(timeIntervalSince1970: 1_000), "the record keeps the file's own date")
     }
 
     /// The `.emlx` map outlives one sync: mail that arrives later is found by rebuilding it, while a

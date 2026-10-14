@@ -29,6 +29,17 @@ nonisolated struct MemoryIndexSettings: Codable, Equatable, Sendable {
         let overlap = try container.decodeIfPresent(Int.self, forKey: .chunkOverlap) ?? PassageChunker.defaultOverlap
         chunkOverlap = min(max(overlap, 0), chunkSize / 2)
     }
+
+    /// The same settings within their bounds, the overlap at most half a passage (a smaller
+    /// passage size must take a larger overlap down with it).
+    func clamped() -> MemoryIndexSettings {
+        var settings = self
+        settings.topK = min(max(topK, 1), 20)
+        settings.vectorWeight = min(max(vectorWeight, 0), 1)
+        settings.chunkSize = min(max(chunkSize, 64), 400)
+        settings.chunkOverlap = min(max(chunkOverlap, 0), settings.chunkSize / 2)
+        return settings
+    }
 }
 
 /// One source's saved settings (`config.sources[id]`).
@@ -237,7 +248,9 @@ nonisolated enum MemoryJSONValue: Decodable, Equatable, Sendable {
     var text: String {
         switch self {
         case .string(let value): return value
-        case .number(let value): return value.rounded() == value ? String(Int(value)) : String(value)
+        // `Int(exactly:)`: a whole number beyond Int's range (1e20 in a hand-edited file) stays a
+        // Double instead of trapping at launch.
+        case .number(let value): return Int(exactly: value).map(String.init) ?? String(value)
         case .bool(let value): return value ? "true" : "false"
         case .other(let value): return value
         }

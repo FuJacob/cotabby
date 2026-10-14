@@ -125,6 +125,23 @@ final class MemoryStoreTests: XCTestCase {
         XCTAssertTrue(message.isFromMe)
     }
 
+    /// Purging an excluded person or conversation leaves no conversation row (sealed title, title
+    /// tag) or participant row behind, only the conversations that still hold messages.
+    func test_purgeRemovesTheConversationsItEmpties() throws {
+        let store = try makeStore()
+        try store.upsert(source: "chat", records: [
+            record("c1", "from the boss", sender: "Boss", title: "Boss", participants: ["Boss"]),
+            record("c2", "lunch at noon", sender: "Can", title: "Can", participants: ["Can"])
+        ])
+        XCTAssertEqual(try store.purge(excludedConversations: [], excludedParticipants: ["Boss"], olderThan: nil), 1)
+        XCTAssertTrue(try store.findConversations(title: "Boss", sources: ["chat"]).isEmpty)
+        XCTAssertNil(try store.conversation(source: "chat", conversationID: "c1"))
+        XCTAssertTrue(try store.conversationsSeenBy(audience: ["boss"], excluding: ("chat", "")).isEmpty)
+        XCTAssertEqual(try store.findConversations(title: "Can", sources: ["chat"]).count, 1)
+        XCTAssertEqual(try store.purge(excludedConversations: ["c2"], excludedParticipants: [], olderThan: nil), 1)
+        XCTAssertNil(try store.conversation(source: "chat", conversationID: "c2"))
+    }
+
     func test_vectorsRoundTripAndAnotherModelsVectorsAreDropped() throws {
         let store = try makeStore()
         try store.upsert(source: "chat", records: [record("c1", "the invoice is paid")])

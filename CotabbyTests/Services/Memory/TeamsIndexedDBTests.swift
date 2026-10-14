@@ -297,6 +297,9 @@ final class TeamsIndexedDBTests: XCTestCase {
             (Self.concat(IndexedDBReader.makePrefix(databaseID: 2, objectStoreID: 1, indexID: 3), Self.idbStringKey("c3")),
              Self.concat([0, 5, 0], Self.varint(UInt64(blobContents.count)))),
             (Self.recordKey(database: 2, store: 1, key: "c9"), [1, 0x00, 0x01]),
+            // A blob index beyond Int's range: skipped as corrupt, never a trap.
+            (Self.recordKey(database: 2, store: 1, key: "c8"),
+             Self.concat([1, 0xFF, 0x11, 0x01], Self.varint(5), Self.varint(UInt64.max))),
             (Self.recordKey(database: 3, store: 1, key: avery),
              Self.recordValue(.object([("mri", .string(avery)), ("displayName", .string(" Avery Stone "))])))
         ]
