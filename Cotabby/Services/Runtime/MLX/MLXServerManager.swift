@@ -383,9 +383,13 @@ final class MLXServerManager: ObservableObject {
         let failedGeneration = generation
         let tail = running.process.stderrTail()
         // Clearing `current` makes the process's own exit callback a no-op; `.starting` makes new
-        // requests fail fast with "loading" instead of hitting the broken server.
+        // requests fail fast with "loading" instead of hitting the broken server. SIGTERM goes out
+        // and the process is recorded as stopping before the task below is scheduled, so a quit
+        // that lands first still finds it in `shutdownSync` (which then waits and SIGKILLs).
         current = nil
         state = .starting(modelID: running.launch.modelID)
+        stoppingProcess = running.process
+        running.process.terminate()
         CotabbyLogger.runtime.error("MLX generator stopped working", metadata: [
             "reason": .string(reason),
             "port": .stringConvertible(port),
@@ -393,7 +397,7 @@ final class MLXServerManager: ObservableObject {
         ])
         Task { [weak self] in
             guard let self else { return }
-            await self.terminateTracked(running.process)
+            await self.waitForExitTracked(running.process)
             self.removePIDFile(ownedBy: running.process.processIdentifier)
             // A stop, model change or shutdown can land during the SIGTERM grace; it owns the
             // state then, so no failure is recorded for a server the user no longer wants.
@@ -459,10 +463,17 @@ final class MLXServerManager: ObservableObject {
         CotabbyLogger.runtime.info("MLX server stopped", metadata: ["model": .string(running.launch.modelID)])
     }
 
-    /// Runs `terminate` while keeping the process visible to `shutdownSync`.
+    /// Sends SIGTERM and waits for the exit while keeping the process visible to `shutdownSync`.
     private func terminateTracked(_ process: any MLXRunningProcess) async {
         stoppingProcess = process
-        await Self.terminate(process, sleep: sleep)
+        process.terminate()
+        await waitForExitTracked(process)
+    }
+
+    /// The second half of a stop, for a process that has already had its SIGTERM: waits out the
+    /// grace period, SIGKILLs it if needed, then stops tracking it.
+    private func waitForExitTracked(_ process: any MLXRunningProcess) async {
+        await Self.waitForExit(process, sleep: sleep)
         if stoppingProcess === process { stoppingProcess = nil }
     }
 
@@ -472,8 +483,7 @@ final class MLXServerManager: ObservableObject {
         if pidFile.read() == pid { pidFile.remove() }
     }
 
-    private static func terminate(_ process: any MLXRunningProcess, sleep: Sleep) async {
-        process.terminate()
+    private static func waitForExit(_ process: any MLXRunningProcess, sleep: Sleep) async {
         var waited: Duration = .zero
         while process.isRunning, waited < stopGrace {
             try? await sleep(stopPoll)
