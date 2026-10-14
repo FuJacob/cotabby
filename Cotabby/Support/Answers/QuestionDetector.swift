@@ -47,18 +47,22 @@ nonisolated enum QuestionDetector {
         return !(first == "can" && words.count > 1 && !englishSubjects.contains(words[1]))
     }
 
-    /// Sentences, split after `.`, `!`, `?` and line breaks, keeping their punctuation.
+    /// Sentences, split after `.`, `!`, `?` and line breaks, keeping their punctuation. A period
+    /// between digits is part of a number or a date ("3.11", "4.000"), not the end of a sentence.
     static func sentences(_ text: String) -> [String] {
         var sentences: [String] = []
         var current = ""
-        for character in text {
+        let characters = Array(text)
+        for (index, character) in characters.enumerated() {
             if character.isNewline {
                 sentences.append(current)
                 current = ""
                 continue
             }
             current.append(character)
-            if ".!?؟".contains(character) {
+            let joinsDigits = character == "." && index > 0 && index + 1 < characters.count
+                && characters[index - 1].isNumber && characters[index + 1].isNumber
+            if ".!?؟".contains(character), !joinsDigits {
                 sentences.append(current)
                 current = ""
             }

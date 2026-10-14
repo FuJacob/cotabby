@@ -220,10 +220,16 @@ final class MemoryControlModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
         let answerSources = sources.filter { $0.enabled && $0.isAnswerSource }.map(\.id)
         isSearching = true
+        // Shares the Playground's search generation: only the newest search, of either kind, may
+        // show its result or end the spinner.
+        searchGeneration += 1
+        let generation = searchGeneration
         Task {
-            playgroundResult = await Task.detached(priority: .userInitiated) {
+            let result = await Task.detached(priority: .userInitiated) {
                 engine.answerSearch(question: trimmed, sources: answerSources, currentConversation: nil, excludingRecordIDs: [])
             }.value
+            guard generation == searchGeneration else { return }
+            playgroundResult = result
             isSearching = false
         }
     }

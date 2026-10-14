@@ -279,4 +279,37 @@ final class AnswerRulesTests: XCTestCase {
         XCTAssertEqual(turns, ["You:"], "only the final, empty turn is the user's")
         XCTAssertTrue(prompt.contains("\nThem: Is it done? You: yes, and here is everything\nYou:"))
     }
+
+    // MARK: - Review fixes
+
+    /// A dotted date is one word, not a sentence end: the whole question is read, and the day it
+    /// names is the day the calendar is read for.
+    func test_aDottedDateStaysInTheQuestionAndNamesItsDay() throws {
+        XCTAssertEqual(QuestionDetector.question(in: "Are you free 3.11?"), "Are you free 3.11?")
+        XCTAssertEqual(QuestionDetector.question(in: "Could you confirm availability 3.11?"), "Could you confirm availability 3.11?")
+        XCTAssertEqual(QuestionDetector.sentences("It costs 4.000 EUR. Thanks."), ["It costs 4.000 EUR.", "Thanks."])
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Istanbul"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 5, hour: 10)))
+        let question = try XCTUnwrap(QuestionDetector.question(in: "Hi! Are you free 3.11?"))
+        let november3 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 3)))
+        XCTAssertEqual(SchedulingQuestion.days(in: question, now: now, calendar: calendar), [november3])
+    }
+
+    /// Apple Intelligence writes a whole reply: its blank lines separate paragraphs (or follow the
+    /// salutation) and are kept; only the base model's transcript is cut at its stop sequences.
+    func test_appleRepliesKeepTheirParagraphs() {
+        let reply = "Hi Deniz,\n\nYes, it passed all acceptance tests.\n\nThe quote follows on Friday."
+        XCTAssertEqual(AnswerPromptRenderer.cleanedAnswer(reply, asker: "Deniz", cutsAtStopSequences: false), reply)
+        XCTAssertEqual(AnswerPromptRenderer.cleanedAnswer(reply, asker: "Deniz"), "Hi Deniz,", "the base model's turn ends there")
+    }
+
+    /// When Apple Intelligence is available it alone drafts: its abstention is final, and the
+    /// local model never guesses after it.
+    func test_theLocalModelDraftsOnlyWithoutAppleIntelligence() {
+        XCTAssertEqual(AnswerDraftEngine.drafter(appleAvailable: true, hasLocalModel: true), .apple)
+        XCTAssertEqual(AnswerDraftEngine.drafter(appleAvailable: true, hasLocalModel: false), .apple)
+        XCTAssertEqual(AnswerDraftEngine.drafter(appleAvailable: false, hasLocalModel: true), .local)
+        XCTAssertNil(AnswerDraftEngine.drafter(appleAvailable: false, hasLocalModel: false))
+    }
 }

@@ -72,11 +72,13 @@ nonisolated enum AnswerPromptRenderer {
         ["\n\n", "\n\(speaker(asker)):", "\nYou:", "\nNotes from"]
     }
 
-    /// The model's output reduced to the reply itself: cut at the first stop sequence, labels and
-    /// quotes removed, nil for an abstention or nothing usable.
-    static func cleanedAnswer(_ raw: String, asker: String?) -> String? {
+    /// The model's output reduced to the reply itself: cut at the first stop sequence (only for the
+    /// base model's transcript, `cutsAtStopSequences`; Apple Intelligence writes a whole reply, whose
+    /// blank lines separate paragraphs), labels and quotes removed, nil for an abstention or nothing
+    /// usable.
+    static func cleanedAnswer(_ raw: String, asker: String?, cutsAtStopSequences: Bool = true) -> String? {
         var text = raw
-        for stop in stopSequences(asker: asker) {
+        for stop in cutsAtStopSequences ? stopSequences(asker: asker) : [] {
             if let range = text.range(of: stop) { text = String(text[..<range.lowerBound]) }
         }
         text = text.trimmingCharacters(in: .whitespacesAndNewlines)

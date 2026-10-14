@@ -288,8 +288,9 @@ final class CotabbyAppEnvironment {
             card: AnswerCardController(),
             keyTap: TemporaryKeyTap(suppressionController: suppressionController),
             inserter: suggestionInserter,
-            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
-                Self.isCotabbyOn(for: bundleIdentifier, settings: suggestionSettings, lowPowerModeMonitor: lowPowerModeMonitor)
+            isAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor, weak permissionManager] snapshot in
+                Self.isCotabbyOn(at: snapshot, settings: suggestionSettings, lowPowerModeMonitor: lowPowerModeMonitor,
+                                 permissionManager: permissionManager)
             }
         )
 
@@ -550,15 +551,26 @@ final class CotabbyAppEnvironment {
     /// when actually available, so a configured-but-unavailable profile never strands the user on a
     /// dead engine; the Open Source branch reloads the model only when it is installed and not already
     /// selected, so the sole side effect is a deliberate reload on a real change.
-    /// Whether Cotabby is on for an app right now: globally on, not paused, not turned off by Low
-    /// Power Mode, and not disabled for the app. Answers follow the same switches as autocomplete.
+    /// Whether Cotabby is on where focus is, by exactly the rules suggestions and typing history
+    /// use (`SuggestionAvailabilityEvaluator`): globally on, not paused, not turned off by Low Power
+    /// Mode, and not disabled for the app, the site or terminals. Answers follow the same switches.
     private static func isCotabbyOn(
-        for bundleIdentifier: String, settings model: SuggestionSettingsModel?, lowPowerModeMonitor: LowPowerModeMonitor?
+        at snapshot: FocusSnapshot, settings model: SuggestionSettingsModel?, lowPowerModeMonitor: LowPowerModeMonitor?,
+        permissionManager: PermissionManager?
     ) -> Bool {
-        guard let settings = model?.snapshot else { return false }
-        let lowPower = (lowPowerModeMonitor?.isLowPowerModeEnabled ?? false) && settings.isLowPowerModeAutoDisableEnabled
-        return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
-            && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
+        guard let settings = model?.snapshot, let permissionManager else { return false }
+        return SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: settings.isGloballyEnabled,
+            temporarilyPaused: settings.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeMonitor?.isLowPowerModeEnabled ?? false,
+            isLowPowerModeAutoDisableEnabled: settings.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settings.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settings.suggestInIntegratedTerminals,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            focusSnapshot: snapshot,
+            checkCapability: false
+        ) == nil
     }
 
     private static func applyPowerProfile(

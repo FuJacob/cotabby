@@ -85,8 +85,10 @@ final class AnswerCoordinator {
     private let card: AnswerCardController
     private let keyTap: TemporaryKeyTap
     private let inserter: SuggestionInserter
-    /// Whether Cotabby is on for an app: globally on, not paused, not disabled for the app.
-    private let isAppAllowed: @MainActor (String) -> Bool
+    /// Whether Cotabby is on where focus is, by the same rules as suggestions
+    /// (`SuggestionAvailabilityEvaluator`): globally on, not paused, not off for Low Power Mode, and
+    /// not disabled for the app, the site or terminals.
+    private let isAllowed: @MainActor (FocusSnapshot) -> Bool
 
     private var cancellables: Set<AnyCancellable> = []
     private var task: Task<Void, Never>?
@@ -99,8 +101,9 @@ final class AnswerCoordinator {
     /// The app of the field being drafted for or offered in, to tell a focus flicker from leaving it.
     private var activeBundleIdentifier: String?
     private var shown: ShownOffer?
-    /// Drafts per message key (nil: memory had no answer), and the messages the user dismissed.
-    private var drafts: [String: AnswerOffer?] = [:]
+    /// Drafts per message key, dropped whenever memory's sources, settings or data change
+    /// (`AnswerDraftCache`), and the messages the user dismissed.
+    private var cache = AnswerDraftCache()
     private var dismissed: Set<String> = []
 
     static let debounceNanoseconds: UInt64 = 400_000_000
@@ -112,7 +115,7 @@ final class AnswerCoordinator {
     init(
         focusModel: FocusTrackingModel, memory: MemoryEngineController, resolver: IncomingMessageResolver,
         draftEngine: AnswerDraftEngine, card: AnswerCardController, keyTap: TemporaryKeyTap,
-        inserter: SuggestionInserter, isAppAllowed: @escaping @MainActor (String) -> Bool
+        inserter: SuggestionInserter, isAllowed: @escaping @MainActor (FocusSnapshot) -> Bool
     ) {
         self.focusModel = focusModel
         self.memory = memory
@@ -121,7 +124,7 @@ final class AnswerCoordinator {
         self.card = card
         self.keyTap = keyTap
         self.inserter = inserter
-        self.isAppAllowed = isAppAllowed
+        self.isAllowed = isAllowed
     }
 
     /// See `AnswerDraftEngine`: released through a nonisolated deinit.
@@ -195,7 +198,7 @@ final class AnswerCoordinator {
         guard let answers = memory.engine?.configuration.answers, answers.enabled,
               memory.state == .running, draftEngine.canDraft,
               case .supported = snapshot.capability,
-              let input = snapshot.context, !input.isSecure, isAppAllowed(input.bundleIdentifier),
+              let input = snapshot.context, !input.isSecure, isAllowed(snapshot),
               resolver.answersIn(bundleIdentifier: input.bundleIdentifier),
               ReplyFieldEmptiness.isAwaitingBody(precedingText: input.precedingText, trailingText: input.trailingText)
         else { return nil }
@@ -217,24 +220,34 @@ final class AnswerCoordinator {
             return
         }
         let key = incoming.key
-        guard !dismissed.contains(key), !offerCachedDraft(for: input, messageKey: key),
+        let stamp = currentStamp()
+        guard !dismissed.contains(key), !offerCachedDraft(for: input, messageKey: key, stamp: stamp),
               let engine = memory.engine else { return }
 
         switch await answer(question, to: incoming, engine: engine, started: started) {
         case .offer(let prepared):
-            drafts[key] = prepared
-            if !Task.isCancelled, isStillCurrent(input) { offer(prepared, for: input, messageKey: key) }
+            cache.store(prepared, for: key, preparedUnder: stamp)
+            // Memory changed while drafting (a source turned off, something forgotten): the facts
+            // may no longer be allowed, so the draft is not shown.
+            if !Task.isCancelled, currentStamp() == stamp, isStillCurrent(input) { offer(prepared, for: input, messageKey: key) }
         case .nothing:
-            drafts[key] = .some(nil)
+            cache.store(nil, for: key, preparedUnder: stamp)
         case .failed:
             break
         }
     }
 
+    /// What memory is now, for the draft cache: the engine, its data generation and its settings.
+    private func currentStamp() -> AnswerDraftCache.Stamp? {
+        memory.engine.map {
+            AnswerDraftCache.Stamp(engine: $0.instanceID, dataGeneration: $0.dataGeneration, configuration: $0.configuration)
+        }
+    }
+
     /// Whether this message was prepared before (a draft, or nothing to offer); a cached draft is
     /// offered again while the field is still current.
-    private func offerCachedDraft(for input: FocusedInputSnapshot, messageKey: String) -> Bool {
-        guard let cached = drafts[messageKey] else { return false }
+    private func offerCachedDraft(for input: FocusedInputSnapshot, messageKey: String, stamp: AnswerDraftCache.Stamp?) -> Bool {
+        guard let cached = cache.lookup(messageKey, stamp: stamp) else { return false }
         if let cached, isStillCurrent(input) { offer(cached, for: input, messageKey: messageKey) }
         return true
     }
