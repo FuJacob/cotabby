@@ -269,7 +269,7 @@ final class ConversationMemoryTests: XCTestCase {
 
     static func source(_ id: String, apps: [String]) -> MemorySource {
         MemorySource(id: id, title: id, description: "", appBundleIds: apps, requirements: [], optionsSchema: [:],
-                     enabled: true, options: [:], stats: .empty)
+                     enabled: true, options: [:], isAnswerSource: false, stats: .empty)
     }
 }
 

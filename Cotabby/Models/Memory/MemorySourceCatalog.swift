@@ -23,7 +23,7 @@ nonisolated struct MemorySourceDescriptor: Equatable, Sendable {
 nonisolated enum MemorySourceCatalog {
     private static let calendarAccess = MemorySource.Requirement(
         kind: "calendar", title: "Calendar access",
-        detail: "Cotabby needs access to your calendars to remember events."
+        detail: "Cotabby needs access to your calendars to remember events and check your availability."
     )
 
     private static let fullDiskAccess = MemorySource.Requirement(
@@ -57,7 +57,8 @@ nonisolated enum MemorySourceCatalog {
         MemorySourceDescriptor(
             id: "calendar", title: "Calendar",
             description: "Events from every calendar in the Calendar app, including work accounts added there: what, " +
-                "when, where and with whom, from the past year to three months ahead.",
+                "when, where and with whom, from the past year to three months ahead. When someone asks when you " +
+                "are free, answers check these calendars for busy and free times only.",
             appBundleIds: ["com.apple.iCal"], requirements: [calendarAccess], optionsSchema: [:]
         ),
         MemorySourceDescriptor(
@@ -89,5 +90,19 @@ nonisolated enum MemorySourceCatalog {
 
     static func descriptor(_ id: String) -> MemorySourceDescriptor? {
         all.first { $0.id == id }
+    }
+
+    /// Whether answers may quote facts from `id`'s other conversations: only when the user turned
+    /// "Use for answers" on for it. Off for every source by default, because an answer goes to
+    /// someone else and could carry what was said in a conversation they were never part of.
+    static func isAnswerSource(_ id: String, settings: MemorySourceSettings?) -> Bool {
+        canAnswer(id) && (settings?.answerSource ?? false)
+    }
+
+    /// Whether a source can be an answer source at all. Never Calendar: its records hold what an
+    /// event is and who is in it, and answers give only busy and free times (`AvailabilityFacts`,
+    /// read live from EventKit, not from memory).
+    static func canAnswer(_ id: String) -> Bool {
+        id != "calendar"
     }
 }

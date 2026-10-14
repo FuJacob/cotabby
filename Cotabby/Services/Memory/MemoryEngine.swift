@@ -12,8 +12,9 @@ import Logging
 ///   `EmbeddingSchedulePolicy` allows it, newest first, persisting each vector as it is computed so
 ///   an interrupted run resumes where it stopped, and keeps `FlatVectorIndex` in step.
 /// - **Search**: the scope rule suggestions rely on (this conversation, then conversations with
-///   exactly the same people, never a guess on an ambiguous title), and the Playground's wider
-///   exploring search over every enabled source.
+///   exactly the same people, never a guess on an ambiguous title), the wider search answers use
+///   (any conversation of the sources the user marked for answers, plus the one being answered),
+///   and the Playground's exploring search over every enabled source.
 ///
 /// Lifetime and threading: built by `MemoryEngineController` when memory is switched on and dropped
 /// when it is switched off. Every method is synchronous and thread-safe (the store, the index and
@@ -296,7 +297,8 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
                 id: descriptor.id, title: descriptor.title, description: descriptor.description,
                 appBundleIds: descriptor.appBundleIds, requirements: descriptor.requirements,
                 optionsSchema: descriptor.optionsSchema, enabled: settings?.enabled ?? false,
-                options: settings?.options ?? [:], stats: stats
+                options: settings?.options ?? [:],
+                isAnswerSource: MemorySourceCatalog.isAnswerSource(descriptor.id, settings: settings), stats: stats
             )
         }
     }
@@ -604,6 +606,55 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         return result(scopeName, conversation, hits, started)
     }
 
+    /// An answer's search: facts from any conversation of `sources` (the user's answer sources) and
+    /// from the conversation being answered, never the question itself (`excludingRecordIDs`).
+    /// Unlike a suggestion's search this crosses conversations by design; `AnswerCoordinator`
+    /// shows every fact's origin on the card and marks the ones from other conversations.
+    func answerSearch(
+        question: String, sources: [String], currentConversation: (source: String, conversationID: String)?,
+        excludingRecordIDs: Set<String>, topK: Int = 6
+    ) -> MemorySearchResult {
+        let started = Date()
+        let enabled = Set(enabledSources)
+        // Never a source that cannot answer (Calendar), whatever the caller passes.
+        let allowedSources = enabled.intersection(sources.filter(MemorySourceCatalog.canAnswer))
+        let currentKey = currentConversation.map {
+            (source: $0.source, conversationKey: store.conversationKey(source: $0.source, conversationID: $0.conversationID))
+        }
+        let hits = hybrid(
+            query: question, task: .answerQuestion, topK: topK,
+            vectorFilter: { entry in
+                !excludingRecordIDs.contains(entry.recordID)
+                    && (allowedSources.contains(entry.source)
+                        || (currentKey.map { $0.source == entry.source && $0.conversationKey == entry.conversationKey } ?? false))
+            },
+            keyword: {
+                var ids = try self.store.taggedKeywordSearch(query: question, sources: Array(allowedSources), limit: topK * 3)
+                if let currentKey, enabled.contains(currentKey.source) {
+                    ids += try self.store.keywordSearch(query: question, conversations: [currentKey], limit: topK).map(\.recordID)
+                }
+                return ids.filter { !excludingRecordIDs.contains($0) }
+            },
+            recencyBoost: true
+        )
+        let conversation = currentConversation.flatMap { try? store.conversation(source: $0.source, conversationID: $0.conversationID) }
+        return result("answer", conversation, hits, started)
+    }
+
+    /// The latest messages of one conversation, newest first: where answers read the question a
+    /// chat is waiting on.
+    func latestMessages(source: String, conversationID: String, limit: Int) -> [MemoryStore.StoredMessage] {
+        let key = store.conversationKey(source: source, conversationID: conversationID)
+        return (try? store.recentMessages(conversations: [(source, key)], limit: limit)) ?? []
+    }
+
+    /// The conversations of enabled `sources` a title names (all of them: the caller decides what
+    /// an ambiguous title means).
+    func findConversations(title: String, sources: [String]) -> [MemoryConversation] {
+        let enabled = Set(enabledSources)
+        return ((try? store.findConversations(title: title, sources: sources)) ?? []).filter { enabled.contains($0.source) }
+    }
+
     func recentConversations(sources: [String], limit: Int) -> [MemoryConversation] {
         let enabled = Set(enabledSources)
         return (try? store.recentConversations(sources: sources.filter(enabled.contains), limit: limit)) ?? []
@@ -647,9 +698,10 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     /// Vector and keyword rankings, fused. The vector side is filtered before scoring, so nothing
     /// outside the filter can be returned; the keyword side is given ids already restricted.
+    /// `recencyBoost` (answers) lifts newer facts among similarly relevant ones.
     private func hybrid(
         query: String, task: EmbeddingCore.QueryTask, topK: Int,
-        vectorFilter: (FlatVectorIndex.Entry) -> Bool, keyword: () throws -> [String]
+        vectorFilter: (FlatVectorIndex.Entry) -> Bool, keyword: () throws -> [String], recencyBoost: Bool = false
     ) -> [MemorySearchResult.Hit] {
         let weight = configuration.index.vectorWeight
         var vectorRanked: [String] = []
@@ -668,10 +720,13 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             var seen = Set<String>()
             keywordRanked = ((try? keyword()) ?? []).filter { seen.insert($0).inserted }
         }
-        let fused = ReciprocalRankFusion.fuse(vector: vectorRanked, keyword: keywordRanked, vectorWeight: weight)
+        var fused = ReciprocalRankFusion.fuse(vector: vectorRanked, keyword: keywordRanked, vectorWeight: weight)
         var messages: [String: MemoryStore.StoredMessage] = [:]
         for item in fused.prefix(topK * 3) {
             if let message = try? store.message(recordID: item.id) { messages[item.id] = message }
+        }
+        if recencyBoost {
+            fused = Self.boostingRecent(fused, timestamps: messages.mapValues(\.timestamp), now: Date().timeIntervalSince1970)
         }
         return fused.compactMap { item -> MemorySearchResult.Hit? in
             guard let message = messages[item.id] else { return nil }  // Deleted since it was indexed.
@@ -684,6 +739,18 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
                 via: found.0 && found.1 ? "both" : (found.0 ? "vector" : "keyword")
             )
         }.prefix(topK).map { $0 }
+    }
+
+    /// Among similarly relevant facts, the more recent is more likely to still be true: up to 15%
+    /// more score, fading over about two months.
+    private static func boostingRecent(
+        _ fused: [(id: String, score: Double)], timestamps: [String: Double], now: Double
+    ) -> [(id: String, score: Double)] {
+        let boosted: [(id: String, score: Double)] = fused.map { (item: (id: String, score: Double)) -> (id: String, score: Double) in
+            let age: Double = max(0, now - (timestamps[item.id] ?? 0)) / 86_400
+            return (id: item.id, score: item.score * (1 + 0.15 * exp(-age / 60)))
+        }
+        return boosted.sorted { $0.score > $1.score }
     }
 
     private func result(

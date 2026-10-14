@@ -35,10 +35,14 @@ nonisolated struct MemoryIndexSettings: Codable, Equatable, Sendable {
 nonisolated struct MemorySourceSettings: Codable, Equatable, Sendable {
     var enabled: Bool
     var options: [String: String]
+    /// Whether answers to questions may quote this source's other conversations; nil (the default)
+    /// is off (`MemorySourceCatalog.isAnswerSource`).
+    var answerSource: Bool?
 
-    init(enabled: Bool, options: [String: String] = [:]) {
+    init(enabled: Bool, options: [String: String] = [:], answerSource: Bool? = nil) {
         self.enabled = enabled
         self.options = options
+        self.answerSource = answerSource
     }
 
     /// Options are free-form JSON in the file; any non-string value is kept as its text rather than
@@ -48,6 +52,7 @@ nonisolated struct MemorySourceSettings: Codable, Equatable, Sendable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
         let raw = try container.decodeIfPresent([String: MemoryJSONValue].self, forKey: .options) ?? [:]
         options = raw.mapValues(\.text)
+        answerSource = try container.decodeIfPresent(Bool.self, forKey: .answerSource)
     }
 }
 
@@ -68,11 +73,29 @@ nonisolated struct MemoryPrivacySettings: Codable, Equatable, Sendable {
     }
 }
 
+/// `config.answers`: drafting answers to questions from memory (`AnswerCoordinator`). Off by
+/// default: an answer card puts drafted words in front of the user to send to someone else, so it
+/// is opt-in on top of memory itself.
+nonisolated struct MemoryAnswerSettings: Codable, Equatable, Sendable {
+    var enabled = false
+    /// Similarity (0-1) the best fact must reach before a draft is offered.
+    var minimumConfidence = 0.45
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        minimumConfidence = min(max(try container.decodeIfPresent(Double.self, forKey: .minimumConfidence) ?? 0.45, 0), 1)
+    }
+}
+
 /// Everything the user configures about memory.
 nonisolated struct MemoryConfiguration: Codable, Equatable, Sendable {
     var index = MemoryIndexSettings()
     var sources: [String: MemorySourceSettings] = [:]
     var privacy = MemoryPrivacySettings()
+    var answers = MemoryAnswerSettings()
 
     init() {}
 
@@ -81,6 +104,7 @@ nonisolated struct MemoryConfiguration: Codable, Equatable, Sendable {
         index = try container.decodeIfPresent(MemoryIndexSettings.self, forKey: .index) ?? MemoryIndexSettings()
         sources = try container.decodeIfPresent([String: MemorySourceSettings].self, forKey: .sources) ?? [:]
         privacy = try container.decodeIfPresent(MemoryPrivacySettings.self, forKey: .privacy) ?? MemoryPrivacySettings()
+        answers = try container.decodeIfPresent(MemoryAnswerSettings.self, forKey: .answers) ?? MemoryAnswerSettings()
     }
 
     /// Sources the user switched on.
@@ -117,6 +141,8 @@ nonisolated struct MemorySource: Equatable, Identifiable, Sendable {
     let optionsSchema: [String: String]
     let enabled: Bool
     let options: [String: String]
+    /// Whether answers may draw on this source.
+    let isAnswerSource: Bool
     let stats: Stats
 }
 
@@ -150,7 +176,7 @@ nonisolated struct MemorySearchResult: Equatable, Sendable {
         var id: String { recordId }
     }
 
-    /// "conversation", "person", "global", or "none" when the conversation was not recognized.
+    /// "conversation", "person", "global", "answer", or "none" when the conversation was not recognized.
     let scope: String
     let conversation: MemoryConversation?
     let elapsedMs: Double

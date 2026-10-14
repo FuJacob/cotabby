@@ -5,7 +5,8 @@ import XCTest
 
 /// Pins conversation memory's engine: the ingest pipeline, the scope rule suggestions rely on
 /// (this conversation, then exactly the same people, never a guess), the Playground's exploring
-/// search, and with the embedding model present, indexing and search by meaning end to end.
+/// search, what answers may draw on, and with the embedding model present, indexing and search by
+/// meaning end to end.
 ///
 /// Without a model the engine searches by keywords only (the index is empty), which pins every
 /// scope rule exactly and runs in milliseconds.
@@ -235,6 +236,73 @@ final class MemoryEngineTests: XCTestCase {
         disabled.global = true
         disabled.sources = ["teams"]
         XCTAssertTrue(engine.search(query: "pilot", scope: disabled).hits.isEmpty, "a source that is off is never searched")
+    }
+
+    // MARK: - Answers
+
+    func test_answerSearchUsesOnlyAnswerSourcesAndTheCurrentConversationAndNeverTheQuestion() throws {
+        let engine = try makeEngine(sources: ["outlook", "whatsapp", "teams"])
+        try engine.ingest(source: "outlook", records: [
+            record("pilot", "The Acme pilot passed all acceptance tests", sender: "Sam", title: "Pilot - Acme"),
+        ], cursor: nil)
+        try engine.ingest(source: "whatsapp", records: [
+            record("family", "The Acme pilot of our flight to Izmir is late", title: "Family"),
+        ], cursor: nil)
+        let question = record("dana", "How did the Acme pilot go?", sender: "Dana Miles", title: "Dana Miles")
+        try engine.ingest(source: "teams", records: [question], cursor: nil)
+        let questionID = try XCTUnwrap(engine.latestMessages(source: "teams", conversationID: "dana", limit: 1).first?.recordID)
+
+        let result = engine.answerSearch(question: "How did the Acme pilot go?", sources: ["outlook"],
+                                         currentConversation: ("teams", "dana"), excludingRecordIDs: [questionID])
+        XCTAssertEqual(result.scope, "answer")
+        XCTAssertEqual(result.hits.map(\.text), ["The Acme pilot passed all acceptance tests"],
+                       "WhatsApp is not an answer source here, and the question is not its own answer")
+    }
+
+    /// Other conversations are opt-in: with no answer source turned on, only the conversation being
+    /// answered can supply facts, and with none identified, nothing can.
+    func test_answerSourcesAreOffByDefaultAndOnlyTheCurrentConversationIsSearched() throws {
+        XCTAssertFalse(MemorySourceCatalog.all.contains { MemorySourceCatalog.isAnswerSource($0.id, settings: nil) })
+        XCTAssertFalse(MemorySourceCatalog.isAnswerSource("outlook", settings: MemorySourceSettings(enabled: true)))
+        XCTAssertTrue(MemorySourceCatalog.isAnswerSource("outlook", settings: MemorySourceSettings(enabled: true, answerSource: true)))
+
+        let engine = try makeEngine(sources: ["outlook"])
+        try engine.ingest(source: "outlook", records: [
+            record("pilot", "The Acme pilot passed all acceptance tests", sender: "Sam", title: "Pilot - Acme"),
+            record("board", "The Acme pilot budget is confidential", sender: "Priya", title: "Board"),
+        ], cursor: nil)
+        let current = engine.answerSearch(question: "How did the Acme pilot go?", sources: [],
+                                          currentConversation: ("outlook", "pilot"), excludingRecordIDs: [])
+        XCTAssertEqual(current.hits.map(\.text), ["The Acme pilot passed all acceptance tests"])
+        XCTAssertTrue(engine.answerSearch(question: "How did the Acme pilot go?", sources: [], currentConversation: nil,
+                                          excludingRecordIDs: []).hits.isEmpty)
+    }
+
+    /// Calendar events hold what a meeting is and who is in it; answers say only busy and free, so
+    /// no event ever becomes a fact, even with "Use for answers" switched on for Calendar.
+    func test_calendarEventsAreNeverAnswerFacts() throws {
+        XCTAssertFalse(MemorySourceCatalog.isAnswerSource("calendar", settings: MemorySourceSettings(enabled: true, answerSource: true)))
+        let engine = try makeEngine(sources: ["calendar"])
+        try engine.ingest(source: "calendar", records: [
+            record("event:1", "Meeting: Northwind restructuring review\nWhen: Thu 8 Oct 2026, 10:00–11:00", sender: "Priya",
+                   title: "Northwind restructuring review"),
+        ], cursor: nil)
+        XCTAssertTrue(engine.answerSearch(question: "Are you free Thursday for the Northwind review?", sources: ["calendar"],
+                                          currentConversation: nil, excludingRecordIDs: []).hits.isEmpty)
+    }
+
+    func test_chatsAreFoundByTitleAndReadNewestFirst() throws {
+        let engine = try makeEngine(sources: ["teams"])
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        try engine.ingest(source: "teams", records: [
+            record("dana", "Hi!", sender: "Dana Miles", title: "Dana Miles", at: start),
+            record("dana", "Is the report ready?", sender: "Dana Miles", title: "Dana Miles", at: start.addingTimeInterval(60)),
+        ], cursor: nil)
+        let found = engine.findConversations(title: "Dana Miles", sources: ["teams"])
+        XCTAssertEqual(found.map(\.conversationId), ["dana"])
+        XCTAssertTrue(engine.findConversations(title: "Dana Miles", sources: ["outlook"]).isEmpty, "another app's sources")
+        XCTAssertEqual(engine.latestMessages(source: "teams", conversationID: "dana", limit: 5).map(\.text),
+                       ["Is the report ready?", "Hi!"])
     }
 
     // MARK: - Schedule policy

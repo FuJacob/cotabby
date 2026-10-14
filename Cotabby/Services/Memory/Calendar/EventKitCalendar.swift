@@ -13,8 +13,8 @@ import Foundation
 ///
 /// Threading: an `EKEventStore` is created per read, on whatever background task reads, and never
 /// shared, so no store crosses threads. Creating one is cheap next to the sync that uses it.
-/// Snapshots are values and cross freely. Used by `CalendarHistoryReader` and the Memory pane's
-/// "Allow Calendar Access" button.
+/// Snapshots are values and cross freely. Used by `CalendarHistoryReader`, the Memory pane's
+/// "Allow Calendar Access" button, and `AnswerCoordinator` (free/busy for availability answers).
 nonisolated enum EventKitCalendar {
     /// Whether Cotabby may read events.
     static var isAuthorized: Bool {
@@ -50,12 +50,20 @@ nonisolated enum EventKitCalendar {
         // A repeating event's occurrences share the series id; each gets its start appended so every
         // occurrence is its own record.
         let id = event.hasRecurrenceRules ? "\(series)@\(Int(event.startDate.timeIntervalSince1970))" : series
+        var busy: Bool
+        switch event.availability {
+        case .free: busy = false
+        case .notSupported: busy = !event.isAllDay
+        default: busy = true  // .busy, .tentative, .unavailable (out of office)
+        }
+        // An invitation the user declined does not take their time.
+        if event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { busy = false }
         return CalendarEventSnapshot(
             id: id, seriesID: series, title: event.title ?? "", start: event.startDate, end: event.endDate,
             isAllDay: event.isAllDay, location: event.location, notes: event.notes,
             organizer: event.organizer.map(person),
             attendees: (event.attendees ?? []).map(person), isCancelled: event.status == .canceled,
-            lastModified: event.lastModifiedDate
+            lastModified: event.lastModifiedDate, showsAsBusy: busy
         )
     }
 

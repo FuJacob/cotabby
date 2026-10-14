@@ -41,11 +41,14 @@ nonisolated final class EmbeddingCore: @unchecked Sendable {
     /// as they are. One instruction per retrieval task.
     enum QueryTask {
         case conversationContext
+        case answerQuestion
 
         var instruction: String {
             switch self {
             case .conversationContext:
                 return "Given text someone is writing in a conversation, retrieve earlier messages that are relevant to it"
+            case .answerQuestion:
+                return "Given a question someone was asked, retrieve messages that contain the answer"
             }
         }
     }
