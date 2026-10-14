@@ -65,6 +65,20 @@ final class MLXModelCatalogTests: XCTestCase {
             "mlx-community/gemma-4-e2b-6bit"
         )
     }
+
+    /// A custom model downloads before it is cached, so no catalog row shows it: the custom field
+    /// must. A catalog model's download stays on its own row.
+    func test_downloadWithoutRowIsOnlyACustomModelsDownload() {
+        let options = MLXModelCatalog.options(cached: [])
+        let custom = MLXDownloadState(repoID: MLXRepoID("org/custom")!, fraction: 0.4, failure: nil, isActive: true)
+        XCTAssertEqual(MLXModelCatalog.downloadWithoutRow(custom, options: options), custom)
+        let failed = MLXDownloadState(repoID: MLXRepoID("org/custom")!, fraction: nil, failure: "No space", isActive: false)
+        XCTAssertEqual(MLXModelCatalog.downloadWithoutRow(failed, options: options), failed)
+        let curated = MLXDownloadState(
+            repoID: MLXModelCatalog.curated[0].repoID, fraction: 0.1, failure: nil, isActive: true)
+        XCTAssertNil(MLXModelCatalog.downloadWithoutRow(curated, options: options))
+        XCTAssertNil(MLXModelCatalog.downloadWithoutRow(nil, options: options))
+    }
 }
 
 final class MLXStateTests: XCTestCase {

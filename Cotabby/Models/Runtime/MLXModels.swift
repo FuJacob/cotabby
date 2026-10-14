@@ -197,6 +197,14 @@ nonisolated enum MLXModelCatalog {
         return curatedRows + otherRows
     }
 
+    /// The download that no row in `options` shows: a custom model started from the "Other MLX
+    /// Model" field is not in the catalog until it is cached, so its progress, Cancel and failure
+    /// need a place of their own. Nil when the download (if any) already has a row.
+    static func downloadWithoutRow(_ download: MLXDownloadState?, options: [MLXModelOption]) -> MLXDownloadState? {
+        guard let download, !options.contains(where: { $0.repoID == download.repoID }) else { return nil }
+        return download
+    }
+
     /// The model to select when the user picks MLX without having chosen one: a downloaded
     /// curated model first, then any downloaded model, else nil (the pane then offers downloads).
     static func defaultSelection(cached: [MLXCachedModel]) -> MLXRepoID? {
