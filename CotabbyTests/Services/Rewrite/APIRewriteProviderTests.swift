@@ -331,6 +331,24 @@ final class AnthropicMessagesClientTests: XCTestCase {
         )
     }
 
+    func test_streamWithoutMessageStopIsAnError() async {
+        RewriteStubURLProtocol.handler = { request in
+            try Self.reply(request, """
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Half a"}}
+
+            """)
+        }
+        defer { RewriteStubURLProtocol.handler = nil }
+        do {
+            _ = try await makeClient().streamMessage(AnthropicMessage(model: "claude-opus-5-5", system: "s", user: "u"),
+                                                     baseURL: "https://api.anthropic.com/v1", apiKey: "k", timeout: 20, onPartial: { _ in })
+            XCTFail("Expected an incomplete-reply error")
+        } catch {
+            XCTAssertEqual(error as? AnthropicMessagesError, .incomplete)
+        }
+    }
+
     func test_streamEventKeepsOnlyTextAndTheEnd() throws {
         let text = #"data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Hi"}}"#
         let thinking = #"data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"x"}}"#

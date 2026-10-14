@@ -57,7 +57,7 @@ struct RewritePaneView: View {
                     }
                     if preferences.preferences.cloudProvider == .custom {
                         TextField("Base URL (e.g. https://gateway.example.com/v1)",
-                                  text: Binding(get: { preferences.preferences.apiBaseURL }, set: preferences.setAPIBaseURL))
+                                  text: Binding(get: { preferences.preferences.apiBaseURL }, set: setBaseURL))
                     }
                     HStack {
                         TextField("Model", text: Binding(get: { preferences.preferences.apiModelName }, set: preferences.setAPIModelName))
@@ -152,6 +152,14 @@ struct RewritePaneView: View {
     }
 
     /// Asks the service for the models this key can use.
+    /// A new URL is a different server: its model list must be loaded again, so the old one goes.
+    private func setBaseURL(_ value: String) {
+        guard value != preferences.preferences.apiBaseURL else { return }
+        preferences.setAPIBaseURL(value)
+        loadedModels = []
+        modelListStatus = nil
+    }
+
     private func loadModels() {
         if apiKey != savedAPIKey { saveAPIKey() }
         let service = preferences.preferences.cloudProvider
@@ -163,7 +171,10 @@ struct RewritePaneView: View {
             defer { isLoadingModels = false }
             do {
                 let models = try await modelList.models(for: service, baseURL: baseURL, apiKey: key)
-                guard preferences.preferences.cloudProvider == service else { return }
+                // The user may have switched service or edited the URL while the list loaded; a list
+                // from another server must not be offered for this one.
+                guard preferences.preferences.cloudProvider == service,
+                      preferences.preferences.effectiveBaseURL == baseURL else { return }
                 loadedModels = models
                 modelListStatus = models.isEmpty ? "The service listed no models." : "\(models.count) models — pick one with Choose."
             } catch {
