@@ -18,6 +18,9 @@ final class SuggestionEngineRouter {
     /// on the concrete runtime type — useful for tests that want to fake the model label.
     private let llamaModelNameProvider: @MainActor () -> String?
     private let endpointModelNameProvider: @MainActor () -> String?
+    /// Generations running right now, whatever the engine. Background work that competes for the
+    /// same GPU (conversation memory's indexing) waits while this is above zero.
+    private(set) var generationsInFlight = 0
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -49,6 +52,8 @@ final class SuggestionEngineRouter {
         for request: SuggestionRequest,
         onPartial: (@MainActor (SuggestionResult) -> Void)?
     ) async throws -> SuggestionResult {
+        generationsInFlight += 1
+        defer { generationsInFlight -= 1 }
         let metadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
             "engine": .string(engineMetadataLabel(for: suggestionSettings.selectedEngine))
@@ -106,6 +111,14 @@ final class SuggestionEngineRouter {
                 return SuggestionResult(
                     generation: request.generation, rawText: "", text: "", latency: 0,
                     suppressionReason: "historyWithheldFromEndpoint"
+                )
+            }
+            // Conversation memory is held to the same rule: private history never leaves the Mac.
+            guard request.memorySnippets.isEmpty else {
+                CotabbyLogger.suggestion.info("Withheld a request carrying conversation memory from the endpoint", metadata: metadata)
+                return SuggestionResult(
+                    generation: request.generation, rawText: "", text: "", latency: 0,
+                    suppressionReason: "memoryWithheldFromEndpoint"
                 )
             }
             CotabbyLogger.suggestion.debug("Routing to OpenAI-compatible endpoint", metadata: metadata)

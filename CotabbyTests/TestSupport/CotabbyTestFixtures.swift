@@ -127,6 +127,7 @@ enum CotabbyTestFixtures {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         historyExamples: [String] = [],
+        memorySnippets: [String] = [],
         isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -157,6 +158,7 @@ enum CotabbyTestFixtures {
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
             historyExamples: historyExamples,
+            memorySnippets: memorySnippets,
             isMultiLineEnabled: isMultiLineEnabled
         )
     }
