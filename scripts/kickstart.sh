@@ -222,7 +222,12 @@ for code in \
     "$frameworks/Sparkle.framework" \
     "$frameworks/llama.framework" \
     "$app_path"; do
-    [[ -e "$code" ]] && codesign "${sign_flags[@]}" "$code"
+    # The app itself keeps its resource-access entitlements (Calendars) when re-signed.
+    if [[ "$code" == "$app_path" ]]; then
+        codesign "${sign_flags[@]}" --entitlements "$REPO_ROOT/Cotabby/Cotabby.entitlements" "$code"
+    elif [[ -e "$code" ]]; then
+        codesign "${sign_flags[@]}" "$code"
+    fi
 done
 codesign --verify --deep --strict "$app_path"
 note "signed with: $([[ "$signing_identity" == "-" ]] && echo "ad-hoc" || echo "$signing_identity ($team_id)")"
