@@ -18,6 +18,9 @@ struct SettingsContainerView: View {
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
+    @ObservedObject var mlxToolchainProvisioner: MLXToolchainProvisioner
+    @ObservedObject var mlxServerManager: MLXServerManager
+    @ObservedObject var mlxModelDownloader: MLXModelDownloader
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
@@ -30,6 +33,13 @@ struct SettingsContainerView: View {
     let clearEmojiHistory: () -> Void
     /// Owned by `CotabbyAppEnvironment`; the Context pane observes it for the Typing History section.
     let typingHistoryStore: TypingHistoryStore
+    /// Selection rewrite's settings and keys; the same instances the rewrite engine reads, so a change
+    /// here applies to the next rewrite.
+    @ObservedObject var rewritePreferences: RewritePreferencesStore
+    let rewriteCredentials: RewriteCredentialVault
+    let rewriteModelList: RewriteModelListService
+    /// Resolves "Same as autocomplete" and answers which Rewrite rows can run.
+    let rewriteEngine: RewriteEngine
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -102,7 +112,8 @@ struct SettingsContainerView: View {
                 foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
                 llamaRuntimeFailedReason: runtimeModel.state.failureDetail,
                 endpointConfigurationError: endpointConfigurationError,
-                endpointConnectionFailedReason: openAICompatibleConnectionModel.state.failureDetail
+                endpointConnectionFailedReason: openAICompatibleConnectionModel.state.failureDetail,
+                mlxProblem: mlxServerManager.state.problem
             )
         )
     }
@@ -118,6 +129,7 @@ struct SettingsContainerView: View {
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
                 openAICompatibleConnectionModel: openAICompatibleConnectionModel,
+                mlxServerManager: mlxServerManager,
                 attentionCategories: attentionCategories
             )
         case .general:
@@ -137,6 +149,9 @@ struct SettingsContainerView: View {
             EngineAndModelPaneView(
                 suggestionSettings: suggestionSettings,
                 openAICompatibleConnectionModel: openAICompatibleConnectionModel,
+                mlxToolchainProvisioner: mlxToolchainProvisioner,
+                mlxServerManager: mlxServerManager,
+                mlxModelDownloader: mlxModelDownloader,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager,
@@ -146,6 +161,13 @@ struct SettingsContainerView: View {
             WritingPaneView(suggestionSettings: suggestionSettings)
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings, typingHistory: typingHistoryStore)
+        case .rewrite:
+            RewritePaneView(preferences: rewritePreferences, credentials: rewriteCredentials,
+                            modelList: rewriteModelList, engine: rewriteEngine, suggestionSettings: suggestionSettings,
+                            mlxToolchainProvisioner: mlxToolchainProvisioner, mlxModelDownloader: mlxModelDownloader,
+                            mlxServerManager: mlxServerManager,
+                            foundationModelAvailabilityService: foundationModelAvailabilityService,
+                            runtimeModel: runtimeModel)
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:

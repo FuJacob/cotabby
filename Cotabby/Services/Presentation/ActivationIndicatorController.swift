@@ -9,14 +9,20 @@ import SwiftUI
 ///
 /// Keeping this as a separate controller preserves the architectural split between:
 /// supported-field affordances and suggestion-specific UI.
+///
+/// Selection rewrite borrows the same icon as its button (`showRewrite` / `endRewrite`): while text
+/// is selected the cat becomes a wand and the panel takes clicks. Otherwise the panel ignores the
+/// mouse, as it always has, so the icon never intercepts a click meant for the host.
 @MainActor
 final class ActivationIndicatorController {
     /// Field-edge mode should visually touch the input's outside edge.
     private let fieldEdgeGap: CGFloat = 0
     private let screenInset: CGFloat = 2
 
-    private lazy var contentView: NSHostingView<AnyView> = {
-        NSHostingView(rootView: AnyView(EmptyView()))
+    private lazy var contentView: ClickableHostingView = {
+        let view = ClickableHostingView(rootView: AnyView(EmptyView()))
+        view.onClick = { [weak self] in self?.onRewritePress?() }
+        return view
     }()
 
     private lazy var panel: ActivationIndicatorPanel = {
@@ -40,12 +46,57 @@ final class ActivationIndicatorController {
 
     private var isVisible = false
 
+    /// Set while selection rewrite owns the icon (`showRewrite`): a click opens the rewrite popup,
+    /// and focus-driven `show`/`hide` calls leave the icon alone, because a selection makes the field
+    /// "not supported" for autocomplete and would hide it.
+    private var onRewritePress: (() -> Void)?
+
+    /// The icon's screen frame while it is the rewrite button, so the popup can open beside it.
+    var rewriteIconFrame: CGRect? { onRewritePress != nil && panel.isVisible ? panel.frame : nil }
+
+    /// Whether the icon currently takes mouse clicks: only while it is the rewrite wand. Read by tests
+    /// to pin that the plain icon stays click-through, as it always was.
+    var acceptsClicks: Bool { !panel.ignoresMouseEvents }
+
+    /// Called after `endRewrite()` gives the icon back; `AppDelegate` re-evaluates the normal icon.
+    var onRewriteEnded: (() -> Void)?
+
+    /// Turns the field-edge icon into the rewrite button for the current selection, at the same place
+    /// the Cotabby icon sits (just outside the field's left edge), whatever the indicator setting:
+    /// the rewrite button has its own setting in Settings → Rewrite.
+    func showRewrite(caretRect: CGRect, inputFrameRect: CGRect?, onPress: @escaping () -> Void) {
+        onRewritePress = onPress
+        guard !caretRect.isEmpty else {
+            panel.orderOut(nil)
+            isVisible = false
+            return
+        }
+        // The button must take its click; the plain icon never does.
+        panel.ignoresMouseEvents = false
+        place(view: FieldEdgeIconIndicatorView(rewrite: true), caretRect: caretRect, inputFrameRect: inputFrameRect)
+    }
+
+    /// Gives the icon back to focus-driven control and hides it; the next focus update shows the
+    /// Cotabby icon again where autocomplete applies.
+    func endRewrite() {
+        guard onRewritePress != nil else { return }
+        onRewritePress = nil
+        panel.ignoresMouseEvents = true
+        panel.orderOut(nil)
+        isVisible = false
+        // The focus update for the same change may already have run (and been ignored while rewrite
+        // owned the icon), so ask for the normal icon now instead of waiting for the next one.
+        onRewriteEnded?()
+    }
+
     /// Shows or hides the field-edge Cotabby icon indicator.
     func show(
         enabled: Bool,
         caretRect: CGRect,
         inputFrameRect: CGRect?
     ) {
+        // Selection rewrite owns the icon until it calls `endRewrite()`.
+        guard onRewritePress == nil else { return }
         guard enabled else {
             hide(reason: "Activation indicator hidden because it is disabled.")
             return
@@ -56,7 +107,12 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(FieldEdgeIconIndicatorView())
+        place(view: FieldEdgeIconIndicatorView(), caretRect: caretRect, inputFrameRect: inputFrameRect)
+    }
+
+    /// Renders `view` and puts the panel just outside the field's edge.
+    private func place(view: FieldEdgeIconIndicatorView, caretRect: CGRect, inputFrameRect: CGRect?) {
+        contentView.rootView = AnyView(view)
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = fieldEdgeIconOrigin(
@@ -77,6 +133,7 @@ final class ActivationIndicatorController {
 
     /// Hides the indicator when Cotabby is not actively supporting the current field.
     func hide(reason _: String) {
+        guard onRewritePress == nil else { return }
         panel.orderOut(nil)
         isVisible = false
     }
@@ -145,4 +202,22 @@ final class ActivationIndicatorController {
 private final class ActivationIndicatorPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+/// Hosting view for the icon that turns a click into `onClick` while the panel accepts the mouse.
+///
+/// `acceptsFirstMouse` returns true because the panel is never key (it is non-activating), and
+/// without it AppKit would spend the first click making the window key instead of delivering it.
+private final class ClickableHostingView: NSHostingView<AnyView> {
+    var onClick: (() -> Void)?
+
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with _: NSEvent) {
+        onClick?()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
 }

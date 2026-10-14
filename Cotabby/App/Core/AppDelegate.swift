@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
+    let mlxServerManager: MLXServerManager
+    let menuResourceMonitor: MenuResourceMonitor
     let suggestionCoordinator: SuggestionCoordinator
     let inlineCommandCoordinator: InlineCommandCoordinator
     let welcomeCoordinator: WelcomeCoordinator
@@ -57,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         powerSourceMonitor = environment.powerSourceMonitor
+        mlxServerManager = environment.mlxServerManager
+        menuResourceMonitor = environment.menuResourceMonitor
         suggestionCoordinator = environment.suggestionCoordinator
         inlineCommandCoordinator = environment.inlineCommandCoordinator
         welcomeCoordinator = environment.welcomeCoordinator
@@ -93,6 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.applyRuntimeResidency(keepsModelLoaded: keepsModelLoaded)
             }
             .store(in: &cancellables)
+
+        // Selection rewrite borrows the field-edge icon while text is selected; when it gives the icon
+        // back, show the normal icon for the current focus at once.
+        activationIndicatorController.onRewriteEnded = { [weak self] in
+            guard let self else { return }
+            self.updateActivationIndicator(for: self.focusModel.snapshot)
+        }
 
         focusModel.$snapshot
             .sink { [weak self] snapshot in
@@ -164,11 +175,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         applyLaunchAtLoginDefaultIfNeeded()
         startRuntimeIfPreferredEngineRequiresIt()
+        environment.startMLXEngine()
         focusModel.start()
         inputMonitor.start()
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
+        environment.selectionRewriteCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -253,9 +266,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Write the field being typed in now; the debounced background save may not have run yet.
         environment.typingHistoryStore.flush()
         inlineCommandCoordinator.stop()
+        environment.selectionRewriteCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
 
+        // Waits at most 3 s for mlx_lm.server to exit (SIGKILL after that), so quitting Cotabby
+        // never leaves a Python process holding the model's memory. Autocomplete's server and
+        // Rewrite's on-demand one both get SIGTERM first, then share the wait.
+        environment.mlxRewriteServer.prepareForShutdown()
+        MLXServerManager.shutdownSync(
+            [environment.mlxServerManager, environment.mlxRewriteServer.manager], timeoutSeconds: 3)
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
     }
 
@@ -296,8 +316,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runtimeModel.startIfNeeded()
         } else {
             // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
-            // user still pays the duplicate memory cost the external endpoint is meant to avoid, and
-            // an Apple Intelligence user keeps a model they asked not to keep loaded.
+            // user still pays the duplicate memory cost the external endpoint is meant to avoid, an
+            // Apple Intelligence user keeps a model they asked not to keep loaded, and an MLX user
+            // holds a second copy of the weights beside the one mlx_lm.server loaded.
             runtimeModel.stop()
         }
     }

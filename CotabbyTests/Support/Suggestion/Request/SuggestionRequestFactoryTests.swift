@@ -35,9 +35,25 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
     }
 
+    func test_buildRequest_mlxKeepsOnDeviceContext() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "We are meeting ",
+            trailingText: "LOCAL_DOCUMENT_TAIL"
+        )
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .mlx),
+            configuration: .standard,
+            historyExamples: ["HISTORY_EXAMPLE"]
+        )
+        XCTAssertEqual(result.request.historyExamples, ["HISTORY_EXAMPLE"])
+        XCTAssertTrue(result.request.prompt.contains("LOCAL_DOCUMENT_TAIL"))
+        XCTAssertTrue(result.request.prompt.hasSuffix("We are meeting "))
+    }
+
     func test_localScreenContextExceedsOldCapButEndpointKeepsLegacyPrompt() {
         let screen = String(repeating: "Project discussion and meeting agenda. ", count: 120)
-        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .mlx, .openAICompatible] {
             let result = SuggestionRequestFactory.buildRequest(
                 context: CotabbyTestFixtures.focusedInputContext(precedingText: "Please send "),
                 settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),

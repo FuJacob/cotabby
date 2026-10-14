@@ -45,6 +45,13 @@ final class FoundationModelAvailabilityServiceTests: XCTestCase {
         return (service, provider)
     }
 
+    func test_onlyAPermanentUnavailableStateIsPermanent() {
+        XCTAssertFalse(FoundationModelAvailabilityState.available.isPermanentlyUnavailable)
+        XCTAssertFalse(FoundationModelAvailabilityState.unavailable("Still downloading.").isPermanentlyUnavailable)
+        XCTAssertTrue(FoundationModelAvailabilityState.unavailable("Not eligible.", permanent: true).isPermanentlyUnavailable)
+        XCTAssertEqual(FoundationModelAvailabilityState.unavailable("Not eligible.", permanent: true).summary, "Not eligible.")
+    }
+
     func test_state_vocabularyExposesBinaryDecisionPlusExplanation() {
         XCTAssertTrue(FoundationModelAvailabilityState.available.isAvailable)
         XCTAssertEqual(

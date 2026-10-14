@@ -82,6 +82,7 @@ final class DecodeStopPolicyTests: XCTestCase {
         // These strings land in the decode log's `stop_reason` field that jq recipes filter on.
         XCTAssertEqual(Reason.sentenceBoundary.rawValue, "sentence_boundary")
         XCTAssertEqual(Reason.scaffoldingMarker.rawValue, "scaffolding_marker")
+        XCTAssertEqual(Reason.stopSequence.rawValue, "stop_sequence")
     }
 
     func testSentenceStopWaitsForTheMinimumWordCount() {
@@ -91,5 +92,27 @@ final class DecodeStopPolicyTests: XCTestCase {
             DecodeStopPolicy.verdict(accumulated: " the report by Friday.", tokensGenerated: 6, minimumWords: 4),
             .sentenceBoundary
         )
+    }
+
+    func test_noStopSequencesNeverStops() {
+        // Autocomplete sets none, so its decode loop keeps exactly the `verdict` decision.
+        XCTAssertFalse(DecodeStopPolicy.hitsStopSequence("Rewritten: fine.\nDraft: next", stopSequences: []))
+    }
+
+    func test_stopSequenceStopsOnceTheTextContainsIt() {
+        let stops = ["\nDraft:", "\n\n\n"]
+        XCTAssertFalse(DecodeStopPolicy.hitsStopSequence(" I'll send it tomorrow.", stopSequences: stops))
+        XCTAssertFalse(DecodeStopPolicy.hitsStopSequence(" I'll send it tomorrow.\nDra", stopSequences: stops))
+        XCTAssertTrue(DecodeStopPolicy.hitsStopSequence(" I'll send it tomorrow.\nDraft:", stopSequences: stops))
+    }
+
+    /// The decode loop asks `verdict`; a stop sequence stops even when the sentence stop is off
+    /// (rewrite sets an unreachable minimum), and without stop sequences the verdict is unchanged.
+    func test_verdictStopsAtAStopSequenceBeforeTheMinimumGuard() {
+        XCTAssertEqual(
+            DecodeStopPolicy.verdict(accumulated: " Fine.\nDraft:", tokensGenerated: 4, minimumTokens: .max, stopSequences: ["\nDraft:"]),
+            .stopSequence
+        )
+        XCTAssertNil(DecodeStopPolicy.verdict(accumulated: " Fine.\nDraft:", tokensGenerated: 4, minimumTokens: .max))
     }
 }

@@ -360,6 +360,13 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let trailingText: String
     let selection: NSRange
     let isSecure: Bool
+    /// The text the user has selected, cut from the same bounded window as `precedingText` and
+    /// `trailingText`; empty when the selection is a caret. Selection rewrite reads it.
+    let selectedText: String
+    /// The selection in the host's full value, for restoring it through `kAXSelectedTextRangeAttribute`;
+    /// nil when the host only exposes window-relative text markers (Chromium contenteditables), where
+    /// a rewrite then copies instead of restoring.
+    let hostSelection: NSRange?
 
     /// True when the resolved field is an xterm.js integrated-terminal surface (VS Code / Cursor /
     /// Windsurf terminal, or a browser-hosted web terminal). Set by `FocusSnapshotResolver` from the
@@ -446,7 +453,9 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         fieldPlaceholder: String? = nil,
         hostTextMetrics: HostTextMetrics? = nil,
         elementFrameRect: CGRect? = nil,
-        hostMarkedTextRange: NSRange? = nil
+        hostMarkedTextRange: NSRange? = nil,
+        selectedText: String = "",
+        hostSelection: NSRange? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -474,6 +483,8 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.hostTextMetrics = hostTextMetrics
         self.elementFrameRect = elementFrameRect
         self.hostMarkedTextRange = hostMarkedTextRange
+        self.selectedText = selectedText
+        self.hostSelection = hostSelection
     }
 
     var identity: FocusedInputIdentity {

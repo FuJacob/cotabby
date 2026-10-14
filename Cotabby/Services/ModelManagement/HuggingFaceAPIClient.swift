@@ -68,6 +68,33 @@ enum HuggingFaceAPIClient {
         }
     }
 
+    /// Whether downloading the repo needs an accepted license and a token. The model-info API
+    /// reports `gated` as `false`, `"auto"` or `"manual"`.
+    static func isGated(repoId: String) async throws -> Bool {
+        guard var components = URLComponents(string: "https://huggingface.co") else {
+            throw APIError.invalidURL
+        }
+        components.path = "/api/models/\(repoId)"
+        guard let url = components.url else { throw APIError.invalidURL }
+        let data = try await performRequest(url: url)
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.decodingFailed(URLError(.cannotParseResponse))
+        }
+        if let gated = object["gated"] as? Bool { return gated }
+        return object["gated"] is String
+    }
+
+    /// One file of a repo at `main` (`resolve` redirects LFS files to the CDN; URLSession follows).
+    /// Used for small files such as `config.json`; a missing file surfaces as `httpError(404)`.
+    static func fetchFileData(repoId: String, path: String) async throws -> Data {
+        guard var components = URLComponents(string: "https://huggingface.co") else {
+            throw APIError.invalidURL
+        }
+        components.path = "/\(repoId)/resolve/main/\(path)"
+        guard let url = components.url else { throw APIError.invalidURL }
+        return try await performRequest(url: url)
+    }
+
     private static func performRequest(url: URL) async throws -> Data {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData

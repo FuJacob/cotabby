@@ -188,6 +188,8 @@ final class TypingHistoryStoreTests: XCTestCase {
 
         XCTAssertNil(store.phraseContinuation(for: request, engine: .openAICompatible))
         XCTAssertEqual(store.historyExamples(for: context, engine: .openAICompatible), [])
+        // MLX runs on this Mac (127.0.0.1 server Cotabby owns), so history stays available to it.
+        XCTAssertNotNil(store.phraseContinuation(for: request, engine: .mlx))
 
         store.setUsingHistory(false)
         XCTAssertNil(store.phraseContinuation(for: request, engine: .appleIntelligence))

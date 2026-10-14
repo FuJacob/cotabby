@@ -52,6 +52,12 @@ nonisolated enum GPUStatisticsReader {
     /// property read per GPU client on the Mac (68 clients took about 0.5 ms on an M3 Pro), cheap
     /// enough for the store's one-second timer on the main thread.
     static func read(pid: pid_t = getpid()) -> GPUStatisticsReading {
+        read(pids: [pid])
+    }
+
+    /// Like `read(pid:)`, but `processGPUTimeNanoseconds` sums the Metal clients of every pid given
+    /// (Cotabby plus the MLX server when it runs).
+    static func read(pids: [pid_t]) -> GPUStatisticsReading {
         var services: io_iterator_t = 0
         guard IOServiceGetMatchingServices(
             kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &services
@@ -70,7 +76,7 @@ nonisolated enum GPUStatisticsReader {
             if statistics == nil {
                 statistics = property("PerformanceStatistics", of: service) as? [String: Any]
             }
-            appUsages += appUsageOfClients(of: service, pid: pid)
+            appUsages += appUsageOfClients(of: service, pids: pids)
         }
         return GPUStatisticsReading(
             deviceUtilizationPercent: deviceUtilizationPercent(from: statistics),
@@ -125,24 +131,28 @@ nonisolated enum GPUStatisticsReader {
         return min(busySeconds / elapsedSeconds * 100, 100)
     }
 
+    /// True when an `IOUserClientCreator` string ("pid 123, Name") belongs to one of `pids`. The
+    /// trailing comma stops "pid 12," from matching pid 123.
+    static func creatorMatches(_ creator: String, pids: [pid_t]) -> Bool {
+        pids.contains { creator.hasPrefix("pid \($0),") }
+    }
+
     // MARK: - IORegistry access
 
-    /// `AppUsage` arrays of the accelerator's clients that `pid` created, one element per client.
-    /// A client whose `AppUsage` is missing or not an array of dictionaries contributes `nil`.
-    private static func appUsageOfClients(of service: io_object_t, pid: pid_t) -> [[[String: Any]]?] {
+    /// `AppUsage` arrays of the accelerator's clients that one of `pids` created, one element per
+    /// client. A client whose `AppUsage` is missing or not an array of dictionaries contributes `nil`.
+    private static func appUsageOfClients(of service: io_object_t, pids: [pid_t]) -> [[[String: Any]]?] {
         var children: io_iterator_t = 0
         guard IORegistryEntryGetChildIterator(service, kIOServicePlane, &children) == KERN_SUCCESS else {
             return []
         }
         defer { IOObjectRelease(children) }
 
-        let creatorPrefix = "pid \(pid),"
         var usages: [[[String: Any]]?] = []
         while case let child = IOIteratorNext(children), child != 0 {
             defer { IOObjectRelease(child) }
-            // The trailing comma keeps pid 12 from matching pid 123's clients.
             guard let creator = property("IOUserClientCreator", of: child) as? String,
-                  creator.hasPrefix(creatorPrefix)
+                  creatorMatches(creator, pids: pids)
             else { continue }
             usages.append(property("AppUsage", of: child) as? [[String: Any]])
         }
@@ -154,5 +164,32 @@ nonisolated enum GPUStatisticsReader {
     private static func property(_ key: String, of entry: io_object_t) -> Any? {
         IORegistryEntryCreateCFProperty(entry, key as CFString, kCFAllocatorDefault, 0)?
             .takeRetainedValue()
+    }
+}
+
+/// Turns successive cumulative GPU-time readings of a set of processes into a share, 0-100.
+/// Owned by the menu bar sampler (one instance, used from one timer). It exists apart from
+/// `GPUStatisticsReader` because it is the only stateful part: the baseline must restart whenever
+/// the watched pid set changes (the MLX server starting or stopping), otherwise the summed counter
+/// jumps or drops and the growth would read as a spike or as nothing.
+nonisolated struct GPUShareTracker {
+    /// One earlier reading: which processes it summed, their GPU time, and when.
+    private struct Reading {
+        let pids: Set<pid_t>
+        let nanoseconds: UInt64?
+        let date: Date
+    }
+
+    private var previous: Reading?
+
+    mutating func update(pids: [pid_t], nanoseconds: UInt64?, at date: Date) -> Double? {
+        let pidSet = Set(pids)
+        defer { previous = Reading(pids: pidSet, nanoseconds: nanoseconds, date: date) }
+        guard let previous, previous.pids == pidSet else { return nil }
+        return GPUStatisticsReader.processUtilizationPercent(
+            previousNanoseconds: previous.nanoseconds,
+            currentNanoseconds: nanoseconds,
+            elapsedSeconds: date.timeIntervalSince(previous.date)
+        ).map { min(max($0, 0), 100) }
     }
 }

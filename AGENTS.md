@@ -164,9 +164,11 @@ from Accessibility and Input Monitoring.
 
 Runtime generation is split by responsibility:
 
-- `SuggestionEngineRouter`: selects Apple Intelligence, Open Source, or the configured
+- `SuggestionEngineRouter`: selects Apple Intelligence, Open Source, MLX, or the configured
   OpenAI-compatible endpoint and owns the narrow Apple-to-llama language fallback.
 - `FoundationModelSuggestionEngine`: Apple on-device generation path.
+- `MLXServerManager`: Cotabby's `mlx_lm.server` child process (loopback only), with
+  `MLXToolchainProvisioner` and `MLXModelDownloader` for its install and models.
 - `LlamaSuggestionEngine`: request-to-prompt, llama result handling, and cache reset handoff.
 - `OpenAICompatibleSuggestionEngine`: completion/chat transport, SSE streaming, and Ollama preload
   behavior for the configured endpoint.
@@ -198,7 +200,9 @@ The Swift generation loop owns the maximum output-token budget.
   reads as overwriting them. Change those pure helpers and their tests rather than nudging offsets
   in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
-- `ActivationIndicatorController` owns the optional caret/field-edge indicator.
+- `ActivationIndicatorController` owns the optional caret/field-edge indicator. Selection rewrite
+  borrows it as its wand button while text is selected (`showRewrite` / `endRewrite`);
+  `SelectionRewriteCoordinator` owns that flow, its popup and its Replace checks.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
   options, not normal user settings.
 - Settings panes (under `Cotabby/UI/Settings/Panes/`) and onboarding views should remain
@@ -256,6 +260,9 @@ Console.app stream.
 - `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
   generation. Shares `request_id` with the main log so a single suggestion can be joined across
   files.
+- `~/Library/Logs/<app>/mlx-server.log` — everything Cotabby's `mlx_lm.server` wrote to stderr,
+  one header line (pid, model, port) per server start; rotated to `mlx-server.log.1` at 2 MB.
+  Without the flag only the last lines stay in memory for the MLX failure message.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
   Chrome focus change (debounced by focused-element identity).
 - Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
@@ -295,6 +302,7 @@ jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
 - Wrong text inserted → look up the request in `llm-io.jsonl`, then walk `suggestion` for
   acceptance
 - Model won't load / decode fails → `runtime` + `models`
+- MLX failed or keeps restarting → `runtime`, then `mlx-server.log`
 - Permission dialog loop → `app` (permission state transitions)
 - Chrome-specific weirdness → start with `~/Desktop/cotabby-ax-dump.txt`, then `focus`
 - Wrong backend chosen → `suggestion` router selection log (`engine`, `fallback_engine`)

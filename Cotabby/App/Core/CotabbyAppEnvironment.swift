@@ -22,6 +22,15 @@ final class CotabbyAppEnvironment {
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
+    /// MLX engine services, created once and kept for the app's lifetime. Settings observes them;
+    /// `startMLXEngine()` (called by AppDelegate outside the test host) starts their work.
+    let mlxToolchainProvisioner: MLXToolchainProvisioner
+    let mlxServerManager: MLXServerManager
+    /// The second, on-demand MLX server Rewrite uses when autocomplete is not on MLX (it runs
+    /// autocomplete's MLX model). `AppDelegate` stops it with autocomplete's server on quit.
+    let mlxRewriteServer: MLXRewriteServerController
+    let menuResourceMonitor: MenuResourceMonitor
+    let mlxModelDownloader: MLXModelDownloader
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
     /// Process-lifetime Low Power Mode observer shared with suggestion orchestration.
@@ -41,11 +50,16 @@ final class CotabbyAppEnvironment {
     let performanceMetricsStore: PerformanceMetricsStore
     let qualityMetricsStore: SuggestionQualityMetricsStore
     let typingHistoryStore: TypingHistoryStore
+    /// Selection rewrite: the popup flow, started and stopped by `AppDelegate`.
+    let selectionRewriteCoordinator: SelectionRewriteCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
 
     private var cancellables = Set<AnyCancellable>()
+    /// Serializes `apply(_:)` calls to the MLX server manager: each new task awaits the previous
+    /// one, so a quick engine switch and switch-back reach the manager in order.
+    private var mlxApplyChain: Task<Void, Never>?
 
     init() {
         CotabbyLogger.app.info("Building dependency graph")
@@ -65,6 +79,18 @@ final class CotabbyAppEnvironment {
         let openAICompatibleClient = OpenAICompatibleAPIClient()
         let openAICompatibleConnectionModel = OpenAICompatibleConnectionModel(
             client: openAICompatibleClient
+        )
+        let mlxPaths = MLXPaths.standard()
+        let mlxToolchainProvisioner = MLXToolchainProvisioner.live(paths: mlxPaths)
+        let mlxServerManager = MLXServerManager.live(paths: mlxPaths)
+        let mlxModelDownloader = MLXModelDownloader.live()
+        // The rewrite server is a second manager with its own pid file, so the launch-time orphan
+        // cleanup and the quit path cover both processes and never confuse them.
+        let mlxRewriteServer = MLXRewriteServerController(
+            manager: MLXServerManager.live(paths: mlxPaths, pidFileURL: mlxPaths.rewriteServerPIDFile),
+            toolchain: { [weak mlxToolchainProvisioner] in mlxToolchainProvisioner?.state ?? .checking },
+            cachedModels: { [weak mlxModelDownloader] in mlxModelDownloader?.cachedModels },
+            rejectedModels: { [weak mlxModelDownloader] in mlxModelDownloader?.rejectedModels ?? [:] }
         )
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
         let powerSourceMonitor = PowerSourceMonitor()
@@ -156,7 +182,31 @@ final class CotabbyAppEnvironment {
         let qualityMetricsStore = SuggestionQualityMetricsStore()
         // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
         // to start sampling, so constructing it eagerly here costs nothing.
-        let systemMetricsStore = SystemMetricsStore()
+        // With MLX the model runs in a separate server process, so the sampler adds that process's
+        // CPU and memory while one is running; otherwise the graph would read near zero. Rewrite's
+        // on-demand server counts too while it is up.
+        let systemMetricsStore = SystemMetricsStore(sampler: { [weak mlxServerManager, weak mlxRewriteServer] in
+            let pids = MainActor.assumeIsolated {
+                [mlxServerManager?.runningProcessIdentifier, mlxRewriteServer?.manager.runningProcessIdentifier]
+                    .compactMap { $0 }
+            }
+            var sample = SystemResourceSampler.sample(extraProcessIDs: pids)
+            sample.includesMLXServer = !pids.isEmpty
+            return sample
+        })
+        // Compact CPU/RAM/GPU line in the menu bar popover. It samples with its own baselines
+        // (`MenuResourceSampler`) so it cannot disturb the Performance pane's CPU deltas.
+        let menuResourceSampler = MenuResourceSampler()
+        let menuResourceMonitor = MenuResourceMonitor(
+            sample: { [weak mlxServerManager, weak mlxRewriteServer] in
+                let pids = MainActor.assumeIsolated {
+                    [mlxServerManager?.runningProcessIdentifier, mlxRewriteServer?.manager.runningProcessIdentifier]
+                        .compactMap { $0 }
+                }
+                return menuResourceSampler.sample(extraProcessIDs: pids)
+            },
+            onStop: { menuResourceSampler.reset() }
+        )
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
         // Commit accepted text through an IME-safe path (Accessibility / paste) while a composing IME
         // is active; a synthetic keystroke would be re-absorbed into composition and the accept would
@@ -220,6 +270,13 @@ final class CotabbyAppEnvironment {
             ),
             endpointModelNameProvider: { [weak suggestionSettings] in
                 suggestionSettings?.openAICompatibleModelName.nonEmpty
+            },
+            mlxEngine: OpenAICompatibleSuggestionEngine.mlx(
+                client: openAICompatibleClient,
+                serverManager: mlxServerManager
+            ),
+            mlxModelNameProvider: { [weak suggestionSettings] in
+                suggestionSettings?.mlxModelID.nonEmpty
             }
         )
         // Under `-cotabby-debug` with `cotabbyDebugForcedSuggestion` set, every request answers with
@@ -243,12 +300,79 @@ final class CotabbyAppEnvironment {
         // "Clear History" control can reach it, and before the picker which reads and writes it.
         let emojiUsageStore = EmojiUsageStore()
 
+        // Selection rewrite: its own preferences and Keychain items, one provider per engine plus the
+        // cloud one, and the shared inserter. Built once here: the same store and credential
+        // instances feed the Settings pane and the engine, so a saved change applies at once.
+        let rewritePreferences = RewritePreferencesStore(appleIntelligence: foundationModelAvailabilityService.state)
+        // One Keychain item per cloud service, so switching services keeps every key.
+        let rewriteCredentials = RewriteCredentialVault()
+        let anthropicClient = AnthropicMessagesClient()
+        let rewriteModelList = RewriteModelListService(client: openAICompatibleClient, anthropic: anthropicClient)
+        // No rewrite-only models: every local provider reuses what autocomplete is set up with.
+        let rewriteEngine = RewriteEngine(
+            appleIntelligence: AppleIntelligenceRewriteProvider(availability: foundationModelAvailabilityService),
+            openSource: OpenSourceRewriteProvider(
+                runtimeManager: runtimeManager,
+                hasLocalModel: { [weak runtimeModel] in runtimeModel?.selectedModelFilename != nil }
+            ),
+            localEndpoint: LocalEndpointRewriteProvider(
+                client: openAICompatibleClient,
+                configuration: { [weak suggestionSettings] in try Self.endpointConfiguration(of: suggestionSettings) },
+                apiKey: { [weak suggestionSettings] in try suggestionSettings?.openAICompatibleAPIKey() }
+            ),
+            mlx: MLXRewriteProvider(
+                controller: mlxRewriteServer,
+                autocompleteServer: mlxServerManager,
+                autocompleteEngine: { [weak suggestionSettings] in suggestionSettings?.selectedEngine ?? .llamaOpenSource },
+                modelID: { [weak suggestionSettings] in suggestionSettings?.mlxModelID ?? "" },
+                client: openAICompatibleClient
+            ),
+            api: APIRewriteProvider(
+                client: openAICompatibleClient,
+                anthropic: anthropicClient,
+                preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults },
+                credentials: { [weak rewriteCredentials] service in
+                    rewriteCredentials?.store(for: service) ?? InMemoryOpenAICompatibleCredentialStore()
+                }
+            ),
+            autocompleteEngine: { [weak suggestionSettings] in suggestionSettings?.selectedEngine ?? .llamaOpenSource },
+            endpointHostScope: { [weak suggestionSettings] in try? Self.endpointConfiguration(of: suggestionSettings).hostScope },
+            preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults }
+        )
+        let selectionRewriteCoordinator = SelectionRewriteCoordinator(
+            snapshots: focusModel.$snapshot.eraseToAnyPublisher(),
+            // `@Published` emits the new value before the store's property changes, so the coordinator
+            // acts on the emitted value; `dropFirst` skips the replayed current one.
+            enabledChanges: rewritePreferences.$preferences.map(\.isEnabled).removeDuplicates().dropFirst().eraseToAnyPublisher(),
+            currentSnapshot: { [weak focusModel] in focusModel?.snapshot ?? .inactive },
+            refreshFocus: { [weak focusModel] in focusModel?.refreshNow() },
+            presenter: SelectionRewritePanelController(indicator: activationIndicatorController),
+            output: LiveSelectionRewriteTextOutput(inserter: suggestionInserter),
+            engine: rewriteEngine,
+            preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults },
+            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] input in
+                SelectionRewriteEligibility.isAppAllowed(
+                    for: input,
+                    settings: suggestionSettings?.snapshot,
+                    isLowPowerModeEnabled: lowPowerModeMonitor?.isLowPowerModeEnabled ?? false,
+                    disabledDomains: PerDomainDisableSettings.disabledDomains()
+                )
+            },
+            hotkey: TemporaryKeyTap(suppressionController: suppressionController),
+            keyTap: TemporaryKeyTap(suppressionController: suppressionController),
+            writingLanguages: { [weak suggestionSettings] in suggestionSettings?.responseLanguages ?? [] },
+            setFixesMistakes: { [weak rewritePreferences] in rewritePreferences?.setFixesMistakes($0) }
+        )
+
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
             suggestionSettings: suggestionSettings,
             openAICompatibleConnectionModel: openAICompatibleConnectionModel,
+            mlxToolchainProvisioner: mlxToolchainProvisioner,
+            mlxServerManager: mlxServerManager,
+            mlxModelDownloader: mlxModelDownloader,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
             modelDownloadManager: modelDownloadManager,
@@ -260,7 +384,11 @@ final class CotabbyAppEnvironment {
                 welcomeCoordinator?.showWelcome()
             },
             clearEmojiHistory: { emojiUsageStore.clear() },
-            typingHistoryStore: typingHistoryStore
+            typingHistoryStore: typingHistoryStore,
+            rewritePreferences: rewritePreferences,
+            rewriteCredentials: rewriteCredentials,
+            rewriteModelList: rewriteModelList,
+            rewriteEngine: rewriteEngine
         )
 
         let interactionState = SuggestionInteractionState()
@@ -352,6 +480,11 @@ final class CotabbyAppEnvironment {
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
+        self.mlxToolchainProvisioner = mlxToolchainProvisioner
+        self.mlxServerManager = mlxServerManager
+        self.mlxRewriteServer = mlxRewriteServer
+        self.menuResourceMonitor = menuResourceMonitor
+        self.mlxModelDownloader = mlxModelDownloader
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.powerSourceMonitor = powerSourceMonitor
         self.lowPowerModeMonitor = lowPowerModeMonitor
@@ -367,6 +500,7 @@ final class CotabbyAppEnvironment {
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
         self.typingHistoryStore = typingHistoryStore
+        self.selectionRewriteCoordinator = selectionRewriteCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
@@ -420,6 +554,31 @@ final class CotabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
+        // A stored "local" Rewrite choice is migrated only on a definitive Apple Intelligence answer;
+        // right after login the model is often still preparing, so keep listening for it.
+        foundationModelAvailabilityService.$state
+            .sink { [weak rewritePreferences] state in rewritePreferences?.noteAppleIntelligence(state) }
+            .store(in: &cancellables)
+
+        // The on-demand rewrite server serves autocomplete's MLX model, and only while autocomplete
+        // is not on MLX (otherwise rewrites share autocomplete's server). Stop it whenever what it
+        // is for changes: Rewrite moving to or from MLX, autocomplete moving to or from MLX, or
+        // that model. The next rewrite starts it again if it still needs it.
+        Publishers.CombineLatest3(
+            rewritePreferences.$preferences.map(\.provider),
+            suggestionSettings.$selectedEngine,
+            suggestionSettings.$mlxModelID
+        )
+        .map { provider, engine, model in
+            (RewriteProviderResolver.usesMLX(provider, autocompleteEngine: engine), engine == .mlx, model)
+        }
+        .removeDuplicates { $0 == $1 }
+        .dropFirst()
+        .sink { [weak mlxRewriteServer] _ in
+            Task { await mlxRewriteServer?.stop() }
+        }
+        .store(in: &cancellables)
+
         observePowerSourceProfileSwitching()
         observeOpenAICompatibleSelection()
     }
@@ -440,6 +599,8 @@ final class CotabbyAppEnvironment {
             suggestionSettings.$pluggedInEngine.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$pluggedInModelFilename.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$pluggedInEndpointModelName.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$batteryMLXModelID.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$pluggedInMLXModelID.map { _ in () }.eraseToAnyPublisher(),
             runtimeModel.$availableModels.map { _ in () }.eraseToAnyPublisher()
         ]
 
@@ -500,7 +661,20 @@ final class CotabbyAppEnvironment {
             guard !modelName.isEmpty else { return }
             suggestionSettings.setOpenAICompatibleModelName(modelName)
             suggestionSettings.selectEngine(.openAICompatible)
+        case .mlx(let modelID):
+            guard !modelID.isEmpty else { return }
+            suggestionSettings.setMLXModelID(modelID)
+            suggestionSettings.selectEngine(.mlx)
         }
+    }
+
+    /// Autocomplete's endpoint as the Local Endpoint rewrite provider reads it per rewrite. A torn
+    /// down settings model reads as "not configured" (the provider maps any throw to that).
+    private static func endpointConfiguration(
+        of settings: SuggestionSettingsModel?
+    ) throws -> OpenAICompatibleEndpointConfiguration {
+        guard let settings else { throw OpenAICompatibleEndpointError.emptyModelName }
+        return try settings.openAICompatibleConfiguration
     }
 
     /// Connect once when the endpoint engine becomes active. Only server identity and credentials
@@ -539,6 +713,90 @@ final class CotabbyAppEnvironment {
                 self.openAICompatibleConnectionModel.invalidate()
             }
             .store(in: &cancellables)
+    }
+
+    /// Starts MLX housekeeping once services start; never inside the XCTest host, where a stored
+    /// MLX selection must not launch Python. Order matters: a server orphaned by an earlier crash
+    /// is stopped before the toolchain check and cache scan, whose results then drive the server.
+    func startMLXEngine() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.mlxServerManager.cleanUpOrphan()
+            await self.mlxRewriteServer.manager.cleanUpOrphan()
+            await self.mlxToolchainProvisioner.rescan(models: self.mlxModelDownloader)
+        }
+        observeMLXEngine()
+    }
+
+    private func observeMLXEngine() {
+        // The toolchain's Python decides which architectures count as usable, so rescan the
+        // cache whenever a different install becomes ready (or goes away).
+        mlxToolchainProvisioner.$state
+            .map(\.toolchain)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] toolchain in
+                guard let self else { return }
+                Task { await self.mlxModelDownloader.refreshCache(toolchain: toolchain) }
+            }
+            .store(in: &cancellables)
+
+        // Switching to MLX re-detects, so a toolchain or model changed by another tool since
+        // launch is noticed before the desire is resolved from stale state.
+        suggestionSettings.$selectedEngine
+            .removeDuplicates()
+            .dropFirst() // the launch value is covered by startMLXEngine's own rescan
+            .filter { $0 == .mlx }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task { await self.mlxToolchainProvisioner.rescan(models: self.mlxModelDownloader) }
+            }
+            .store(in: &cancellables)
+
+        // Choosing MLX with no model picks a downloaded one, preferring the curated list.
+        Publishers.CombineLatest(suggestionSettings.$selectedEngine, mlxModelDownloader.$cachedModels)
+            .sink { [weak self] engine, cached in
+                guard let self, engine == .mlx, self.suggestionSettings.mlxModelID.isEmpty,
+                      let cached, let pick = MLXModelCatalog.defaultSelection(cached: cached)
+                else { return }
+                self.suggestionSettings.setMLXModelID(pick.value)
+            }
+            .store(in: &cancellables)
+
+        // One pure decision from every input; each change is applied in order, so a quick
+        // engine switch and switch-back cannot reach the manager out of order.
+        Publishers.CombineLatest4(
+            suggestionSettings.$selectedEngine,
+            suggestionSettings.$mlxModelID,
+            suggestionSettings.$mlxPromptCacheBytes,
+            Publishers.CombineLatest3(
+                mlxToolchainProvisioner.$state, mlxModelDownloader.$cachedModels, mlxModelDownloader.$rejectedModels)
+        )
+        .map { engine, modelID, cacheBytes, toolchainAndCache in
+            MLXServerDesireResolver.desire(for: .init(
+                engine: engine,
+                isAppleSilicon: MLXHardware.isAppleSilicon,
+                toolchain: toolchainAndCache.0,
+                modelID: modelID,
+                cachedModels: toolchainAndCache.1,
+                promptCacheBytes: cacheBytes,
+                rejectedModels: toolchainAndCache.2
+            ))
+        }
+        .removeDuplicates()
+        .sink { [weak self] desire in
+            guard let self else { return }
+            let previous = self.mlxApplyChain
+            self.mlxApplyChain = Task { [weak self] in
+                await previous?.value
+                // Rewrite's on-demand server runs this same MLX model, and only while autocomplete
+                // is not on MLX. Before autocomplete's server starts, wait for that one to stop
+                // (after a rewrite still streaming on it), so the weights are never loaded twice.
+                if case .running = desire { await self?.mlxRewriteServer.stop() }
+                await self?.mlxServerManager.apply(desire)
+            }
+        }
+        .store(in: &cancellables)
     }
 }
 

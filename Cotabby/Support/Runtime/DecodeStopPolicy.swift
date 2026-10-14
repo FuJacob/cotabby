@@ -24,16 +24,24 @@ nonisolated enum DecodeStopPolicy {
     enum StopReason: String {
         case sentenceBoundary = "sentence_boundary"
         case scaffoldingMarker = "scaffolding_marker"
+        case stopSequence = "stop_sequence"
     }
 
+    /// `stopSequences` are the caller's own stops (`LlamaGenerationOptions.stopSequences`); like a
+    /// scaffolding marker they apply before the minimum-token guard, because a caller that sets them
+    /// (selection rewrite) turns the sentence stop off with an unreachable minimum.
     static func verdict(
         accumulated: String,
         tokensGenerated: Int,
         minimumTokens: Int = 2,
-        minimumWords: Int = 0
+        minimumWords: Int = 0,
+        stopSequences: [String] = []
     ) -> StopReason? {
         if containsScaffoldingStopMarker(accumulated) {
             return .scaffoldingMarker
+        }
+        if hitsStopSequence(accumulated, stopSequences: stopSequences) {
+            return .stopSequence
         }
 
         guard tokensGenerated >= minimumTokens else {
@@ -46,6 +54,14 @@ nonisolated enum DecodeStopPolicy {
             return nil
         }
         return SentenceBoundaryClassifier.endsSentence(accumulated) ? .sentenceBoundary : nil
+    }
+
+    /// Whether the accumulated text contains one of the caller's stop sequences
+    /// (`LlamaGenerationOptions.stopSequences`). Only callers that set stop sequences pay for it: with
+    /// none (autocomplete) it returns false before any scan, so autocomplete's verdict is unchanged.
+    static func hitsStopSequence(_ accumulated: String, stopSequences: [String]) -> Bool {
+        guard !stopSequences.isEmpty else { return false }
+        return stopSequences.contains { accumulated.contains($0) }
     }
 
     private static func wordCount(of text: String) -> Int {

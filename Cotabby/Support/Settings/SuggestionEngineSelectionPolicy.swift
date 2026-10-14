@@ -14,16 +14,19 @@ import Foundation
 /// why nothing is generated, and the choice comes back to life if Apple Intelligence becomes
 /// available later (for example after its model finishes downloading).
 enum SuggestionEngineSelectionPolicy {
-    /// Whether `engine` may be chosen right now. Only Apple Intelligence depends on runtime
-    /// availability; Open Source and the local endpoint are always selectable because their own
-    /// panes guide the user through downloading a model or configuring a server.
+    /// Whether `engine` may be chosen right now. Apple Intelligence depends on runtime availability,
+    /// and MLX on Apple Silicon. Open Source and the local endpoint are always selectable because
+    /// their own panes guide the user through downloading a model or configuring a server.
     static func isSelectable(
         _ engine: SuggestionEngineKind,
-        foundationModelAvailable: Bool
+        foundationModelAvailable: Bool,
+        isAppleSilicon: Bool = MLXHardware.isAppleSilicon
     ) -> Bool {
         switch engine {
         case .appleIntelligence:
             return foundationModelAvailable
+        case .mlx:
+            return isAppleSilicon
         case .llamaOpenSource, .openAICompatible:
             return true
         }
@@ -33,9 +36,14 @@ enum SuggestionEngineSelectionPolicy {
     /// menu item still explains itself; the detailed reason stays in the pane callout.
     static func pickerLabel(
         for engine: SuggestionEngineKind,
-        foundationModelAvailable: Bool
+        foundationModelAvailable: Bool,
+        isAppleSilicon: Bool = MLXHardware.isAppleSilicon
     ) -> String {
-        guard isSelectable(engine, foundationModelAvailable: foundationModelAvailable) else {
+        guard isSelectable(
+            engine,
+            foundationModelAvailable: foundationModelAvailable,
+            isAppleSilicon: isAppleSilicon
+        ) else {
             return "\(engine.displayLabel) (Unavailable)"
         }
         return engine.displayLabel
