@@ -498,6 +498,26 @@ the single input-capture slot between:
 Both use pure trigger state machines, stay pinned to one supported focus sequence, and cancel on
 focus change or incompatible input. They do not call a language model.
 
+Selection rewrite is a sibling feature with its own state machine,
+[SelectionRewriteCoordinator.swift](Cotabby/App/Coordinators/Rewrite/SelectionRewriteCoordinator.swift)
+(hidden → button → popup → generating → preview). Focus snapshots carry the selected text and its
+range in the host's value (`selectedText`, `hostSelection`). A stable selection that
+[SelectionRewriteEligibility.swift](Cotabby/Support/Rewrite/SelectionRewriteEligibility.swift) accepts
+(two words or more, not secure, not a terminal, Cotabby on for the app) turns the field-edge icon into a
+wand (`ActivationIndicatorController.showRewrite`) and arms ⌃⌥R through a `TemporaryKeyTap` that exists only
+while that selection is armed; the "Rewrite Selected Text" switch in Settings → Rewrite turns all of it off. The popup is
+a non-activating panel that takes the keyboard while open, so Return can never reach a chat app.
+[RewriteEngine.swift](Cotabby/Services/Rewrite/RewriteEngine.swift) runs one rewrite on the provider
+chosen in Settings → Rewrite: `LocalRewriteProvider` (Apple Intelligence, else the selected llama base
+model with an example-style prompt that stops at the next `Draft:`), or `APIRewriteProvider` (Claude via
+Anthropic's Messages API, other services via OpenAI-compatible chat completions, each service's key in
+its own Keychain item). [RewritePromptBuilder.swift](Cotabby/Support/Rewrite/RewritePromptBuilder.swift)
+names the draft's language (`RewriteLanguageDetector`), `RewriteOutputCleaner` strips prefaces, fences
+and quotes and rejects runaway output, and `RewriteSpecificsCheck` flags numbers and names the user did
+not write, which turns plain Replace off. Replace pastes over the selection only after
+[SelectionReplaceValidator.swift](Cotabby/Support/Rewrite/SelectionReplaceValidator.swift) confirms the
+same field, text and range, then reads the field back; anything else goes to the clipboard with a notice.
+
 [SettingsCoordinator.swift](Cotabby/App/Coordinators/SettingsCoordinator.swift) and
 [WelcomeCoordinator.swift](Cotabby/App/Coordinators/WelcomeCoordinator.swift) own app-lifetime AppKit
 windows hosting SwiftUI content. Settings and onboarding observe the shared graph. Hiding the menu bar
@@ -583,6 +603,7 @@ policies, prompt utilities, normalization, and layout logic should receive focus
 | Clipboard context is irrelevant | ClipboardRelevanceFilter, ClipboardContentDistiller |
 | Screenshot context is stale/noisy | VisualContextCoordinator, OCRTextHygiene |
 | Emoji or macro conflicts with suggestions | InlineCommandCoordinator, feature trigger machine |
+| Rewrite wand missing, popup misplaced, or Replace copies instead | SelectionRewriteCoordinator, SelectionRewriteEligibility, SelectionReplaceValidator |
 | Permission loop or lost grant | PermissionManager, PermissionGuidanceController, app identity |
 | Settings/onboarding window issue | SettingsCoordinator, WelcomeCoordinator |
 | Settings persistence or domain mismatch | SuggestionSettingsModel, SuggestionSettingsData, SuggestionSettingsStore |
