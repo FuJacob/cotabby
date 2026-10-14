@@ -56,6 +56,21 @@ enum SuggestionRequestFactory {
         )
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
+        // In a mail reply the text after the caret is the quoted thread being answered, the most
+        // relevant context there is (`MailReplyContext`): mail apps carry more of it, condensed to
+        // who wrote what (headers, addresses and signatures would otherwise fill the budget), name
+        // the thread by its subject (Outlook's inline reply sits in the main window, titled after
+        // the open folder), and name the addressee. All of it is read from the trailing text, which
+        // never reaches the endpoint backend, so the endpoint keeps the plain window title.
+        let readsMailThread = MailReplyContext.isMail(bundleIdentifier: context.bundleIdentifier)
+            && settings.selectedEngine != .openAICompatible
+        let maxSuffixCharacters = MailReplyContext.trailingBudget(
+            bundleIdentifier: context.bundleIdentifier, defaultBudget: configuration.maxSuffixCharacters
+        )
+        let promptTrailingText = readsMailThread ? MailReplyContext.condensedThread(context.trailingText) : context.trailingText
+        let surfaceWindowTitle = readsMailThread
+            ? MailReplyContext.quotedSubject(in: context.trailingText) ?? context.windowTitle
+            : context.windowTitle
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
         // base-model OSS path cannot obey free-text instructions and the rule text leaks into output,
         // so injection is suppressed on every engine. Stored rules survive untouched, so flipping the
@@ -90,9 +105,12 @@ enum SuggestionRequestFactory {
                     isIntegratedTerminal: context.isIntegratedTerminal
                 ),
                 applicationName: context.applicationName,
-                windowTitle: context.windowTitle,
+                windowTitle: surfaceWindowTitle,
                 focusedURLString: context.focusedURLString,
-                fieldPlaceholder: context.fieldPlaceholder
+                fieldPlaceholder: context.fieldPlaceholder,
+                replyingTo: readsMailThread
+                    ? MailReplyContext.replyRecipient(in: context.trailingText, userName: userName)
+                    : nil
             )
             : nil
         // Typing history stays on this Mac. The provider already returns nothing for the endpoint
@@ -120,8 +138,8 @@ enum SuggestionRequestFactory {
             // The endpoint backend shares this renderer, but adding document-tail content to a
             // network request needs its own disclosure and consent. Keep this new context local;
             // Apple's fallback request can use it because both eligible engines run on-device.
-            trailingText: settings.selectedEngine == .openAICompatible ? "" : context.trailingText,
-            maxSuffixCharacters: configuration.maxSuffixCharacters,
+            trailingText: settings.selectedEngine == .openAICompatible ? "" : promptTrailingText,
+            maxSuffixCharacters: maxSuffixCharacters,
             customRules: customRules,
             extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
@@ -154,7 +172,7 @@ enum SuggestionRequestFactory {
             minP: configuration.minP,
             repetitionPenalty: configuration.repetitionPenalty,
             randomSeed: configuration.randomSeed,
-            maxSuffixCharacters: configuration.maxSuffixCharacters,
+            maxSuffixCharacters: maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,

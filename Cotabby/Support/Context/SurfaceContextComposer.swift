@@ -9,6 +9,11 @@ nonisolated struct SurfaceContext: Equatable, Sendable {
     let windowTitle: String?
     let domain: String?
     let fieldPlaceholder: String?
+    /// Email only: who a reply is addressed to, from the quoted message's sender. Not one of the
+    /// surface line's labels: `BaseCompletionPromptRenderer` writes it as the reply's own "To:"
+    /// header right above the draft, the only placement that moved the salutation off the user's
+    /// own name (see `MailReplyContext.replyRecipient`).
+    var replyingTo: String?
 }
 
 /// Converts focus-capture metadata into bounded surface facts for `SuggestionRequestFactory`,
@@ -29,13 +34,15 @@ nonisolated enum SurfaceContextComposer {
     /// runaway title would crowd the budgeted preface.
     private static let maxTitleLength = 80
     private static let maxPlaceholderLength = 60
+    private static let maxRecipientLength = 60
 
     static func compose(
         surfaceClass: AppSurfaceClass,
         applicationName: String,
         windowTitle: String?,
         focusedURLString: String?,
-        fieldPlaceholder: String?
+        fieldPlaceholder: String?,
+        replyingTo: String? = nil
     ) -> SurfaceContext? {
         switch surfaceClass {
         case .codeEditor, .terminal:
@@ -61,7 +68,12 @@ nonisolated enum SurfaceContextComposer {
             applicationName: cleanedApplicationName,
             windowTitle: title,
             domain: domain,
-            fieldPlaceholder: placeholder
+            fieldPlaceholder: placeholder,
+            // Only an email reply has an addressee to name; elsewhere a "reply" is a chat message
+            // whose recipient the conversation already shows.
+            replyingTo: surfaceClass == .email
+                ? nonEmptyCleaned(replyingTo).map { String($0.prefix(maxRecipientLength)) }
+                : nil
         )
     }
 

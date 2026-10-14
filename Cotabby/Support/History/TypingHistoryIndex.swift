@@ -36,6 +36,7 @@ nonisolated struct TypingHistoryIndex: Sendable {
     private struct Document: Sendable {
         let bundleIdentifier: String
         let domain: String?
+        let surface: AppSurfaceClass
         let text: String
     }
 
@@ -62,7 +63,10 @@ nonisolated struct TypingHistoryIndex: Sendable {
             let text = record.typedText
             guard text.count >= Self.minimumDocumentCharacters else { continue }
             let index = Int32(documents.count)
-            documents.append(Document(bundleIdentifier: record.bundleIdentifier, domain: record.domain, text: text))
+            documents.append(Document(
+                bundleIdentifier: record.bundleIdentifier, domain: record.domain,
+                surface: AppSurfaceClassifier.classify(bundleIdentifier: record.bundleIdentifier), text: text
+            ))
             for term in Set(Self.terms(in: text)) {
                 postings[term, default: []].append(index)
             }
@@ -129,7 +133,9 @@ nonisolated struct TypingHistoryIndex: Sendable {
             }
         }
 
+        let querySurface = AppSurfaceClassifier.classify(bundleIdentifier: query.bundleIdentifier)
         let ranked = scores
+            .filter { Self.mayExemplify(documents[Int($0.key)].surface, for: querySurface) }
             .map { documentID, score -> (Int32, Double) in
                 let document = documents[Int(documentID)]
                 var boosted = score
@@ -150,6 +156,19 @@ nonisolated struct TypingHistoryIndex: Sendable {
             if candidates.count == maxCandidates { break }
         }
         return candidates
+    }
+
+    /// Whether writing from one kind of app may stand as the user's style in another. An example is
+    /// read by the model as how the user writes here, so it has to be the same register: an email
+    /// takes only earlier email, and a terminal's or code editor's text (commands, logs, assistant
+    /// transcripts the user typed into) never becomes the style of prose, nor prose of code.
+    static func mayExemplify(_ document: AppSurfaceClass, for query: AppSurfaceClass) -> Bool {
+        switch query {
+        case .email, .terminal, .codeEditor:
+            return document == query
+        case .chat, .browser, .other:
+            return document != .terminal && document != .codeEditor
+        }
     }
 
     /// The field's latest words, for spotting a history entry that already contains them.
