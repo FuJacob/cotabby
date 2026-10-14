@@ -8,12 +8,24 @@ nonisolated struct OpenAICompatibleGenerationOptions: Equatable, Sendable {
     let topP: Double
     /// MLX-only sampling fields. Nil for every other server, so they never receive unknown keys.
     let mlx: MLXCompletionOptions?
+    /// The standard OpenAI `stop` field for completions requests: generation ends before any of
+    /// these strings. Nil sends nothing. When `mlx.stop` is non-empty it wins (autocomplete's MLX
+    /// path sets it per request); otherwise this list is sent. Selection rewrite uses it for its
+    /// base-model prompt on an endpoint or MLX server.
+    let stop: [String]?
 
-    init(maxPredictionTokens: Int, temperature: Double, topP: Double, mlx: MLXCompletionOptions? = nil) {
+    init(
+        maxPredictionTokens: Int,
+        temperature: Double,
+        topP: Double,
+        mlx: MLXCompletionOptions? = nil,
+        stop: [String]? = nil
+    ) {
         self.maxPredictionTokens = maxPredictionTokens
         self.temperature = temperature
         self.topP = topP
         self.mlx = mlx
+        self.stop = stop
     }
 }
 
@@ -370,7 +382,9 @@ private nonisolated struct CompletionRequest: Encodable {
         minP = options.mlx?.minP
         repetitionPenalty = options.mlx?.repetitionPenalty
         seed = options.mlx?.seed
-        stop = options.mlx.flatMap { $0.stop.isEmpty ? nil : $0.stop }
+        // MLX's own non-empty stop list wins; else the general list; an empty list is never sent.
+        let mlxStop = options.mlx.flatMap { $0.stop.isEmpty ? nil : $0.stop }
+        stop = mlxStop ?? options.stop.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     private enum CodingKeys: String, CodingKey {

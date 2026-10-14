@@ -50,6 +50,9 @@ final class SelectionRewriteCoordinator {
     /// What the last run did, for Retry: the action, the text it reshaped (nil: the user's selection),
     /// and the tone a refinement keeps.
     private var lastRun: RewriteRun?
+    /// Where this popup's rewrites go, resolved once when it opens: the disclosure names it and every
+    /// run uses it, so a Settings change cannot send the text somewhere the popup did not name.
+    private var destination: RewriteDestination?
     /// Identifies the newest rewrite run. A superseded run (Retry, or another action) can still throw
     /// or resolve after its replacement started, so every write after an `await` compares its own
     /// id with this before touching the popup. `close()` bumps it too, so closing cancels in-flight runs.
@@ -204,7 +207,9 @@ final class SelectionRewriteCoordinator {
         fixesMistakesCancellable = model.$fixesMistakes.dropFirst().sink { [weak self] value in
             self?.setFixesMistakes(value)
         }
-        model.disclosure = disclosure()
+        let destination = engine.destination()
+        self.destination = destination
+        model.disclosure = destination.disclosure
         model.onAction = { [weak self] in self?.run($0) }
         model.onRetry = { [weak self] in
             guard let self, let last = self.lastRun else { return }
@@ -238,12 +243,6 @@ final class SelectionRewriteCoordinator {
         }
     }
 
-    /// Names the host the selected text goes to; nil when the provider stays on this Mac.
-    private func disclosure() -> String? {
-        guard engine.activeProviderSendsOffDevice, let host = engine.activeHostName else { return nil }
-        return "The selected text is sent to \(host)."
-    }
-
     /// Shorter or Longer on the preview: reshapes the text on screen and keeps the tone (or custom
     /// instruction) that produced it. Replace still targets the user's original selection.
     private func refine(_ length: RewriteAction) {
@@ -254,7 +253,7 @@ final class SelectionRewriteCoordinator {
     /// Runs one rewrite. `draft` is the text to reshape (the user's selection when nil); `tone` is the
     /// tone a refinement keeps.
     private func run(_ action: RewriteAction, draft: String? = nil, tone: RewriteAction? = nil) {
-        guard let input = targetInput, let model else { return }
+        guard let input = targetInput, let model, let destination else { return }
         lastRun = RewriteRun(action: action, draft: draft, tone: tone)
         let source = draft ?? input.selectedText
         rewriteTask?.cancel()
@@ -279,6 +278,7 @@ final class SelectionRewriteCoordinator {
                 request.fixesMistakes = model.fixesMistakes
                 let text = try await self.engine.rewrite(
                     request,
+                    to: destination,
                     onPartial: { partial in
                         guard isCurrent(), case .generating = model.phase else { return }
                         model.phase = .generating(partial)
@@ -446,6 +446,7 @@ final class SelectionRewriteCoordinator {
         fixesMistakesCancellable = nil
         model = nil
         lastRun = nil
+        destination = nil
         keyTap?.remove()
         presenter.hideAll()
         dismissedTarget = target
@@ -466,6 +467,7 @@ final class SelectionRewriteCoordinator {
         targetInput = nil
         dismissedTarget = nil
         lastRun = nil
+        destination = nil
         keyTap?.remove()
         hotkey?.remove()
         presenter.hideAll()
@@ -502,18 +504,18 @@ extension SelectionRewritePanelController: SelectionRewritePresenting {}
     func activate(pid: pid_t)
 }
 
-/// The rewrite engine as the coordinator sees it: the provider facts for the popup disclosure, and
-/// one generation. Narrower than `RewriteEngine` so tests need no providers.
+/// The rewrite engine as the coordinator sees it: the destination a popup discloses, and one
+/// generation on it. Narrower than `RewriteEngine` so tests need no providers.
 @MainActor protocol SelectionRewriteRunning: AnyObject {
-    var activeProviderSendsOffDevice: Bool { get }
-    var activeHostName: String? { get }
-    func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String
+    func destination() -> RewriteDestination
+    func rewrite(
+        _ request: RewriteRequest,
+        to destination: RewriteDestination,
+        onPartial: @escaping @MainActor (String) -> Void
+    ) async throws -> String
 }
 
-extension RewriteEngine: SelectionRewriteRunning {
-    var activeProviderSendsOffDevice: Bool { activeProvider.sendsOffDevice }
-    var activeHostName: String? { (activeProvider as? APIRewriteProvider)?.hostName }
-}
+extension RewriteEngine: SelectionRewriteRunning {}
 
 /// Writes a rewrite into the host: pastes over the live selection (paste, not keystrokes, because a
 /// typed line break would send a chat message), or puts it on the clipboard.

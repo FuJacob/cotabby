@@ -306,6 +306,58 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         )
     }
 
+    func test_completionGeneration_encodesTheGeneralStopField() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let json = try Self.jsonBody(request)
+            XCTAssertEqual(json["stop"] as? [String], ["\nDraft:", "\n\n\n"])
+            XCTAssertNil(json["top_k"], "the general stop field does not drag MLX sampling fields along")
+            return Self.response(request: request, contentType: "text/event-stream",
+                                 body: "data: {\"choices\":[{\"text\":\" ok\"}]}\n\ndata: [DONE]\n\n")
+        }
+        _ = try await client.generate(
+            configuration: configuration(mode: .completions), apiKey: nil, prompt: "P",
+            options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7, stop: ["\nDraft:", "\n\n\n"]),
+            onPartialRawText: nil
+        )
+    }
+
+    func test_completionGeneration_mlxStopWinsOverTheGeneralStop() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let json = try Self.jsonBody(request)
+            XCTAssertEqual(json["stop"] as? [String], ["\n"], "a non-empty MLX stop list wins")
+            return Self.response(request: request, contentType: "text/event-stream",
+                                 body: "data: {\"choices\":[{\"text\":\" ok\"}]}\n\ndata: [DONE]\n\n")
+        }
+        _ = try await client.generate(
+            configuration: configuration(mode: .completions), apiKey: nil, prompt: "P",
+            options: .init(
+                maxPredictionTokens: 8, temperature: 0.1, topP: 0.7,
+                mlx: MLXCompletionOptions(topK: 20, minP: 0.08, repetitionPenalty: 1.05, seed: nil, stop: ["\n"]),
+                stop: ["other"]),
+            onPartialRawText: nil
+        )
+    }
+
+    func test_completionGeneration_emptyMLXStopFallsBackToTheGeneralStop() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let json = try Self.jsonBody(request)
+            XCTAssertEqual(json["stop"] as? [String], ["other"])
+            return Self.response(request: request, contentType: "text/event-stream",
+                                 body: "data: {\"choices\":[{\"text\":\" ok\"}]}\n\ndata: [DONE]\n\n")
+        }
+        _ = try await client.generate(
+            configuration: configuration(mode: .completions), apiKey: nil, prompt: "P",
+            options: .init(
+                maxPredictionTokens: 8, temperature: 0.1, topP: 0.7,
+                mlx: MLXCompletionOptions(topK: 20, minP: 0.08, repetitionPenalty: 1.05, seed: nil, stop: []),
+                stop: ["other"]),
+            onPartialRawText: nil
+        )
+    }
+
     func test_generation_stopWhenEndsTheStreamEarly() async throws {
         let client = makeClient()
         EndpointStubURLProtocol.handler = { request in

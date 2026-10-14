@@ -4,28 +4,27 @@ import FoundationModels
 #endif
 
 /// File overview:
-/// Rewrites on this Mac: Apple Intelligence when it is available (it follows instructions), otherwise
-/// the selected local llama model with the base-model example prompt (weaker; the Settings pane
-/// labels it "basic quality"). Shares the llama runtime with autocomplete: `LlamaRuntimeCore`
+/// The two rewrite providers that run Cotabby's in-process models, one per autocomplete engine:
+/// `AppleIntelligenceRewriteProvider` (the Foundation Models path, which follows instructions) and
+/// `OpenSourceRewriteProvider` (the selected llama model with the base-model example prompt: weaker,
+/// which the Settings pane calls "basic quality"). Neither has a rewrite-only model; both use what
+/// autocomplete uses. The llama provider shares the runtime with autocomplete: `LlamaRuntimeCore`
 /// serializes generations, so a rewrite waits for an in-flight suggestion, and the next suggestion
 /// re-decodes its own prompt because the core reuses a cached prefix only when its tokens still
-/// match. Owned by `RewriteEngine`.
+/// match. Owned by `RewriteEngine`. `PartialRelay`, which the llama path needs, lives here too.
+
+/// Rewrites with Apple Intelligence: the instruct prompt, a fresh session per rewrite.
 @MainActor
-final class LocalRewriteProvider: RewriteProviding {
-    private let runtimeManager: LlamaRuntimeManager
-    private let hasLocalModel: @MainActor () -> Bool
+final class AppleIntelligenceRewriteProvider: RewriteProviding {
     private let availability: FoundationModelAvailabilityService
 
-    init(runtimeManager: LlamaRuntimeManager, hasLocalModel: @escaping @MainActor () -> Bool,
-         availability: FoundationModelAvailabilityService) {
-        self.runtimeManager = runtimeManager
-        self.hasLocalModel = hasLocalModel
+    init(availability: FoundationModelAvailabilityService) {
         self.availability = availability
     }
 
     nonisolated deinit {}
 
-    var usesAppleIntelligence: Bool {
+    var isAvailable: Bool {
         if #available(macOS 26.0, *) {
             #if canImport(FoundationModels)
             return availability.isAvailable && availability.systemLanguageModel != nil
@@ -34,26 +33,54 @@ final class LocalRewriteProvider: RewriteProviding {
         return false
     }
 
-    var isAvailable: Bool { usesAppleIntelligence || hasLocalModel() }
     var sendsOffDevice: Bool { false }
+
+    var unavailableReason: String? {
+        isAvailable ? nil : availability.userVisibleMessage
+    }
 
     func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *), usesAppleIntelligence, let model = availability.systemLanguageModel {
+        if #available(macOS 26.0, *), isAvailable, let model = availability.systemLanguageModel {
             let prompt = RewritePromptBuilder.instructPrompt(request)
             // A fresh session per rewrite: a transcript carried between rewrites would mix one
             // draft's facts into the next.
             let session = LanguageModelSession(model: model, instructions: prompt.system)
             let response = try await session.respond(
-                to: prompt.user, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: Self.tokenBudget(request))
+                to: prompt.user,
+                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: RewritePromptBuilder.tokenBudget(request))
             )
             onPartial(response.content)
             return response.content
         }
         #endif
+        throw RewriteError.noProvider
+    }
+}
+
+/// Rewrites with the llama model autocomplete has selected (the base prompt with an example).
+@MainActor
+final class OpenSourceRewriteProvider: RewriteProviding {
+    private let runtimeManager: LlamaRuntimeManager
+    private let hasLocalModel: @MainActor () -> Bool
+
+    init(runtimeManager: LlamaRuntimeManager, hasLocalModel: @escaping @MainActor () -> Bool) {
+        self.runtimeManager = runtimeManager
+        self.hasLocalModel = hasLocalModel
+    }
+
+    nonisolated deinit {}
+
+    var isAvailable: Bool { hasLocalModel() }
+    var sendsOffDevice: Bool { false }
+    var unavailableReason: String? {
+        hasLocalModel() ? nil : "No Open Source model is installed. Add one in Settings → Engine & Model."
+    }
+
+    func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String {
         guard hasLocalModel() else { throw RewriteError.noProvider }
         var options = LlamaGenerationOptions(
-            maxPredictionTokens: Self.tokenBudget(request), temperature: 0.3, topK: 40, topP: 0.9, minP: 0.05,
+            maxPredictionTokens: RewritePromptBuilder.tokenBudget(request), temperature: 0.3, topK: 40, topP: 0.9, minP: 0.05,
             repetitionPenalty: 1.05, seed: 42
         )
         // A rewrite can be several sentences; autocomplete's stop at the first sentence end would cut it.
@@ -68,11 +95,6 @@ final class LocalRewriteProvider: RewriteProviding {
             onPartialRawText: { text in relay.send(text) }
         )
         return output.text
-    }
-
-    /// About 1.5× the selection's tokens (≈4 characters per token) plus a margin, capped.
-    static func tokenBudget(_ request: RewriteRequest) -> Int {
-        min(800, request.selection.count * 3 / 8 + 48)
     }
 }
 

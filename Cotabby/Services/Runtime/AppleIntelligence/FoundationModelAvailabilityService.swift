@@ -11,13 +11,17 @@ import FoundationModels
 /// user-facing explanation.
 enum FoundationModelAvailabilityState: Equatable, Sendable {
     case available
-    case unavailable(String)
+    /// `permanent` separates "this Mac can never use it" (not eligible, macOS too old) from states
+    /// that normally pass (still downloading right after login, switched off in Settings). Callers
+    /// that make a lasting decision, like `RewritePreferencesStore`'s migration, act only on a
+    /// permanent answer.
+    case unavailable(String, permanent: Bool = false)
 
     var summary: String {
         switch self {
         case .available:
             return "Apple Intelligence is available."
-        case .unavailable(let reason):
+        case .unavailable(let reason, _):
             return reason
         }
     }
@@ -27,6 +31,11 @@ enum FoundationModelAvailabilityState: Equatable, Sendable {
             return true
         }
 
+        return false
+    }
+
+    var isPermanentlyUnavailable: Bool {
+        if case .unavailable(_, let permanent) = self { return permanent }
         return false
     }
 }
@@ -111,7 +120,7 @@ private struct UnsupportedAvailabilityProvider: FoundationModelAvailabilityProvi
     let currentState: FoundationModelAvailabilityState
 
     init(reason: String) {
-        currentState = .unavailable(reason)
+        currentState = .unavailable(reason, permanent: true)
     }
 
     func refresh() -> FoundationModelAvailabilityState {
@@ -208,7 +217,7 @@ private final class SystemAvailabilityProvider: FoundationModelAvailabilityProvi
         case .available:
             return .available
         case .unavailable(.deviceNotEligible):
-            return .unavailable("This Mac is not eligible for Apple Intelligence.")
+            return .unavailable("This Mac is not eligible for Apple Intelligence.", permanent: true)
         case .unavailable(.appleIntelligenceNotEnabled):
             return .unavailable("Apple Intelligence is turned off in System Settings.")
         case .unavailable(.modelNotReady):

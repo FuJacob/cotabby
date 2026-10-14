@@ -63,6 +63,9 @@ nonisolated struct MLXPaths: Equatable, Sendable {
     var cacheDirectory: URL { root.appendingPathComponent("cache", isDirectory: true) }
     var ownServerExecutable: URL { binDirectory.appendingPathComponent("mlx_lm.server") }
     var serverPIDFile: URL { root.appendingPathComponent("server.pid") }
+    /// The on-demand server Rewrite starts when autocomplete is not on MLX keeps its own pid file,
+    /// so the launch-time orphan cleanup covers it too and never confuses the two processes.
+    var rewriteServerPIDFile: URL { root.appendingPathComponent("rewrite-server.pid") }
 }
 
 /// A validated Hugging Face model repo id ("owner/name"). It reaches a command line

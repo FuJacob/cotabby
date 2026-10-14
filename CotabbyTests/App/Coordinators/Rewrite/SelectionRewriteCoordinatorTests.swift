@@ -37,8 +37,8 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
 
     @MainActor
     private final class Runner: SelectionRewriteRunning {
-        var activeProviderSendsOffDevice = false
-        var activeHostName: String?
+        var currentDestination = RewriteDestination(kind: .openSource, sendsOffDevice: false, hostName: nil)
+        private(set) var destinations: [RewriteDestination] = []
         var result = "Please let me know if the dates work for you."
         var gate: CheckedContinuation<Void, Never>?
         var holds = false
@@ -47,7 +47,13 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
         var cancelFirstAfterGate = false
         private(set) var calls = 0
         private(set) var requests: [RewriteRequest] = []
-        func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String {
+        func destination() -> RewriteDestination { currentDestination }
+        func rewrite(
+            _ request: RewriteRequest,
+            to destination: RewriteDestination,
+            onPartial: @escaping @MainActor (String) -> Void
+        ) async throws -> String {
+            destinations.append(destination)
             requests.append(request)
             calls += 1
             if calls == 1 && cancelFirstAfterGate {
@@ -359,11 +365,37 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
     /// A cloud provider is named in the popup before anything is sent; a local one adds no line.
     func test_disclosureNamesTheCloudHost() async {
         let (_, presenter, _, runner) = make()
-        runner.activeProviderSendsOffDevice = true
-        runner.activeHostName = "api.example.com"
+        runner.currentDestination = RewriteDestination(kind: .api, sendsOffDevice: true, hostName: "api.example.com")
         await send(snapshot(selected: draft))
         presenter.buttonPress?()
         XCTAssertEqual(presenter.popupModel?.disclosure, "The selected text is sent to api.example.com.")
+    }
+
+    /// A Local Endpoint on another host is the endpoint from Engine & Model; the popup says so.
+    func test_disclosureSaysWhenTheTextGoesToTheConfiguredEndpoint() async {
+        let (_, presenter, _, runner) = make()
+        runner.currentDestination = RewriteDestination(kind: .localEndpoint, sendsOffDevice: true, hostName: "192.168.1.50")
+        await send(snapshot(selected: draft))
+        presenter.buttonPress?()
+        XCTAssertEqual(presenter.popupModel?.disclosure,
+                       "The selected text is sent to 192.168.1.50, the endpoint set up in Engine & Model.")
+    }
+
+    /// The destination is resolved once when the popup opens: a later Settings change does not move
+    /// Retry (or any later run of this popup) to a host the popup did not name.
+    func test_everyRunOfAPopupUsesTheDestinationItDisclosed() async {
+        let (_, presenter, _, runner) = make()
+        let disclosed = RewriteDestination(kind: .api, sendsOffDevice: true, hostName: "api.example.com")
+        runner.currentDestination = disclosed
+        await send(snapshot(selected: draft))
+        presenter.buttonPress?()
+        presenter.popupModel?.onAction(.fixOnly)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        runner.currentDestination = RewriteDestination(kind: .localEndpoint, sendsOffDevice: true, hostName: "other.example.com")
+        presenter.popupModel?.onRetry()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(runner.destinations, [disclosed, disclosed])
+        XCTAssertEqual(presenter.popupModel?.disclosure, disclosed.disclosure)
     }
 
     func test_localProviderShowsNoDisclosure() async {

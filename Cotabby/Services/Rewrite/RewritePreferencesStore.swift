@@ -24,12 +24,35 @@ final class RewritePreferencesStore: ObservableObject {
         static let fixesMistakes = "cotabbyRewriteFixesMistakes"
     }
 
-    init(userDefaults: UserDefaults = .standard) {
+    /// `appleIntelligence` is the availability the app knows at launch (nil: not known yet). It only
+    /// matters for a stored `local` (the earlier "Apple Intelligence, else Cotabby's model" choice),
+    /// which becomes whichever of the two it was running, but only on a definitive answer:
+    /// `.available` → Apple Intelligence, a permanent unavailable state → Open Source. A transient
+    /// state (the model still downloading right after login) leaves `local` stored and runs Open
+    /// Source in memory for now; `noteAppleIntelligence(_:)` migrates once the answer is definitive.
+    init(
+        userDefaults: UserDefaults = .standard,
+        isAppleSilicon: Bool = MLXHardware.isAppleSilicon,
+        appleIntelligence: FoundationModelAvailabilityState?
+    ) {
         self.userDefaults = userDefaults
         let defaults = RewritePreferences.defaults
         var loaded = defaults
         loaded.isEnabled = userDefaults.object(forKey: Key.isEnabled) as? Bool ?? defaults.isEnabled
-        loaded.provider = userDefaults.string(forKey: Key.provider).flatMap(RewriteProviderKind.init(rawValue:)) ?? defaults.provider
+        let stored = userDefaults.string(forKey: Key.provider)
+        if stored == Self.legacyLocal {
+            if let migrated = Self.definitiveMigration(appleIntelligence) {
+                loaded.provider = migrated
+                userDefaults.set(migrated.rawValue, forKey: Key.provider)
+            } else {
+                loaded.provider = .openSource
+            }
+        } else {
+            loaded.provider = stored.flatMap(RewriteProviderKind.init(rawValue:)) ?? defaults.provider
+        }
+        // MLX needs Apple Silicon; a stored choice (e.g. settings copied from another Mac) falls
+        // back to the local llama path so the picker always has a usable entry.
+        if loaded.provider == .mlx, !isAppleSilicon { loaded.provider = .openSource }
         loaded.apiBaseURL = userDefaults.string(forKey: Key.apiBaseURL) ?? defaults.apiBaseURL
         loaded.modelsByProvider = userDefaults.dictionary(forKey: Key.modelsByProvider) as? [String: String] ?? [:]
         loaded.cloudProvider = userDefaults.string(forKey: Key.cloudProvider)
@@ -37,6 +60,24 @@ final class RewritePreferencesStore: ObservableObject {
         loaded.showsButtonOnSelection = userDefaults.object(forKey: Key.showsButton) as? Bool ?? defaults.showsButtonOnSelection
         loaded.fixesMistakes = userDefaults.object(forKey: Key.fixesMistakes) as? Bool ?? defaults.fixesMistakes
         preferences = loaded
+    }
+
+    private static let legacyLocal = "local"
+
+    /// The provider a stored `local` becomes for this availability, or nil while the answer is not
+    /// definitive.
+    private static func definitiveMigration(_ state: FoundationModelAvailabilityState?) -> RewriteProviderKind? {
+        guard let state else { return nil }
+        if state.isAvailable { return .appleIntelligence }
+        return state.isPermanentlyUnavailable ? .openSource : nil
+    }
+
+    /// Called for every availability change: finishes a migration that launch could not decide.
+    /// Does nothing once the user (or an earlier answer) replaced the stored `local`.
+    func noteAppleIntelligence(_ state: FoundationModelAvailabilityState) {
+        guard userDefaults.string(forKey: Key.provider) == Self.legacyLocal,
+              let migrated = Self.definitiveMigration(state) else { return }
+        setProvider(migrated)
     }
 
     func setEnabled(_ value: Bool) {

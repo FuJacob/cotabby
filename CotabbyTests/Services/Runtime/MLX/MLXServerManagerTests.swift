@@ -69,6 +69,60 @@ final class MLXServerManagerTests: XCTestCase {
         await waitUntil { self.isReady(manager) }
     }
 
+    func test_aCustomPidFileIsUsedInsteadOfTheDefault() async {
+        let custom = root.appendingPathComponent("rewrite-server.pid")
+        let manager = MLXServerManager(
+            paths: paths, launcher: launcher, probe: probe, pickPort: { 50124 },
+            sleep: { _ in await Task.yield() }, baseEnvironment: [:],
+            verifyListener: { _, _ in true }, pidFileURL: custom)
+        Self.retained.append(manager)
+        await startReady(manager, launchA)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: custom.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: paths.serverPIDFile.path))
+        XCTAssertEqual(paths.rewriteServerPIDFile.lastPathComponent, "rewrite-server.pid")
+    }
+
+    func test_sharedShutdownSendsEveryTermBeforeWaiting() async {
+        launcher.exitsOnTerminate = false
+        let first = makeManager()
+        await startReady(first, launchA)
+        let secondLauncher = MLXFakeLauncher()
+        secondLauncher.exitsOnTerminate = false
+        let secondProbe = MLXFakeProbe()
+        let secondPID = root.appendingPathComponent("rewrite-server.pid")
+        let second = MLXServerManager(
+            paths: paths, launcher: secondLauncher, probe: secondProbe, pickPort: { 50125 },
+            sleep: { _ in await Task.yield() }, baseEnvironment: [:],
+            verifyListener: { _, _ in true }, pidFileURL: secondPID)
+        Self.retained.append(contentsOf: [second, secondLauncher, secondProbe] as [AnyObject])
+        await second.apply(.running(launchB))
+        await waitUntil { secondProbe.waiting >= 1 }
+        secondProbe.succeedNext()
+        await waitUntil { self.isReady(second) }
+
+        var events: [String] = []
+        var pidFilesAtKill: [Bool] = []
+        let record: (Int32, String) -> Void = { pid, signal in
+            events.append("\(signal)\(pid)")
+            if signal == "kill" {
+                pidFilesAtKill.append(FileManager.default.fileExists(atPath: self.paths.serverPIDFile.path)
+                                      && FileManager.default.fileExists(atPath: secondPID.path))
+            }
+        }
+        launcher.launches[0].process.onSignal = record
+        secondLauncher.launches[0].process.onSignal = record
+        MLXServerManager.shutdownSync([first, second], timeoutSeconds: 0.2)
+        // Both SIGTERMs first, then each stubborn process is killed after the shared deadline.
+        XCTAssertEqual(events.prefix(2).filter { $0.hasPrefix("term") }.count, 2, "\(events)")
+        XCTAssertEqual(events.suffix(2).filter { $0.hasPrefix("kill") }.count, 2, "\(events)")
+        // The pid files outlive the wait and the SIGKILLs, then go.
+        XCTAssertEqual(pidFilesAtKill, [true, true])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: paths.serverPIDFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: secondPID.path))
+        XCTAssertEqual(first.state, .idle)
+        XCTAssertEqual(second.state, .idle)
+    }
+
     func test_startLaunchesTheExactCommandAndBecomesReady() async throws {
         let manager = makeManager()
         await manager.apply(.running(launchA))
@@ -376,15 +430,19 @@ final class MLXFakeProcess: MLXRunningProcess {
     var tail: [String] = []
     private(set) var terminateCount = 0
     private(set) var killCount = 0
+    /// Called with "term" / "kill" as each signal is sent, so a test can assert their order.
+    var onSignal: ((Int32, String) -> Void)?
 
     init(pid: Int32) { processIdentifier = pid }
 
     func terminate() {
+        onSignal?(processIdentifier, "term")
         terminateCount += 1
         if exitsOnTerminate { isRunning = false }
     }
 
     func forceKill() {
+        onSignal?(processIdentifier, "kill")
         killCount += 1
         isRunning = false
     }

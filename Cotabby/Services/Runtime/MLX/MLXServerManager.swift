@@ -184,20 +184,25 @@ final class MLXServerManager: ObservableObject {
         sleep: @escaping Sleep = { try await Task.sleep(for: $0) },
         now: @escaping () -> Date = Date.init,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-        verifyListener: @escaping (Int32, Int) -> Bool = MLXProcessInspector.ownsTCPSocket(pid:port:)
+        verifyListener: @escaping (Int32, Int) -> Bool = MLXProcessInspector.ownsTCPSocket(pid:port:),
+        pidFileURL: URL? = nil
     ) {
         self.launcher = launcher
         self.probe = probe
         self.pickPort = pickPort
         self.sleep = sleep
         self.now = now
-        self.pidFile = MLXServerPIDFile(url: paths.serverPIDFile)
+        self.pidFile = MLXServerPIDFile(url: pidFileURL ?? paths.serverPIDFile)
         self.baseEnvironment = baseEnvironment
         self.verifyListener = verifyListener
     }
 
-    static func live(paths: MLXPaths) -> MLXServerManager {
-        MLXServerManager(paths: paths, launcher: MLXLiveProcessLauncher(), probe: MLXHTTPReadinessProbe())
+    /// `pidFileURL` gives a second server (Rewrite's on-demand one) its own record; nil uses
+    /// `paths.serverPIDFile`.
+    static func live(paths: MLXPaths, pidFileURL: URL? = nil) -> MLXServerManager {
+        MLXServerManager(
+            paths: paths, launcher: MLXLiveProcessLauncher(), probe: MLXHTTPReadinessProbe(), pidFileURL: pidFileURL
+        )
     }
 
     /// The endpoint the MLX engine instance talks to. Only a ready server yields one; otherwise
@@ -246,27 +251,37 @@ final class MLXServerManager: ObservableObject {
 
     /// Blocking stop for `applicationWillTerminate`, where no run loop turn is left for `async`.
     func shutdownSync(timeoutSeconds: TimeInterval = 3) {
+        Self.shutdownSync([self], timeoutSeconds: timeoutSeconds)
+    }
+
+    /// Stops several servers inside one shared deadline: every SIGTERM goes out first, then one
+    /// wait covers them all, so autocomplete's server and Rewrite's quit in about the time of one.
+    static func shutdownSync(_ managers: [MLXServerManager], timeoutSeconds: TimeInterval = 3) {
+        let processes = managers.flatMap { $0.beginShutdown() }
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while processes.contains(where: { $0.isRunning }), Date() < deadline {
+            usleep(50_000)
+        }
+        for process in processes where process.isRunning { process.forceKill() }
+        // The pid files go last: if Cotabby is killed during the wait above, the next launch's
+        // orphan cleanup still has a record of every server that may be alive.
+        for manager in managers { manager.pidFile.remove() }
+    }
+
+    /// First half of a blocking stop: invalidates pending work, sends SIGTERM, and returns the
+    /// processes the caller must wait on. A server already being stopped has had its SIGTERM sent;
+    /// it only needs the wait and the SIGKILL fallback, so it is not terminated a second time.
+    private func beginShutdown() -> [any MLXRunningProcess] {
         generation &+= 1
         readinessTask?.cancel()
         restartTask?.cancel()
         desired = .stopped
-        defer {
-            pidFile.remove()
-            state = .idle
-        }
-        // A server already being stopped has had its SIGTERM sent; it only needs the wait and the
-        // SIGKILL fallback, so it is not terminated a second time.
+        state = .idle
         let stopping = stoppingProcess
         let running = current?.process
         current = nil
         running?.terminate()
-        let deadline = Date().addingTimeInterval(timeoutSeconds)
-        while [running, stopping].contains(where: { $0?.isRunning == true }), Date() < deadline {
-            usleep(50_000)
-        }
-        for process in [running, stopping] {
-            if let process, process.isRunning { process.forceKill() }
-        }
+        return [running, stopping].compactMap { $0 }
     }
 
     /// Terminates a server left running by an earlier Cotabby that crashed or was force-quit.

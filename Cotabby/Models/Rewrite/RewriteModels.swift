@@ -34,9 +34,13 @@ nonisolated enum RewriteAction: Equatable, Hashable, Sendable {
     }
 }
 
-/// Which model rewrites: Cotabby's own local models, or a cloud service with the user's own key.
+/// What the user picked in Settings → Rewrite → Rewrite Model. Every local engine reuses the model
+/// already set up for autocomplete (there is no rewrite-only model); `sameAsAutocomplete` follows
+/// whichever engine autocomplete is on and is turned into one of the concrete cases by
+/// `RewriteProviderResolver`. Raw values are persisted; the earlier `local` ("Apple Intelligence,
+/// else Cotabby's model") is migrated by `RewritePreferencesStore`, not decoded here.
 nonisolated enum RewriteProviderKind: String, CaseIterable, Sendable {
-    case local, api
+    case sameAsAutocomplete, appleIntelligence, openSource, localEndpoint, mlx, api
 }
 
 /// The cloud services a rewrite can use with the user's own API key. Claude goes through Anthropic's
@@ -115,7 +119,7 @@ nonisolated struct RewritePreferences: Equatable, Sendable {
 
     static let defaults = RewritePreferences(
         isEnabled: true,
-        provider: .local,
+        provider: .sameAsAutocomplete,
         cloudProvider: .anthropic,
         apiBaseURL: "",
         modelsByProvider: [:],
@@ -150,12 +154,37 @@ nonisolated struct RewriteRequest: Equatable, Sendable {
     var tone: RewriteAction?
 }
 
+/// Where a popup's rewrites go, resolved once when the popup opens: the concrete provider and what
+/// the disclosure says about it. Every run from that popup (the first action, Retry, Shorter, Longer)
+/// goes to this destination, so the host the popup named is the host that receives the text.
+nonisolated struct RewriteDestination: Equatable, Sendable {
+    /// The resolved provider; never `sameAsAutocomplete`.
+    let kind: RewriteProviderKind
+    let sendsOffDevice: Bool
+    let hostName: String?
+
+    /// The popup's line naming the host the selected text goes to; nil when it stays on this Mac.
+    /// A Local Endpoint is the endpoint set up in Engine & Model, which the line says, because the
+    /// user may know that host as autocomplete's rather than as a rewrite destination.
+    var disclosure: String? {
+        guard sendsOffDevice, let hostName else { return nil }
+        if kind == .localEndpoint {
+            return "The selected text is sent to \(hostName), the endpoint set up in Engine & Model."
+        }
+        return "The selected text is sent to \(hostName)."
+    }
+}
+
 nonisolated enum RewriteError: LocalizedError, Equatable {
     case noProvider
     /// A named cloud service with no key saved; carries the service's display name.
     case missingAPIKey(String)
     case unusableOutput
     case selectionTooLong
+    /// The chosen provider cannot run (MLX not ready, no model, ...); the text says why.
+    case unavailable(String)
+    /// Settings changed where the text would go after the popup named a destination.
+    case destinationChanged
 
     var errorDescription: String? {
         switch self {
@@ -163,6 +192,8 @@ nonisolated enum RewriteError: LocalizedError, Equatable {
         case .missingAPIKey(let service): return "Add your \(service) API key in Settings → Rewrite."
         case .unusableOutput: return "Couldn't rewrite this — try again."
         case .selectionTooLong: return "Selection too long to rewrite."
+        case .unavailable(let reason): return reason
+        case .destinationChanged: return "Rewrite settings changed. Close this popup and open it again."
         }
     }
 }

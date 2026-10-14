@@ -100,4 +100,27 @@ final class RewritePromptBuilderTests: XCTestCase {
         XCTAssertTrue(system.contains(RewritePromptBuilder.actionLine(.shorter)))
         XCTAssertTrue(system.contains("Keep the same tone: warm and caring, for a family member."))
     }
+
+    func test_completionTokenBudgetMatchesTheInProcessBudgetAndCapsAt800() {
+        func budget(_ count: Int) -> Int {
+            RewritePromptBuilder.completionTokenBudget(
+                for: RewriteRequest(selection: String(repeating: "a", count: count), action: .rewrite))
+        }
+        XCTAssertEqual(budget(2), 48)
+        XCTAssertEqual(budget(800), 800 * 3 / 8 + 48)
+        XCTAssertEqual(budget(4000), 800, "a long selection is not cut short")
+    }
+
+    func test_longerAlwaysGetsMoreRoomThanTheOtherActions() {
+        func budget(_ count: Int, _ action: RewriteAction) -> Int {
+            RewritePromptBuilder.completionTokenBudget(
+                for: RewriteRequest(selection: String(repeating: "a", count: count), action: action))
+        }
+        XCTAssertEqual(budget(2, .longer), 96)
+        XCTAssertEqual(budget(400, .longer), 2 * (400 * 3 / 8 + 48))
+        XCTAssertEqual(budget(4000, .longer), 800)
+        for count in [1, 20, 100, 400, 1000] {
+            XCTAssertGreaterThanOrEqual(budget(count, .longer), budget(count, .rewrite), "\(count) characters")
+        }
+    }
 }
