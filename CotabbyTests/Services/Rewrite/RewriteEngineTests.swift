@@ -12,6 +12,7 @@ final class RewriteEngineTests: XCTestCase {
         var isAvailable = true
         var unavailableReason: String?
         var hostName: String?
+        var endpointURL: String?
         var sendsOffDevice: Bool
         var output = "Please let me know if the dates work for you."
         private(set) var received: [RewriteRequest] = []
@@ -131,6 +132,24 @@ final class RewriteEngineTests: XCTestCase {
         let rig = makeRig(prefs(.localEndpoint), autocomplete: .openAICompatible)
         let disclosed = rig.engine.destination()
         rig.endpoint.sendsOffDevice = true
+        do {
+            _ = try await rig.engine.rewrite(RewriteRequest(selection: draft, action: .fixOnly), to: disclosed, onPartial: { _ in })
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error as? RewriteError, .destinationChanged)
+        }
+        XCTAssertTrue(rig.endpoint.received.isEmpty)
+    }
+
+    /// Another port on the same host is another server: a popup opened for :8000 must not send to :9000.
+    func test_aDestinationOnAnotherPortOfTheSameHostSendsNothing() async {
+        let rig = makeRig(prefs(.localEndpoint), autocomplete: .openAICompatible, endpointScope: .localNetwork)
+        rig.endpoint.sendsOffDevice = true
+        rig.endpoint.hostName = "192.168.1.50"
+        rig.endpoint.endpointURL = "http://192.168.1.50:8000/v1"
+        let disclosed = rig.engine.destination()
+        XCTAssertEqual(disclosed.endpointURL, "http://192.168.1.50:8000/v1")
+        rig.endpoint.endpointURL = "http://192.168.1.50:9000/v1"
         do {
             _ = try await rig.engine.rewrite(RewriteRequest(selection: draft, action: .fixOnly), to: disclosed, onPartial: { _ in })
             XCTFail("expected an error")

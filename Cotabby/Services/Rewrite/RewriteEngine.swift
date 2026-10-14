@@ -82,7 +82,8 @@ final class RewriteEngine {
     func destination() -> RewriteDestination {
         let kind = resolvedKind
         let provider = provider(for: kind)
-        return RewriteDestination(kind: kind, sendsOffDevice: provider.sendsOffDevice, hostName: provider.hostName)
+        return RewriteDestination(
+            kind: kind, sendsOffDevice: provider.sendsOffDevice, hostName: provider.hostName, endpointURL: provider.endpointURL)
     }
 
     /// Rewrites on the current choice (resolved now).
@@ -91,7 +92,8 @@ final class RewriteEngine {
     }
 
     /// Rewrites on `destination`, the one a popup resolved and disclosed. If its provider would now
-    /// send the text somewhere else (the endpoint's URL was edited meanwhile), nothing is sent.
+    /// send the text somewhere else (the endpoint's URL, port included, was edited meanwhile), nothing is
+    /// sent.
     func rewrite(
         _ request: RewriteRequest,
         to destination: RewriteDestination,
@@ -99,7 +101,9 @@ final class RewriteEngine {
     ) async throws -> String {
         guard request.selection.count <= SelectionRewriteEligibility.maximumCharacters else { throw RewriteError.selectionTooLong }
         let provider = provider(for: destination.kind)
-        guard provider.sendsOffDevice == destination.sendsOffDevice, provider.hostName == destination.hostName else {
+        // The whole URL, not just the host: another port or path on the same machine is another server.
+        guard provider.sendsOffDevice == destination.sendsOffDevice, provider.hostName == destination.hostName,
+              provider.endpointURL == destination.endpointURL else {
             throw RewriteError.destinationChanged
         }
         guard provider.isAvailable else {

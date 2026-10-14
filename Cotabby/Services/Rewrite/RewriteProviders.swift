@@ -17,6 +17,9 @@ protocol RewriteProviding: AnyObject {
     var unavailableReason: String? { get }
     /// The remote host the text goes to, for the disclosure; nil for providers on this Mac.
     var hostName: String? { get }
+    /// The full base URL of the server the text goes to, for checking that a popup's destination
+    /// still holds; nil for providers on this Mac.
+    var endpointURL: String? { get }
     /// Runs the rewrite. `onPartial` receives the cumulative raw text while it streams.
     func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String
 }
@@ -24,6 +27,7 @@ protocol RewriteProviding: AnyObject {
 extension RewriteProviding {
     var unavailableReason: String? { nil }
     var hostName: String? { nil }
+    var endpointURL: String? { nil }
 }
 
 /// Rewrites through the user's cloud service: Claude through Anthropic's Messages API
@@ -73,6 +77,8 @@ final class APIRewriteProvider: RewriteProviding {
     var sendsOffDevice: Bool { configuration.map { $0.hostScope != .loopback } ?? true }
 
     var hostName: String? { configuration?.baseURL.host }
+
+    var endpointURL: String? { configuration?.baseURL.absoluteString }
 
     func rewrite(_ request: RewriteRequest, onPartial: @escaping @MainActor (String) -> Void) async throws -> String {
         guard let configuration, !configuration.modelName.isEmpty else { throw RewriteError.noProvider }

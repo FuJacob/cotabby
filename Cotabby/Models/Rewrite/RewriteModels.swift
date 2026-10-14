@@ -162,6 +162,17 @@ nonisolated struct RewriteDestination: Equatable, Sendable {
     let kind: RewriteProviderKind
     let sendsOffDevice: Bool
     let hostName: String?
+    /// The server's full base URL (scheme, host, port, path) for a provider that talks to one over
+    /// the network, nil otherwise. Not shown; it lets the engine notice a change the host alone
+    /// would miss, such as another port on the same machine.
+    let endpointURL: String?
+
+    init(kind: RewriteProviderKind, sendsOffDevice: Bool, hostName: String?, endpointURL: String? = nil) {
+        self.kind = kind
+        self.sendsOffDevice = sendsOffDevice
+        self.hostName = hostName
+        self.endpointURL = endpointURL
+    }
 
     /// The popup's line naming the host the selected text goes to; nil when it stays on this Mac.
     /// A Local Endpoint is the endpoint set up in Engine & Model, which the line says, because the

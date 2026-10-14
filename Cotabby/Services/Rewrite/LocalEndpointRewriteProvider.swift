@@ -44,6 +44,8 @@ final class LocalEndpointRewriteProvider: RewriteProviding {
 
     var hostName: String? { configuration?.baseURL.host }
 
+    var endpointURL: String? { configuration?.baseURL.absoluteString }
+
     var unavailableReason: String? {
         guard !isAvailable else { return nil }
         return configuration == nil

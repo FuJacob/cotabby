@@ -64,6 +64,8 @@ final class LocalEndpointRewriteProviderTests: XCTestCase {
         XCTAssertTrue(makeProvider(baseURL: "http://192.168.1.50:8000/v1", mode: .chatCompletions).sendsOffDevice)
         XCTAssertTrue(makeProvider(baseURL: "https://api.example.com/v1", mode: .chatCompletions).sendsOffDevice)
         XCTAssertEqual(makeProvider(baseURL: "http://192.168.1.50:8000/v1", mode: .chatCompletions).hostName, "192.168.1.50")
+        XCTAssertEqual(makeProvider(baseURL: "http://192.168.1.50:8000/v1", mode: .chatCompletions).endpointURL,
+                       "http://192.168.1.50:8000/v1")
     }
 
     func test_chatModeSendsTheInstructPromptToTheChatRoute() async throws {
