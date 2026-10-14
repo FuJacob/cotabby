@@ -53,6 +53,11 @@ final class MemoryHistorySync: ObservableObject {
         self.isOnACPower = isOnACPower
     }
 
+    // All stored state is safe to release from any thread (Combine publishers, closures, task
+    // handles, values). A nonisolated deinit keeps teardown off the back-deployment main-actor
+    // executor shim, which over-releases on macOS 26 (same as `SuggestionSettingsModel`).
+    nonisolated deinit {}
+
     /// The reader for a source; the documents folder comes from the source's settings.
     private func reader(for sourceID: String) -> (any MemoryHistoryReading)? {
         if sourceID == DocumentsHistoryReader.id {

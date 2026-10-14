@@ -83,6 +83,11 @@ final class MemoryEngineController: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // All stored state is safe to release from any thread (Combine publishers, closures, task
+    // handles, values). A nonisolated deinit keeps teardown off the back-deployment main-actor
+    // executor shim, which over-releases on macOS 26 (same as `SuggestionSettingsModel`).
+    nonisolated deinit {}
+
     var modelURL: URL { paths.modelsDirectory.appendingPathComponent(Self.embeddingModel.filename) }
 
     var isModelInstalled: Bool { downloads.isModelInstalled(Self.embeddingModel) }
@@ -208,7 +213,7 @@ final class MemoryEngineController: ObservableObject {
 
 /// Holds the controller weakly for the engine's status callback (see `attach`). Read only on the
 /// main actor, which is what makes the unchecked `Sendable` sound.
-private final class StatusRelay: @unchecked Sendable {
+nonisolated private final class StatusRelay: @unchecked Sendable {
     weak var controller: MemoryEngineController?
 
     init(controller: MemoryEngineController) {

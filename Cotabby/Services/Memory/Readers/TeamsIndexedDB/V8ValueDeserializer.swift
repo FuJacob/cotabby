@@ -376,8 +376,13 @@ nonisolated struct V8ValueDeserializer {
         switch value {
         case .string(let key): return key
         case .number(let number):
-            if number == number.rounded(), abs(number) < 1e15 { return String(Int64(number)) }
-            return String(number)
+            // Explicit types and `magnitude`, not `abs`: with Accelerate imported elsewhere in the
+            // module, older compilers find `abs` ambiguous here.
+            if number == number.rounded(), number.magnitude < 1e15 {
+                let integer = Int64(number)
+                return String(integer)
+            }
+            return String(describing: number)
         case .opaque:
             // A key that is neither text nor a number gets a name no lookup by name can match.
             return "\u{0}bytes"

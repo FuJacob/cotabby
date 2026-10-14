@@ -201,7 +201,7 @@ nonisolated enum KeywordScorer {
                 let frequency = Double(matches(term, tokens))
                 guard frequency > 0 else { continue }
                 let df = Double(documentFrequency[term] ?? 0)
-                let idf = log(1 + (count - df + 0.5) / (df + 0.5))
+                let idf: Double = Foundation.log(1 + (count - df + 0.5) / (df + 0.5))
                 score += idf * frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * Double(tokens.count) / averageLength))
             }
             if score > 0 { scored.append((score, index)) }

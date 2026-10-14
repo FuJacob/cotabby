@@ -30,6 +30,11 @@ final class MemoryControlModel: ObservableObject {
         self.historySync = historySync
     }
 
+    // All stored state is safe to release from any thread (Combine publishers, closures, task
+    // handles, values). A nonisolated deinit keeps teardown off the back-deployment main-actor
+    // executor shim, which over-releases on macOS 26 (same as `SuggestionSettingsModel`).
+    nonisolated deinit {}
+
     private var engine: MemoryEngine? { controller.engine }
 
     // MARK: - Observation

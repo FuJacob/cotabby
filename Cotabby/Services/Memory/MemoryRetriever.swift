@@ -43,6 +43,11 @@ final class MemoryRetriever: SuggestionMemoryProviding {
         self.engine = engine
     }
 
+    // All stored state is safe to release from any thread (Combine publishers, closures, task
+    // handles, values). A nonisolated deinit keeps teardown off the back-deployment main-actor
+    // executor shim, which over-releases on macOS 26 (same as `SuggestionSettingsModel`).
+    nonisolated deinit {}
+
     /// Replaces the app -> sources map: only enabled sources serve memory.
     func updateSources(_ sources: [MemorySource]) {
         var map: [String: [String]] = [:]

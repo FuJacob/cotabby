@@ -717,7 +717,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
             )
             guard !rows.isEmpty else { continue }
             let df = Double(rows.count)
-            let idf = log(1 + (documents - df + 0.5) / (df + 0.5))
+            let idf: Double = Foundation.log(1 + (documents - df + 0.5) / (df + 0.5))
             for row in rows {
                 guard let recordID = row["record_id"]?.string else { continue }
                 let tf = row["tf"]?.double ?? 0
@@ -754,7 +754,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
             )
             guard !rows.isEmpty else { continue }
             let df = Double(rows.count)
-            let idf = log(1 + (documents - df + 0.5) / (df + 0.5))
+            let idf: Double = Foundation.log(1 + (documents - df + 0.5) / (df + 0.5))
             for row in rows {
                 guard let recordID = row["record_id"]?.string else { continue }
                 let tf = row["tf"]?.double ?? 0
