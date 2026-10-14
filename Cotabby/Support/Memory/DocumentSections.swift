@@ -24,25 +24,37 @@ nonisolated enum DocumentSections {
             .filter { !$0.isEmpty }
         var sections: [String] = []
         var current = ""
+        // Lengths are tracked rather than recounted: `String.count` walks the whole string.
+        var currentLength = 0
         func flush() {
-            if current.count >= minimumCharacters { sections.append(current) }
+            if currentLength >= minimumCharacters { sections.append(current) }
             current = ""
+            currentLength = 0
         }
-        for paragraph in paragraphs.flatMap(pieces) {
-            if !current.isEmpty, current.count + 1 + paragraph.count > maximumCharacters { flush() }
-            current += current.isEmpty ? paragraph : " " + paragraph
-            if sections.count >= maximumSections { break }
+        // Pieces are made lazily, so a document stops being cut once it has its sections.
+        outer: for paragraph in paragraphs {
+            for piece in pieces(paragraph, limit: maximumSections - sections.count) {
+                let length = piece.count
+                if currentLength > 0, currentLength + 1 + length > maximumCharacters { flush() }
+                current += currentLength == 0 ? piece : " " + piece
+                currentLength += currentLength == 0 ? length : 1 + length
+                if sections.count >= maximumSections { break outer }
+            }
         }
         flush()
         return Array(sections.prefix(maximumSections))
     }
 
     /// A paragraph as pieces of at most `maximumCharacters`, cut after a sentence's end where one
-    /// falls in the second half of the limit, else at the last space, else hard.
-    static func pieces(_ paragraph: String) -> [String] {
+    /// falls in the second half of the limit, else at the last space, else hard. At most `limit`
+    /// pieces (the rest of a huge paragraph is never cut). Each step looks at one window only, so
+    /// a long paragraph costs time in proportion to its length.
+    static func pieces(_ paragraph: String, limit: Int = .max) -> [String] {
         var rest = Substring(paragraph)
         var pieces: [String] = []
-        while rest.count > maximumCharacters {
+        while pieces.count < limit,
+              let limitIndex = rest.index(rest.startIndex, offsetBy: maximumCharacters, limitedBy: rest.endIndex),
+              limitIndex < rest.endIndex {
             let window = rest.prefix(maximumCharacters)
             let half = window.index(window.startIndex, offsetBy: maximumCharacters / 2)
             var cut = window.endIndex
@@ -54,7 +66,7 @@ nonisolated enum DocumentSections {
             pieces.append(rest[..<cut].trimmingCharacters(in: .whitespaces))
             rest = rest[cut...].drop(while: { $0 == " " })
         }
-        if !rest.isEmpty { pieces.append(String(rest)) }
+        if pieces.count < limit, !rest.isEmpty { pieces.append(String(rest)) }
         return pieces
     }
 }

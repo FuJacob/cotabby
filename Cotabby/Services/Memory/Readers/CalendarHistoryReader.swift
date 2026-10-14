@@ -12,8 +12,14 @@ import Foundation
 /// Cursor: the time of the last sync. A sync reads the events that changed since then (EventKit's
 /// last-modified date, with a small look-back) plus the events that entered the horizon since then,
 /// which otherwise would never be read: a meeting 91 days out does not change on the day it comes
-/// within 90. The first sync reads everything in the window. An event deleted from the calendar
-/// stays in memory until retention removes it (EventKit reports no deletions).
+/// within 90. The first sync reads everything in the window.
+///
+/// A series with a change is read whole within the window and replaces what memory held for it
+/// (`completeConversations`): a moved occurrence (its id carries its start) or one deleted from a
+/// series that still exists leaves memory then. That needs memory's retention to bound the window
+/// (`since`), since anything of the series before the window would go too; with retention off,
+/// changes are only added. A whole series deleted from the calendar stays until retention removes
+/// it (EventKit reports no deletions, and a series not in the window may simply be older).
 nonisolated struct CalendarHistoryReader: MemoryHistoryReading {
     static let id = "calendar"
     let sourceID = Self.id
@@ -46,13 +52,23 @@ nonisolated struct CalendarHistoryReader: MemoryHistoryReading {
         let horizon = TimeInterval(Self.horizonDays * 86_400)
         let start = since ?? now.addingTimeInterval(-TimeInterval(Self.defaultLookBackDays * 86_400))
         let last = cursor.flatMap(Double.init).map { Date(timeIntervalSince1970: $0 / 1000) }
-        let records = events(start, now.addingTimeInterval(horizon)).filter { event in
+        let window = events(start, now.addingTimeInterval(horizon))
+        let wanted = window.filter { event in
             guard let last else { return true }
             let changed = (event.lastModified ?? .distantPast) > last.addingTimeInterval(-Self.modifiedLookBack)
             let enteredHorizon = event.start > last.addingTimeInterval(horizon)
             return changed || enteredHorizon
-        }.compactMap { CalendarEventText.record($0) }
+        }
+        var complete = Set<String>()
+        var read = wanted
+        if since != nil {
+            let series = Set(wanted.map(\.seriesID))
+            read = window.filter { series.contains($0.seriesID) }
+            complete = Set(read.compactMap { CalendarEventText.record($0)?.conversationID })
+        }
+        let records = read.compactMap { CalendarEventText.record($0) }
         // The cursor always moves to now: the next sync's "entered the horizon" starts from here.
-        return MemoryReadPage(records: records, nextCursor: String(Int64(now.timeIntervalSince1970 * 1000)), hasMore: false)
+        return MemoryReadPage(records: records, nextCursor: String(Int64(now.timeIntervalSince1970 * 1000)), hasMore: false,
+                              completeConversations: complete)
     }
 }

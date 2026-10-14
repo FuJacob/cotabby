@@ -75,6 +75,17 @@ final class TeamsIndexedDBTests: XCTestCase {
         XCTAssertEqual(snapshot.versionsRead, 5)
     }
 
+    /// A damaged batch header with a sequence at the top of the range must not trap on the
+    /// per-entry sequence (the reader promises a corrupt file throws or is skipped, never crashes).
+    func test_aSequenceAtTheTopOfTheRangeDoesNotTrap() throws {
+        let folder = try makeFolder("overflow", files: [
+            "000005.log": Self.logFile([
+                Self.batch(sequence: UInt64.max, [(Array("a".utf8), Array("1".utf8)), (Array("b".utf8), Array("2".utf8))])
+            ])
+        ])
+        XCTAssertEqual(Set(Self.strings(try LevelDBReader(folder: folder).read()).keys), ["a", "b"])
+    }
+
     func test_logRecordsFragmentedAcrossBlocksAreJoined() throws {
         let big = [UInt8]((0..<70_000).map { UInt8($0 % 251) })
         let folder = try makeFolder("fragments", files: [

@@ -7,9 +7,12 @@ import Foundation
 /// Useful as reference facts (pricing, product details, how-tos); the Playground searches them.
 /// Files over 2 MB are skipped (exports and logs, not notes).
 ///
-/// Cursor: the newest modification time already read. Files changed since are read whole; their
-/// paragraphs keep stable ids, so unchanged ones are no-ops in the store. Pages end at a file
-/// boundary between different modification times, so a resumed sync never skips a file.
+/// Cursor: the newest modification time already read. Files changed since are read whole and
+/// replace what memory held for them (`MemoryReadPage.completeConversations`: a shortened note
+/// loses its old tail); their paragraphs keep stable ids, so unchanged ones are no-ops in the store.
+/// Pages end at a file boundary between different modification times, so a resumed sync never
+/// skips a file. `liveConversationIDs` lists every note still there, so deleted notes leave memory.
+/// Notes are reference material, so retention does not apply to them (`keepsAllDates`).
 nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
     static let id = "documents"
     let sourceID = Self.id
@@ -33,22 +36,11 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
 
     func read(after cursor: String?, since: Date?, limit: Int) throws -> MemoryReadPage {
         let after = Double(cursor ?? "") ?? 0
-        let root = URL(fileURLWithPath: folder, isDirectory: true)
-        guard let enumerator = FileManager.default.enumerator(
-            at: root, includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { throw ReadOnlySQLiteDatabase.DatabaseError.missing(folder) }
-
-        var files: [(url: URL, modified: Double)] = []
-        for case let url as URL in enumerator where Self.textSuffixes.contains(url.pathExtension.lowercased()) {
-            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey])
-            guard values?.isRegularFile == true, (values?.fileSize ?? .max) <= Self.maximumFileBytes,
-                  let modified = values?.contentModificationDate?.timeIntervalSince1970, modified > after else { continue }
-            files.append((url, modified))
-        }
-        files.sort { $0.modified < $1.modified }
+        guard let listing = notes() else { throw ReadOnlySQLiteDatabase.DatabaseError.missing(folder) }
+        let files = listing.notes.filter { $0.modified > after }.sorted { $0.modified < $1.modified }
 
         var records: [MemoryIngestRecord] = []
+        var complete = Set<String>()
         var newest = after
         var index = 0
         while index < files.count {
@@ -58,26 +50,85 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
             newest = file.modified
             index += 1
             guard let text = try? String(contentsOf: file.url, encoding: .utf8) else { continue }
-            // Both sides resolved, since the enumerator reports /private/var for a /var path.
-            let rootPath = root.resolvingSymlinksInPath().path
-            let relative = String(file.url.resolvingSymlinksInPath().path.dropFirst(rootPath.count))
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let stem = file.url.deletingPathExtension().lastPathComponent
             for (number, paragraph) in Self.paragraphs(text).enumerated() {
                 records.append(MemoryIngestRecord(
-                    sourceMessageID: "\(relative)#\(number)", conversationID: relative, conversationTitle: stem,
+                    sourceMessageID: "\(file.id)#\(number)", conversationID: file.id, conversationTitle: stem,
                     sender: stem, isFromMe: true, timestamp: Date(timeIntervalSince1970: file.modified),
                     text: paragraph, participants: [], subject: nil
                 ))
             }
+            // Read whole: paragraphs memory held past the note's new end go.
+            complete.insert(file.id)
         }
         guard newest > after else { return MemoryReadPage(records: [], nextCursor: nil, hasMore: false) }
-        return MemoryReadPage(records: records, nextCursor: String(newest), hasMore: index < files.count)
+        return MemoryReadPage(records: records, nextCursor: String(newest), hasMore: index < files.count,
+                              completeConversations: complete)
+    }
+
+    func liveConversationIDs() -> Set<String>? {
+        // Only a listing that read every folder may say a note is gone.
+        guard let listing = notes(), listing.isComplete else { return nil }
+        return Set(listing.notes.map(\.id))
+    }
+
+    /// A note found in the folder: where it is, its id (its path inside the folder) and its
+    /// modification time.
+    struct Note {
+        let url: URL
+        let id: String
+        let modified: Double
+    }
+
+    /// Every note in the folder, and whether every subfolder could be read (a folder macOS refused
+    /// is not the same as one without notes). Nil when the folder itself cannot be listed.
+    func notes() -> (notes: [Note], isComplete: Bool)? {
+        let root = URL(fileURLWithPath: folder, isDirectory: true)
+        guard (try? FileManager.default.contentsOfDirectory(atPath: folder)) != nil else { return nil }
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+        let failures = EnumerationFailures()
+        guard let enumerator = FileManager.default.enumerator(
+            at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: failures.record
+        ) else { return nil }
+        // Both sides resolved, since the enumerator reports /private/var for a /var path.
+        let rootPath = root.resolvingSymlinksInPath().path
+        var notes: [Note] = []
+        for case let url as URL in enumerator where Self.textSuffixes.contains(url.pathExtension.lowercased()) {
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            guard values?.isRegularFile == true, (values?.fileSize ?? .max) <= Self.maximumFileBytes,
+                  let modified = values?.contentModificationDate?.timeIntervalSince1970 else { continue }
+            let relative = String(url.resolvingSymlinksInPath().path.dropFirst(rootPath.count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            notes.append(Note(url: url, id: relative, modified: modified))
+        }
+        return (notes, !failures.occurred)
     }
 
     static func paragraphs(_ text: String) -> [String] {
         text.components(separatedBy: "\n\n")
             .map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
             .filter { $0.count >= minimumParagraphCharacters }
+    }
+}
+
+/// Records whether a directory enumeration hit an error (an unreadable subfolder), which the
+/// enumerator otherwise skips silently. Used through its `record` error handler.
+nonisolated final class EnumerationFailures: @unchecked Sendable {
+    private let lock = NSLock()
+    private var failed = false
+
+    var occurred: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return failed
+    }
+
+    /// The enumerator's error handler: notes the failure and continues with the rest.
+    func record(_ url: URL, _ error: Error) -> Bool {
+        lock.lock()
+        failed = true
+        lock.unlock()
+        return true
     }
 }

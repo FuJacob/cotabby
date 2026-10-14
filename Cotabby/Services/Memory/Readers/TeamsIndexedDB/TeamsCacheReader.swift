@@ -129,6 +129,8 @@ nonisolated struct TeamsCacheReader: MemoryHistoryReading {
     }
 
     /// Every cached message that arrived after `afterMilliseconds`, mapped, across all profiles.
+    /// Each profile is mapped on its own: each is a signed-in account with its own user, and
+    /// pooling them would make one account's user everyone's "You".
     func readCache(afterMilliseconds: Double) throws -> TeamsMessageMapper.Result {
         let folders: [String]
         do {
@@ -139,9 +141,8 @@ nonisolated struct TeamsCacheReader: MemoryHistoryReading {
         }
         guard !folders.isEmpty else { throw ReadOnlySQLiteDatabase.DatabaseError.missing(webViewRoot) }
 
-        var conversations: [[String: Any]] = []
-        var messages: [[String: Any]] = []
-        var profiles: [String: String] = [:]
+        var messages: [TeamsMessageMapper.Message] = []
+        var newest = afterMilliseconds
         for folder in folders {
             let rows: Rows
             do {
@@ -149,13 +150,14 @@ nonisolated struct TeamsCacheReader: MemoryHistoryReading {
             } catch LevelDBReader.ReadError.notPermitted(let path) {
                 throw ReadOnlySQLiteDatabase.DatabaseError.notPermitted(path)
             }
-            conversations += rows.conversations
-            messages += rows.messages
-            profiles.merge(rows.profiles) { _, newer in newer }
+            let mapped = TeamsMessageMapper.map(
+                conversations: rows.conversations, messages: rows.messages, profiles: rows.profiles,
+                afterMilliseconds: afterMilliseconds
+            )
+            messages += mapped.messages
+            newest = max(newest, mapped.newestMilliseconds)
         }
-        return TeamsMessageMapper.map(
-            conversations: conversations, messages: messages, profiles: profiles, afterMilliseconds: afterMilliseconds
-        )
+        return TeamsMessageMapper.Result(messages: messages, newestMilliseconds: newest)
     }
 
     /// The fields `TeamsMessageMapper` reads. A cached message carries dozens more (reactions,

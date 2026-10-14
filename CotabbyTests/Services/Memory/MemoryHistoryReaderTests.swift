@@ -304,6 +304,44 @@ final class MemoryHistoryReaderTests: XCTestCase {
         XCTAssertEqual(try reader.read(after: "1000.0", since: nil, limit: 100).records.count, 1)
     }
 
+    /// A changed note is read whole (so its removed paragraphs leave memory), and the notes still
+    /// there are listed (so deleted ones do), but only when every folder could be read.
+    func test_documentsReportWholeNotesAndTheNotesStillThere() throws {
+        let folder = directory.appendingPathComponent("Notes", isDirectory: true)
+        let locked = folder.appendingPathComponent("locked", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try "The starter plan costs 2,500 EUR per month.".write(to: folder.appendingPathComponent("pricing.md"), atomically: true, encoding: .utf8)
+        try "Hidden away but still a note of mine.".write(to: locked.appendingPathComponent("x.md"), atomically: true, encoding: .utf8)
+        let reader = DocumentsHistoryReader(folder: folder.path)
+        let page = try reader.read(after: nil, since: nil, limit: 100)
+        XCTAssertEqual(page.completeConversations, ["pricing.md", "locked/x.md"])
+        XCTAssertEqual(reader.liveConversationIDs(), ["pricing.md", "locked/x.md"])
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        XCTAssertNil(reader.liveConversationIDs(), "a folder that cannot be read is not a folder whose notes were deleted")
+        XCTAssertNil(DocumentsHistoryReader(folder: directory.appendingPathComponent("none").path).liveConversationIDs())
+    }
+
+    /// The `.emlx` map outlives one sync: mail that arrives later is found by rebuilding it, while a
+    /// missing file of older mail (not downloaded) does not rebuild it every time.
+    func test_theEmlxMapIsRebuiltForNewerMail() {
+        let index = EmlxFileIndex()
+        var builds = 0
+        var files: [Int64: String] = [1: "/1.emlx", 5: "/5.emlx"]
+        let build = { () -> [Int64: String] in
+            builds += 1
+            return files
+        }
+        XCTAssertEqual(index.files(needing: [5], build: build)[5], "/5.emlx")
+        XCTAssertEqual(index.files(needing: [1, 5], build: build).count, 2)
+        XCTAssertEqual(index.files(needing: [3], build: build)[3], nil)
+        XCTAssertEqual(builds, 1, "older mail without a file reuses the map")
+        files[9] = "/9.emlx"
+        XCTAssertEqual(index.files(needing: [9], build: build)[9], "/9.emlx", "new mail finds its file")
+        XCTAssertEqual(builds, 2)
+    }
+
     // MARK: - Full Disk Access probe
 
     func test_fullDiskAccessProbeIsTrueForAnOpenableFileAndUnknownWhenNoneExist() throws {

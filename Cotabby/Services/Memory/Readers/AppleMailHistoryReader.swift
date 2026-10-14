@@ -33,8 +33,8 @@ import Foundation
 nonisolated struct AppleMailHistoryReader: MemoryHistoryReading {
     let sourceID = "apple_mail"
     let mailRoot: String
-    /// The ROWID -> `.emlx` map, built once per reader (one sync run) instead of once per page:
-    /// walking a large mail folder takes seconds.
+    /// The ROWID -> `.emlx` map, built once and reused across pages and syncs (walking a large mail
+    /// folder takes seconds), rebuilt when mail newer than the map needs its file.
     private let fileIndex = EmlxFileIndex()
 
     init(mailRoot: String = NSHomeDirectory() + "/Library/Mail/V10") {
@@ -95,8 +95,8 @@ nonisolated struct AppleMailHistoryReader: MemoryHistoryReading {
 
         let ownAddresses = try Self.ownAddresses(database, sent: sent)
         let recipients = try Self.recipients(of: rows.compactMap { $0["rowid"]?.int }, database: database)
-        let needFiles = rows.contains { ($0["summary"]?.string?.count ?? 0) < 40 }
-        let files = needFiles ? fileIndex.files(under: mailRoot, build: emlxFiles) : [:]
+        let needed = rows.filter { ($0["summary"]?.string?.count ?? 0) < 40 }.compactMap { $0["rowid"]?.int }
+        let files = needed.isEmpty ? [:] : fileIndex.files(needing: needed, build: emlxFiles)
 
         var records: [MemoryIngestRecord] = []
         for row in rows {
@@ -286,16 +286,23 @@ nonisolated struct AppleMailHistoryReader: MemoryHistoryReading {
 
 /// Caches the `.emlx` file map for one reader. A class (with a lock) so the reader struct can stay
 /// a Sendable value while the map is built lazily on first need.
-nonisolated private final class EmlxFileIndex: @unchecked Sendable {
+///
+/// The reader lives as long as the app, so the map is rebuilt when a page needs the file of mail
+/// newer than anything in it (it arrived after the map was built); otherwise that mail's body
+/// would be missing and the cursor would move past it for good. A needed message older than the
+/// map's newest simply has no file (Mail has not downloaded it), and does not trigger a rebuild.
+nonisolated final class EmlxFileIndex: @unchecked Sendable {
     private let lock = NSLock()
     private var cached: [Int64: String]?
+    private var newest: Int64 = .min
 
-    func files(under root: String, build: () -> [Int64: String]) -> [Int64: String] {
+    func files(needing rowIDs: [Int64], build: () -> [Int64: String]) -> [Int64: String] {
         lock.lock()
         defer { lock.unlock() }
-        if let cached { return cached }
+        if let cached, !rowIDs.contains(where: { cached[$0] == nil && $0 > newest }) { return cached }
         let built = build()
         cached = built
+        newest = built.keys.max() ?? .min
         return built
     }
 }

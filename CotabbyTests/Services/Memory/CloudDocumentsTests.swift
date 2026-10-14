@@ -161,6 +161,64 @@ final class CloudDocumentsTests: XCTestCase {
         XCTAssertNil(drive([]).liveConversationIDs(), "an unreadable drive never reads as everything deleted")
     }
 
+    /// A file that cannot be read (an online-only file while offline) is not left behind the
+    /// cursor: the next sync tries it again, even though it has not changed.
+    func test_anUnreadableFileIsTriedAgainOnTheNextSync() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let offline = root.appendingPathComponent("Offline.md")
+        try Data("Notes from the offline file about the pilot.".utf8).write(to: offline)
+        try Data("Another readable file about pricing tiers.".utf8).write(to: root.appendingPathComponent("Online.md"))
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: offline.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: offline.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: offline.path) }
+
+        let reader = drive([root])
+        let first = try reader.read(after: nil, since: nil, limit: 400)
+        XCTAssertEqual(first.records.map(\.conversationTitle), ["Online"])
+        let stillOffline = try reader.read(after: first.nextCursor, since: nil, limit: 400)
+        XCTAssertTrue(stillOffline.records.isEmpty)
+        XCTAssertEqual(CloudDriveReader.Cursor(stillOffline.nextCursor ?? first.nextCursor).retry,
+                       ["GoogleDrive-me@example.com/Offline.md"], "still waiting to be read")
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: offline.path)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: offline.path)
+        let next = try reader.read(after: stillOffline.nextCursor ?? first.nextCursor, since: nil, limit: 400)
+        XCTAssertEqual(next.records.map(\.conversationTitle), ["Offline"], "the next sync reads it")
+        XCTAssertEqual(CloudDriveReader.Cursor(next.nextCursor).retry, [])
+        XCTAssertTrue(try reader.read(after: next.nextCursor, since: nil, limit: 400).records.isEmpty)
+        XCTAssertEqual(CloudDriveReader.Cursor("1790000000.0"), CloudDriveReader.Cursor(after: 1_790_000_000), "older cursors still read")
+    }
+
+    /// One account (or folder) that cannot be read makes the listing incomplete, and an incomplete
+    /// listing removes nothing: the readable account's documents do not make the other's look deleted.
+    func test_aPartlyUnreadableDriveRemovesNothing() throws {
+        let first = directory.appendingPathComponent("GoogleDrive-a@example.com", isDirectory: true)
+        let second = directory.appendingPathComponent("GoogleDrive-b@example.com", isDirectory: true)
+        for root in [first, second] {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data("A document long enough to be a section.".utf8).write(to: root.appendingPathComponent("Doc.md"))
+        }
+        let reader = drive([first, second])
+        XCTAssertEqual(reader.liveConversationIDs()?.count, 2)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: second.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: second.path) }
+        XCTAssertEqual(reader.readiness(), .ready, "one readable account is enough to sync")
+        XCTAssertNil(reader.liveConversationIDs())
+    }
+
+    /// A huge paragraph is cut in time proportional to its length and stops at the section limit.
+    func test_aHugeParagraphIsCutQuicklyAndBounded() {
+        let started = Date()
+        let sections = DocumentSections.split(String(repeating: "x", count: 1_000_000))
+        XCTAssertEqual(sections.count, DocumentSections.maximumSections)
+        XCTAssertTrue(sections.allSatisfy { $0.count == DocumentSections.maximumCharacters })
+        let shorter = DocumentSections.split(String(repeating: "word ", count: 80_000))
+        XCTAssertGreaterThan(shorter.count, 260)
+        XCTAssertTrue(shorter.allSatisfy { $0.count <= DocumentSections.maximumCharacters })
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
+    }
+
     func test_cloudStorageFoldersAreTheProvidersAccountsWithoutTrash() throws {
         for name in ["GoogleDrive-a@example.com", "GoogleDrive-b@example.org", "OneDrive-example.com", "OneDrive-SharedLibraries-x - .Trash"] {
             try FileManager.default.createDirectory(at: directory.appendingPathComponent(name), withIntermediateDirectories: true)

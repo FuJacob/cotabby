@@ -263,7 +263,7 @@ nonisolated enum HxStoreRecordParser {
     }
 }
 
-private extension String {
+nonisolated private extension String {
     var utf16LittleEndianBytes: [UInt8] {
         utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
     }

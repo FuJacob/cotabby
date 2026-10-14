@@ -35,7 +35,9 @@ final class TeamsMessageMapperTests: XCTestCase {
             ["id": group, "type": "Chat", "members": [["id": me], ["id": avery]],
              "chatTitle": ["longTitle": "Avery Stone, Sam Archer"]],
             ["id": meeting, "type": "Meeting", "threadProperties": ["topic": "POC Planning"],
-             "members": [["id": me], ["id": avery], ["id": vic]]]
+             "members": [["id": me], ["id": avery], ["id": vic]]],
+            // A chat without Avery: the user is then the one member of every conversation.
+            ["id": "19:other@thread.v2", "type": "Chat", "members": [["id": me], ["id": vic]]]
         ]
         let messages: [[String: Any]] = [
             message(oneToOne, avery, "Avery Stone", "<p>The <b>POC</b> passed&nbsp;today</p>", at: t0 + 1_000),
@@ -130,20 +132,26 @@ final class TeamsMessageMapperTests: XCTestCase {
         XCTAssertEqual(grouped[group]?.first?.conversationTitle, "Ops")
     }
 
-    func test_meIsTheMemberOfMostConversationsAndTiesGoToTheMostFrequentSender() {
+    func test_meIsTheMemberOfMostConversationsAndNobodyOnATie() {
         let chats = [
             TeamsMessageMapper.Conversation(id: "a", topic: "", members: [avery, me]),
             TeamsMessageMapper.Conversation(id: "b", topic: "", members: [avery, me])
         ]
-        // Tied at two conversations each: the user is whoever wrote more.
+        // Tied at two conversations each: whoever wrote more is no evidence of who the user is,
+        // so nobody is labelled "You" and the chats keep both names.
         let messages = [
             message("a", me, "Sam Archer", "one", at: t0),
             message("b", me, "Sam Archer", "two", at: t0 + 1),
             message("b", avery, "Avery Stone", "three", at: t0 + 2)
         ]
-        XCTAssertEqual(TeamsMessageMapper.me(chats: chats, messages: messages), me)
-        // Nobody wrote: the first of the tied, in the order they were counted.
-        XCTAssertEqual(TeamsMessageMapper.me(chats: chats, messages: []), avery)
+        XCTAssertEqual(TeamsMessageMapper.me(chats: chats, messages: messages), "")
+        let mapped = TeamsMessageMapper.map(
+            conversations: chats.map { ["id": $0.id, "members": $0.members.map { ["id": $0] }] },
+            messages: messages, profiles: [:], afterMilliseconds: 0
+        )
+        XCTAssertFalse(mapped.messages.contains(where: \.isFromMe))
+        let third = TeamsMessageMapper.Conversation(id: "c", topic: "", members: [me, vic])
+        XCTAssertEqual(TeamsMessageMapper.me(chats: chats + [third], messages: messages), me)
         XCTAssertEqual(TeamsMessageMapper.me(chats: [], messages: []), "")
     }
 

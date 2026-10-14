@@ -16,10 +16,12 @@ import Foundation
 /// and it is never the user's own words). Google Docs, Sheets and Slides (`.gdoc`...) are only links
 /// on the Mac; their text stays in Google's cloud and is not read.
 ///
-/// Cursor: the newest modification time read. Files changed since are read whole and replace what
-/// memory held for them (`MemoryReadPage.completeConversations`, so a shortened file loses its old
-/// tail); pages end between files. `liveConversationIDs` lists every file still there, so the sync
-/// removes deleted files from memory.
+/// Cursor: the newest modification time read, plus the files that could not be read (an
+/// online-only file while offline). Files changed since are read whole and replace what memory
+/// held for them (`MemoryReadPage.completeConversations`, so a shortened file loses its old tail);
+/// pages end between files. Unreadable files are tried again on the next sync rather than left
+/// behind the cursor. `liveConversationIDs` lists every file still there, so the sync removes
+/// deleted files from memory, but only from a listing that read every account and folder.
 nonisolated struct CloudDriveReader: MemoryHistoryReading {
     nonisolated struct Drive: Sendable {
         let id: String
@@ -61,20 +63,32 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
     }
 
     func read(after cursor: String?, since: Date?, limit: Int) throws -> MemoryReadPage {
-        let after = Double(cursor ?? "") ?? 0
-        let files = documents().filter { $0.modified > after }.sorted { $0.modified < $1.modified }
+        let state = Cursor(cursor)
+        let found = documents()
+        let present = Set(found.map(\.id))
+        // Files that failed in an earlier sync are tried again (first: they are older than the
+        // cursor); ones that failed in this sync wait for the next, so a page never retries them.
+        var retry = state.retry.intersection(present)
+        var failed = state.failed.intersection(present)
+        let files = found.filter { $0.modified > state.after || retry.contains($0.id) }
+            .sorted { $0.modified < $1.modified }
         var records: [MemoryIngestRecord] = []
         var complete = Set<String>()
-        var newest = after
+        var newest = state.after
         var index = 0
         while index < files.count {
             let file = files[index]
             // Stop between files of different times once the page is full, so a resumed sync
             // never skips a file.
             if records.count >= limit, file.modified > newest { break }
-            newest = file.modified
+            newest = max(newest, file.modified)
             index += 1
-            guard let text = DocumentTextExtractor.text(of: file.url) else { continue }
+            retry.remove(file.id)
+            guard let text = DocumentTextExtractor.text(of: file.url) else {
+                failed.insert(file.id)
+                continue
+            }
+            failed.remove(file.id)
             let title = file.url.deletingPathExtension().lastPathComponent
             for (number, section) in DocumentSections.split(text).enumerated() {
                 records.append(MemoryIngestRecord(
@@ -85,15 +99,55 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
             }
             complete.insert(file.id)
         }
-        guard newest > after else { return MemoryReadPage(records: [], nextCursor: nil, hasMore: false) }
-        return MemoryReadPage(records: records, nextCursor: String(newest), hasMore: index < files.count,
+        guard index > 0 else { return MemoryReadPage(records: [], nextCursor: nil, hasMore: false) }
+        let hasMore = index < files.count
+        // The last page of a sync hands this sync's failures to the next one.
+        let next = hasMore ? Cursor(after: newest, retry: retry, failed: failed)
+            : Cursor(after: newest, retry: retry.union(failed), failed: [])
+        return MemoryReadPage(records: records, nextCursor: next.encoded, hasMore: hasMore,
                               completeConversations: complete)
     }
 
     func liveConversationIDs() -> Set<String>? {
-        // A drive that cannot be listed right now must not read as "every file was deleted".
-        guard readiness() == .ready else { return nil }
-        return Set(documents().map(\.id))
+        // A drive, account or folder that cannot be listed right now must not read as "every file
+        // in it was deleted".
+        let listing = documentListing()
+        guard listing.isComplete else { return nil }
+        return Set(listing.documents.map(\.id))
+    }
+
+    /// Where a sync stands: the newest modification time read, and the files to try again.
+    /// Encoded as the time alone while nothing failed (the form older versions stored), else as
+    /// JSON.
+    struct Cursor: Codable, Equatable {
+        var after: Double
+        /// Failed in an earlier sync: read on the next one.
+        var retry: Set<String> = []
+        /// Failed in the sync under way: moved to `retry` when it ends.
+        var failed: Set<String> = []
+
+        init(after: Double, retry: Set<String> = [], failed: Set<String> = []) {
+            self.after = after
+            self.retry = retry
+            self.failed = failed
+        }
+
+        init(_ stored: String?) {
+            if let stored, let time = Double(stored) {
+                self.init(after: time)
+            } else if let data = stored?.data(using: .utf8), let decoded = try? JSONDecoder().decode(Cursor.self, from: data) {
+                self = decoded
+            } else {
+                self.init(after: 0)
+            }
+        }
+
+        var encoded: String {
+            if retry.isEmpty, failed.isEmpty { return String(after) }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            return (try? encoder.encode(self)).flatMap { String(bytes: $0, encoding: .utf8) } ?? String(after)
+        }
     }
 
     /// A document file found under a drive: where it is, its stable id, and its modification time.
@@ -106,13 +160,30 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
     /// Every supported document under the drive's roots, with its id (account folder + path inside
     /// it, stable across syncs) and modification time. Packages (`.pages`, app bundles) are skipped.
     func documents() -> [Document] {
+        documentListing().documents
+    }
+
+    /// The documents, and whether every root and every folder under them could be read: an
+    /// account folder macOS refused, or a subfolder the enumerator could not open, makes the
+    /// listing incomplete, and an incomplete listing never removes anything from memory.
+    func documentListing() -> (documents: [Document], isComplete: Bool) {
         var found: [Document] = []
+        let roots = drive.roots()
+        // No account folder at all is a drive not set up (or hidden right now), not an empty one.
+        var isComplete = !roots.isEmpty
         let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
-        for root in drive.roots() {
+        for root in roots {
             let rootPath = root.resolvingSymlinksInPath().path
-            guard let enumerator = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { continue }
+            let failures = EnumerationFailures()
+            guard (try? FileManager.default.contentsOfDirectory(atPath: root.path)) != nil,
+                  let enumerator = FileManager.default.enumerator(
+                      at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                      errorHandler: failures.record
+                  ) else {
+                isComplete = false
+                continue
+            }
+            defer { if failures.occurred { isComplete = false } }
             for case let url as URL in enumerator where DocumentTextExtractor.isSupported(url) {
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                       (values.fileSize ?? .max) <= DocumentTextExtractor.sizeLimit(for: url),
@@ -122,6 +193,6 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
                 found.append(Document(url: url, id: root.lastPathComponent + "/" + relative, modified: modified))
             }
         }
-        return found
+        return (found, isComplete)
     }
 }

@@ -239,16 +239,17 @@ nonisolated struct LevelDBReader {
     static func parseBatch(_ batch: ArraySlice<UInt8>, into resolver: inout Resolver) throws {
         var reader = ByteReader(batch)
         guard let sequence = reader.readUInt64LE(), let count = reader.readUInt32LE() else { return }
+        // Wrapping: a damaged header's sequence near the top must not trap (`&+` below).
         for index in 0..<UInt64(count) {
             guard let type = reader.readByte(),
                   let keyLength = reader.readVarint32(),
                   let key = reader.read(Int(keyLength)) else { return }
             switch type {
             case 0:
-                resolver.add(key: key, sequence: sequence + index, value: nil)
+                resolver.add(key: key, sequence: sequence &+ index, value: nil)
             case 1:
                 guard let valueLength = reader.readVarint32(), let value = reader.read(Int(valueLength)) else { return }
-                resolver.add(key: key, sequence: sequence + index, value: value)
+                resolver.add(key: key, sequence: sequence &+ index, value: value)
             default:
                 return
             }

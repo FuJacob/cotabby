@@ -73,7 +73,7 @@ nonisolated enum TeamsMessageMapper {
         afterMilliseconds: Double
     ) -> Result {
         // Conversation rows by id; a later row for the same id replaces the earlier one but keeps
-        // its position (a Python dict), which the "me" tie-break below depends on.
+        // its position (a Python dict).
         var chatOrder: [String] = []
         var chats: [String: Conversation] = [:]
         for raw in rawConversations {
@@ -204,22 +204,17 @@ nonisolated enum TeamsMessageMapper {
         return Conversation(id: id, topic: PythonText.strip(text(properties["topic"])), members: pythonSorted(memberIDs))
     }
 
-    /// The member in the most conversations; a tie goes to the most frequent sender among the tied
-    /// (the first of them when that ties too, in the order they were first counted).
+    /// The signed-in user of one profile's cache: the member of the most conversations (the user
+    /// is in every one of their chats). When several people tie (a cache whose chats are all with
+    /// one person), the cache cannot say which is the user, and nobody is: guessing by who wrote
+    /// more would label the other person's messages "You" and title the chat after the user.
     static func me(chats: [Conversation], messages: [[String: Any]]) -> String {
         var counts = OrderedCounter()
         for chat in chats { counts.add(chat.members) }
         for message in messages { counts.add(oneToOneMembers(text(message["conversationId"]))) }
         guard let top = counts.highestCount else { return "" }
         let best = counts.keys.filter { counts[$0] == top }
-        guard best.count > 1 else { return best.first ?? "" }
-        var senders: [String: Int] = [:]
-        for message in messages { senders[mri(text(message["creator"])), default: 0] += 1 }
-        var winner = best[0]
-        for candidate in best.dropFirst() where senders[candidate, default: 0] > senders[winner, default: 0] {
-            winner = candidate
-        }
-        return winner
+        return best.count == 1 ? best[0] : ""
     }
 
     /// A display name per person: the profile's, else the most common name on their messages

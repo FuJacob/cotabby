@@ -52,6 +52,33 @@ final class CalendarMemoryTests: XCTestCase {
         XCTAssertTrue(cancelled.text.contains("Status: cancelled"), "replaces the stored meeting instead of vanishing")
     }
 
+    /// With retention bounding the window, a series with a change is read whole and marked
+    /// complete, so a moved occurrence (whose id carries its old start) leaves memory.
+    func test_aChangedSeriesIsReadWholeSoAMovedOccurrenceLeaves() throws {
+        func occurrence(_ start: Date, modified: Date) -> CalendarEventSnapshot {
+            CalendarEventSnapshot(
+                id: "S@\(Int(start.timeIntervalSince1970))", seriesID: "S", title: "Weekly sync", start: start,
+                end: start.addingTimeInterval(1_800), isAllDay: false, location: nil, notes: nil, organizer: nil,
+                attendees: [], isCancelled: false, lastModified: modified
+            )
+        }
+        let unchanged = occurrence(date(1, 9), modified: date(1))
+        let moved = occurrence(date(8, 11), modified: now.addingTimeInterval(-60))
+        let other = event("Lunch", date(2, 12), date(2, 13), modified: date(1))
+        let events: [CalendarEventSnapshot] = [unchanged, moved, other]
+        let reader = CalendarHistoryReader(events: { _, _ in events }, isAuthorized: { true }, now: { self.now })
+        let cursor = String(Int64(now.addingTimeInterval(-86_400).timeIntervalSince1970 * 1000))
+        let since: Date = now.addingTimeInterval(-365 * 86_400)
+
+        let page = try reader.read(after: cursor, since: since, limit: 500)
+        XCTAssertEqual(Set(page.records.map(\.sourceMessageID)), [unchanged.id, moved.id], "the whole series, not other events")
+        XCTAssertEqual(page.completeConversations, ["event:S"])
+        // Without retention the window does not hold the whole series: changes are only added.
+        let unbounded = try reader.read(after: cursor, since: nil, limit: 500)
+        XCTAssertEqual(unbounded.records.map(\.sourceMessageID), [moved.id])
+        XCTAssertEqual(unbounded.completeConversations, [])
+    }
+
     func test_theReaderReadsChangedEventsAndOnesEnteringTheHorizon() throws {
         let lastSync = now.addingTimeInterval(-86_400)
         let farStart: Date = lastSync.addingTimeInterval(91 * 86_400)
