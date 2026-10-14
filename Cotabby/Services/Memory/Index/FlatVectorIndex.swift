@@ -115,8 +115,14 @@ nonisolated final class FlatVectorIndex: VectorSearching, @unchecked Sendable {
             if row != last {
                 entries[row] = entries[last]
                 rowByPassage[entries[row].passageID] = row
-                rows.replaceSubrange((row * dimensions)..<((row + 1) * dimensions),
-                                     with: rows[(last * dimensions)..<((last + 1) * dimensions)])
+                // Copied in place through one buffer: passing a slice of `rows` to its own
+                // `replaceSubrange` would copy the whole index on every removal.
+                let dimensions = dimensions
+                rows.withUnsafeMutableBufferPointer { buffer in
+                    for offset in 0..<dimensions {
+                        buffer[row * dimensions + offset] = buffer[last * dimensions + offset]
+                    }
+                }
             }
             entries.removeLast()
             rows.removeLast(dimensions)

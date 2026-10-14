@@ -262,8 +262,10 @@ nonisolated struct IndexedDBReader {
             // kRequiresProcessingSSVPseudoVersion: the value was wrapped by idb_value_wrapping.cc.
             switch reader.readByte() {
             case 0x01: // kReplaceWithBlob
-                guard reader.readVarint64() != nil, let blobIndex = reader.readVarint64() else { throw ValueError.notBlinkValue }
-                guard let contents = try blobContents(location, index: Int(blobIndex)) else {
+                // `Int(exactly:)`: a corrupt index beyond Int's range throws instead of trapping.
+                guard reader.readVarint64() != nil, let rawIndex = reader.readVarint64(),
+                      let blobIndex = Int(exactly: rawIndex) else { throw ValueError.notBlinkValue }
+                guard let contents = try blobContents(location, index: blobIndex) else {
                     // The original returns nothing for a record whose blob is not described.
                     return nil
                 }

@@ -70,8 +70,8 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         // cursor); ones that failed in this sync wait for the next, so a page never retries them.
         var retry = state.retry.intersection(present)
         var failed = state.failed.intersection(present)
-        let files = found.filter { $0.modified > state.after || retry.contains($0.id) }
-            .sorted { $0.modified < $1.modified }
+        let files = found.filter { $0.changed > state.after || retry.contains($0.id) }
+            .sorted { $0.changed < $1.changed }
         var records: [MemoryIngestRecord] = []
         var complete = Set<String>()
         var newest = state.after
@@ -80,8 +80,8 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
             let file = files[index]
             // Stop between files of different times once the page is full, so a resumed sync
             // never skips a file.
-            if records.count >= limit, file.modified > newest { break }
-            newest = max(newest, file.modified)
+            if records.count >= limit, file.changed > newest { break }
+            newest = max(newest, file.changed)
             index += 1
             retry.remove(file.id)
             guard let text = DocumentTextExtractor.text(of: file.url) else {
@@ -150,11 +150,14 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         }
     }
 
-    /// A document file found under a drive: where it is, its stable id, and its modification time.
+    /// A document file found under a drive: where it is, its stable id, its modification time
+    /// (the records' timestamp) and when it last changed or arrived (`changed`, what the cursor
+    /// follows).
     struct Document {
         let url: URL
         let id: String
         let modified: Double
+        let changed: Double
     }
 
     /// Every supported document under the drive's roots, with its id (account folder + path inside
@@ -171,7 +174,7 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         let roots = drive.roots()
         // No account folder at all is a drive not set up (or hidden right now), not an empty one.
         var isComplete = !roots.isEmpty
-        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .attributeModificationDateKey, .fileSizeKey, .isRegularFileKey]
         for root in roots {
             let rootPath = root.resolvingSymlinksInPath().path
             let failures = EnumerationFailures()
@@ -190,7 +193,8 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
                       let modified = values.contentModificationDate?.timeIntervalSince1970 else { continue }
                 let relative = String(url.resolvingSymlinksInPath().path.dropFirst(rootPath.count))
                     .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                found.append(Document(url: url, id: root.lastPathComponent + "/" + relative, modified: modified))
+                found.append(Document(url: url, id: root.lastPathComponent + "/" + relative, modified: modified,
+                                      changed: DocumentArrival.changed(modified: modified, values: values)))
             }
         }
         return (found, isComplete)

@@ -109,6 +109,7 @@ final class MemoryControlModel: ObservableObject {
     }
 
     func updateIndexSettings(_ settings: MemoryIndexSettings) {
+        let settings = settings.clamped()
         change { $0.index = settings }
     }
 

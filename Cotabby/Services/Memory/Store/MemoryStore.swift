@@ -428,8 +428,22 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                 try database.run("DELETE FROM messages WHERE record_id = ?", [.text(id)])
             }
             try removeIndexEntries(recordIDs: Array(ids))
+            // An excluded conversation or person leaves nothing behind: no sealed title or name,
+            // no title or participant tag that would still match.
+            if !ids.isEmpty { try deleteEmptyConversations() }
             return ids.count
         }
+    }
+
+    /// Deletes the conversations (and their people) that no message is left in.
+    private func deleteEmptyConversations() throws {
+        for table in ["conversations", "participants"] {
+            try database.run(
+                "DELETE FROM \(table) WHERE NOT EXISTS "
+                    + "(SELECT 1 FROM messages m WHERE m.source = \(table).source AND m.conv_key = \(table).conv_key)"
+            )
+        }
+        conversationNames.removeAll()
     }
 
     /// For conversations read whole again (`MemoryReadPage.completeConversations`), deletes the
@@ -449,6 +463,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
             if !doomed.isEmpty { willRemove?() }
             for id in doomed { try database.run("DELETE FROM messages WHERE record_id = ?", [.text(id)]) }
             try removeIndexEntries(recordIDs: doomed)
+            if !doomed.isEmpty { try deleteEmptyConversations() }
             return doomed
         }
     }

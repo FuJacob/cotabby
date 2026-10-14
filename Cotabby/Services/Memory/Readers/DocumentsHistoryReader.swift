@@ -37,7 +37,7 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
     func read(after cursor: String?, since: Date?, limit: Int) throws -> MemoryReadPage {
         let after = Double(cursor ?? "") ?? 0
         guard let listing = notes() else { throw ReadOnlySQLiteDatabase.DatabaseError.missing(folder) }
-        let files = listing.notes.filter { $0.modified > after }.sorted { $0.modified < $1.modified }
+        let files = listing.notes.filter { $0.changed > after }.sorted { $0.changed < $1.changed }
 
         var records: [MemoryIngestRecord] = []
         var complete = Set<String>()
@@ -46,8 +46,8 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
         while index < files.count {
             let file = files[index]
             // Stop between files of different times once the page is full.
-            if records.count >= limit, file.modified > newest { break }
-            newest = file.modified
+            if records.count >= limit, file.changed > newest { break }
+            newest = file.changed
             index += 1
             guard let text = try? String(contentsOf: file.url, encoding: .utf8) else { continue }
             let stem = file.url.deletingPathExtension().lastPathComponent
@@ -78,6 +78,8 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
         let url: URL
         let id: String
         let modified: Double
+        /// When it last changed or arrived (`DocumentArrival`): what the cursor follows.
+        let changed: Double
     }
 
     /// Every note in the folder, and whether every subfolder could be read (a folder macOS refused
@@ -85,7 +87,7 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
     func notes() -> (notes: [Note], isComplete: Bool)? {
         let root = URL(fileURLWithPath: folder, isDirectory: true)
         guard (try? FileManager.default.contentsOfDirectory(atPath: folder)) != nil else { return nil }
-        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .attributeModificationDateKey, .fileSizeKey, .isRegularFileKey]
         let failures = EnumerationFailures()
         guard let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants],
@@ -100,7 +102,8 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
                   let modified = values?.contentModificationDate?.timeIntervalSince1970 else { continue }
             let relative = String(url.resolvingSymlinksInPath().path.dropFirst(rootPath.count))
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            notes.append(Note(url: url, id: relative, modified: modified))
+            notes.append(Note(url: url, id: relative, modified: modified,
+                              changed: DocumentArrival.changed(modified: modified, values: values)))
         }
         return (notes, !failures.occurred)
     }
@@ -130,5 +133,20 @@ nonisolated final class EnumerationFailures: @unchecked Sendable {
         failed = true
         lock.unlock()
         return true
+    }
+}
+
+/// When a document file last changed or arrived where it is, for the readers' cursors.
+///
+/// A file can turn up with an old modification date: copied or moved in with its date kept,
+/// renamed (a new id for the cloud reader), or downloaded by a sync client that sets the server's
+/// date. Filtering by modification date alone would leave it unread behind the cursor. The file's
+/// status-change time (`attributeModificationDate`, ctime) moves whenever the file is created,
+/// moved or renamed (and on permission or extended-attribute changes, which only cost a re-read
+/// that changes nothing), so the later of the two is the cursor's key. The date Finder shows as
+/// "added" is not used: it does not move on a rename in place.
+nonisolated enum DocumentArrival {
+    static func changed(modified: Double, values: URLResourceValues?) -> Double {
+        max(modified, values?.attributeModificationDate?.timeIntervalSince1970 ?? 0)
     }
 }

@@ -122,6 +122,52 @@ final class MemoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.sources().first { $0.id == "documents" }?.stats.messages, 0)
     }
 
+    /// A hand-edited settings file with a whole number beyond Int's range still loads (the value
+    /// stays a Double) instead of trapping at launch; ordinary whole numbers read as integers.
+    func test_aHugeOptionNumberLoads() throws {
+        let url = directory.appendingPathComponent("config.json")
+        try Data(#"{"sources": {"documents": {"enabled": true, "options": {"limit": 1e20, "count": 3, "ratio": 2.5}}}}"#.utf8)
+            .write(to: url)
+        let options = MemoryEngine.loadConfiguration(url).sources["documents"]?.options
+        XCTAssertEqual(options?["count"], "3")
+        XCTAssertEqual(options?["ratio"], "2.5")
+        XCTAssertEqual(options?["limit"], String(1e20))
+    }
+
+    /// Shrinking the passage size takes the overlap down with it (the pane applies this on every edit).
+    func test_indexSettingsClampTheOverlapToHalfAPassage() {
+        var settings = MemoryIndexSettings()
+        settings.chunkSize = 128
+        settings.chunkOverlap = 64
+        settings.chunkSize = 64
+        XCTAssertEqual(settings.clamped().chunkOverlap, 32)
+        settings.topK = 99
+        settings.vectorWeight = -1
+        XCTAssertEqual(settings.clamped().topK, 20)
+        XCTAssertEqual(settings.clamped().vectorWeight, 0)
+    }
+
+    /// Removing passages moves the last row into the gap: the moved row keeps its vector exactly
+    /// and every remaining passage is still found.
+    func test_theVectorIndexRemovesRowsAndKeepsTheOthersIntact() {
+        let index = FlatVectorIndex(dimensions: 0)
+        func unit(_ axis: Int) -> [UInt16] { HalfPrecision.encode((0..<4).map { $0 == axis ? 1 : 0 }) }
+        index.replaceAll((0..<4).map {
+            MemoryStore.StoredVector(passageID: "p\($0)", recordID: "r\($0)", source: "chat", conversationKey: "c",
+                                     timestamp: Double($0), vector: unit($0))
+        })
+        index.remove(recordIDs: ["r1"])
+        XCTAssertEqual(index.count, 3)
+        for axis in [0, 2, 3] {
+            let query: [Float] = (0..<4).map { $0 == axis ? 1 : 0 }
+            let best = index.search(query, limit: 1, where: { _ in true }).first
+            XCTAssertEqual(best?.entry.recordID, "r\(axis)")
+            XCTAssertEqual(best?.score ?? 0, 1, accuracy: 0.001)
+        }
+        index.remove(recordIDs: ["r0", "r3"])
+        XCTAssertEqual(index.search([0, 0, 1, 0], limit: 5, where: { _ in true }).map(\.entry.recordID), ["r2"])
+    }
+
     /// An indexing step stopped between native calls saves only the messages embedded whole.
     func test_aStoppedIndexingStepKeepsOnlyWholeMessages() {
         // Passages of messages 0, 0, 1, 2, 2, 2.
