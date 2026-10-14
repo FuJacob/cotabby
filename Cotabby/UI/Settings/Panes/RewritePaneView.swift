@@ -240,11 +240,11 @@ struct RewritePaneView: View {
                 let models = try await modelList.models(for: service, baseURL: baseURL, apiKey: key)
                 // The user may have switched service or edited the URL while the list loaded; a list
                 // from another server must not be offered for this one.
-                guard preferences.preferences.cloudProvider == service,
-                      preferences.preferences.effectiveBaseURL == baseURL else { return }
+                guard preferences.preferences.isModelListSource(service: service, baseURL: baseURL) else { return }
                 loadedModels = models
                 modelListStatus = models.isEmpty ? "The service listed no models." : "\(models.count) models — pick one with Choose."
             } catch {
+                guard preferences.preferences.isModelListSource(service: service, baseURL: baseURL) else { return }
                 modelListStatus = "Couldn't load models: \(error.localizedDescription)"
             }
         }

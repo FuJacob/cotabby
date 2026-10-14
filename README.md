@@ -90,7 +90,7 @@ Privacy is the whole point, so Cotabby's default engines keep generation on your
 
 ## Engines
 
-Cotabby generates suggestions in four ways. You choose which in Settings → Engine:
+Cotabby generates suggestions in four ways. You choose which in Settings → Engine & Model:
 
 - **Apple Intelligence** — Apple's model, built into macOS 26 or later on supported Macs. Nothing to download.
 - **Open Source** — a small AI model you download that runs entirely on your Mac. Works on any supported Mac (macOS 14+), with or without Apple Intelligence.

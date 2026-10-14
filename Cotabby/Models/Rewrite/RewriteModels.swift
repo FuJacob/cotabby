@@ -138,6 +138,13 @@ nonisolated struct RewritePreferences: Equatable, Sendable {
 
     /// The API root the current service is reached at.
     var effectiveBaseURL: String { cloudProvider.baseURL ?? apiBaseURL }
+
+    /// Whether a model list requested for `service` at `baseURL` still belongs to these settings.
+    /// The user may switch service or edit the URL while the list loads; its result, or its error,
+    /// must not then appear under the new one.
+    func isModelListSource(service: RewriteCloudProvider, baseURL: String) -> Bool {
+        cloudProvider == service && effectiveBaseURL == baseURL
+    }
 }
 
 /// One rewrite to run: the selected text and the action, plus what the popup knows about them.

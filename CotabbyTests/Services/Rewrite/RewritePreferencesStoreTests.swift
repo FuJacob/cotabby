@@ -98,6 +98,18 @@ final class RewritePreferencesStoreTests: XCTestCase {
         XCTAssertTrue(RewriteCloudProvider.anthropic.suggestedModels.contains("claude-sonnet-5-5"))
     }
 
+    /// A model list (or its error) loaded for one service or URL is not shown after the user moved on.
+    func test_modelListBelongsOnlyToTheServiceAndURLItWasLoadedFor() {
+        var prefs = RewritePreferences.defaults
+        prefs.cloudProvider = .openAI
+        XCTAssertTrue(prefs.isModelListSource(service: .openAI, baseURL: "https://api.openai.com/v1"))
+        XCTAssertFalse(prefs.isModelListSource(service: .anthropic, baseURL: "https://api.openai.com/v1"))
+        prefs.cloudProvider = .custom
+        prefs.apiBaseURL = "http://gateway.example.com/v1"
+        XCTAssertTrue(prefs.isModelListSource(service: .custom, baseURL: "http://gateway.example.com/v1"))
+        XCTAssertFalse(prefs.isModelListSource(service: .custom, baseURL: "http://other.example.com/v1"))
+    }
+
     // MARK: - Provider choice and migration
 
     func test_providerChoicePersists() {
