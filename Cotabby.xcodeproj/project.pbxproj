@@ -520,6 +520,7 @@
 		749C4953D3AFE86AFABA968C /* OnboardingTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C5E3A714F5A7818337101C /* OnboardingTemplateTests.swift */; };
 		74C07F4568C4FAE1C344E789 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BD4DE5D9D8C9BB66B78633 /* TextDirectionDetectorTests.swift */; };
 		74EE4B6CFAD07099867BD0FC /* SpellingLanguageResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71686BC29B7E0FACFF0B19C /* SpellingLanguageResolverTests.swift */; };
+		75174D0A2783A55772383622 /* RewriteProviderRowPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146AFB5C6D727580099654E7 /* RewriteProviderRowPolicyTests.swift */; };
 		7527A1523BFCCC1D418B44FD /* MenuBarPopoverDismisser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DADE6EEA8248DA6700E11844 /* MenuBarPopoverDismisser.swift */; };
 		753DC144B9394A35A3F395DA /* SettingsSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADB38D0160B47637572FC5E /* SettingsSidebarView.swift */; };
 		75432BB598E96902A799AA10 /* OpenAICompatibleCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B23950F38B1B3C8A5CC5BE5 /* OpenAICompatibleCredentialStore.swift */; };
@@ -747,6 +748,7 @@
 		A8580B09E21C2B44A1D9B0BA /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9805B5D25A6E261D92E0ADD /* WelcomeView.swift */; };
 		A8854697A9EB29DB737C4A26 /* SelfCaptureGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571B221ACAFED86DABB10F48 /* SelfCaptureGateTests.swift */; };
 		A88F3C7039E8DDB71C5D6246 /* TypoGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FCE0E0C38A776383B11809 /* TypoGate.swift */; };
+		A8B92E1D06E4C7F49259C14D /* RewriteProviderRowPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78AD204866CDFE46C0529AA /* RewriteProviderRowPolicy.swift */; };
 		A8DCC8CFAD1B698A32E1B077 /* SuggestionClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743B7207A91EB1BFADD0C5E7 /* SuggestionClientError.swift */; };
 		A966DCE17C5160F15F371372 /* HostBaselineCalibratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23A711EA8EF13B480FF34DE /* HostBaselineCalibratorTests.swift */; };
 		A974EF146F549AD4DFD11D66 /* GhostWrapBandPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B753DA96CA6BC168E675E61E /* GhostWrapBandPolicy.swift */; };
@@ -917,6 +919,7 @@
 		CEB972329AA694F8483433C2 /* FocusSnapshotResolverSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01F11F7F29EFC3A27A1EE5D /* FocusSnapshotResolverSelectionTests.swift */; };
 		CED430DD80E4769920E3C0E5 /* FocusModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7E1691BC93836AE2FA8931 /* FocusModelsTests.swift */; };
 		CEDE9C238AD33258B36DB509 /* WelcomeHeroDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F155556C751FB074B31CCC64 /* WelcomeHeroDemo.swift */; };
+		CF00F20B9A22234E63324D8A /* RewriteProviderRowPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78AD204866CDFE46C0529AA /* RewriteProviderRowPolicy.swift */; };
 		CF04C28598AF9A437990C8A4 /* SurfaceContextComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652973AF18C20D51F81F76C5 /* SurfaceContextComposerTests.swift */; };
 		CF0FCA57D1CBC6379147960E /* MenuResourceMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493009C5372CBBA5A6C9E171 /* MenuResourceMonitorTests.swift */; };
 		CF2EADEEEF5AA63FB9B9EA8E /* SuggestionInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3D1125B962CBE0269EEDDB /* SuggestionInserter.swift */; };
@@ -1193,6 +1196,7 @@
 		12F6FDB6D09851CC5C6649EF /* MenuBarSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSections.swift; sourceTree = "<group>"; };
 		13838E1372956FF2CFC5ECCC /* SelfCaptureGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfCaptureGate.swift; sourceTree = "<group>"; };
 		1428BAE06E669A2BDF91AE91 /* MLXRewriteProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLXRewriteProviderTests.swift; sourceTree = "<group>"; };
+		146AFB5C6D727580099654E7 /* RewriteProviderRowPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteProviderRowPolicyTests.swift; sourceTree = "<group>"; };
 		147D8EAD035A66FCA1D07E37 /* HostBaselineCalibratorTypefaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostBaselineCalibratorTypefaceTests.swift; sourceTree = "<group>"; };
 		14D5E77EB08030489DAFA4DC /* DeviceInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInfoTests.swift; sourceTree = "<group>"; };
 		14E22DCC1852B8E4B235D256 /* WordCountFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCountFormatter.swift; sourceTree = "<group>"; };
@@ -1802,6 +1806,7 @@
 		E5F6D44A9B4EC51505A0A363 /* KeybindRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeybindRow.swift; sourceTree = "<group>"; };
 		E61D4E8C13EAD5806226C2C8 /* MLXModelDownloaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLXModelDownloaderTests.swift; sourceTree = "<group>"; };
 		E6DC2CCFDB2BF1F1E1375620 /* TerminalAppDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAppDetector.swift; sourceTree = "<group>"; };
+		E78AD204866CDFE46C0529AA /* RewriteProviderRowPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteProviderRowPolicy.swift; sourceTree = "<group>"; };
 		E80071E4A5D844CEF5B7C487 /* RequestIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestIDTests.swift; sourceTree = "<group>"; };
 		E83059EDBC917FDE4F7AFE44 /* MLXCacheScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLXCacheScanner.swift; sourceTree = "<group>"; };
 		E83C6E965A3978D0EBFB1EA2 /* ShortcutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutResolver.swift; sourceTree = "<group>"; };
@@ -3885,6 +3890,7 @@
 				3296E71D344827B2D677E06F /* RewriteOutputCleaner.swift */,
 				0EB2E5C28DEAC11EB5EEFFE8 /* RewritePromptBuilder.swift */,
 				97EDAF9BC6C2D91F2736AA75 /* RewriteProviderResolver.swift */,
+				E78AD204866CDFE46C0529AA /* RewriteProviderRowPolicy.swift */,
 				3D2C71176A129183C1FDC3C3 /* RewriteSpecificsCheck.swift */,
 				85F32FD10AA26E06C1B67A61 /* SelectionReplaceValidator.swift */,
 				571E1104643DA15A56CE42B6 /* SelectionRewriteEligibility.swift */,
@@ -4084,6 +4090,7 @@
 				E90B2DC38EF92653F7EC3F89 /* RewriteOutputCleanerTests.swift */,
 				73B775A2CB2E5870128A9F2F /* RewritePromptBuilderTests.swift */,
 				2246D716BAEFA8E0A42FFF23 /* RewriteProviderResolverTests.swift */,
+				146AFB5C6D727580099654E7 /* RewriteProviderRowPolicyTests.swift */,
 				1866D53D872AD425AD1CC745 /* RewriteSpecificsCheckTests.swift */,
 				4E5691CD91BA2C8A6040DDEF /* SelectionReplaceValidatorTests.swift */,
 				31C1EABB76A6F3DD94474E30 /* SelectionRewriteEligibilityTests.swift */,
@@ -4565,6 +4572,7 @@
 				4040120BB94F7623EACC7984 /* RewritePreferencesStore.swift in Sources */,
 				0903186F3F6567D511FEC501 /* RewritePromptBuilder.swift in Sources */,
 				C510DA65F6D2B0B3FE045D11 /* RewriteProviderResolver.swift in Sources */,
+				CF00F20B9A22234E63324D8A /* RewriteProviderRowPolicy.swift in Sources */,
 				9E2BB64D46C7D8ADA0119FF7 /* RewriteProviders.swift in Sources */,
 				332131F39C273A96D66130B7 /* RewriteSpecificsCheck.swift in Sources */,
 				188DE63AA5C77C740781A1AF /* RuntimeBootstrapModel.swift in Sources */,
@@ -4946,6 +4954,7 @@
 				1A37974C9BF93847E50E5E0B /* RewritePreferencesStore.swift in Sources */,
 				973A7BA1C2B786571605DE18 /* RewritePromptBuilder.swift in Sources */,
 				F0730F2BA3208F2005345046 /* RewriteProviderResolver.swift in Sources */,
+				A8B92E1D06E4C7F49259C14D /* RewriteProviderRowPolicy.swift in Sources */,
 				A9DEEC8A624E846D9DF24F0B /* RewriteProviders.swift in Sources */,
 				0445ED8E9A3073E4750A745D /* RewriteSpecificsCheck.swift in Sources */,
 				0144ECDA06A8BDEFBB8DACE3 /* RuntimeBootstrapModel.swift in Sources */,
@@ -5277,6 +5286,7 @@
 				AB9CEF5AFF45774DA25BA6CD /* RewritePreferencesStoreTests.swift in Sources */,
 				830548C2FF5EDE8483D347E8 /* RewritePromptBuilderTests.swift in Sources */,
 				58AD43D9E076EC30AF5E4E7A /* RewriteProviderResolverTests.swift in Sources */,
+				75174D0A2783A55772383622 /* RewriteProviderRowPolicyTests.swift in Sources */,
 				6A0B634E6960FF72CFA0D10F /* RewriteSpecificsCheckTests.swift in Sources */,
 				FAEC5301B36B92E4B4A169D3 /* RuntimeBootstrapModelTests.swift in Sources */,
 				03FBB478CF7C51BDFB9AEB6D /* ScreenTextExtractorTests.swift in Sources */,

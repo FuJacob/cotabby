@@ -1,15 +1,27 @@
 import SwiftUI
 
-/// Settings → Rewrite: which model rewrites selected text (this Mac, or a cloud service such as
-/// Claude or GPT with the user's key and a model picked from the service's own list), and whether a
-/// button appears on selection. Presentation only: values live in
-/// `RewritePreferencesStore`, each service's key in its own Keychain item (`RewriteCredentialVault`),
-/// and the model list comes from `RewriteModelListService`.
+/// Settings → Rewrite: which model rewrites selected text (the engine autocomplete uses, any other
+/// autocomplete engine reusing its model, or a cloud service such as Claude or GPT with the user's
+/// key and a model picked from the service's own list), and whether a button appears on selection.
+/// Presentation only: values live in `RewritePreferencesStore`, each service's key in its own
+/// Keychain item (`RewriteCredentialVault`), the model list comes from `RewriteModelListService`,
+/// and which rows can run comes from `RewriteEngine`'s providers.
 struct RewritePaneView: View {
     @ObservedObject var preferences: RewritePreferencesStore
     let credentials: RewriteCredentialVault
     let modelList: RewriteModelListService
-    let usesAppleIntelligence: Bool
+    let engine: RewriteEngine
+    /// Observed so the "Same as autocomplete" row, the endpoint disclosure and the MLX note follow
+    /// autocomplete's engine and settings.
+    @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    // Everything a row's availability is computed from. `engine.provider(for:).isAvailable` reads
+    // plain state, so the pane observes the sources itself: an "(Unavailable)" row then re-enables
+    // as soon as an MLX install, a model download or Apple Intelligence becomes ready.
+    @ObservedObject var mlxToolchainProvisioner: MLXToolchainProvisioner
+    @ObservedObject var mlxModelDownloader: MLXModelDownloader
+    @ObservedObject var mlxServerManager: MLXServerManager
+    @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
+    @ObservedObject var runtimeModel: RuntimeBootstrapModel
 
     /// Models the service reported after "Load models"; empty until then.
     @State private var loadedModels: [String] = []
@@ -39,15 +51,33 @@ struct RewritePaneView: View {
             }
             Section("Model") {
                 Picker(selection: Binding(get: { preferences.preferences.provider }, set: preferences.setProvider)) {
-                    Text(localProviderLabel).tag(RewriteProviderKind.local)
-                    Text("API model").tag(RewriteProviderKind.api)
+                    ForEach(RewriteProviderKind.allCases, id: \.self) { kind in
+                        Text(rowTitle(kind))
+                            .tag(kind)
+                            // Disables just this menu item (macOS 14+), like the engine picker.
+                            .selectionDisabled(!isSelectable(kind))
+                    }
                 } label: {
                     SettingsRowLabel(title: "Rewrite Model",
-                                     description: "Local runs on this Mac. An API model usually rewrites better, "
-                                         + "but the selected text is sent to it.",
+                                     description: "Apple Intelligence, Open Source, Local Endpoint and MLX use the "
+                                         + "model you set up for autocomplete; there is no separate rewrite model. "
+                                         + "Instruction-following models (Apple Intelligence, chat models) rewrite "
+                                         + "best; a base model gives basic-quality rewrites. An API model usually "
+                                         + "rewrites better, but the selected text is sent to it.",
                                      systemImage: "cpu")
                 }
                 .settingsItem(.rewriteProvider)
+
+                if let note = selectedNote {
+                    Text(note).font(.caption).foregroundStyle(.secondary)
+                }
+                if let reason = selectedUnavailableReason {
+                    Text(reason).font(.caption).foregroundStyle(.orange)
+                }
+                if let host = endpointDisclosureHost {
+                    Text("Rewrites go to the endpoint set up in Engine & Model: the selected text is sent to \(host).")
+                        .font(.caption).foregroundStyle(.orange)
+                }
 
                 if preferences.preferences.provider == .api {
                     Picker("Service", selection: Binding(get: { preferences.preferences.cloudProvider }, set: switchService)) {
@@ -114,10 +144,47 @@ struct RewritePaneView: View {
         }
     }
 
-    /// The local option names the model it will use: Apple Intelligence when available, else the
-    /// Open Source base model, whose rewrites are weaker.
-    private var localProviderLabel: String {
-        usesAppleIntelligence ? "Local (Apple Intelligence)" : "Local (Cotabby's model — basic quality)"
+    // MARK: - Rewrite Model rows
+
+    private func rowTitle(_ kind: RewriteProviderKind) -> String {
+        RewriteProviderRowPolicy.title(
+            for: kind,
+            autocompleteEngineLabel: suggestionSettings.selectedEngine.displayLabel,
+            sameAsAutocompleteStaysOnDevice: engine.sameAsAutocompleteStaysOnDevice,
+            isAvailable: engine.provider(for: kind).isAvailable
+        )
+    }
+
+    private func isSelectable(_ kind: RewriteProviderKind) -> Bool {
+        RewriteProviderRowPolicy.isSelectable(kind, isAvailable: engine.provider(for: kind).isAvailable)
+    }
+
+    /// The reason the selected choice cannot run, shown under the picker.
+    private var selectedUnavailableReason: String? {
+        let provider = engine.provider(for: preferences.preferences.provider)
+        guard !provider.isAvailable else { return nil }
+        return provider.unavailableReason ?? "This rewrite model isn't set up."
+    }
+
+    /// What the selected local choice runs on, when that is worth saying.
+    private var selectedNote: String? {
+        if preferences.preferences.provider == .sameAsAutocomplete, engine.sameAsAutocompleteStaysOnDevice {
+            let fallback = engine.resolvedKind == .appleIntelligence ? "Apple Intelligence" : "Open Source"
+            return "Autocomplete's endpoint is not on this Mac, so rewrites run on \(fallback) here. "
+                + "Choose Local Endpoint to send them to the endpoint."
+        }
+        guard engine.resolvedKind == .mlx else { return nil }
+        let model = suggestionSettings.mlxModelID
+        return model.isEmpty ? nil : "Uses your MLX model: \(model)"
+    }
+
+    /// The LAN or public host an explicitly chosen Local Endpoint sends the selection to; nil when
+    /// that endpoint is on this Mac. "Same as autocomplete" never resolves to such a host.
+    private var endpointDisclosureHost: String? {
+        guard engine.resolvedKind == .localEndpoint else { return nil }
+        let provider = engine.provider(for: .localEndpoint)
+        guard provider.isAvailable, provider.sendsOffDevice else { return nil }
+        return provider.hostName
     }
 
     /// The host the selected text leaves the Mac for, or nil for a loopback URL (a local Ollama),

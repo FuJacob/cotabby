@@ -38,7 +38,7 @@ final class ResourceUsageSummaryTests: XCTestCase {
     func testMenuSamplerDoesNotTouchTheSharedCPUBaseline() {
         let before = SystemResourceSampler.sharedBaseline.withLock { $0.count }
         let sampler = MenuResourceSampler()
-        _ = sampler.sample(extraProcessID: getpid())
+        _ = sampler.sample(extraProcessIDs: [getpid()])
         XCTAssertEqual(SystemResourceSampler.sharedBaseline.withLock { $0.count }, before)
     }
 }

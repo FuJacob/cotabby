@@ -38,6 +38,8 @@ struct SettingsContainerView: View {
     @ObservedObject var rewritePreferences: RewritePreferencesStore
     let rewriteCredentials: RewriteCredentialVault
     let rewriteModelList: RewriteModelListService
+    /// Resolves "Same as autocomplete" and answers which Rewrite rows can run.
+    let rewriteEngine: RewriteEngine
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -160,11 +162,12 @@ struct SettingsContainerView: View {
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings, typingHistory: typingHistoryStore)
         case .rewrite:
-            // The local provider prefers Apple Intelligence whenever it is available, so the label
-            // follows the live availability rather than a value captured at launch.
             RewritePaneView(preferences: rewritePreferences, credentials: rewriteCredentials,
-                            modelList: rewriteModelList,
-                            usesAppleIntelligence: foundationModelAvailabilityService.isAvailable)
+                            modelList: rewriteModelList, engine: rewriteEngine, suggestionSettings: suggestionSettings,
+                            mlxToolchainProvisioner: mlxToolchainProvisioner, mlxModelDownloader: mlxModelDownloader,
+                            mlxServerManager: mlxServerManager,
+                            foundationModelAvailabilityService: foundationModelAvailabilityService,
+                            runtimeModel: runtimeModel)
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:

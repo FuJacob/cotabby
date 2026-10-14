@@ -401,7 +401,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .typingHistory: return "Learn from what you type, and import Cotypist history."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .rewriteEnabled: return "Turn selection rewrite on or off."
-        case .rewriteProvider: return "Rewrite on this Mac, or with a cloud service and your own key."
+        case .rewriteProvider: return "Rewrite with the engine autocomplete uses, another engine, or a cloud service and your key."
         case .rewriteButton: return "Turn the field icon into a rewrite button on selection, or use ⌃⌥R."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
@@ -587,7 +587,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .rewriteEnabled:
             return ["rewrite", "selection", "turn off", "disable", "enable", "rephrase"]
         case .rewriteProvider:
-            return ["rewrite", "rephrase", "api", "openai", "claude", "anthropic", "cloud", "model", "polish", "tone"]
+            return ["rewrite", "rephrase", "api", "openai", "claude", "anthropic", "cloud", "model", "polish", "tone",
+                    "mlx", "apple intelligence", "endpoint", "ollama", "open source"]
         case .rewriteButton:
             return ["selection", "button", "shortcut", "rewrite", "select text", "wand"]
         case .engine:
