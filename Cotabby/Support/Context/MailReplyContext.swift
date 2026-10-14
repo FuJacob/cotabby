@@ -53,10 +53,15 @@ nonisolated enum MailReplyContext {
         let ownText = cleanedLines(trailingText[..<first.lowerBound])
         if !ownText.isEmpty { parts.append(ownText) }
         var rest = String(trailingText[first.lowerBound...])
+        var previous: QuotedReplyParser.QuotedMessage?
         while parts.count <= maximumQuotedMessages, let header = QuotedReplyParser.headerRange(in: rest) {
             guard let message = QuotedReplyParser.looseMessage(in: String(rest[header.lowerBound...])) else { break }
+            // An "-----Original Message-----" rule and the From block under it are two header
+            // matches for one message: read it once.
+            let isRepeat = message.sender == previous?.sender && message.body == previous?.body
+            previous = message
             let body = cleanedLines(Substring(message.body))
-            if !body.isEmpty { parts.append("\(message.sender ?? "They"): \(String(body.prefix(maximumMessageCharacters)))") }
+            if !isRepeat, !body.isEmpty { parts.append("\(message.sender ?? "They"): \(String(body.prefix(maximumMessageCharacters)))") }
             // Continue after this header line; the next header found is the next, older message.
             rest = String(rest[header.upperBound...])
         }
@@ -64,9 +69,10 @@ nonisolated enum MailReplyContext {
     }
 
     /// The message's own lines, ending where its signature starts: at a closing ("Best regards",
-    /// "Saygılarımla"), or, once the message has said something, at the first short line that is not
-    /// a sentence (a name, "HEAD OF OPERATIONS"). Lines that are only contact details (an address, a
-    /// link, a phone number) are dropped wherever they appear.
+    /// "Saygılarımla"), or, once the message has said something (a sentence, not just its greeting),
+    /// at the first short line that is not a sentence (a name, "HEAD OF OPERATIONS"). Lines that are
+    /// only contact details (an address, a bare link, a phone number) are dropped wherever they
+    /// appear; a sentence that mentions a link stays.
     private static func cleanedLines(_ text: Substring) -> String {
         var kept: [String] = []
         for raw in text.split(whereSeparator: \.isNewline) {
@@ -76,7 +82,7 @@ nonisolated enum MailReplyContext {
             let bare = line.lowercased().trimmingCharacters(in: CharacterSet.punctuationCharacters.union(.whitespaces))
             if signOffs.contains(bare) { break }
             if isContactDetail(line) { continue }
-            if kept.contains(where: isSentence), isSignatureLine(line) { break }
+            if kept.contains(where: saysSomething), isSignatureLine(line) { break }
             kept.append(line)
         }
         return kept.joined(separator: " ")
@@ -88,14 +94,31 @@ nonisolated enum MailReplyContext {
         return ".?!:,;؟".contains(last) || ["-", "•", "*"].contains(line.first.map(String.init) ?? "")
     }
 
+    /// A line of actual message: it ends a sentence, is a list item, or is longer than a name or a
+    /// title. A greeting ("Hi Alex,") is not: the short line after it is the message, not a signature.
+    private static func saysSomething(_ line: String) -> Bool {
+        guard let last = line.last else { return false }
+        if ".?!؟".contains(last) || ["-", "•", "*"].contains(line.first.map(String.init) ?? "") { return true }
+        return !",:".contains(last) && line.split(whereSeparator: \.isWhitespace).count > 4
+    }
+
     /// A name, a title or a label: a few words that do not form a sentence.
     private static func isSignatureLine(_ line: String) -> Bool {
         !isSentence(line) && line.split(whereSeparator: \.isWhitespace).count <= 4
     }
 
+    /// A line that is only contact details: an address, a link or a profile with at most two other
+    /// words around it ("example.com | LinkedIn"), or mostly digits (a phone number).
     private static func isContactDetail(_ line: String) -> Bool {
-        let lower = line.lowercased()
-        if lower.contains("@") || lower.contains("http") || lower.contains("www.") || lower.contains("linkedin") { return true }
+        let words = line.split(whereSeparator: \.isWhitespace)
+        let isContactWord = { (word: Substring) -> Bool in
+            let lower = word.lowercased()
+            return lower.contains("@") || lower.contains("http") || lower.hasPrefix("www.") || lower.contains("linkedin")
+        }
+        if words.contains(where: isContactWord) {
+            let otherWords = words.filter { !isContactWord($0) && $0.contains(where: \.isLetter) }
+            if otherWords.count <= 2 { return true }
+        }
         let digits = line.filter(\.isNumber).count
         return digits >= 7 && Double(digits) / Double(line.count) > 0.4
     }

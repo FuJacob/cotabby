@@ -160,7 +160,8 @@ enum FoundationModelPromptRenderer {
         // bound this string (it returns the full document tail from the caret), so we apply
         // `maxSuffixCharacters` here to keep a caret-at-top in a long document from pushing the
         // entire body through Apple's 4096-token shared context window.
-        let trailing = String(request.context.trailingText.prefix(request.maxSuffixCharacters))
+        // A mail reply's thread arrives condensed (`promptTrailingText`), as the llama prompt has it.
+        let trailing = String((request.promptTrailingText ?? request.context.trailingText).prefix(request.maxSuffixCharacters))
         if !trailing.isEmpty {
             sections.append(contentsOf: [
                 "",

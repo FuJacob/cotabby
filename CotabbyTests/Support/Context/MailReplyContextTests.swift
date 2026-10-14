@@ -216,4 +216,54 @@ final class MailReplyContextTests: XCTestCase {
         let other = VisualContextExcerptSelector.select(lines: lines, fieldText: "", focusBounds: focus, maxCharacters: 4000)
         XCTAssertTrue(other.contains("Morgan"), "Other apps keep neighbouring columns")
     }
+
+    // MARK: - Review fixes
+
+    /// A greeting is not the message: the short line after it is what was said, not a signature.
+    /// A sentence that mentions a link is message too; only a bare link or address line is dropped.
+    func test_shortBodiesAndSentencesWithLinksStay() {
+        let tail = """
+
+
+        From: Jordan Lee <jordan@example.com>
+        Subject: Re: Pilot
+
+        Hi Alex,
+        The pilot is approved
+        Please review https://example.com/report before Friday.
+        https://example.com/unsubscribe
+        """
+        XCTAssertEqual(
+            MailReplyContext.condensedThread(tail),
+            "Jordan Lee: Hi Alex, The pilot is approved Please review https://example.com/report before Friday."
+        )
+    }
+
+    /// An Outlook-classic quote opens with a rule line and then its From block: one message, read once.
+    func test_anOriginalMessageQuoteIsReadOnce() {
+        let tail = """
+
+
+        -----Original Message-----
+        From: Jordan Lee <jordan@example.com>
+        Sent: Monday, 5 October 2026 09:10
+        Subject: Re: Pilot
+
+        Is the pilot approved?
+        """
+        XCTAssertEqual(MailReplyContext.condensedThread(tail), "Jordan Lee: Is the pilot approved?")
+    }
+
+    /// Apple Intelligence gets the condensed thread too, not the raw 1500 characters of headers.
+    func test_appleIntelligenceGetsTheCondensedThread() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "com.microsoft.Outlook", precedingText: "Dear ",
+            trailingText: replyToJordanTail, windowTitle: "Inbox • All Accounts"
+        )
+        let settings = CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence, userName: "Alex")
+        let request = SuggestionRequestFactory.buildRequest(context: context, settings: settings, configuration: .standard).request
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+        XCTAssertTrue(prompt.contains("Jordan Lee: Hi Alex/Priya,"), prompt)
+        XCTAssertFalse(prompt.contains("priya@example.com"), "header lines and addresses are condensed away")
+    }
 }

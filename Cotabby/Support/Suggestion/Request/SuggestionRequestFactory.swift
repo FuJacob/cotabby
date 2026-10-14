@@ -185,7 +185,8 @@ enum SuggestionRequestFactory {
             memorySnippets: activeMemorySnippets,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
-            wordRange: settings.effectiveWordRange
+            wordRange: settings.effectiveWordRange,
+            promptTrailingText: readsMailThread ? promptTrailingText : nil
         )
 
         return SuggestionRequestBuildResult(
