@@ -11,8 +11,12 @@ final class KeychainOpenAICompatibleCredentialStore: OpenAICompatibleCredentialS
     private let service: String
     private let account = "api-key"
 
-    init(bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.jacobfu.tabby") {
-        service = "\(bundleIdentifier).openai-compatible-endpoint"
+    /// `serviceSuffix` keeps separate secrets apart: autocomplete's endpoint and each rewrite service.
+    init(
+        bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.jacobfu.tabby",
+        serviceSuffix: String = "openai-compatible-endpoint"
+    ) {
+        service = "\(bundleIdentifier).\(serviceSuffix)"
     }
 
     // Keep this explicit while Xcode 26.0–26.3 remain supported. Those toolchains can emit an

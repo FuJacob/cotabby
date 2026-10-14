@@ -351,7 +351,9 @@ struct FocusSnapshotResolver {
             fieldPlaceholder: fieldPlaceholder,
             hostTextMetrics: Self.mergingRunLinePitch(hostTextMetrics, edges: observedContentEdges),
             elementFrameRect: resolvedCandidate.elementFrameRect,
-            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
+            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange,
+            selectedText: FocusSelectionText.extract(windowText: contextWindow.text, windowSelection: contextWindow.selection),
+            hostSelection: resolvedCandidate.documentSelection
         )
 
         if let reason = blockedReason(
@@ -1180,6 +1182,7 @@ struct FocusSnapshotResolver {
             vendsDOMAttributes: vendsDOMAttributes,
             usesMarkerSelection: markerSelection != nil,
             documentCaretLocation: nativeSelection?.location,
+            documentSelection: markerSelection == nil ? nativeSelection : nil,
             supportedParameterizedAttributes: supportedParameterizedAttributes,
             resolverCandidate: resolverCandidate
         )
@@ -1694,6 +1697,9 @@ private struct AXFocusCandidate {
     let usesMarkerSelection: Bool
     /// The caret offset in the host's document coordinates when a native selection range exists.
     let documentCaretLocation: Int?
+    /// The native selection in the host's full value (`kAXSelectedTextRange`); nil when the selection
+    /// was synthesized from text markers, whose ranges are window-relative.
+    let documentSelection: NSRange?
     let supportedParameterizedAttributes: Set<String>
     let resolverCandidate: FocusCapabilityCandidate
 }

@@ -543,6 +543,42 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertEqual(connection.state.failureDetail, "Keychain unavailable")
     }
 
+    func test_streamChat_postsMessagesOnlyAndAccumulates() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.example.com/v1/chat/completions")
+            XCTAssertEqual(request.timeoutInterval, 20)
+            let body = try Self.jsonBody(request)
+            XCTAssertEqual(body["model"] as? String, "gpt-4.1-mini")
+            XCTAssertEqual(body["stream"] as? Bool, true)
+            // Rewrite requests carry only model, messages and stream, so hosted models that reject
+            // sampling or reasoning fields accept them.
+            XCTAssertNil(body["max_tokens"])
+            XCTAssertNil(body["reasoning_effort"])
+            let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+            XCTAssertEqual(messages.map { $0["role"] }, ["system", "user"])
+            return Self.response(request: request, contentType: "text/event-stream", body: """
+            data: {"choices":[{"delta":{"content":"Hello"}}]}
+
+            data: {"choices":[{"delta":{"content":" there"}}]}
+
+            data: [DONE]
+
+            """)
+        }
+        let config = try OpenAICompatibleEndpointConfiguration(
+            baseURLString: "https://api.example.com/v1", modelName: "gpt-4.1-mini", apiMode: .chatCompletions
+        )
+        var partials: [String] = []
+        let text = try await client.streamChat(
+            configuration: config, apiKey: "k",
+            messages: [.init(role: "system", content: "rules"), .init(role: "user", content: "draft")],
+            timeout: 20, onPartialRawText: { partials.append($0) }
+        )
+        XCTAssertEqual(text, "Hello there")
+        XCTAssertEqual(partials, ["Hello", "Hello there"])
+    }
+
     private func makeClient() -> OpenAICompatibleAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [EndpointStubURLProtocol.self]
