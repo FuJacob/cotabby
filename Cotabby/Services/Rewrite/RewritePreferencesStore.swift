@@ -24,6 +24,14 @@ final class RewritePreferencesStore: ObservableObject {
         static let fixesMistakes = "cotabbyRewriteFixesMistakes"
     }
 
+    // Everything stored here (a published value and UserDefaults) is safe to release off the main
+    // actor. Without this, the target's default MainActor isolation makes the deinitializer
+    // isolated, and on a macOS 26 runtime (Xcode 26.x toolchains) releasing the store routes
+    // through the back-deployment main-actor executor shim, which double-frees in its
+    // StopLookupScope ("pointer being freed was not allocated"; see SuggestionSettingsModel).
+    // The app keeps one store for its lifetime, but tests create and release many.
+    nonisolated deinit {}
+
     /// `appleIntelligence` is the availability the app knows at launch (nil: not known yet). It only
     /// matters for a stored `local` (the earlier "Apple Intelligence, else Cotabby's model" choice),
     /// which becomes whichever of the two it was running, but only on a definitive answer:

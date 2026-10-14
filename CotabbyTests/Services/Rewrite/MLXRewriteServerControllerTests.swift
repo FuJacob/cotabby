@@ -352,4 +352,8 @@ final class MLXRewriteServerControllerTests: XCTestCase {
 @MainActor
 private final class StopFlag {
     var isSet = false
+
+    // Released at the end of each test; a MainActor deinit would go through the back-deployment
+    // executor shim that double-frees on a macOS 26 runtime.
+    nonisolated deinit {}
 }

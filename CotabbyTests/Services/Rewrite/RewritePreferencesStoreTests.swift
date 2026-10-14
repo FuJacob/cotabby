@@ -20,8 +20,14 @@ final class RewritePreferencesStoreTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeStore() -> RewritePreferencesStore {
-        let store = RewritePreferencesStore(userDefaults: defaults, appleIntelligence: nil)
+    /// Every store a test builds goes through here and is kept for the process lifetime, like the
+    /// app's single store, so a test never depends on deallocating a MainActor object.
+    private func makeStore(
+        isAppleSilicon: Bool = true,
+        appleIntelligence: FoundationModelAvailabilityState? = nil
+    ) -> RewritePreferencesStore {
+        let store = RewritePreferencesStore(
+            userDefaults: defaults, isAppleSilicon: isAppleSilicon, appleIntelligence: appleIntelligence)
         Self.retained.append(store)
         return store
     }
@@ -121,7 +127,7 @@ final class RewritePreferencesStoreTests: XCTestCase {
 
     func test_storedLocalMigratesToAppleIntelligenceWhenAvailable() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: .available)
+        let store = makeStore(isAppleSilicon: true, appleIntelligence: .available)
         XCTAssertEqual(store.preferences.provider, .appleIntelligence)
         XCTAssertEqual(defaults.string(forKey: "cotabbyRewriteProvider"), "appleIntelligence", "migrated once, then stable")
     }
@@ -129,7 +135,7 @@ final class RewritePreferencesStoreTests: XCTestCase {
     func test_storedLocalMigratesToOpenSourceWhenAppleIntelligenceIsPermanentlyUnavailable() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
         let state = FoundationModelAvailabilityState.unavailable("Not eligible.", permanent: true)
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: state)
+        let store = makeStore(isAppleSilicon: true, appleIntelligence: state)
         XCTAssertEqual(store.preferences.provider, .openSource)
         XCTAssertEqual(defaults.string(forKey: "cotabbyRewriteProvider"), "openSource")
     }
@@ -137,7 +143,7 @@ final class RewritePreferencesStoreTests: XCTestCase {
     func test_aTransientStateKeepsLocalStoredAndRunsOpenSourceForNow() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
         for state in [FoundationModelAvailabilityState?.none, .unavailable("Still downloading."), .unavailable("Turned off.")] {
-            let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: state)
+            let store = makeStore(isAppleSilicon: true, appleIntelligence: state)
             XCTAssertEqual(store.preferences.provider, .openSource)
             XCTAssertEqual(defaults.string(forKey: "cotabbyRewriteProvider"), "local", "not persisted on a transient answer")
         }
@@ -145,8 +151,7 @@ final class RewritePreferencesStoreTests: XCTestCase {
 
     func test_aLaterAvailableAnswerFinishesTheMigration() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true,
-                                            appleIntelligence: .unavailable("Still downloading."))
+        let store = makeStore(isAppleSilicon: true, appleIntelligence: .unavailable("Still downloading."))
         store.noteAppleIntelligence(.unavailable("Still downloading."))
         XCTAssertEqual(defaults.string(forKey: "cotabbyRewriteProvider"), "local")
         store.noteAppleIntelligence(.available)
@@ -156,14 +161,14 @@ final class RewritePreferencesStoreTests: XCTestCase {
 
     func test_aLaterPermanentAnswerMigratesToOpenSource() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: nil)
+        let store = makeStore(isAppleSilicon: true, appleIntelligence: nil)
         store.noteAppleIntelligence(.unavailable("Not eligible.", permanent: true))
         XCTAssertEqual(defaults.string(forKey: "cotabbyRewriteProvider"), "openSource")
     }
 
     func test_aChoiceMadeMeanwhileIsNeverOverwrittenByAnAvailabilityAnswer() {
         defaults.set("local", forKey: "cotabbyRewriteProvider")
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: nil)
+        let store = makeStore(isAppleSilicon: true, appleIntelligence: nil)
         store.setProvider(.api)
         store.noteAppleIntelligence(.available)
         XCTAssertEqual(store.preferences.provider, .api)
@@ -171,14 +176,33 @@ final class RewritePreferencesStoreTests: XCTestCase {
 
     func test_storedAPIAndMLXAreKept() {
         defaults.set("api", forKey: "cotabbyRewriteProvider")
-        XCTAssertEqual(RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: nil).preferences.provider, .api)
+        XCTAssertEqual(makeStore(isAppleSilicon: true, appleIntelligence: nil).preferences.provider, .api)
         defaults.set("mlx", forKey: "cotabbyRewriteProvider")
-        XCTAssertEqual(RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: true, appleIntelligence: nil).preferences.provider, .mlx)
+        XCTAssertEqual(makeStore(isAppleSilicon: true, appleIntelligence: nil).preferences.provider, .mlx)
+    }
+
+    /// Deliberately releases stores, the one thing the other tests avoid: on a macOS 26 runtime an
+    /// isolated deinit went through the back-deployment executor shim and double-freed. Repeats the
+    /// migration path with Apple Intelligence unavailable, as on a Mac whose macOS is too old.
+    func test_storesReleaseCleanlyThroughTheMigrationPath() {
+        weak var lastStore: RewritePreferencesStore?
+        for round in 0..<50 {
+            defaults.set("local", forKey: "cotabbyRewriteProvider")
+            autoreleasepool {
+                let store = RewritePreferencesStore(
+                    userDefaults: defaults, isAppleSilicon: true,
+                    appleIntelligence: .unavailable("Apple Intelligence needs a newer macOS.", permanent: round.isMultiple(of: 2)))
+                store.noteAppleIntelligence(.unavailable("Still downloading."))
+                store.setProvider(.api)
+                lastStore = store
+            }
+            XCTAssertNil(lastStore, "round \(round): the store was not released")
+        }
     }
 
     func test_storedMLXFallsBackToOpenSourceWithoutAppleSilicon() {
         defaults.set("mlx", forKey: "cotabbyRewriteProvider")
-        let store = RewritePreferencesStore(userDefaults: defaults, isAppleSilicon: false, appleIntelligence: nil)
+        let store = makeStore(isAppleSilicon: false, appleIntelligence: nil)
         XCTAssertEqual(store.preferences.provider, .openSource)
     }
 }
