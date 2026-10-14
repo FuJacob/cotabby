@@ -1,0 +1,197 @@
+import Compression
+import CryptoKit
+import Foundation
+import XCTest
+@testable import Cotabby
+
+/// Pins the cloud-drive document sources: reading ZIP archives safely, the text of Word, PowerPoint
+/// and Excel files, splitting documents into sections, the reader's records and cursor, and memory
+/// forgetting a document's lost sections and deleted files while documents ignore retention.
+final class CloudDocumentsTests: XCTestCase {
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-docs-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // MARK: - Builders
+
+    /// A ZIP archive with the given entries, each DEFLATE-compressed unless `stored`.
+    static func zip(_ entries: [(name: String, text: String)], stored: Bool = false) -> Data {
+        func le16(_ value: Int) -> [UInt8] { [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF)] }
+        func le32(_ value: Int) -> [UInt8] { (0..<4).map { UInt8((value >> (8 * $0)) & 0xFF) } }
+        var body: [UInt8] = []
+        var directory: [UInt8] = []
+        for entry in entries {
+            let raw = Array(entry.text.utf8)
+            var data = raw
+            if !stored {
+                var buffer = [UInt8](repeating: 0, count: raw.count + 1024)
+                let size = compression_encode_buffer(&buffer, buffer.count, raw, raw.count, nil, COMPRESSION_ZLIB)
+                data = Array(buffer.prefix(size))
+            }
+            let name = Array(entry.name.utf8)
+            let method = stored ? 0 : 8
+            let offset = body.count
+            body += le32(0x0403_4B50) + le16(20) + le16(0) + le16(method) + le16(0) + le16(0) + le32(0)
+                + le32(data.count) + le32(raw.count) + le16(name.count) + le16(0) + name + data
+            directory += le32(0x0201_4B50) + le16(20) + le16(20) + le16(0) + le16(method) + le16(0) + le16(0) + le32(0)
+                + le32(data.count) + le32(raw.count) + le16(name.count) + le16(0) + le16(0) + le16(0) + le16(0) + le32(0)
+                + le32(offset) + name
+        }
+        let end = le32(0x0605_4B50) + le16(0) + le16(0) + le16(entries.count) + le16(entries.count)
+            + le32(directory.count) + le32(body.count) + le16(0)
+        return Data(body + directory + end)
+    }
+
+    // MARK: - ZIP
+
+    func test_zipEntriesReadStoredAndDeflatedAndBadArchivesThrow() throws {
+        let text = String(repeating: "Pilot scope and pricing. ", count: 40)
+        for stored in [true, false] {
+            let archive = try ZipArchiveReader(data: Self.zip([("a.xml", "<x/>"), ("b.xml", text)], stored: stored))
+            XCTAssertEqual(archive.names, ["a.xml", "b.xml"])
+            XCTAssertEqual(try archive.contents(of: "b.xml").map { String(decoding: $0, as: UTF8.self) }, text)
+            XCTAssertNil(try archive.contents(of: "missing.xml"))
+        }
+        XCTAssertThrowsError(try ZipArchiveReader(data: Data("not a zip at all, just text".utf8)))
+        var truncated = Self.zip([("b.xml", text)])
+        truncated.removeSubrange(10..<40)
+        XCTAssertThrowsError(try ZipArchiveReader(data: truncated).contents(of: "b.xml"), "a damaged archive throws, never traps")
+    }
+
+    func test_anEntryClaimingAHugeExpansionIsRefused() throws {
+        var data = Self.zip([("bomb.xml", String(repeating: "a", count: 5_000))])
+        // Rewrite the central directory's uncompressed size to 1 GB.
+        let central = data.range(of: Data([0x50, 0x4B, 0x01, 0x02]))!.lowerBound
+        data.replaceSubrange((central + 24)..<(central + 28), with: [0x00, 0x00, 0x00, 0x40])
+        let archive = try ZipArchiveReader(data: data)
+        XCTAssertThrowsError(try archive.contents(of: "bomb.xml")) { error in
+            XCTAssertEqual(error as? ZipArchiveReader.ZipError, .tooLarge)
+        }
+    }
+
+    // MARK: - Office text
+
+    func test_officeFilesYieldTheirTextInOrder() throws {
+        let word = Self.zip([("word/document.xml", """
+        <w:document><w:body><w:p><w:r><w:t>Pilot runs</w:t></w:r><w:r><w:t xml:space="preserve"> six weeks.</w:t></w:r></w:p>\
+        <w:p><w:r><w:t>Budget approved.</w:t></w:r></w:p></w:body></w:document>
+        """)])
+        XCTAssertEqual(try OfficeDocumentText.text(of: word, kind: .word), "Pilot runs six weeks.\nBudget approved.")
+
+        let slide = { (text: String) in "<p:sld><p:cSld><a:p><a:r><a:t>\(text)</a:t></a:r></a:p></p:cSld></p:sld>" }
+        let deck = Self.zip([("ppt/slides/slide10.xml", slide("Ten")), ("ppt/slides/slide2.xml", slide("Two")),
+                             ("ppt/notesSlides/notesSlide2.xml", slide("Speaker note"))])
+        XCTAssertEqual(try OfficeDocumentText.text(of: deck, kind: .powerPoint), "Two\n\nTen\n\nSpeaker note",
+                       "slides in number order, then notes")
+
+        let sheet = Self.zip([("xl/sharedStrings.xml", "<sst><si><t>Customer</t></si><si><r><t>Acme </t></r><r><t>Corp</t></r></si></sst>")])
+        XCTAssertEqual(try OfficeDocumentText.text(of: sheet, kind: .excel), "Customer\nAcme Corp")
+    }
+
+    /// One budget for the whole file: a deck of many slides stops at the character cap overall,
+    /// not per slide.
+    func test_aDocumentsTextBudgetCoversAllItsParts() throws {
+        let big = String(repeating: "word ", count: 40_000)  // 200,000 characters per slide
+        let slide = "<p:sld><a:p><a:r><a:t>\(big)</a:t></a:r></a:p></p:sld>"
+        let deck = Self.zip((1...6).map { ("ppt/slides/slide\($0).xml", slide) })
+        let text = try OfficeDocumentText.text(of: deck, kind: .powerPoint)
+        XCTAssertLessThanOrEqual(text.count, OfficeDocumentText.maximumCharacters)
+    }
+
+    // MARK: - Sections
+
+    func test_sectionsPackParagraphsAndCutLongOnesAtSentences() {
+        XCTAssertEqual(DocumentSections.split("First paragraph is here.\n\nSecond   one\nwraps lines."),
+                       ["First paragraph is here. Second one wraps lines."])
+        let sentence = "This sentence is about forty characters. "
+        let long = String(repeating: sentence, count: 100)
+        let sections = DocumentSections.split(long)
+        XCTAssertGreaterThan(sections.count, 1)
+        XCTAssertTrue(sections.allSatisfy { $0.count <= DocumentSections.maximumCharacters })
+        XCTAssertTrue(sections.dropLast().allSatisfy { $0.hasSuffix(".") }, "cut at sentence ends")
+        XCTAssertEqual(DocumentSections.split("tiny"), [], "near-empty text is not a section")
+    }
+
+    // MARK: - Reader
+
+    private func drive(_ roots: [URL]) -> CloudDriveReader {
+        CloudDriveReader(drive: .init(id: "google_drive", title: "Google Drive", roots: { roots }))
+    }
+
+    func test_theReaderReadsDocumentsAsWholeConversationsAndListsWhatExists() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Clients"), withIntermediateDirectories: true)
+        try Data("Acme pilot notes: the pilot runs six weeks from November.".utf8)
+            .write(to: root.appendingPathComponent("Clients/Acme.md"))
+        try Self.zip([("word/document.xml", "<w:document><w:p><w:t>Pricing is per endpoint per month.</w:t></w:p></w:document>")])
+            .write(to: root.appendingPathComponent("Pricing.docx"))
+        try Data("ignored".utf8).write(to: root.appendingPathComponent("Plan.gdoc"))
+
+        let reader = drive([root])
+        XCTAssertEqual(reader.readiness(), .ready)
+        let page = try reader.read(after: nil, since: nil, limit: 400)
+        let prefix = "GoogleDrive-me@example.com/"
+        XCTAssertEqual(Set(page.records.map(\.conversationID)), [prefix + "Clients/Acme.md", prefix + "Pricing.docx"])
+        XCTAssertEqual(page.completeConversations, [prefix + "Clients/Acme.md", prefix + "Pricing.docx"])
+        let pricing = try XCTUnwrap(page.records.first { $0.conversationTitle == "Pricing" })
+        XCTAssertEqual(pricing.text, "Pricing is per endpoint per month.")
+        XCTAssertFalse(pricing.isFromMe, "a shared document is not the user's own words")
+        XCTAssertEqual(pricing.sender, "")
+        XCTAssertEqual(reader.liveConversationIDs(), [prefix + "Clients/Acme.md", prefix + "Pricing.docx"])
+
+        let again = try reader.read(after: page.nextCursor, since: nil, limit: 400)
+        XCTAssertTrue(again.records.isEmpty, "nothing changed since the cursor")
+        XCTAssertEqual(drive([]).readiness(), .notFound("Google Drive is not set up on this Mac."))
+        XCTAssertNil(drive([]).liveConversationIDs(), "an unreadable drive never reads as everything deleted")
+    }
+
+    func test_cloudStorageFoldersAreTheProvidersAccountsWithoutTrash() throws {
+        for name in ["GoogleDrive-a@example.com", "GoogleDrive-b@example.org", "OneDrive-example.com", "OneDrive-SharedLibraries-x - .Trash"] {
+            try FileManager.default.createDirectory(at: directory.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        XCTAssertEqual(CloudDriveReader.cloudStorageFolders(prefix: "GoogleDrive-", root: directory.path).map(\.lastPathComponent),
+                       ["GoogleDrive-a@example.com", "GoogleDrive-b@example.org"])
+        XCTAssertEqual(CloudDriveReader.cloudStorageFolders(prefix: "OneDrive-", root: directory.path).map(\.lastPathComponent),
+                       ["OneDrive-example.com"])
+    }
+
+    // MARK: - Store
+
+    private func record(_ conversation: String, _ number: Int, _ text: String, at date: Date = Date()) -> MemoryIngestRecord {
+        MemoryIngestRecord(sourceMessageID: "\(conversation)#\(number)", conversationID: conversation, conversationTitle: conversation,
+                           sender: "", isFromMe: false, timestamp: date, text: text, participants: [], subject: nil)
+    }
+
+    func test_aShortenedDocumentLosesItsTailAndADeletedOneIsForgotten() throws {
+        let store = try MemoryStore(path: directory.appendingPathComponent("m.sqlite"), vault: MemoryVault(rootKey: SymmetricKey(data: Data(0..<32))))
+        try store.upsert(source: "google_drive", records: [record("A.md", 0, "one"), record("A.md", 1, "two"), record("B.md", 0, "bee")])
+        let keep = store.recordID(source: "google_drive", sourceMessageID: "A.md#0")
+        let removed = try store.removeRecords(source: "google_drive", inConversations: ["A.md"], notIn: [keep])
+        XCTAssertEqual(removed, [store.recordID(source: "google_drive", sourceMessageID: "A.md#1")])
+        XCTAssertEqual(try store.sourceStats("google_drive").messages, 2)
+
+        let gone = try store.removeConversations(source: "google_drive", notIn: ["A.md"])
+        XCTAssertEqual(gone, [store.recordID(source: "google_drive", sourceMessageID: "B.md#0")])
+        XCTAssertEqual(try store.sourceStats("google_drive").conversations, 1)
+    }
+
+    func test_retentionSkipsDocumentSources() throws {
+        let store = try MemoryStore(path: directory.appendingPathComponent("m.sqlite"), vault: MemoryVault(rootKey: SymmetricKey(data: Data(0..<32))))
+        let old = Date(timeIntervalSince1970: 1_000_000_000)
+        try store.upsert(source: "google_drive", records: [record("Handbook.pdf", 0, "old handbook", at: old)])
+        try store.upsert(source: "whatsapp", records: [record("chat", 0, "old chat", at: old)])
+        let purged = try store.purge(excludedConversations: [], excludedParticipants: [], olderThan: Date().timeIntervalSince1970,
+                                     keepingAllOf: MemorySourceCatalog.sourcesKeepingAllDates)
+        XCTAssertEqual(purged, 1, "the old chat goes, the old document stays")
+        XCTAssertEqual(try store.sourceStats("google_drive").messages, 1)
+        XCTAssertTrue(MemorySourceCatalog.keepsAllDates("onedrive"))
+        XCTAssertFalse(MemorySourceCatalog.keepsAllDates("apple_mail"))
+    }
+}
