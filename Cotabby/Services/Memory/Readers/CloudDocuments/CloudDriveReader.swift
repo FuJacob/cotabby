@@ -34,7 +34,7 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
     }
     static let googleDrive = Drive(id: "google_drive", title: "Google Drive") { cloudStorageFolders(prefix: "GoogleDrive-") }
     static let oneDrive = Drive(id: "onedrive", title: "OneDrive") { cloudStorageFolders(prefix: "OneDrive-") }
-    static let all = [iCloudDrive, googleDrive, oneDrive]
+    static let all: [Drive] = [iCloudDrive, googleDrive, oneDrive]
 
     /// `~/Library/CloudStorage` folders of one provider. The provider's trash is left out.
     static func cloudStorageFolders(prefix: String, root: String = NSHomeDirectory() + "/Library/CloudStorage") -> [URL] {

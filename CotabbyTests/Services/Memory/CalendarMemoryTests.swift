@@ -54,17 +54,22 @@ final class CalendarMemoryTests: XCTestCase {
 
     func test_theReaderReadsChangedEventsAndOnesEnteringTheHorizon() throws {
         let lastSync = now.addingTimeInterval(-86_400)
-        let events = [
+        let farStart: Date = lastSync.addingTimeInterval(91 * 86_400)
+        let farEnd: Date = farStart.addingTimeInterval(3_600)
+        let events: [CalendarEventSnapshot] = [
             event("Old unchanged", date(1, 10), date(1, 11), modified: date(1)),
             event("Moved", date(9, 10), date(9, 11), modified: now.addingTimeInterval(-600)),
-            event("Far ahead", lastSync.addingTimeInterval(91 * 86_400), lastSync.addingTimeInterval(91 * 86_400 + 3_600), modified: date(1)),
+            event("Far ahead", farStart, farEnd, modified: date(1)),
         ]
         let reader = CalendarHistoryReader(events: { _, _ in events }, isAuthorized: { true }, now: { self.now })
         let first = try reader.read(after: nil, since: nil, limit: 500)
         XCTAssertEqual(first.records.count, 3, "the first sync reads the whole window")
-        let next = try reader.read(after: String(Int64(lastSync.timeIntervalSince1970 * 1000)), since: nil, limit: 500)
-        XCTAssertEqual(next.records.map(\.conversationTitle), ["Moved", "Far ahead"])
-        XCTAssertEqual(next.nextCursor, String(Int64(now.timeIntervalSince1970 * 1000)))
+        let lastSyncMilliseconds: Int64 = Int64(lastSync.timeIntervalSince1970 * 1000)
+        let next = try reader.read(after: String(lastSyncMilliseconds), since: nil, limit: 500)
+        let titles: [String] = next.records.map(\.conversationTitle)
+        XCTAssertEqual(titles, ["Moved", "Far ahead"])
+        let nowMilliseconds: Int64 = Int64(now.timeIntervalSince1970 * 1000)
+        XCTAssertEqual(next.nextCursor, String(nowMilliseconds))
         let denied = CalendarHistoryReader(events: { _, _ in events }, isAuthorized: { false }, now: { self.now })
         XCTAssertFalse(denied.readiness().isReady)
         XCTAssertTrue(try denied.read(after: nil, since: nil, limit: 10).records.isEmpty)

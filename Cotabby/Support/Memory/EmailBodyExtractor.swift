@@ -194,7 +194,12 @@ private nonisolated struct HTMLTag {
         var scalars = inner.drop(while: { $0 == " " })
         isClosing = scalars.first == "/"
         if isClosing { scalars = scalars.dropFirst() }
-        let letters = scalars.prefix { ("a"..."z").contains(Self.lowercased($0)) || ("0"..."9").contains($0) }
+        let letters = scalars.prefix { (scalar: Unicode.Scalar) -> Bool in
+            switch Self.lowercased(scalar) {
+            case "a"..."z", "0"..."9": return true
+            default: return false
+            }
+        }
         name = String(String.UnicodeScalarView(letters.prefix(16).map(Self.lowercased)))
     }
 

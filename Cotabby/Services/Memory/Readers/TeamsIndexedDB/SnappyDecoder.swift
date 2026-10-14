@@ -115,8 +115,8 @@ nonisolated enum SnappyDecoder {
             return (Int(tag >> 2) + 1, offset)
         default:
             guard position + 4 <= input.count else { throw DecodeError.truncated }
-            let offset = Int(input[position]) | Int(input[position + 1]) << 8
-                | Int(input[position + 2]) << 16 | Int(input[position + 3]) << 24
+            var offset = 0
+            for index in (0..<4).reversed() { offset = offset << 8 | Int(input[position + index]) }
             position += 4
             return (Int(tag >> 2) + 1, offset)
         }

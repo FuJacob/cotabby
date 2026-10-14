@@ -112,7 +112,10 @@ nonisolated enum TeamsMessageHTML {
         private var length: Int { scalars.count }
 
         private static func isLetter(_ scalar: Unicode.Scalar) -> Bool {
-            ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
+            switch scalar {
+            case "a"..."z", "A"..."Z": return true
+            default: return false
+            }
         }
 
         /// `[\t\n\r\f ]`
@@ -411,8 +414,11 @@ nonisolated enum HTMLCharacterReferences {
     }
 
     private static func isDigit(_ scalar: Unicode.Scalar, radix: Int) -> Bool {
-        if ("0"..."9").contains(scalar) { return true }
-        return radix == 16 && (("a"..."f").contains(scalar) || ("A"..."F").contains(scalar))
+        switch scalar {
+        case "0"..."9": return true
+        case "a"..."f", "A"..."F": return radix == 16
+        default: return false
+        }
     }
 
     private static func isNameTerminator(_ scalar: Unicode.Scalar) -> Bool {
@@ -430,8 +436,10 @@ nonisolated enum HTMLCharacterReferences {
     }
 
     private static func isInvalidCodePoint(_ value: UInt32) -> Bool {
-        (0x1...0x8).contains(value) || value == 0xB || (0xE...0x1F).contains(value) || (0x7F...0x9F).contains(value)
-            || (0xFDD0...0xFDEF).contains(value) || value & 0xFFFE == 0xFFFE
+        switch value {
+        case 0x1...0x8, 0xB, 0xE...0x1F, 0x7F...0x9F, 0xFDD0...0xFDEF: return true
+        default: return value & 0xFFFE == 0xFFFE
+        }
     }
 
     /// Code points HTML5 maps to something else (mostly Windows-1252 in the C1 range).

@@ -379,22 +379,30 @@ nonisolated struct ByteReader {
 
     mutating func readUInt32LE() -> UInt32? {
         guard let raw = read(4) else { return nil }
-        return raw.reversed().reduce(0) { $0 << 8 | UInt32($1) }
+        var value: UInt32 = 0
+        for byte in raw.reversed() { value = value << 8 | UInt32(byte) }
+        return value
     }
 
     mutating func readUInt64LE() -> UInt64? {
         guard let raw = read(8) else { return nil }
-        return raw.reversed().reduce(0) { $0 << 8 | UInt64($1) }
+        var value: UInt64 = 0
+        for byte in raw.reversed() { value = value << 8 | UInt64(byte) }
+        return value
     }
 
     mutating func readUInt32BE() -> UInt32? {
         guard let raw = read(4) else { return nil }
-        return raw.reduce(0) { $0 << 8 | UInt32($1) }
+        var value: UInt32 = 0
+        for byte in raw { value = value << 8 | UInt32(byte) }
+        return value
     }
 
     mutating func readUInt64BE() -> UInt64? {
         guard let raw = read(8) else { return nil }
-        return raw.reduce(0) { $0 << 8 | UInt64($1) }
+        var value: UInt64 = 0
+        for byte in raw { value = value << 8 | UInt64(byte) }
+        return value
     }
 
     mutating func readDoubleLE() -> Double? {

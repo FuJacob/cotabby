@@ -424,7 +424,10 @@ nonisolated struct V8ValueDeserializer {
         // A sparse array can claim a huge length, and one element at index four billion would make
         // a dense copy of it allocate gigabytes from a few input bytes. Holes are only expanded
         // when the array is reasonably dense; otherwise its elements are kept in index order.
-        let indexed = pairs.compactMap { pair in Int(pair.0).map { ($0, pair.1) } }.filter { $0.0 >= 0 && $0.0 < length }
+        var indexed: [(Int, V8Value)] = []
+        for (key, value) in pairs {
+            if let index = Int(key), index >= 0, index < length { indexed.append((index, value)) }
+        }
         let highest = indexed.map(\.0).max()
         var elements: [V8Value]
         if let highest, highest >= Self.maximumSparseExpansion(elements: indexed.count) {

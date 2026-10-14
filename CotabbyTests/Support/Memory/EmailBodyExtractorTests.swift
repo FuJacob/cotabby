@@ -92,7 +92,7 @@ final class EmailBodyExtractorTests: XCTestCase {
     /// (unclosed tags and style blocks, runs of blank lines, endless entity digits) converts in
     /// linear time.
     func test_adversarialHTMLConvertsInLinearTime() {
-        let pieces = [
+        let pieces: [String] = [
             String(repeating: "<style>", count: 40_000),
             String(repeating: "<div", count: 40_000),
             String(repeating: "\n \n \t", count: 100_000),

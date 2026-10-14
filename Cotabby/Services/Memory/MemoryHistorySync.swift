@@ -41,10 +41,7 @@ final class MemoryHistorySync: ObservableObject {
     nonisolated static let runBudget: TimeInterval = 5 * 60
 
     init(
-        readers: [any MemoryHistoryReading] = [
-            WhatsAppHistoryReader(), AppleMailHistoryReader(), OutlookHistoryReader(), TeamsCacheReader(),
-            CalendarHistoryReader()
-        ] + CloudDriveReader.all.map { CloudDriveReader(drive: $0) },
+        readers: [any MemoryHistoryReading] = MemoryHistorySync.defaultReaders(),
         engine: @escaping @MainActor () -> MemoryEngine?,
         isOnACPower: @escaping @MainActor () -> Bool
     ) {
@@ -57,6 +54,18 @@ final class MemoryHistorySync: ObservableObject {
     // handles, values). A nonisolated deinit keeps teardown off the back-deployment main-actor
     // executor shim, which over-releases on macOS 26 (same as `SuggestionSettingsModel`).
     nonisolated deinit {}
+
+    /// One reader per source on this Mac (the documents folder's reader is made per sync, from its
+    /// settings). Built in typed steps: as one literal plus a mapped array it type-checks slowly.
+    nonisolated static func defaultReaders() -> [any MemoryHistoryReading] {
+        var readers: [any MemoryHistoryReading] = [
+            WhatsAppHistoryReader(), AppleMailHistoryReader(), OutlookHistoryReader(), TeamsCacheReader(), CalendarHistoryReader()
+        ]
+        for drive in CloudDriveReader.all {
+            readers.append(CloudDriveReader(drive: drive))
+        }
+        return readers
+    }
 
     /// The reader for a source; the documents folder comes from the source's settings.
     private func reader(for sourceID: String) -> (any MemoryHistoryReading)? {

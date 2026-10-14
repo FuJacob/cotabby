@@ -139,12 +139,15 @@ nonisolated struct ZipArchiveReader: Sendable {
     private static func u16(_ data: Data, _ offset: Int) -> UInt16 {
         guard offset >= 0, offset + 2 <= data.count else { return 0 }
         let base = data.startIndex + offset
-        return UInt16(data[base]) | UInt16(data[base + 1]) << 8
+        let high = UInt16(data[base + 1]) << 8
+        return high | UInt16(data[base])
     }
 
     private static func u32(_ data: Data, _ offset: Int) -> UInt32 {
         guard offset >= 0, offset + 4 <= data.count else { return 0 }
         let base = data.startIndex + offset
-        return UInt32(data[base]) | UInt32(data[base + 1]) << 8 | UInt32(data[base + 2]) << 16 | UInt32(data[base + 3]) << 24
+        var value: UInt32 = 0
+        for index in (0..<4).reversed() { value = value << 8 | UInt32(data[base + index]) }
+        return value
     }
 }

@@ -24,7 +24,10 @@ final class CloudDocumentsTests: XCTestCase {
     /// A ZIP archive with the given entries, each DEFLATE-compressed unless `stored`.
     static func zip(_ entries: [(name: String, text: String)], stored: Bool = false) -> Data {
         func le16(_ value: Int) -> [UInt8] { [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF)] }
-        func le32(_ value: Int) -> [UInt8] { (0..<4).map { UInt8((value >> (8 * $0)) & 0xFF) } }
+        func le32(_ value: Int) -> [UInt8] { (0..<4).map { (index: Int) -> UInt8 in UInt8(truncatingIfNeeded: value >> (8 * index)) } }
+        // Each header is joined from its fields with `append(contentsOf:)`: a long chain of `+` on
+        // arrays takes older Swift compilers seconds to type-check in a test build.
+        func join(_ fields: [[UInt8]]) -> [UInt8] { fields.flatMap { $0 } }
         var body: [UInt8] = []
         var directory: [UInt8] = []
         for entry in entries {
@@ -38,15 +41,21 @@ final class CloudDocumentsTests: XCTestCase {
             let name = Array(entry.name.utf8)
             let method = stored ? 0 : 8
             let offset = body.count
-            body += le32(0x0403_4B50) + le16(20) + le16(0) + le16(method) + le16(0) + le16(0) + le32(0)
-                + le32(data.count) + le32(raw.count) + le16(name.count) + le16(0) + name + data
-            directory += le32(0x0201_4B50) + le16(20) + le16(20) + le16(0) + le16(method) + le16(0) + le16(0) + le32(0)
-                + le32(data.count) + le32(raw.count) + le16(name.count) + le16(0) + le16(0) + le16(0) + le16(0) + le32(0)
-                + le32(offset) + name
+            body.append(contentsOf: join([
+                le32(0x0403_4B50), le16(20), le16(0), le16(method), le16(0), le16(0), le32(0),
+                le32(data.count), le32(raw.count), le16(name.count), le16(0), name, data
+            ]))
+            directory.append(contentsOf: join([
+                le32(0x0201_4B50), le16(20), le16(20), le16(0), le16(method), le16(0), le16(0), le32(0),
+                le32(data.count), le32(raw.count), le16(name.count), le16(0), le16(0), le16(0), le16(0), le32(0),
+                le32(offset), name
+            ]))
         }
-        let end = le32(0x0605_4B50) + le16(0) + le16(0) + le16(entries.count) + le16(entries.count)
-            + le32(directory.count) + le32(body.count) + le16(0)
-        return Data(body + directory + end)
+        let end = join([
+            le32(0x0605_4B50), le16(0), le16(0), le16(entries.count), le16(entries.count),
+            le32(directory.count), le32(body.count), le16(0)
+        ])
+        return Data(join([body, directory, end]))
     }
 
     // MARK: - ZIP

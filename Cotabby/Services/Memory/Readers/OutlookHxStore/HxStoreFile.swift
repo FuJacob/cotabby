@@ -41,8 +41,10 @@ nonisolated enum HxStoreFile {
                 let type = readUInt32(buffer, offset + 8)
                 let start = offset + headerSize
                 // LZ4 can expand incompressible data slightly (its worst case is n + n/255 + 16).
-                guard compressed >= 8, compressed <= uncompressed + uncompressed / 255 + 16, uncompressed <= maximumRecordSize,
-                      uncompressed <= compressed * 255, type < 64, start + compressed <= count,
+                let worstCaseCompressed: Int = uncompressed + uncompressed / 255 + 16
+                let maximumExpansion: Int = compressed * 255
+                guard compressed >= 8, compressed <= worstCaseCompressed, uncompressed <= maximumRecordSize,
+                      uncompressed <= maximumExpansion, type < 64, start + compressed <= count,
                       let record = try? LZ4BlockDecoder.decode(buffer, range: start..<(start + compressed), maximumOutput: uncompressed),
                       record.count == uncompressed else {
                     offset += 1
@@ -96,6 +98,8 @@ nonisolated enum HxStoreFile {
     }
 
     private static func readUInt32(_ buffer: UnsafeRawBufferPointer, _ offset: Int) -> UInt32 {
-        UInt32(buffer[offset]) | UInt32(buffer[offset + 1]) << 8 | UInt32(buffer[offset + 2]) << 16 | UInt32(buffer[offset + 3]) << 24
+        var value: UInt32 = 0
+        for index in (0..<4).reversed() { value = value << 8 | UInt32(buffer[offset + index]) }
+        return value
     }
 }

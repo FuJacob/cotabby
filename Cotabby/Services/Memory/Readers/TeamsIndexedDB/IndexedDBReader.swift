@@ -131,14 +131,24 @@ nonisolated struct IndexedDBReader {
         let database = littleEndianBytes(databaseID)
         let store = littleEndianBytes(objectStoreID)
         let index = littleEndianBytes(indexID)
-        let first = UInt8((database.count - 1) << 5 | (store.count - 1) << 2 | (index.count - 1))
-        return [first] + database + store + index
+        // Typed steps: as one expression this type-checks very slowly on older compilers.
+        let databaseBits: Int = (database.count - 1) << 5
+        let storeBits: Int = (store.count - 1) << 2
+        let indexBits: Int = index.count - 1
+        let first = UInt8(databaseBits | storeBits | indexBits)
+        var prefix: [UInt8] = [first]
+        prefix.append(contentsOf: database)
+        prefix.append(contentsOf: store)
+        prefix.append(contentsOf: index)
+        return prefix
     }
 
     /// Chromium's "truncated int": little-endian bytes without padding.
     static func truncatedInt(_ bytes: ArraySlice<UInt8>) -> UInt64? {
         guard !bytes.isEmpty, bytes.count <= 8 else { return nil }
-        return bytes.reversed().reduce(0) { $0 << 8 | UInt64($1) }
+        var value: UInt64 = 0
+        for byte in bytes.reversed() { value = value << 8 | UInt64(byte) }
+        return value
     }
 
     /// Big-endian UTF-16 of `units` code units.
@@ -148,7 +158,8 @@ nonisolated struct IndexedDBReader {
         units.reserveCapacity(bytes.count / 2)
         var index = bytes.startIndex
         while index < bytes.endIndex {
-            units.append(UInt16(bytes[index]) << 8 | UInt16(bytes[index + 1]))
+            let high = UInt16(bytes[index]) << 8
+            units.append(high | UInt16(bytes[index + 1]))
             index += 2
         }
         return String(decoding: units, as: UTF16.self)

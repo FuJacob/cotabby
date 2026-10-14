@@ -60,7 +60,9 @@ nonisolated enum ConversationScopeResolver {
 
     /// Whether a subject starts with a reply or forward prefix ("Re:", "FW:", "AW [2]:", "YNT:").
     static func hasReplyPrefix(_ subject: String) -> Bool {
-        replyPrefix?.firstMatch(in: subject, range: NSRange(subject.startIndex..., in: subject)) != nil
+        guard let replyPrefix else { return false }
+        let range = NSRange(subject.startIndex..., in: subject)
+        return replyPrefix.firstMatch(in: subject, range: range) != nil
     }
 
     private static let address = try? NSRegularExpression(pattern: #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#)
@@ -90,10 +92,16 @@ nonisolated enum ConversationScopeResolver {
             let end = lines[start...].prefix(3).firstIndex { endsAttribution($0) } ?? start
             header = Array(lines[start...end])
         } else {
-            header = Array(lines[start...].prefix(maximumHeaderBlockLines).prefix { !$0.isEmpty })
-                .filter { line in ["from:", "to:", "cc:"].contains { line.lowercased().hasPrefix($0) } }
+            let block: [String] = Array(lines[start...].prefix(maximumHeaderBlockLines).prefix { !$0.isEmpty })
+            header = block.filter(isAddressHeaderLine)
         }
         return addresses(in: header.joined(separator: " "))
+    }
+
+    /// A From, To or Cc line of an Outlook-style header block (not Sent or Subject).
+    private static func isAddressHeaderLine(_ line: String) -> Bool {
+        let lowered = line.lowercased()
+        return lowered.hasPrefix("from:") || lowered.hasPrefix("to:") || lowered.hasPrefix("cc:")
     }
 
     private static func isQuoteHeaderStart(_ line: String) -> Bool {

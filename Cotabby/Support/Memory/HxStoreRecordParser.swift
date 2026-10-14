@@ -230,8 +230,11 @@ nonisolated enum HxStoreRecordParser {
             total += 1
             let value = scalar.value
             if value == 0xFFFD { return false }
-            if value < 0x20 || (0x7F...0x9F).contains(value) || (0xE000...0xF8FF).contains(value) { unprintable += 1 }
-            if (0x3400...0x9FFF).contains(value) || (0xAC00...0xD7AF).contains(value) { ideographs += 1 }
+            switch value {
+            case 0..<0x20, 0x7F...0x9F, 0xE000...0xF8FF: unprintable += 1
+            case 0x3400...0x9FFF, 0xAC00...0xD7AF: ideographs += 1
+            default: break
+            }
         }
         return unprintable * 100 <= total * 5 && ideographs * 2 < total
     }

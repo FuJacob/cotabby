@@ -180,8 +180,11 @@ nonisolated enum TeamsMessageMapper {
         // `([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})`: the underscore cannot be part of a guid, so the
         // split is fixed.
         guard middle.count == 73, middle[36] == "_" else { return [] }
-        let isGUIDCharacter: (Unicode.Scalar) -> Bool = {
-            ("0"..."9").contains($0) || ("a"..."f").contains($0) || ("A"..."F").contains($0) || $0 == "-"
+        let isGUIDCharacter: (Unicode.Scalar) -> Bool = { (scalar: Unicode.Scalar) -> Bool in
+            switch scalar {
+            case "0"..."9", "a"..."f", "A"..."F", "-": return true
+            default: return false
+            }
         }
         let first = middle[0..<36]
         let second = middle[37...]

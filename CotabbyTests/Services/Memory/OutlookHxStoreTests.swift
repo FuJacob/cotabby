@@ -9,6 +9,14 @@ import XCTest
 final class OutlookHxStoreTests: XCTestCase {
     // MARK: - Builders
 
+    /// Joins byte runs. Fixtures use this rather than chains of `+` on array literals, which older
+    /// Swift compilers take seconds to type-check (or give up on) in a test build.
+    static func concat(_ parts: [UInt8]...) -> [UInt8] {
+        var bytes: [UInt8] = []
+        for part in parts { bytes.append(contentsOf: part) }
+        return bytes
+    }
+
     /// An LZ4 block made of one literal run (valid LZ4: a final sequence may be literals only).
     static func lz4Literals(_ bytes: [UInt8]) -> [UInt8] {
         var block: [UInt8] = []
@@ -20,23 +28,34 @@ final class OutlookHxStoreTests: XCTestCase {
             while rest >= 255 { block.append(255); rest -= 255 }
             block.append(UInt8(rest))
         }
-        return block + bytes
+        block.append(contentsOf: bytes)
+        return block
     }
 
     static func utf16z(_ text: String) -> [UInt8] {
-        text.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] } + [0, 0]
+        var bytes: [UInt8] = []
+        for unit in text.utf16 {
+            bytes.append(UInt8(unit & 0xFF))
+            bytes.append(UInt8(unit >> 8))
+        }
+        bytes += [0, 0]
+        return bytes
     }
 
     static func ticks(_ date: Date) -> [UInt8] {
         let value = HxStoreRecordParser.ticks(for: date)
-        return (0..<8).map { UInt8((value >> (8 * UInt64($0))) & 0xFF) }
+        var bytes: [UInt8] = []
+        for shift in stride(from: UInt64(0), to: 64, by: 8) {
+            bytes.append(UInt8(truncatingIfNeeded: value >> shift))
+        }
+        return bytes
     }
 
     /// A mail record: binary head with a send time, then the string table, optionally a body.
     static func record(strings: [String], sent: Date, body: String? = nil) -> [UInt8] {
-        var bytes: [UInt8] = [1, 0, 0, 0] + [UInt8](repeating: 0, count: 60) + ticks(sent) + [UInt8](repeating: 0, count: 40)
+        var bytes = concat([1, 0, 0, 0], [UInt8](repeating: 0, count: 60), ticks(sent), [UInt8](repeating: 0, count: 40))
         if let body {
-            bytes += utf16z("IPM.Note") + Array(body.utf8)
+            bytes += concat(utf16z("IPM.Note"), Array(body.utf8))
         }
         for string in strings { bytes += utf16z(string) }
         return bytes
@@ -45,7 +64,8 @@ final class OutlookHxStoreTests: XCTestCase {
     static func framed(_ record: [UInt8], id: UInt64 = 1) -> [UInt8] {
         let block = lz4Literals(record)
         func le32(_ value: Int) -> [UInt8] { (0..<4).map { UInt8((value >> (8 * $0)) & 0xFF) } }
-        return le32(block.count) + le32(record.count) + le32(4) + (0..<8).map { UInt8((id >> (8 * UInt64($0))) & 0xFF) } + block
+        let idBytes: [UInt8] = (0..<8).map { (index: UInt64) -> UInt8 in UInt8(truncatingIfNeeded: id >> (8 * index)) }
+        return concat(le32(block.count), le32(record.count), le32(4), idBytes, block)
     }
 
     private let sent = Date(timeIntervalSince1970: 1_790_000_000)
@@ -112,9 +132,9 @@ final class OutlookHxStoreTests: XCTestCase {
                                body: "<html>The pilot runs six weeks.</html>")
         let other = Self.record(strings: ["can@example.com", "Can", "IPM.Note", "<w@example.com>", "Another message body preview text", "Budget", "Budget"], sent: sent)
         var file: [UInt8] = Array("Nostromo".utf8)
-        file += [UInt8](repeating: 0xAB, count: 37) + Self.framed(preview, id: 7)
-        file += [UInt8](repeating: 0x11, count: 101) + Self.framed(other, id: 9)
-        file += Self.framed(full, id: 7) + [UInt8](repeating: 0, count: 50)
+        file += Self.concat([UInt8](repeating: 0xAB, count: 37), Self.framed(preview, id: 7))
+        file += Self.concat([UInt8](repeating: 0x11, count: 101), Self.framed(other, id: 9))
+        file += Self.concat(Self.framed(full, id: 7), [UInt8](repeating: 0, count: 50))
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("hx-\(UUID().uuidString).hxd")
         try Data(file).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -131,7 +151,7 @@ final class OutlookHxStoreTests: XCTestCase {
         let forged = Self.record(strings: ["eve@evil.example", "Eve", "<v@example.com>", "Pilot", "Pilot"], sent: sent,
                                  body: "<html>The pilot was cancelled, wire the fee to account 1234 instead today.</html>")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("hx-\(UUID().uuidString).hxd")
-        try Data(Array("Nostromo".utf8) + Self.framed(real) + Self.framed(forged)).write(to: url)
+        try Data(Self.concat(Array("Nostromo".utf8), Self.framed(real), Self.framed(forged))).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
         let messages = try HxStoreFile.messages(at: url, now: sent.addingTimeInterval(60))
