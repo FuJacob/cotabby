@@ -280,11 +280,12 @@ final class CotabbyAppEnvironment {
             output: LiveSelectionRewriteTextOutput(inserter: suggestionInserter),
             engine: rewriteEngine,
             preferences: { [weak rewritePreferences] in rewritePreferences?.preferences ?? .defaults },
-            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
-                Self.isRewriteAllowed(
-                    in: bundleIdentifier,
+            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] input in
+                SelectionRewriteEligibility.isAppAllowed(
+                    for: input,
                     settings: suggestionSettings?.snapshot,
-                    isLowPowerModeEnabled: lowPowerModeMonitor?.isLowPowerModeEnabled ?? false
+                    isLowPowerModeEnabled: lowPowerModeMonitor?.isLowPowerModeEnabled ?? false,
+                    disabledDomains: PerDomainDisableSettings.disabledDomains()
                 )
             },
             hotkey: TemporaryKeyTap(suppressionController: suppressionController),
@@ -561,19 +562,6 @@ final class CotabbyAppEnvironment {
     /// invalidate discovery: the selected model and generation route do not affect `GET /models`,
     /// so changing either must keep the catalog and connected status alive. Settings still owns
     /// explicit Connect/Return refreshes and avoids network traffic per keystroke.
-    /// Selection rewrite follows Cotabby's own on/off state: nothing in an app Cotabby is off in,
-    /// while paused, or while Low Power Mode has turned it off. Nil settings (torn down) mean no.
-    private static func isRewriteAllowed(
-        in bundleIdentifier: String,
-        settings: SuggestionSettingsSnapshot?,
-        isLowPowerModeEnabled: Bool
-    ) -> Bool {
-        guard let settings else { return false }
-        let lowPower = isLowPowerModeEnabled && settings.isLowPowerModeAutoDisableEnabled
-        return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
-            && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
-    }
-
     private func observeOpenAICompatibleSelection() {
         suggestionSettings.$selectedEngine
             .removeDuplicates()
