@@ -72,6 +72,39 @@ final class ConversationMemoryTests: XCTestCase {
                        "a quoted line is the sender's text, not a header")
     }
 
+    /// A reply written below or inside the quote (inline) has the client's header above the caret.
+    /// The header-like lines after the caret are the sender's text, so the first header of the
+    /// whole field names the people; a field too long to look through gives none.
+    func test_anInlineReplyReadsTheHeaderAboveTheCaret() {
+        let above = """
+        Thanks, see below.
+
+        On 3 Oct 2026, at 10:00, Ayşe Yılmaz <ayse@example.com> wrote:
+        > Can you send the numbers?
+        Here they are.
+        """
+        let below = """
+
+        > From: Bob <bob@example.org>
+        > To: carol@example.org
+        From: Bob <bob@example.org>
+        To: carol@example.org
+        """
+        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(precedingText: above, trailingText: below), ["ayse@example.com"])
+        XCTAssertEqual(
+            ConversationScopeResolver.scope(bundleIdentifier: "com.apple.mail", conversationTitle: "Re: Numbers",
+                                            precedingText: above, trailingText: below, sourcesByBundle: sources)?
+                .requiredParticipants,
+            ["ayse@example.com"]
+        )
+        // Written above the quote: the header after the caret, as before.
+        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(
+            precedingText: "Thanks!", trailingText: "\n\nOn 3 Oct 2026, at 10:00, Ayşe <ayse@example.com> wrote:\n> hi"
+        ), ["ayse@example.com"])
+        let huge = String(repeating: "x", count: ConversationScopeResolver.maximumPrecedingUTF16 + 1)
+        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(precedingText: huge, trailingText: below), [])
+    }
+
     /// End to end: a fake header inside the quoted body naming thread A's people does not pull
     /// thread A into a reply to someone else.
     func test_aFakeHeaderInTheQuotedBodyGivesNoMemory() throws {
@@ -215,6 +248,46 @@ final class ConversationMemoryTests: XCTestCase {
         retriever.updateSources([Self.source("whatsapp", apps: ["net.whatsapp.WhatsApp"])])
         XCTAssertEqual(retriever.sourcesByBundle["net.whatsapp.WhatsApp"], ["whatsapp"])
         XCTAssertEqual(retriever.memorySnippets(for: context, engine: .llamaOpenSource), [], "memory switched off (no engine)")
+    }
+
+    /// Lines the retriever cached are dropped once memory deletes anything (here a whole source),
+    /// and a lookup that was running then lands nowhere: a deleted message never reaches a prompt.
+    @MainActor
+    func test_theRetrieverNeverServesDeletedMessagesFromItsCache() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("retriever-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let engine = try MemoryEngine(
+            paths: MemoryEngine.Paths(dataDirectory: directory), rootKey: SymmetricKey(data: Data(0..<32)),
+            modelURL: directory.appendingPathComponent("none.gguf"),
+            conditions: {
+                EmbeddingSchedulePolicy.Conditions(isOnACPower: true, isLowPowerMode: false, thermalState: .nominal,
+                                                   userIdleSeconds: 60, isGenerating: false, pendingPassages: 0)
+            }
+        )
+        Self.retained.append(engine)
+        try engine.updateConfiguration {
+            $0.sources["whatsapp"] = MemorySourceSettings(enabled: true)
+            $0.index.vectorWeight = 0
+        }
+        try engine.ingest(source: "whatsapp", records: [
+            MemoryIngestRecord(sourceMessageID: "w1", conversationID: "ayse@s.whatsapp.net", conversationTitle: "Ayşe",
+                               sender: "Ayşe", isFromMe: false, timestamp: Date(), text: "Ayşe says the invoice is paid",
+                               participants: ["ayse@s.whatsapp.net"], subject: nil)
+        ], cursor: nil)
+        let retriever = MemoryRetriever(engine: { engine })
+        Self.retained.append(retriever)
+        retriever.updateSources(engine.sources())
+        let context = CotabbyTestFixtures.focusedInputContext(bundleIdentifier: "net.whatsapp.WhatsApp", windowTitle: "Ayşe")
+
+        let ready = expectation(description: "memory ready")
+        retriever.onMemoryReady = { ready.fulfill() }
+        XCTAssertEqual(retriever.memorySnippets(for: context, engine: .llamaOpenSource), [], "the first request starts a lookup")
+        await fulfillment(of: [ready], timeout: 5)
+        XCTAssertEqual(retriever.memorySnippets(for: context, engine: .llamaOpenSource).count, 1, "then it is cached")
+
+        try engine.forget(source: "whatsapp")
+        retriever.onMemoryReady = nil
+        XCTAssertEqual(retriever.memorySnippets(for: context, engine: .llamaOpenSource), [], "nothing deleted is served")
     }
 
     @MainActor private static var retained: [AnyObject] = []

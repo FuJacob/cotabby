@@ -350,6 +350,7 @@
 		4D2C1A0B4FBEF95CBFB9F481 /* ModelFileValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0259095D0A3E9B8DC26CB4B0 /* ModelFileValidatorTests.swift */; };
 		4D32F003F78EAAA984E77D83 /* LLMIOFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56A2F75C66BECA61A722D3FB /* LLMIOFileHandler.swift */; };
 		4D4F02A7187C324A4B43A974 /* MenuBarStatusLabelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB051B5B72986C03AB1EE428 /* MenuBarStatusLabelView.swift */; };
+		4DAA674343B2930B961F0F56 /* MemoryEngineControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F94BBC148D0A593E2D9F2E5 /* MemoryEngineControllerTests.swift */; };
 		4E2DEFF3CA51E8B160B802CA /* SettingsIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34EF2406E7A384F3325AAF9A /* SettingsIndex.swift */; };
 		4E7F611941736F526C3B9C1B /* CotabbyBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C1C9A9BF1F74C16E4401EC /* CotabbyBrand.swift */; };
 		4E8268A5C44B9E5945EBE59D /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7A9C39A0713BD3B442C9AC /* AppUpdateManager.swift */; };
@@ -1183,6 +1184,7 @@
 		0EA9F28D26F27CD420D3A0EA /* TeamsCacheReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsCacheReader.swift; sourceTree = "<group>"; };
 		0ED0AFAC10DC3406A6246ED1 /* CalendarHistoryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHistoryReader.swift; sourceTree = "<group>"; };
 		0F328B43743D803A16045110 /* HostFontRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostFontRegistry.swift; sourceTree = "<group>"; };
+		0F94BBC148D0A593E2D9F2E5 /* MemoryEngineControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryEngineControllerTests.swift; sourceTree = "<group>"; };
 		10107090891BE11E2B34BC9E /* TypefaceMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypefaceMatcherTests.swift; sourceTree = "<group>"; };
 		110F737140F015E1A18E5A58 /* FocusSnapshotResolverLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSnapshotResolverLiveTests.swift; sourceTree = "<group>"; };
 		11CF768650A90705FC0D2730 /* SuggestionTextColorCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionTextColorCodec.swift; sourceTree = "<group>"; };
@@ -3052,6 +3054,7 @@
 			children = (
 				72633DB36D14C5520BC5B578 /* CalendarMemoryTests.swift */,
 				2C16557CAF09566309C0DF7F /* CloudDocumentsTests.swift */,
+				0F94BBC148D0A593E2D9F2E5 /* MemoryEngineControllerTests.swift */,
 				24A622C8A5CAB20051D8FBBE /* MemoryEngineTests.swift */,
 				320B218A2C37137805949BBE /* MemoryHistoryReaderTests.swift */,
 				89D61205F5AC070755DAA094 /* MemoryHistorySyncTests.swift */,
@@ -5244,6 +5247,7 @@
 				8756E3050C45106D7AD188AA /* MacroTriggerStateMachineTests.swift in Sources */,
 				0C89AF5CF2114DF57DA794CF /* MailHeaderFieldDetectorTests.swift in Sources */,
 				1B80604D77F1AF1DF96DDD45 /* MarkerSelectionSynthesizerTests.swift in Sources */,
+				4DAA674343B2930B961F0F56 /* MemoryEngineControllerTests.swift in Sources */,
 				1DDEE3E7FE12672BA84F84AB /* MemoryEngineTests.swift in Sources */,
 				AD7B90682918F36777218D00 /* MemoryHistoryReaderTests.swift in Sources */,
 				49707C306C64A29B9DB294E6 /* MemoryHistorySyncTests.swift in Sources */,

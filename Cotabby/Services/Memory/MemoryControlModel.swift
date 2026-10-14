@@ -24,6 +24,8 @@ final class MemoryControlModel: ObservableObject {
     let historySync: MemoryHistorySync
     private var observers = 0
     private var pollTask: Task<Void, Never>?
+    /// Counts Playground searches; only the newest one's result is shown.
+    private var searchGeneration = 0
 
     init(controller: MemoryEngineController, historySync: MemoryHistorySync) {
         self.controller = controller
@@ -92,8 +94,16 @@ final class MemoryControlModel: ObservableObject {
         })
     }
 
+    /// Pointing a source at another folder makes the engine forget what it read from the old one;
+    /// a sync of the old folder still running is stopped first, so none of it is stored afterwards.
     func setSourceOption(_ id: String, key: String, value: String) {
-        change({ $0.sources[id, default: MemorySourceSettings(enabled: false)].options[key] = value }, then: {
+        let edit: @Sendable (MemoryEngine) throws -> Void = { engine in
+            try engine.updateConfiguration { $0.sources[id, default: MemorySourceSettings(enabled: false)].options[key] = value }
+        }
+        let changesFolder = key == MemoryEngine.folderOption
+        perform(edit, before: {
+            if changesFolder { await self.historySync.cancelSync(id) }
+        }, then: {
             self.historySync.refreshReadiness()
         })
     }
@@ -197,14 +207,21 @@ final class MemoryControlModel: ObservableObject {
         guard let engine else { return }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
+            searchGeneration += 1
             playgroundResult = nil
+            isSearching = false
             return
         }
         isSearching = true
+        searchGeneration += 1
+        let generation = searchGeneration
         Task {
-            playgroundResult = await Task.detached(priority: .userInitiated) {
+            let result = await Task.detached(priority: .userInitiated) {
                 engine.search(query: trimmed, scope: scope)
             }.value
+            // A slower earlier search must not replace a newer one's result (or end its spinner).
+            guard generation == searchGeneration else { return }
+            playgroundResult = result
             isSearching = false
         }
     }

@@ -31,11 +31,13 @@ nonisolated enum ConversationScopeResolver {
     ///
     /// A subject alone does not say who the mail is for: "Invoice" to one customer must not draw on
     /// the "Invoice" thread with another. So a mail gets memory only when it is a reply or forward
-    /// (its title carries the prefix) and the client's quote header below the caret (`trailingText`)
-    /// names an address; the thread must have exactly those people (`requiredParticipants`).
+    /// (its title carries the prefix) and the client's quote header (the first header in the whole
+    /// field, `precedingText` then `trailingText`) names an address; the thread must have exactly
+    /// those people (`requiredParticipants`).
     static func scope(
         bundleIdentifier: String,
         conversationTitle: String?,
+        precedingText: String = "",
         trailingText: String = "",
         sourcesByBundle: [String: [String]]
     ) -> ConversationScope? {
@@ -47,7 +49,7 @@ nonisolated enum ConversationScopeResolver {
         guard mailBundleIdentifiers.contains(bundleIdentifier) else {
             return ConversationScope(title: title, sources: sources)
         }
-        let quoted = quotedAddresses(in: trailingText)
+        let quoted = quotedAddresses(precedingText: precedingText, trailingText: trailingText)
         guard hasReplyPrefix(title), !quoted.isEmpty else { return nil }
         return ConversationScope(title: title, sources: sources, requiredParticipants: quoted)
     }
@@ -71,6 +73,22 @@ nonisolated enum ConversationScopeResolver {
     /// may have (From, Sent, To, Cc, Subject, folded continuations).
     static let quoteHeaderSearchLines = 60
     static let maximumHeaderBlockLines = 12
+    /// Text before the caret searched for a header (UTF-16 units). Longer means no memory: a header
+    /// further up could not be ruled out.
+    static let maximumPrecedingUTF16 = 200_000
+
+    /// The addresses in the client's quote header of a reply being written, the whole field
+    /// considered. In a reply written above the quote the header is the first one after the caret;
+    /// in one written below or inside it (inline replies), the client's header is above the caret,
+    /// and whatever header-like text follows the caret is the sender's, so the first header of
+    /// the field is the one read. Empty when there is none, or the text above is too long to tell.
+    static func quotedAddresses(precedingText: String, trailingText: String) -> Set<String> {
+        guard precedingText.utf16.count <= maximumPrecedingUTF16 else { return [] }
+        let lineCount = precedingText.reduce(into: 1) { count, character in
+            if character == "\n" { count += 1 }
+        }
+        return quotedAddresses(in: precedingText + trailingText.prefix(8000), searchLines: lineCount + quoteHeaderSearchLines)
+    }
 
     /// The addresses in the quote header of the message being answered, lowercased.
     ///
@@ -81,9 +99,13 @@ nonisolated enum ConversationScopeResolver {
     /// down is the sender's own text, and a sender must not be able to name another thread's
     /// people there and so pull that thread's memory into a reply to them.
     static func quotedAddresses(in trailingText: String) -> Set<String> {
-        let lines = trailingText.prefix(8000)
-            .split(separator: "\n", maxSplits: quoteHeaderSearchLines, omittingEmptySubsequences: false)
-            .prefix(quoteHeaderSearchLines)
+        quotedAddresses(in: String(trailingText.prefix(8000)), searchLines: quoteHeaderSearchLines)
+    }
+
+    private static func quotedAddresses(in text: String, searchLines: Int) -> Set<String> {
+        let lines = text
+            .split(separator: "\n", maxSplits: searchLines, omittingEmptySubsequences: false)
+            .prefix(searchLines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
         guard let start = lines.firstIndex(where: isQuoteHeaderStart) else { return [] }
         let header: [String]

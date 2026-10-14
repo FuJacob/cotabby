@@ -15,6 +15,7 @@ struct MemoryPaneView: View {
     @ObservedObject var control: MemoryControlModel
     @ObservedObject var downloads: ModelDownloadManager
     @State private var confirmingReset = false
+    @State private var confirmingDelete = false
 
     init(controller: MemoryEngineController, control: MemoryControlModel) {
         self.controller = controller
@@ -75,6 +76,12 @@ struct MemoryPaneView: View {
                         .foregroundStyle(.orange)
                 }
             }
+            // Deleting needs no running engine (no model): memory switched off, or unable to start,
+            // still lets the user remove what it stored. While it runs, Delete All lives with the
+            // privacy settings; after a key mismatch, the row above offers it.
+            if controller.state != .running, controller.state != .keyMismatch, controller.hasStoredMemory {
+                storedMemoryDeletion
+            }
         } header: {
             Text("Memory")
         }
@@ -111,6 +118,22 @@ struct MemoryPaneView: View {
             }
         case .starting, .disabled:
             EmptyView()
+        }
+    }
+
+    private var storedMemoryDeletion: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Stored messages stay on this Mac, encrypted, until you delete them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Delete Stored Memory…", role: .destructive) { confirmingDelete = true }
+                .controlSize(.small)
+        }
+        .confirmationDialog("Delete everything memory stored?", isPresented: $confirmingDelete) {
+            Button("Delete Stored Memory", role: .destructive) { controller.deleteMemoryData() }
+        } message: {
+            Text("Your sources and settings stay; the stored messages and their index are deleted.")
         }
     }
 

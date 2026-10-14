@@ -71,8 +71,29 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     private let statusLock = NSLock()
     private var statusValue = MemoryEngineStatus()
-    /// Called with every status change, on an arbitrary thread.
-    var onStatusChange: (@Sendable (MemoryEngineStatus) -> Void)?
+    private var statusCallback: (@Sendable (MemoryEngineStatus) -> Void)?
+    /// Called with every status change, on an arbitrary thread. Kept under `statusLock`: the
+    /// indexing loop already reports while the controller sets this on the main actor, and an
+    /// unsynchronized closure (two words) could be read half written.
+    var onStatusChange: (@Sendable (MemoryEngineStatus) -> Void)? {
+        get {
+            statusLock.lock()
+            defer { statusLock.unlock() }
+            return statusCallback
+        }
+        set {
+            statusLock.lock()
+            statusCallback = newValue
+            statusLock.unlock()
+        }
+    }
+
+    /// Serializes everything that writes messages (`ingest`) with everything that removes them or
+    /// changes what may be stored (settings, forget, delete). Without it an ingest that filtered
+    /// with the old settings could write an excluded conversation back after its purge.
+    private let writeLock = NSLock()
+    private let generationLock = NSLock()
+    private var dataGenerationValue: UInt64 = 0
 
     private var indexingTask: Task<Void, Never>?
     /// Set once the engine is being stopped: a sync still holding it must not write any more.
@@ -107,6 +128,22 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     deinit {
         indexingTask?.cancel()
+    }
+
+    /// Changes whenever stored messages are removed or the settings change (forget, delete,
+    /// never-remember, retention, a source switched off, a deleted document). Callers that keep
+    /// search results (`MemoryRetriever`) drop them when it moves, so nothing deleted is served
+    /// from a cache.
+    var dataGeneration: UInt64 {
+        generationLock.lock()
+        defer { generationLock.unlock() }
+        return dataGenerationValue
+    }
+
+    private func bumpDataGeneration() {
+        generationLock.lock()
+        dataGenerationValue &+= 1
+        generationLock.unlock()
     }
 
     // MARK: - Lifecycle
@@ -176,15 +213,28 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     /// Applies a change to the settings and saves them, then does what the change requires: purge
     /// what privacy now excludes, or re-index when passages are cut differently.
     func updateConfiguration(_ change: (inout MemoryConfiguration) -> Void) throws {
+        writeLock.lock()
+        defer { writeLock.unlock() }
         configurationLock.lock()
         let before = configurationValue
         change(&configurationValue)
         let after = configurationValue
         configurationLock.unlock()
+        defer { bumpDataGeneration() }
         try Self.saveConfiguration(after, to: paths.configuration)
         if after.privacy != before.privacy {
             try purgeForPrivacy()
             reloadIndex()
+        }
+        // A source reading another folder now: what it read from the old one (records, cursor)
+        // must not stay, or the new folder's older files would be skipped and same-named ones
+        // take over the old records.
+        for (id, settings) in after.sources {
+            let old = before.sources[id]?.options[Self.folderOption] ?? ""
+            if !old.isEmpty, (settings.options[Self.folderOption] ?? "") != old {
+                try store.deleteSource(id)
+                reloadIndex()
+            }
         }
         if after.index.chunkSize != before.index.chunkSize || after.index.chunkOverlap != before.index.chunkOverlap {
             try store.resetIndex()
@@ -192,6 +242,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         }
         wakeIndexing()
     }
+
+    /// The option naming a source's folder (the Documents Folder source).
+    static let folderOption = "folder"
 
     static func loadConfiguration(_ url: URL) -> MemoryConfiguration {
         let decoder = JSONDecoder()
@@ -238,8 +291,11 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     /// Deletes everything stored from one source.
     func forget(source: String) throws {
+        writeLock.lock()
+        defer { writeLock.unlock() }
         try store.deleteSource(source)
         reloadIndex()
+        bumpDataGeneration()
     }
 
     /// Embeds every stored message again.
@@ -251,8 +307,11 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     /// Forgets every message, vector and cursor. Settings stay.
     func deleteEverything() throws {
+        writeLock.lock()
+        defer { writeLock.unlock() }
         try store.deleteEverything()
         reloadIndex()
+        bumpDataGeneration()
     }
 
     // MARK: - Ingest
@@ -270,6 +329,10 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         source: String, records: [MemoryIngestRecord], cursor: String?, completeConversations: Set<String> = [],
         ownAddresses: Set<String> = []
     ) throws -> IngestResult {
+        // Held for the whole page: the settings it filters with stay the settings in force until
+        // its records are written (see `writeLock`).
+        writeLock.lock()
+        defer { writeLock.unlock() }
         let configuration = configuration
         guard !isStopped, configuration.sources[source]?.enabled == true else {
             return IngestResult(stored: 0, dropped: records.count)
@@ -312,7 +375,10 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             // Read whole: what memory held for them beyond this page's records is gone from the source.
             let kept = Set(kept.map { store.recordID(source: source, sourceMessageID: $0.sourceMessageID) })
             let removed = try store.removeRecords(source: source, inConversations: completeConversations, notIn: kept)
-            if !removed.isEmpty { index.remove(recordIDs: Set(removed)) }
+            if !removed.isEmpty {
+                index.remove(recordIDs: Set(removed))
+                bumpDataGeneration()
+            }
         }
         updateStatus { $0.databaseBytes = self.databaseBytes() }
         if stored > 0 { wakeIndexing() }
@@ -328,8 +394,11 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     /// .liveConversationIDs`: documents deleted from their drive). Returns how many records went.
     @discardableResult
     func forget(source: String, conversationsNotIn live: Set<String>) throws -> Int {
+        writeLock.lock()
+        defer { writeLock.unlock() }
         let removed = try store.removeConversations(source: source, notIn: live)
         if !removed.isEmpty {
+            bumpDataGeneration()
             index.remove(recordIDs: Set(removed))
             updateStatus { status in
                 status.passages = self.index.count
@@ -390,7 +459,7 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             case .run:
                 if embeddedThisRun == 0 { runStarted = Date() }
                 do {
-                    embeddedThisRun += try indexStep(sources: sources)
+                    embeddedThisRun += try await indexStep(sources: sources, pending: pending)
                 } catch {
                     log("indexing step failed: \(error.localizedDescription)")
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -420,7 +489,10 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     }
 
     /// Embeds one step of unindexed messages and stores their vectors. Returns passages embedded.
-    private func indexStep(sources: [String]) throws -> Int {
+    /// The schedule is asked again between native calls, so a suggestion that starts mid-step (or
+    /// heat, or unplugging during a backlog) stops the rest of the step: the messages embedded
+    /// whole so far are saved, the others stay pending.
+    private func indexStep(sources: [String], pending: Int) async throws -> Int {
         let messages = try store.unindexedMessages(sources: sources, limit: Self.messagesPerStep)
         guard !messages.isEmpty else { return 0 }
         let settings = configuration.index
@@ -438,23 +510,41 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         var vectors: [[Float]] = []
         for start in stride(from: 0, to: passages.count, by: Self.passagesPerCall) {
             guard !Task.isCancelled else { return 0 }
+            if start > 0 {
+                var current = await conditions()
+                current.pendingPassages = pending
+                if case .wait = EmbeddingSchedulePolicy.decide(current) { break }
+            }
             let slice = passages[start..<min(start + Self.passagesPerCall, passages.count)]
             vectors += try embedding.embedPassages(slice.map(\.text))
         }
+        let whole = Self.wholeMessages(passageMessages: passages.map(\.message), embedded: vectors.count,
+                                       messageCount: messages.count)
+        guard whole > 0 else { return 0 }
         var grouped: [Int: [(passageID: String, vector: [UInt16])]] = [:]
-        for (passage, vector) in zip(passages, vectors) {
+        for (passage, vector) in zip(passages, vectors) where passage.message < whole {
             grouped[passage.message, default: []].append((passage.passageID, HalfPrecision.encode(vector)))
         }
-        let entries = messages.enumerated().map { (message: $0.element, passages: grouped[$0.offset] ?? []) }
-        try store.saveIndexEntries(entries, model: modelIdentifier)
-        index.upsert(entries.flatMap { entry in
+        let entries = messages.prefix(whole).enumerated().map { (message: $0.element, passages: grouped[$0.offset] ?? []) }
+        // Only messages unchanged since they were read are saved (an edit during the step keeps
+        // its new terms and stays pending).
+        let saved = try store.saveIndexEntries(entries, model: modelIdentifier)
+        index.upsert(entries.filter { saved.contains($0.message.recordID) }.flatMap { entry in
             entry.passages.map {
                 MemoryStore.StoredVector(passageID: $0.passageID, recordID: entry.message.recordID, source: entry.message.source,
                                          conversationKey: entry.message.conversationKey, timestamp: entry.message.timestamp,
                                          vector: $0.vector)
             }
         })
-        return passages.count
+        return vectors.count
+    }
+
+    /// How many of a step's messages (in order) have every passage embedded, when the first
+    /// `embedded` passages were (`passageMessages[i]` is the message passage `i` belongs to). A
+    /// message with no passages at all counts once those before it are done.
+    static func wholeMessages(passageMessages: [Int], embedded: Int, messageCount: Int) -> Int {
+        guard embedded < passageMessages.count else { return messageCount }
+        return passageMessages[embedded]
     }
 
     // MARK: - Search

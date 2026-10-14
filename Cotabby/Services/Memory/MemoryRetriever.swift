@@ -36,6 +36,11 @@ final class MemoryRetriever: SuggestionMemoryProviding {
     private var latestByScope: [ConversationScope: [String]] = [:]
     private var inFlight: CacheKey?
     private var lastRequested: CacheKey?
+    /// The engine and its `dataGeneration` the caches were filled under. When either changes
+    /// (something was deleted, excluded or switched off, or memory restarted), the caches go and a
+    /// lookup started before lands nowhere: a deleted message is never served from here.
+    private var cachedEngine: ObjectIdentifier?
+    private var cachedGeneration: UInt64 = 0
 
     static let maximumCacheEntries = 64
 
@@ -77,10 +82,12 @@ final class MemoryRetriever: SuggestionMemoryProviding {
 
     func memorySnippets(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String] {
         // Memory is private history from this Mac: never part of a request the endpoint could send.
-        guard engine != .openAICompatible, !context.isSecure, self.engine() != nil,
-              let scope = ConversationScopeResolver.scope(
+        guard engine != .openAICompatible, !context.isSecure, let memory = self.engine() else { return [] }
+        dropCachesIfStale(memory)
+        guard let scope = ConversationScopeResolver.scope(
                   bundleIdentifier: context.bundleIdentifier,
                   conversationTitle: context.windowTitle,
+                  precedingText: context.precedingText,
                   trailingText: context.trailingText,
                   sourcesByBundle: sourcesByBundle
               ) else { return [] }
@@ -92,9 +99,23 @@ final class MemoryRetriever: SuggestionMemoryProviding {
         return latestByScope[scope] ?? []
     }
 
+    /// Empties the caches when the engine was replaced or its stored data changed since they were
+    /// filled (a cheap locked read of the engine's counter).
+    private func dropCachesIfStale(_ engine: MemoryEngine) {
+        let identity = ObjectIdentifier(engine)
+        let generation = engine.dataGeneration
+        guard identity != cachedEngine || generation != cachedGeneration else { return }
+        cachedEngine = identity
+        cachedGeneration = generation
+        cache.removeAll()
+        latestByScope.removeAll()
+        inFlight = nil
+    }
+
     private func startLookup(_ key: CacheKey) {
         guard inFlight != key, let engine = engine() else { return }
         inFlight = key
+        let generation = cachedGeneration
         let started = Date()
         var scope = MemoryEngine.Scope()
         scope.title = key.scope.title
@@ -106,6 +127,9 @@ final class MemoryRetriever: SuggestionMemoryProviding {
             }.value
             guard let self else { return }
             if self.inFlight == key { self.inFlight = nil }
+            // Started before a deletion (or under another engine): its lines may hold what is gone.
+            guard self.cachedEngine == ObjectIdentifier(engine), self.cachedGeneration == generation,
+                  engine.dataGeneration == generation else { return }
             let lines = MemorySnippetFormatter.lines((result?.hits ?? []).map {
                 MemorySnippetFormatter.Message(
                     sender: $0.sender, isFromMe: $0.isFromMe,

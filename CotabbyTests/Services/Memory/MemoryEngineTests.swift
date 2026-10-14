@@ -81,6 +81,56 @@ final class MemoryEngineTests: XCTestCase {
         XCTAssertEqual(try engine.ingest(source: "apple_mail", records: [record("t1", "hello")], cursor: nil).stored, 0)
     }
 
+    /// Every removal or settings change moves the data generation the retriever's caches follow.
+    func test_deletionsAndSettingChangesMoveTheDataGeneration() throws {
+        let engine = try makeEngine(sources: ["whatsapp", "icloud_drive"])
+        var seen = engine.dataGeneration
+        func moved(_ what: String, file: StaticString = #filePath, line: UInt = #line) {
+            XCTAssertNotEqual(engine.dataGeneration, seen, what, file: file, line: line)
+            seen = engine.dataGeneration
+        }
+        try engine.ingest(source: "whatsapp", records: [record("c1", "the invoice is paid")], cursor: nil)
+        XCTAssertEqual(engine.dataGeneration, seen, "adding is not a removal")
+        try engine.updateConfiguration { $0.privacy.excludedConversations = ["c1"] }
+        moved("never remember")
+        try engine.forget(source: "whatsapp")
+        moved("forget")
+        try engine.deleteEverything()
+        moved("delete all")
+        try engine.ingest(source: "icloud_drive", records: [record("doc", "first section of the document")], cursor: nil)
+        seen = engine.dataGeneration
+        try engine.forget(source: "icloud_drive", conversationsNotIn: [])
+        moved("a deleted document")
+        try engine.ingest(source: "icloud_drive", records: [record("doc", "first section of the document")], cursor: nil)
+        seen = engine.dataGeneration
+        try engine.ingest(source: "icloud_drive", records: [], cursor: nil, completeConversations: ["doc"])
+        moved("a shortened document")
+    }
+
+    /// The Documents Folder source pointed at another folder starts over: the old folder's records
+    /// and cursor go, so the new folder's older files are read and nothing of the old one stays.
+    func test_changingTheDocumentsFolderForgetsWhatTheOldOneGave() throws {
+        let engine = try makeEngine(sources: [])
+        try engine.updateConfiguration { $0.sources["documents"] = MemorySourceSettings(enabled: true, options: ["folder": "/notes/a"]) }
+        try engine.ingest(source: "documents", records: [record("plan.md", "the plan for the pilot is ready")], cursor: "1790000000")
+        try engine.updateConfiguration { $0.sources["documents"]?.options["note"] = "unrelated" }
+        XCTAssertEqual(engine.cursor(source: "documents"), "1790000000", "another option changes nothing")
+        try engine.updateConfiguration { $0.sources["documents"]?.options["folder"] = "/notes/b" }
+        XCTAssertNil(engine.cursor(source: "documents"))
+        XCTAssertEqual(engine.sources().first { $0.id == "documents" }?.stats.messages, 0)
+    }
+
+    /// An indexing step stopped between native calls saves only the messages embedded whole.
+    func test_aStoppedIndexingStepKeepsOnlyWholeMessages() {
+        // Passages of messages 0, 0, 1, 2, 2, 2.
+        let owners = [0, 0, 1, 2, 2, 2]
+        XCTAssertEqual(MemoryEngine.wholeMessages(passageMessages: owners, embedded: 6, messageCount: 3), 3)
+        XCTAssertEqual(MemoryEngine.wholeMessages(passageMessages: owners, embedded: 4, messageCount: 3), 2)
+        XCTAssertEqual(MemoryEngine.wholeMessages(passageMessages: owners, embedded: 1, messageCount: 3), 0)
+        XCTAssertEqual(MemoryEngine.wholeMessages(passageMessages: owners, embedded: 0, messageCount: 3), 0)
+        XCTAssertEqual(MemoryEngine.wholeMessages(passageMessages: [], embedded: 0, messageCount: 2), 2)
+    }
+
     // MARK: - Scope rule
 
     func test_searchStaysInTheConversationThenTheSamePeople() throws {

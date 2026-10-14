@@ -89,6 +89,42 @@ final class MemoryStoreTests: XCTestCase {
         XCTAssertTrue(try store.vectors(model: "m").isEmpty, "an edited message loses its old vector")
     }
 
+    /// A message edited, moved or deleted while it was being embedded keeps its new state: the old
+    /// snapshot's vectors are not saved, and it stays pending.
+    func test_indexingNeverSavesAMessageThatChangedWhileItWasEmbedded() throws {
+        let store = try makeStore()
+        try store.upsert(source: "chat", records: [record("c1", "original text here", id: "m1"), record("c1", "second message", id: "m2")])
+        let snapshot = try store.unindexedMessages(sources: ["chat"], limit: 10)
+        try store.upsert(source: "chat", records: [record("c1", "edited text here", id: "m1")])
+        let vector = HalfPrecision.encode([0.5, 0.5, 0.5, 0.5])
+        let saved = try store.saveIndexEntries(snapshot.map { ($0, [("p-" + $0.recordID, vector)]) }, model: "m")
+        let edited = store.recordID(source: "chat", sourceMessageID: "m1")
+        XCTAssertFalse(saved.contains(edited))
+        XCTAssertEqual(saved, [store.recordID(source: "chat", sourceMessageID: "m2")])
+        XCTAssertEqual(try store.unindexedMessages(sources: ["chat"], limit: 10).map(\.text), ["edited text here"])
+        XCTAssertEqual(try store.keywordSearch(query: "edited", conversations: [
+            (source: "chat", conversationKey: store.conversationKey(source: "chat", conversationID: "c1"))
+        ], limit: 5).map(\.recordID), [edited], "the edit's terms survive")
+        try store.deleteSource("chat")
+        XCTAssertTrue(try store.saveIndexEntries(snapshot.map { ($0, [("p-" + $0.recordID, vector)]) }, model: "m").isEmpty,
+                      "a deleted message gets no vectors back")
+        XCTAssertTrue(try store.vectors(model: "m").isEmpty)
+    }
+
+    /// A later read can move a message to another conversation (a corrected mail audience) or
+    /// correct who wrote it; the stored message follows, and an emptied conversation goes.
+    func test_aMessageMovedOrReattributedIsUpdated() throws {
+        let store = try makeStore()
+        try store.upsert(source: "chat", records: [record("A", "the invoice is paid", title: "Alpha", id: "m1")])
+        try store.upsert(source: "chat", records: [record("B", "the invoice is paid", me: true, title: "Beta", id: "m1")])
+        XCTAssertTrue(try store.findConversations(title: "Alpha", sources: ["chat"]).isEmpty, "the emptied conversation is gone")
+        let beta = try XCTUnwrap(try store.findConversations(title: "Beta", sources: ["chat"]).first)
+        XCTAssertEqual(beta.conversationId, "B")
+        let message = try XCTUnwrap(try store.unindexedMessages(sources: ["chat"], limit: 5).first)
+        XCTAssertEqual(message.conversationKey, store.conversationKey(source: "chat", conversationID: "B"))
+        XCTAssertTrue(message.isFromMe)
+    }
+
     func test_vectorsRoundTripAndAnotherModelsVectorsAreDropped() throws {
         let store = try makeStore()
         try store.upsert(source: "chat", records: [record("c1", "the invoice is paid")])

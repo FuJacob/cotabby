@@ -37,7 +37,25 @@ final class MemoryEngineController: ObservableObject {
     private let keyStore: any TypingHistoryKeyStore
     private let isOnACPower: @MainActor () -> Bool
     private let isGenerating: @MainActor () -> Bool
+    private let makeEngine: EngineFactory
     private var cancellables: Set<AnyCancellable> = []
+    /// Counts starts and stops. A start that finishes after a newer start or a stop is stale: its
+    /// engine is stopped instead of attached, so two engines never run (or hold the store) at once.
+    private var startGeneration = 0
+    /// The start in flight, awaited before the store's files are deleted.
+    private var startTask: Task<Void, Never>?
+
+    /// Opens the store and starts an engine (off the main actor). Injected by tests.
+    typealias EngineFactory = @Sendable (
+        _ paths: MemoryEngine.Paths, _ key: SymmetricKey, _ modelURL: URL,
+        _ conditions: @escaping @Sendable () async -> EmbeddingSchedulePolicy.Conditions
+    ) throws -> MemoryEngine
+
+    nonisolated static let defaultEngineFactory: EngineFactory = { paths, key, modelURL, conditions in
+        let engine = try MemoryEngine(paths: paths, rootKey: key, modelURL: modelURL, conditions: conditions)
+        try engine.start()
+        return engine
+    }
 
     static let enabledDefaultsKey = "cotabbyMemoryEnabled"
 
@@ -58,7 +76,8 @@ final class MemoryEngineController: ObservableObject {
         userDefaults: UserDefaults = .standard,
         keyStore: (any TypingHistoryKeyStore)? = nil,
         isOnACPower: @escaping @MainActor () -> Bool,
-        isGenerating: @escaping @MainActor () -> Bool = { false }
+        isGenerating: @escaping @MainActor () -> Bool = { false },
+        makeEngine: @escaping EngineFactory = MemoryEngineController.defaultEngineFactory
     ) {
         self.paths = paths
         self.userDefaults = userDefaults
@@ -70,6 +89,7 @@ final class MemoryEngineController: ObservableObject {
         )
         self.isOnACPower = isOnACPower
         self.isGenerating = isGenerating
+        self.makeEngine = makeEngine
         downloads = ModelDownloadManager(runtimeDirectoryURL: paths.modelsDirectory)
         isEnabled = userDefaults.bool(forKey: Self.enabledDefaultsKey)
         // Start as soon as the model download finishes, if memory is on and waiting for it.
@@ -118,27 +138,44 @@ final class MemoryEngineController: ObservableObject {
     /// Stops the engine (its model and indexing). `restart` and `deleteMemoryData` start it again.
     /// The returned task finishes once the engine has stopped. A sync still holding the engine
     /// cannot write any more from the moment this returns (`MemoryEngine.markStopped`).
+    /// A start still in flight is made stale (its engine is stopped when it arrives), and the
+    /// returned task waits for that too.
     @discardableResult
     func stop() -> Task<Void, Never> {
         let engine = engine
         engine?.markStopped()
         self.engine = nil
+        startGeneration += 1
+        let pending = startTask
+        startTask = nil
         status = MemoryEngineStatus()
         state = .disabled
-        return Task.detached(priority: .utility) { engine?.stop() }
+        return Task.detached(priority: .utility) {
+            engine?.stop()
+            await pending?.value
+        }
     }
 
-    /// Deletes the stored messages and starts again. Settings stay. Offered after a key mismatch,
-    /// when no engine ever opened the store; the files are still removed only after any engine
-    /// has stopped, so a closing connection can never touch the new store's journal.
-    func deleteMemoryData() {
+    /// Whether the store holds anything to delete (its database file exists).
+    var hasStoredMemory: Bool {
+        FileManager.default.fileExists(atPath: MemoryEngine.Paths(dataDirectory: paths.dataDirectory).store.path)
+    }
+
+    /// Deletes the stored messages and, when memory is on, starts again. Settings stay. Offered
+    /// after a key mismatch, and while memory is off or cannot start (the pane's delete needs no
+    /// model). The files are removed only after any engine, a starting one included, has stopped,
+    /// so a closing connection can never touch the new store's journal. The returned task finishes
+    /// once they are gone.
+    @discardableResult
+    func deleteMemoryData() -> Task<Void, Never> {
         let stopping = stop()
         let store = MemoryEngine.Paths(dataDirectory: paths.dataDirectory).store
-        Task {
+        return Task {
             await stopping.value
             for suffix in ["", "-wal", "-shm"] {
                 try? FileManager.default.removeItem(atPath: store.path + suffix)
             }
+            objectWillChange.send()
             if isEnabled { start() }
         }
     }
@@ -152,27 +189,32 @@ final class MemoryEngineController: ObservableObject {
             return
         }
         state = .starting
+        startGeneration += 1
+        let generation = startGeneration
         let paths = MemoryEngine.Paths(dataDirectory: self.paths.dataDirectory)
         let modelURL = modelURL
         let keyStore = keyStore
         let conditions = conditionsProvider()
-        Task {
+        let makeEngine = makeEngine
+        let previous = startTask
+        startTask = Task {
+            // One start at a time: an earlier, now stale one finishes (and stops its engine) first.
+            await previous?.value
             do {
                 let engine = try await Task.detached(priority: .userInitiated) { () throws -> MemoryEngine in
                     let key = try keyStore.existingKey() ?? keyStore.createKey()
-                    let engine = try MemoryEngine(paths: paths, rootKey: key, modelURL: modelURL, conditions: conditions)
-                    try engine.start()
-                    return engine
+                    return try makeEngine(paths, key, modelURL, conditions)
                 }.value
-                guard isEnabled else {
-                    Task.detached { engine.stop() }
+                guard isEnabled, generation == startGeneration else {
+                    engine.markStopped()
+                    await Task.detached { engine.stop() }.value
                     return
                 }
                 attach(engine)
             } catch MemoryVault.VaultError.keyMismatch {
-                state = .keyMismatch
+                if generation == startGeneration { state = .keyMismatch }
             } catch {
-                state = .failed(error.localizedDescription)
+                if generation == startGeneration { state = .failed(error.localizedDescription) }
             }
         }
     }

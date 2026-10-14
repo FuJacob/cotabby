@@ -20,7 +20,8 @@ struct FullDiskAccessRow: View {
                 statusLabel
             }
             if historySync.hasFullDiskAccess != true {
-                Text("Needed to read WhatsApp and Mail history. macOS has no permission prompt for it: " +
+                Text("Needed to read WhatsApp, Mail, Outlook and Teams history and cloud drive documents. " +
+                     "macOS has no permission prompt for it: " +
                      "add this copy of Cotabby to the Full Disk Access list and switch it on. If macOS offers " +
                      "Quit & Reopen afterwards, choose Later; Cotabby notices the change by itself.")
                     .font(.caption)

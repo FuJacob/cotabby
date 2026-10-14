@@ -29,6 +29,9 @@ nonisolated final class MemoryStore: @unchecked Sendable {
         let timestamp: Double
         let subject: String?
         let text: String
+        /// The content tag the message had when read: indexing saves its vectors only if the stored
+        /// message still has it (`saveIndexEntries`).
+        var textTag: String = ""
     }
 
     /// One passage's vector as stored: decrypted, with the keys a search filters on.
@@ -181,19 +184,28 @@ nonisolated final class MemoryStore: @unchecked Sendable {
         return try database.transaction {
             var changed = 0
             var replaced: [String] = []
+            var leftConversations = Set<String>()
             for record in records {
                 let recordID = self.recordID(source: source, sourceMessageID: record.sourceMessageID)
                 let convKey = conversationKey(source: source, conversationID: record.conversationID)
                 // Unchanged messages are recognized by a tag of their content, since sealed bytes
                 // differ on every write (random nonce).
                 let textTag = vault.tag("msg\u{1f}\(record.sender)\u{1f}\(record.subject ?? "")\u{1f}\(record.text)")
-                let existing = try database.rows("SELECT text_tag FROM messages WHERE record_id = ?", [.text(recordID)]).first
-                if existing?["text_tag"]?.string != textTag {
+                let existing = try database.rows(
+                    "SELECT text_tag, conv_key, is_from_me FROM messages WHERE record_id = ?", [.text(recordID)]
+                ).first
+                // A later read can also correct where a message belongs (its mail audience) or who
+                // wrote it; either is a change, and the message moves with its vectors redone.
+                let moved = existing.map { $0["conv_key"]?.string != convKey } ?? false
+                let owner = existing.map { ($0["is_from_me"]?.int ?? 0) != (record.isFromMe ? 1 : 0) } ?? false
+                if existing?["text_tag"]?.string != textTag || moved || owner {
+                    if moved, let old = existing?["conv_key"]?.string { leftConversations.insert(old) }
                     try database.run(
                         """
                         INSERT INTO messages(record_id, source, conv_key, sender, is_from_me, timestamp, subject, text, text_tag, indexed)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                         ON CONFLICT(record_id) DO UPDATE SET
+                          conv_key = excluded.conv_key, is_from_me = excluded.is_from_me,
                           sender = excluded.sender, subject = excluded.subject, text = excluded.text,
                           text_tag = excluded.text_tag, timestamp = excluded.timestamp, indexed = 0
                         """,
@@ -214,6 +226,18 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                     changed += 1
                 }
                 try upsertConversation(source: source, record: record, conversationKey: convKey)
+            }
+            // A conversation every message moved out of is gone: left behind it would still match
+            // its title (making the title ambiguous) and its people.
+            for key in leftConversations {
+                let remaining = try database.rows(
+                    "SELECT 1 FROM messages WHERE source = ? AND conv_key = ? LIMIT 1", [.text(source), .text(key)]
+                )
+                guard remaining.isEmpty else { continue }
+                for table in ["conversations", "participants"] {
+                    try database.run("DELETE FROM \(table) WHERE source = ? AND conv_key = ?", [.text(source), .text(key)])
+                }
+                conversationNames[source + "\u{1f}" + key] = nil
             }
             return UpsertResult(changed: changed, replacedRecordIDs: replaced)
         }
@@ -281,13 +305,23 @@ nonisolated final class MemoryStore: @unchecked Sendable {
     }
 
     /// Stores one message's passage vectors and keyword terms and marks it indexed, in one
-    /// transaction: a message is either fully searchable or not at all.
-    func saveIndexEntries(_ entries: [(message: StoredMessage, passages: [(passageID: String, vector: [UInt16])])], model: String) throws {
+    /// transaction: a message is either fully searchable or not at all. A message deleted, edited
+    /// or moved since it was read for embedding is skipped (its vectors would describe the old
+    /// text, and it stays pending). Returns the record ids saved.
+    @discardableResult
+    func saveIndexEntries(
+        _ entries: [(message: StoredMessage, passages: [(passageID: String, vector: [UInt16])])], model: String
+    ) throws -> Set<String> {
         lock.lock()
         defer { lock.unlock() }
-        try database.transaction {
+        return try database.transaction {
+            var saved = Set<String>()
             for entry in entries {
                 let message = entry.message
+                guard let current = try database.rows(
+                    "SELECT text_tag, conv_key FROM messages WHERE record_id = ?", [.text(message.recordID)]
+                ).first, current["text_tag"]?.string == message.textTag,
+                    current["conv_key"]?.string == message.conversationKey else { continue }
                 try removeIndexEntries(recordIDs: [message.recordID])
                 for passage in entry.passages {
                     let bytes = passage.vector.withUnsafeBufferPointer { Data(buffer: $0) }
@@ -301,7 +335,9 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                 // Rewritten here too, for messages stored before terms existed.
                 try writeTerms(recordID: message.recordID, source: message.source, text: message.text + " " + (message.subject ?? ""))
                 try database.run("UPDATE messages SET indexed = 1 WHERE record_id = ?", [.text(message.recordID)])
+                saved.insert(message.recordID)
             }
+            return saved
         }
     }
 
@@ -779,7 +815,8 @@ nonisolated final class MemoryStore: @unchecked Sendable {
             conversationID: conversationName(source: source, conversationKey: convKey).id, conversationKey: convKey,
             sender: row["sender"]?.data.flatMap { try? vault.open($0) } ?? "",
             isFromMe: (row["is_from_me"]?.int ?? 0) != 0, timestamp: row["timestamp"]?.double ?? 0,
-            subject: row["subject"]?.data.flatMap { try? vault.open($0) }, text: text
+            subject: row["subject"]?.data.flatMap { try? vault.open($0) }, text: text,
+            textTag: row["text_tag"]?.string ?? ""
         )
     }
 }
