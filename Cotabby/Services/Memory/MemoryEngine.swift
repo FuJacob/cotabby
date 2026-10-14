@@ -28,7 +28,7 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
 
     /// The scope of a suggestion's search.
     struct Scope: Hashable, Sendable {
-        /// The chat name or mail subject the focused window shows.
+        /// The chat name the focused window shows (never a mail subject: see `resolve`).
         var title: String?
         /// The sources serving the focused app; titles never match outside them.
         var sources: [String] = []
@@ -36,14 +36,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         var conversation: (source: String, conversationID: String)?
         /// Everything (the Playground's exploring mode; suggestions never use it).
         var global = false
-        /// When not empty (a mail reply's quote header addresses), these minus the user's own
-        /// addresses must be exactly the people of the conversation found by title; an address
-        /// memory does not know is another person. Otherwise it is not this conversation.
-        var requiredParticipants: Set<String> = []
 
         static func == (lhs: Scope, rhs: Scope) -> Bool {
             lhs.title == rhs.title && lhs.sources == rhs.sources && lhs.global == rhs.global
-                && lhs.requiredParticipants == rhs.requiredParticipants
                 && lhs.conversation?.source == rhs.conversation?.source
                 && lhs.conversation?.conversationID == rhs.conversation?.conversationID
         }
@@ -52,7 +47,6 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             hasher.combine(title)
             hasher.combine(sources)
             hasher.combine(global)
-            hasher.combine(requiredParticipants)
             hasher.combine(conversation?.source)
             hasher.combine(conversation?.conversationID)
         }
@@ -101,6 +95,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     private var stopped = false
     private let wakeLock = NSLock()
     private var wakeRequested = false
+
+    /// Mail sources: searched as a conversation only by exact id, never by title.
+    static let mailSources: Set<String> = ["apple_mail", "outlook"]
 
     /// Messages read per indexing step, and passages embedded per native call (small, so a query
     /// waiting for the model waits for at most one call).
@@ -345,8 +342,7 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     /// sync resumes after the last batch stored.
     @discardableResult
     func ingest(
-        source: String, records: [MemoryIngestRecord], cursor: String?, completeConversations: Set<String> = [],
-        ownAddresses: Set<String> = []
+        source: String, records: [MemoryIngestRecord], cursor: String?, completeConversations: Set<String> = []
     ) throws -> IngestResult {
         // Held for the whole page: the settings it filters with stay the settings in force until
         // its records are written (see `writeLock`).
@@ -379,9 +375,6 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
                 timestamp: record.timestamp, text: cleaned, participants: record.participants, subject: record.subject
             ))
         }
-        // The addresses the user sends from, so a mail reply's own address is recognised (see
-        // `isSameAudience`).
-        try store.addOwnAddresses(ownAddresses, source: source)
         var stored = 0
         // Short transactions, so a search never waits behind a whole sync.
         for start in stride(from: 0, to: kept.count, by: 200) {
@@ -632,33 +625,13 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             guard enabled.contains(exact.source) else { return nil }
             return try? store.conversation(source: exact.source, conversationID: exact.conversationID)
         }
-        let sources = scope.sources.filter(enabled.contains)
+        // A mail subject never names a thread: it does not say who the mail is for, and nothing the
+        // engine is given can (see `ConversationScopeResolver.scope`).
+        let sources = scope.sources.filter { enabled.contains($0) && !Self.mailSources.contains($0) }
         guard let title = scope.title, !title.isEmpty, !sources.isEmpty,
               let found = try? store.findConversations(title: title, sources: sources) else { return nil }
-        // A mail reply: of the conversations with this subject (one per audience), only the one with
-        // exactly the quoted people; none, or more than one, means no memory.
-        if !scope.requiredParticipants.isEmpty {
-            let same = found.filter { isSameAudience($0, quoted: scope.requiredParticipants, sources: sources) }
-            if same.count != 1 { log("no single thread with exactly the quoted people; not using memory") }
-            return same.count == 1 ? same[0] : nil
-        }
         if found.count > 1 { log("title matches \(found.count) conversations; not using memory") }
         return found.count == 1 ? found[0] : nil
-    }
-
-    /// A shared subject is not a shared audience. Every address in the reply's quote header, minus
-    /// the addresses the user sends from (learned from sent mail), must be exactly the thread's
-    /// people: not a subset (a reply to part of a group), not a superset. An address memory does
-    /// not know is someone else, so it means another audience: otherwise a stranger could copy a
-    /// thread's people and subject into their header and have the reply to them draw on that
-    /// thread. An own address memory has not learned counts the same way, the safe side. People
-    /// are compared by address: a thread also lists its senders' display names, which a header
-    /// cannot be matched against.
-    private func isSameAudience(_ conversation: MemoryConversation, quoted: Set<String>, sources: [String]) -> Bool {
-        let thread = Set(conversation.participants.map(ParticipantNormalizer.normalize).filter { $0.contains("@") })
-        let quoted = Set(quoted.map(ParticipantNormalizer.normalize).filter { !$0.isEmpty })
-        guard !thread.isEmpty, let own = try? store.ownAddresses(among: quoted, sources: sources) else { return false }
-        return quoted.subtracting(own) == thread
     }
 
     private func scopedHybrid(

@@ -142,7 +142,6 @@ final class MemoryHistoryReaderTests: XCTestCase {
         XCTAssertEqual(theirs.text, "Numbers look great, see you Friday.")
         XCTAssertEqual(theirs.participants, ["ayse@example.com"])
         XCTAssertEqual(theirs.conversationID, mine.conversationID, "the same thread with the same people")
-        XCTAssertEqual(page.ownAddresses, ["me@example.com"], "the senders of sent mail, for telling the user apart")
     }
 
     /// Only mail the user actually sent is theirs: a mail in the inbox that merely shows the user's
@@ -248,7 +247,6 @@ final class MemoryHistoryReaderTests: XCTestCase {
         XCTAssertEqual(OutlookHistoryReader.Cursor(page.nextCursor).legacy, "7")
         // An incoming mail with the user's address and name in From is not the user's: only
         // Outlook's outgoing flag says that. With no one else on it, it joins no conversation.
-        XCTAssertEqual(page.ownAddresses, ["sam@acme.example"], "the senders of outgoing mail")
         let spoofed = page.records[4]
         XCTAssertFalse(spoofed.isFromMe)
         XCTAssertEqual(spoofed.participants, [])

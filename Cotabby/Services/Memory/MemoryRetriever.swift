@@ -6,8 +6,8 @@ import Logging
 /// the local memory engine, without ever making a suggestion wait for them.
 ///
 /// How a request gets memory:
-/// 1. `ConversationScopeResolver` turns the focused app and window into a scope (the chat name or
-///    mail subject, within the app's enabled memory sources), and builds a stable query.
+/// 1. `ConversationScopeResolver` turns the focused app and window into a scope (the chat name,
+///    within the app's enabled memory sources; mail gets none), and builds a stable query.
 /// 2. If the cache already holds the lines for that scope and query, they are returned. Otherwise
 ///    the cached lines for the same conversation (an earlier query) are returned, or nothing, and a
 ///    lookup starts in the background.
@@ -102,8 +102,6 @@ final class MemoryRetriever: SuggestionMemoryProviding {
         guard let scope = ConversationScopeResolver.scope(
                   bundleIdentifier: context.bundleIdentifier,
                   conversationTitle: context.windowTitle,
-                  precedingText: context.precedingText,
-                  trailingText: context.trailingText,
                   sourcesByBundle: sourcesByBundle
               ) else { return [] }
 
@@ -145,7 +143,6 @@ final class MemoryRetriever: SuggestionMemoryProviding {
         var scope = MemoryEngine.Scope()
         scope.title = key.scope.title
         scope.sources = key.scope.sources
-        scope.requiredParticipants = key.scope.requiredParticipants
         Task { [weak self] in
             let result: MemorySearchResult? = await Task.detached(priority: .userInitiated) {
                 search(engine, key.query, scope)

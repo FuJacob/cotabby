@@ -72,7 +72,9 @@ final class MemoryEngineTests: XCTestCase {
         try engine.ingest(source: "apple_mail", records: [
             record("t1", "Numbers are in.\n\nOn Mon, Ayşe wrote:\n> old quoted text", title: "POC", subject: "POC")
         ], cursor: nil)
-        let hits = engine.search(query: "numbers", scope: scope("POC", ["apple_mail"])).hits
+        var thread = MemoryEngine.Scope()
+        thread.conversation = ("apple_mail", "t1")
+        let hits = engine.search(query: "numbers", scope: thread).hits
         XCTAssertEqual(hits.map(\.text), ["Numbers are in."])
     }
 
@@ -162,84 +164,6 @@ final class MemoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.search(query: "budget", scope: scope("Avery", ["whatsapp"])).scope, "none", "two chats called Avery")
         XCTAssertEqual(engine.search(query: "budget", scope: scope("Nobody", ["whatsapp"])).hits, [])
         XCTAssertEqual(engine.search(query: "budget", scope: scope("Avery", ["apple_mail"])).hits, [], "titles never cross apps")
-    }
-
-    /// Same subject, different people: a mail reply whose quoted sender is not in the stored thread
-    /// is a different conversation, whatever its subject.
-    func test_aSharedSubjectWithOtherPeopleIsNotTheSameThread() throws {
-        let engine = try makeEngine(sources: ["apple_mail"])
-        try engine.ingest(source: "apple_mail", records: [
-            record("t1", "the invoice total is 300 EUR", sender: "Ayşe", title: "Invoice",
-                   participants: ["ayse@example.com"], subject: "Invoice")
-        ], cursor: nil)
-        var other = scope("Re: Invoice", ["apple_mail"])
-        other.requiredParticipants = ["bob@example.org"]
-        XCTAssertEqual(engine.search(query: "invoice", scope: other).scope, "none")
-        XCTAssertTrue(engine.search(query: "invoice", scope: other).hits.isEmpty)
-
-        var same = scope("Re: Invoice", ["apple_mail"])
-        same.requiredParticipants = ["Ayşe Yılmaz <AYSE@example.com>"]
-        XCTAssertEqual(engine.search(query: "invoice", scope: same).hits.map(\.text), ["the invoice total is 300 EUR"])
-    }
-
-    /// Every address a reply quotes, minus the user's own (learned from sent mail), must be exactly
-    /// the thread's people: a reply to part of a group or with someone new gets nothing, and the
-    /// user's own address in the header does not stop a legitimate reply.
-    func test_aMailReplyNeedsExactlyTheThreadsPeople() throws {
-        let engine = try makeEngine(sources: ["apple_mail"])
-        try engine.ingest(source: "apple_mail", records: [
-            record("t1", "the budget is approved", sender: "Ayşe", title: "Budget",
-                   participants: ["ayse@example.com", "bob@example.com"], subject: "Budget"),
-            record("t2", "lunch at noon", sender: "Carol", title: "Lunch", participants: ["carol@example.com"], subject: "Lunch")
-        ], cursor: nil, ownAddresses: ["Me@Example.org"])
-        func reply(quoting addresses: Set<String>) -> MemorySearchResult {
-            var scope = scope("Re: Budget", ["apple_mail"])
-            scope.requiredParticipants = addresses
-            return engine.search(query: "budget", scope: scope)
-        }
-        XCTAssertEqual(reply(quoting: ["ayse@example.com"]).scope, "none", "part of the thread's people")
-        XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com", "carol@example.com"]).scope, "none",
-                       "someone known from another thread is not in this one")
-        XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com", "me@example.org"]).hits.map(\.text),
-                       ["the budget is approved"], "exactly its people; the user's own address drops out")
-        XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com"]).hits.map(\.text), ["the budget is approved"])
-        XCTAssertEqual(reply(quoting: ["me@example.org"]).scope, "none", "only the user")
-    }
-
-    /// A stranger who copies a thread's people and subject into their own mail's quote header is
-    /// still a stranger: an address memory does not know means another audience, so the reply to
-    /// them gets nothing. An own address memory has not learned counts the same way (the safe side).
-    func test_anOutsiderCopyingAThreadsAudienceGetsNoMemory() throws {
-        let engine = try makeEngine(sources: ["apple_mail"])
-        try engine.ingest(source: "apple_mail", records: [
-            record("t1", "the budget is 40,000, keep it between us", sender: "Ayşe", title: "Budget",
-                   participants: ["ayse@example.com", "bob@example.com"], subject: "Budget")
-        ], cursor: nil, ownAddresses: ["me@example.org"])
-        var scope = scope("Re: Budget", ["apple_mail"])
-        scope.requiredParticipants = ["mallory@example.net", "ayse@example.com", "bob@example.com", "me@example.org"]
-        XCTAssertEqual(engine.search(query: "budget", scope: scope).scope, "none")
-        scope.requiredParticipants = ["ayse@example.com", "bob@example.com", "me-too@example.org"]
-        XCTAssertEqual(engine.search(query: "budget", scope: scope).scope, "none", "an own address memory never learned")
-    }
-
-    /// One Mail thread, two audiences (a stranger joined it by headers): a reply picks the
-    /// conversation with exactly its quoted people, and the stranger never gets the history.
-    func test_aMailReplyPicksTheThreadWithExactlyItsPeople() throws {
-        let engine = try makeEngine(sources: ["apple_mail"])
-        try engine.ingest(source: "apple_mail", records: [
-            record("77|ayse@example.com", "the budget is 40,000, keep it between us", sender: "Ayşe", title: "Budget",
-                   participants: ["ayse@example.com"], subject: "Budget"),
-            record("77|mallory@example.org", "what is the budget?", sender: "Ayşe", title: "Budget",
-                   participants: ["mallory@example.org"], subject: "Budget")
-        ], cursor: nil)
-        func reply(quoting address: String) -> MemorySearchResult {
-            var scope = scope("Re: Budget", ["apple_mail"])
-            scope.requiredParticipants = [address]
-            return engine.search(query: "budget", scope: scope, topK: 4)
-        }
-        XCTAssertEqual(reply(quoting: "ayse@example.com").hits.map(\.text), ["the budget is 40,000, keep it between us"])
-        XCTAssertEqual(reply(quoting: "mallory@example.org").hits.map(\.text), ["what is the budget?"],
-                       "the stranger's own conversation only, even though she used Ayşe's name")
     }
 
     /// Titles match whole (after case, space and reply-prefix normalization), never in part.

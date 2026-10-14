@@ -10,8 +10,8 @@ import Foundation
 ///
 /// Mapping to memory records:
 /// - Conversation: Mail's own thread (`conversation_id`) with the message's people, titled with the
-///   thread's subject without its "Re:"/"Fwd:" prefix; the compose window's title is that subject,
-///   which is how Cotabby finds the thread for the message being written. Mail joins a thread by
+///   thread's subject without its "Re:"/"Fwd:" prefix (what the Playground lists; suggestions do
+///   not look mail threads up by subject, see `ConversationScopeResolver`). Mail joins a thread by
 ///   References/In-Reply-To headers and subjects, which any sender controls, so a thread id alone
 ///   could fold an outsider's mail (and later replies to them) into a thread they never saw; each
 ///   audience within a thread is therefore its own conversation (`conversationID`).
@@ -129,8 +129,7 @@ nonisolated struct AppleMailHistoryReader: MemoryHistoryReading {
             ))
         }
         let last = rows.last?["rowid"]?.int
-        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit,
-                              ownAddresses: ownAddresses)
+        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit)
     }
 
     // MARK: - Helpers

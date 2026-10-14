@@ -436,8 +436,8 @@ MemoryHistorySync (15 min on AC, on demand)
 
 SuggestionCoordinator.memorySnippets(for:)
   -> MemoryRetriever (cache first; a stale query starts a background lookup, never waits)
-  -> ConversationScopeResolver (window title -> conversation within the app's sources; a mail only
-     as a reply, and only from a thread with exactly the people its quote header names)
+  -> ConversationScopeResolver (window title -> conversation within the app's sources; mail never
+     gets one)
   -> MemoryEngine.search (this conversation, then exactly the same people; vector + keyword, RRF)
   -> MemorySnippetFormatter -> "Earlier in this conversation:" prompt section
 ~~~
@@ -446,11 +446,11 @@ The store's key is a 256-bit Keychain item that never syncs, per app identity. M
 names, titles, ids and cursors are sealed and lookups use HMAC tags; timestamps, sources and the
 settings file (never-remember lists included) are not encrypted. A search never widens past the
 conversation the focused window names, except to conversations with exactly the same people; an
-unknown or ambiguous title returns nothing rather than a guess. A mail subject alone never selects
-a thread: a mail must be a reply, and the people the client's quote header names (only the first
-header block; addresses in the quoted body are the sender's text and ignored), less the addresses
-the user sends from (learned from sent mail), must be exactly the thread's people; an address
-memory does not know is someone else, so it gives no memory. Groups (Teams,
+unknown or ambiguous title returns nothing rather than a guess. Mail gets no conversation scope: a
+subject does not say who a mail is for, and the body (the quoted original's header included) is
+shaped by the other person, so no audience read from it can be trusted; the engine never resolves
+a title in a mail source either. Mail scope waits for the compose window's own To/Cc fields, read
+through Accessibility. Groups (Teams,
 WhatsApp) carry a per-group marker, so they never have exactly the people of a 1:1 chat or of
 another group, and titles match whole, never in part. Mail threads are joined by headers a sender
 controls, so each audience within a thread is its own conversation (`MailAudience`), mail people are

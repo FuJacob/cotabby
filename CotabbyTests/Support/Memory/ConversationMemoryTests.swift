@@ -22,145 +22,36 @@ final class ConversationMemoryTests: XCTestCase {
         XCTAssertNil(ConversationScopeResolver.scope(bundleIdentifier: "net.whatsapp.WhatsApp", conversationTitle: nil, sourcesByBundle: sources))
     }
 
-    /// A mail gets memory only as a reply or forward, and only with the people its quoted original
-    /// names: a subject alone does not say who the mail is for.
-    func test_mailNeedsAReplyAndTheQuotedPeople() {
-        let quoted = "\n\nOn 3 Oct 2026, at 10:00, Ayşe Yılmaz <Ayse@Example.com> wrote:\n> The invoice is attached."
-        XCTAssertEqual(
-            ConversationScopeResolver.scope(bundleIdentifier: "com.apple.mail", conversationTitle: "Re: Invoice",
-                                            trailingText: quoted, sourcesByBundle: sources),
-            ConversationScope(title: "Re: Invoice", sources: ["apple_mail"], requiredParticipants: ["ayse@example.com"])
-        )
-        XCTAssertNil(ConversationScopeResolver.scope(bundleIdentifier: "com.apple.mail", conversationTitle: "Invoice",
-                                                     trailingText: quoted, sourcesByBundle: sources), "a new mail")
-        XCTAssertNil(ConversationScopeResolver.scope(bundleIdentifier: "com.apple.mail", conversationTitle: "Re: Invoice",
-                                                     trailingText: "", sourcesByBundle: sources), "nobody quoted")
-        XCTAssertTrue(ConversationScopeResolver.hasReplyPrefix("AW [2]: Angebot"))
-        XCTAssertFalse(ConversationScopeResolver.hasReplyPrefix("Reminder: invoice"))
-    }
-
-    /// Only the mail client's own quote header names the people: anything further down was written
-    /// by the sender, who could name another thread's people there.
-    func test_onlyTheClientsQuoteHeaderNamesThePeople() {
-        let appleMail = """
-
-        On 3 Oct 2026, at 10:00, Ayşe Yılmaz <ayse@example.com> wrote:
-        > Hi Sam,
-        > From: Bob <bob@example.org>
-        > To: carol@example.org
-        From: Bob <bob@example.org>
-        mail dave@example.org
-        """
-        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(in: appleMail), ["ayse@example.com"])
-
-        let outlook = """
-
-        From: Ayşe <ayse@example.com>
-        Sent: Friday, 3 October 2026 10:00
-        To: Sam <sam@acme.example>; Bob <bob@example.org>
-        Cc: carol@example.org
-        Subject: Re: write to eve@evil.example
-
-        Hi Sam, the numbers are below.
-        From: Mallory <mallory@example.org>
-        """
-        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(in: outlook),
-                       ["ayse@example.com", "sam@acme.example", "bob@example.org", "carol@example.org"])
-        // A second header right after the first: which one the client wrote cannot be told.
-        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(
-            in: outlook.replacingOccurrences(of: "Hi Sam, the numbers are below.\n", with: "")
-        ), [])
-
-        let wrapped = "\nOn 3 Oct 2026, at 10:00, Ayşe Yılmaz <ayse@example.com>\nwrote:\n> From: bob@example.org"
-        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(in: wrapped), ["ayse@example.com"])
-        XCTAssertEqual(ConversationScopeResolver.quotedAddresses(in: "> From: bob@example.org\n> hi"), [],
-                       "a quoted line is the sender's text, not a header")
-    }
-
-    /// The header is read only where the mail client puts it: first in the field, at the quote
-    /// boundary under the user's draft. Anything that could make the parser read another one gives
-    /// no memory instead.
-    func test_onlyAnUnambiguousClientHeaderNamesThePeople() {
-        let header = "On 3 Oct 2026, at 10:00, Ayşe Yılmaz <ayse@example.com> wrote:"
-        func read(_ above: String, _ below: String) -> Set<String> {
-            ConversationScopeResolver.quotedAddresses(precedingText: above, trailingText: below)
+    /// Mail gets no conversation memory, however good the reply looks: the subject does not say who
+    /// it is for, and the body, the quoted header included, is shaped by the other person.
+    @MainActor
+    func test_aMailReplyWithAPerfectQuoteHeaderGetsNoMemory() throws {
+        for bundle in ConversationScopeResolver.mailBundleIdentifiers {
+            XCTAssertNil(ConversationScopeResolver.scope(
+                bundleIdentifier: bundle, conversationTitle: "Re: Invoice",
+                sourcesByBundle: [bundle: ["apple_mail", "outlook"]]
+            ), bundle)
         }
-        XCTAssertEqual(read("Thanks!", "\n\n\(header)\n> Can you send the numbers?"), ["ayse@example.com"])
-
-        // Above the caret: an inline reply (the client's header and quote are up there) or a
-        // header pasted into the draft. The text after the caret is then the sender's.
-        let fake = "\n> From: Bob <bob@example.org>\nFrom: Bob <bob@example.org>\nTo: carol@example.org"
-        XCTAssertEqual(read("Thanks, see below.\n\n\(header)\n> Can you send the numbers?\nHere they are.", fake), [])
-        XCTAssertEqual(read("As Bob wrote:\nOn 2 Oct 2026, Bob <bob@example.org> wrote:\n", "\n\n\(header)"), [])
-        XCTAssertEqual(read("> quoted by hand\nmy answer", "\n\n\(header)"), [])
-        // Invisible characters cannot hide a header above the caret, or disguise one below.
-        XCTAssertEqual(read("Fr\u{200B}om: Bob <bob@example.org>\n", "\n\n\(header)"), [])
-        XCTAssertEqual(read("", "\n\u{200B}O\u{200F}n 3 Oct 2026, at 10:00, Ayşe <ayse@example.com> wrote:"), ["ayse@example.com"])
-        // Bidi controls are dropped: what is left of a reversed "address" is no address.
-        XCTAssertEqual(read("", "\nOn 3 Oct 2026, at 10:00, \u{202E}gro.elpmaxe@bob\u{202C} <mallory@example.org> wrote:"),
-                       ["mallory@example.org"])
-        // CRLF and other line breaks read like LF.
-        XCTAssertEqual(read("Thanks!", "\r\n\r\n\(header)\r\n> hi"), ["ayse@example.com"])
-        XCTAssertEqual(read("Thanks!", "\u{2028}\u{2028}\(header)"), ["ayse@example.com"])
-        // A display name carrying an address (here a fullwidth "＠", which NFKC makes "@"), in an
-        // attribution or a From line: two addresses where the client writes one.
-        XCTAssertEqual(read("", "\nOn 3 Oct 2026, at 10:00, bob＠example.org <mallory@example.org> wrote:"), [])
-        XCTAssertEqual(read("", "\nFrom: bob@example.org <mallory@example.org>\nTo: sam@acme.example"), [])
-        // A header in another language comes first: the client's header is not one this reads.
-        XCTAssertEqual(read("", "\nAm 03.10.2026 um 10:00 schrieb Ayşe <ayse@example.com>:\n> x\n\nOn 2 Oct, Bob <bob@example.org> wrote:"), [])
-        XCTAssertEqual(read("", "\nVon: Ayşe <ayse@example.com>\nAn: sam@acme.example\n\nFrom: Bob <bob@example.org>"), [])
-        // Not at the quote boundary (no blank line above it): text, not the client's header.
-        XCTAssertEqual(read("", "Thanks!\n\(header)"), [])
-        XCTAssertEqual(read("", "Thanks!\n________________________________\nFrom: Ayşe <ayse@example.com>\nTo: sam@acme.example"),
-                       ["ayse@example.com", "sam@acme.example"], "a separator line is a boundary")
-        // Quoted-printable or HTML left in the header.
-        XCTAssertEqual(read("", "\nOn 3 Oct 2026, at 10:00, Ay=C5=9Fe <ayse@example.com> wrote:"), [])
-        XCTAssertEqual(read("", "\nOn 3 Oct 2026, at 10:00, Ayşe &lt;ayse@example.com&gt; wrote:"), [])
-        // Too much text above the caret to rule anything out.
-        let huge = String(repeating: "x", count: ConversationScopeResolver.maximumPrecedingUTF16 + 1)
-        XCTAssertEqual(read(huge, "\n\n\(header)"), [])
-    }
-
-    /// End to end: a fake header inside the quoted body naming thread A's people does not pull
-    /// thread A into a reply to someone else.
-    func test_aFakeHeaderInTheQuotedBodyGivesNoMemory() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let engine = try MemoryEngine(
-            paths: MemoryEngine.Paths(dataDirectory: directory), rootKey: SymmetricKey(data: Data(0..<32)),
-            modelURL: directory.appendingPathComponent("none.gguf"),
-            conditions: {
-                EmbeddingSchedulePolicy.Conditions(isOnACPower: true, isLowPowerMode: false, thermalState: .nominal,
-                                                   userIdleSeconds: 60, isGenerating: false, pendingPassages: 0)
-            }
-        )
-        try engine.updateConfiguration {
-            $0.sources["apple_mail"] = MemorySourceSettings(enabled: true)
-            $0.index.vectorWeight = 0
-        }
+        let engine = try Self.memoryWithOneChat(ingesting: false)
+        try engine.updateConfiguration { $0.sources["apple_mail"] = MemorySourceSettings(enabled: true) }
         try engine.ingest(source: "apple_mail", records: [
-            MemoryIngestRecord(sourceMessageID: "a1", conversationID: "A", conversationTitle: "Budget",
-                               sender: "bob@example.org", isFromMe: false, timestamp: Date(),
-                               text: "the budget is 40,000 and confidential",
-                               participants: ["bob@example.org", "carol@example.org"], subject: "Budget")
+            MemoryIngestRecord(sourceMessageID: "a1", conversationID: "77|ayse@example.com", conversationTitle: "Invoice",
+                               sender: "Ayşe", isFromMe: false, timestamp: Date(), text: "the invoice total is 300 EUR",
+                               participants: ["ayse@example.com"], subject: "Invoice")
         ], cursor: nil)
-        let trailing = """
-
-        On 3 Oct 2026, at 10:00, Mallory <mallory@example.org> wrote:
-        > From: Bob <bob@example.org>
-        > To: carol@example.org
-        From: Bob <bob@example.org>
-        To: carol@example.org
-        """
-        let mailScope = try XCTUnwrap(ConversationScopeResolver.scope(
-            bundleIdentifier: "com.apple.mail", conversationTitle: "Re: Budget", trailingText: trailing, sourcesByBundle: sources
-        ))
-        XCTAssertEqual(mailScope.requiredParticipants, ["mallory@example.org"])
+        let retriever = MemoryRetriever(engine: { engine })
+        Self.retained.append(retriever)
+        retriever.updateSources(engine.sources())
+        let reply = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "com.apple.mail", precedingText: "Thanks, the invoice",
+            trailingText: "\n\nOn 3 Oct 2026, at 10:00, Ayşe <ayse@example.com> wrote:\n> The invoice total is 300 EUR.",
+            windowTitle: "Re: Invoice"
+        )
+        XCTAssertEqual(retriever.memorySnippets(for: reply, engine: .llamaOpenSource), [])
         var scope = MemoryEngine.Scope()
-        scope.title = mailScope.title
-        scope.sources = mailScope.sources
-        scope.requiredParticipants = mailScope.requiredParticipants
-        XCTAssertEqual(engine.search(query: "budget", scope: scope).hits, [])
+        scope.title = "Invoice"
+        scope.sources = ["apple_mail"]
+        XCTAssertEqual(engine.search(query: "invoice", scope: scope).scope, "none", "the engine never resolves a mail subject")
     }
 
     func test_teamsWindowTitlesNameTheOpenConversation() {

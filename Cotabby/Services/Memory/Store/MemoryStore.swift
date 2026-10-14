@@ -124,11 +124,8 @@ nonisolated final class MemoryStore: @unchecked Sendable {
         PRIMARY KEY (tag, record_id)
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS terms_record ON terms(record_id);
-    CREATE TABLE IF NOT EXISTS own_addresses (
-        source TEXT NOT NULL,
-        tag TEXT NOT NULL,
-        PRIMARY KEY (source, tag)
-    ) WITHOUT ROWID;
+    -- Earlier builds kept own-address tags here for mail scope; nothing uses them now.
+    DROP TABLE IF EXISTS own_addresses;
     CREATE TABLE IF NOT EXISTS term_documents (
         record_id TEXT PRIMARY KEY,
         source TEXT NOT NULL,
@@ -383,7 +380,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
         defer { lock.unlock() }
         willRemove?()
         try database.transaction {
-            for table in ["messages", "conversations", "participants", "cursors", "vectors", "term_documents", "own_addresses"] {
+            for table in ["messages", "conversations", "participants", "cursors", "vectors", "term_documents"] {
                 try database.run("DELETE FROM \(table) WHERE source = ?", [.text(source)])
             }
             try database.run("DELETE FROM terms WHERE record_id NOT IN (SELECT record_id FROM term_documents)")
@@ -486,7 +483,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
         defer { lock.unlock() }
         willRemove?()
         try database.transaction {
-            for table in ["messages", "conversations", "participants", "cursors", "vectors", "terms", "term_documents", "own_addresses"] {
+            for table in ["messages", "conversations", "participants", "cursors", "vectors", "terms", "term_documents"] {
                 try database.run("DELETE FROM \(table)")
             }
         }
@@ -625,37 +622,6 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                   let convKey = row["conv_key"]?.string else { return nil }
             return try conversation(source: source, conversationKey: convKey)
         }
-    }
-
-    /// Remembers addresses the user sends from in `source` (the readers learn them from sent mail,
-    /// per account), as HMAC tags only: they are matched, never read back.
-    func addOwnAddresses(_ addresses: Set<String>, source: String) throws {
-        let normalized = Set(addresses.map(ParticipantNormalizer.normalize).filter { !$0.isEmpty })
-        guard !normalized.isEmpty else { return }
-        lock.lock()
-        defer { lock.unlock() }
-        try database.transaction {
-            for address in normalized {
-                try database.run("INSERT OR IGNORE INTO own_addresses(source, tag) VALUES (?, ?)",
-                                 [.text(source), .text(participantTag(address))])
-            }
-        }
-    }
-
-    /// Which of `candidates` are addresses the user sends from in one of `sources`.
-    func ownAddresses(among candidates: Set<String>, sources: [String]) throws -> Set<String> {
-        let normalized = Set(candidates.map(ParticipantNormalizer.normalize).filter { !$0.isEmpty })
-        guard !normalized.isEmpty, !sources.isEmpty else { return [] }
-        let byTag = Dictionary(normalized.map { (participantTag($0), $0) }, uniquingKeysWith: { first, _ in first })
-        lock.lock()
-        defer { lock.unlock() }
-        let tags = byTag.keys.sorted()
-        let rows = try database.rows(
-            "SELECT DISTINCT tag FROM own_addresses WHERE tag IN (\(tags.map { _ in "?" }.joined(separator: ",")))"
-                + " AND source IN (\(sources.map { _ in "?" }.joined(separator: ",")))",
-            tags.map { .text($0) } + sources.map { .text($0) }
-        )
-        return Set(rows.compactMap { $0["tag"]?.string }.compactMap { byTag[$0] })
     }
 
     /// The most recently active conversations of `sources`.

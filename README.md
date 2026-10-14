@@ -68,7 +68,7 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 - **One-key autocorrect** — fix a likely typo with a single keystroke
 - **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
 - **Optional screen context** — control visual context independently of the local prediction settings
-- **Conversation memory** *(optional, off by default)* — when you reply to a mail in Apple Mail or Outlook, or write in a Microsoft Teams chat, suggestions can draw on what was said earlier in that conversation. WhatsApp chats, Calendar events and documents in a folder or cloud drive you choose are synced and searchable in Settings → Memory; WhatsApp chats will feed suggestions once Cotabby reads the open chat's name
+- **Conversation memory** *(optional, off by default)* — when you write in a Microsoft Teams chat, suggestions can draw on what was said earlier in that conversation. Apple Mail and Outlook mail, WhatsApp chats, Calendar events and documents in a folder or cloud drive you choose are synced and searchable in Settings → Memory; WhatsApp chats will feed suggestions once Cotabby reads the open chat's name
 
 ## Privacy
 

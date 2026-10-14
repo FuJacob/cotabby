@@ -180,9 +180,11 @@ calendar and document history:
 Keep its privacy rules: memory never reaches the endpoint engine (retriever, request factory and
 router each refuse it); a search is scoped to the conversation the window names, then to
 conversations with exactly the same people, and an unknown or ambiguous title returns nothing.
-A mail gets memory only as a reply, from a thread with exactly the people its quote header (the
-client's first header block, never the quoted body) names. Groups carry a per-group participant marker so they never widen into a 1:1 chat. A mail
-conversation is one thread with one audience (`MailAudience`), identified by addresses only.
+A mail gets no conversation scope: its subject does not say who it is for, and nothing in the body
+(the quoted header included) can be trusted to, since the other person shapes it. Mail scope waits
+for the compose window's own To/Cc fields. Groups carry a per-group participant marker so they
+never widen into a 1:1 chat. A mail conversation is one thread with one audience (`MailAudience`),
+identified by addresses only.
 Mail is the user's own only when it is in a Sent mailbox. A sync is cancelled and awaited before
 anything is deleted (`MemoryHistorySync.cancelSync`). Reader fixtures must stay synthetic.
 

@@ -129,8 +129,7 @@ nonisolated struct OutlookHistoryReader: MemoryHistoryReading {
             if !page.records.isEmpty || page.hasMore {
                 position.legacy = page.nextCursor ?? position.legacy
                 // More to come: New Outlook's store follows the classic database.
-                return MemoryReadPage(records: page.records, nextCursor: position.text, hasMore: true,
-                                      ownAddresses: page.ownAddresses)
+                return MemoryReadPage(records: page.records, nextCursor: position.text, hasMore: true)
             }
         }
         guard let hxStorePath else {
@@ -148,8 +147,7 @@ nonisolated struct OutlookHistoryReader: MemoryHistoryReading {
             records.append(record)
         }
         position.newOutlookMilliseconds = newest
-        return MemoryReadPage(records: records, nextCursor: newest > previous ? position.text : nil, hasMore: false,
-                              ownAddresses: own)
+        return MemoryReadPage(records: records, nextCursor: newest > previous ? position.text : nil, hasMore: false)
     }
 
     static func ingestRecord(_ message: HxMailRecord, sent: Date, ownAddresses: Set<String>) -> MemoryIngestRecord? {
@@ -263,8 +261,7 @@ nonisolated struct OutlookHistoryReader: MemoryHistoryReading {
             ))
         }
         let last = rows.last?["id"]?.int
-        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit,
-                              ownAddresses: ownAddresses)
+        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit)
     }
 
     /// The user's own addresses: senders of the messages Outlook marks as outgoing.

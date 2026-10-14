@@ -10,8 +10,8 @@ import Foundation
 /// rule means re-syncing what is already stored.
 
 /// How a conversation title is matched: case- and space-insensitively, without bidi marks, a
-/// leading unread badge ("(3) ") or mail reply prefixes, so the compose window "Re: POC results"
-/// finds the thread stored as "POC results".
+/// leading unread badge ("(3) ") or mail reply prefixes, so "Re: POC results" and "POC results" are
+/// one thread's title.
 nonisolated enum ConversationTitleKey {
     static func key(_ title: String) -> String {
         var cleaned = title.replacingOccurrences(

@@ -10,216 +10,42 @@ import Foundation
 
 /// The conversation a field belongs to: what memory's search is scoped to.
 nonisolated struct ConversationScope: Equatable, Hashable, Sendable {
-    /// The chat name or mail subject as the app shows it; memory matches it within `sources`.
+    /// The chat name as the app shows it; memory matches it within `sources`.
     let title: String
-    /// The memory sources that serve the focused app (`whatsapp` for WhatsApp, `apple_mail` for
-    /// Mail). Title matching never crosses into other apps' history.
+    /// The memory sources that serve the focused app (`whatsapp` for WhatsApp, `teams` for Teams).
+    /// Title matching never crosses into other apps' history.
     let sources: [String]
-    /// For mail: the addresses in the quote header below the caret. Without the user's own
-    /// addresses they must be exactly the matched thread's people, so a mail to other people that
-    /// happens to share a subject never gets this thread (`MemoryEngine.Scope.requiredParticipants`).
-    var requiredParticipants: Set<String> = []
 }
 
 nonisolated enum ConversationScopeResolver {
     /// The scope for a focused field, or nil when memory has nothing to say about it: the app has no
-    /// enabled memory source, or the window does not name a conversation.
+    /// enabled memory source, the window does not name a conversation, or the app is a mail client.
     ///
-    /// The title is the focused field's window title (`FocusedInputContext.windowTitle`). In Mail a
-    /// compose window's title is the message subject ("Re: Project results"), which memory matches
-    /// to the thread with reply prefixes removed; Teams' title is parsed for the open chat.
+    /// The title is the focused field's window title (`FocusedInputContext.windowTitle`); Teams'
+    /// title is parsed for the open chat.
     ///
-    /// A subject alone does not say who the mail is for: "Invoice" to one customer must not draw on
-    /// the "Invoice" thread with another. So a mail gets memory only when it is a reply or forward
-    /// (its title carries the prefix) and the client's quote header (the first header in the whole
-    /// field, `precedingText` then `trailingText`) names an address; the thread must have exactly
-    /// those people (`requiredParticipants`).
+    /// Mail gets no conversation scope. A compose window's title is only the subject, which does
+    /// not say who the mail is for ("Invoice" to one customer must not draw on the "Invoice" thread
+    /// with another), and everything in the body, the quoted original's header included, can be
+    /// shaped by the other person (their display name, their text), so no audience read from it can
+    /// be trusted. A mail scope needs a source the sender cannot write: the compose window's own
+    /// To and Cc fields, read through Accessibility, which is a follow-up. Mail is still synced, and
+    /// the Playground can search it.
     static func scope(
         bundleIdentifier: String,
         conversationTitle: String?,
-        precedingText: String = "",
-        trailingText: String = "",
         sourcesByBundle: [String: [String]]
     ) -> ConversationScope? {
+        guard !mailBundleIdentifiers.contains(bundleIdentifier) else { return nil }
         let raw = conversationTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let named = teamsBundleIdentifiers.contains(bundleIdentifier) ? teamsConversationTitle(raw) : raw
         guard let sources = sourcesByBundle[bundleIdentifier], !sources.isEmpty,
               let title = named, !title.isEmpty,
               !genericTitles.contains(title.lowercased()) else { return nil }
-        guard mailBundleIdentifiers.contains(bundleIdentifier) else {
-            return ConversationScope(title: title, sources: sources)
-        }
-        let quoted = quotedAddresses(precedingText: precedingText, trailingText: trailingText)
-        guard hasReplyPrefix(title), !quoted.isEmpty else { return nil }
-        return ConversationScope(title: title, sources: sources, requiredParticipants: quoted)
+        return ConversationScope(title: title, sources: sources)
     }
 
     static let mailBundleIdentifiers: Set<String> = ["com.apple.mail", "com.microsoft.Outlook"]
-
-    private static let replyPrefix = try? NSRegularExpression(
-        pattern: #"^\s*(re|fw|fwd|aw|wg|sv|ynt|ilt|tr)\s*(\[\d+\])?\s*:"#, options: .caseInsensitive
-    )
-
-    /// Whether a subject starts with a reply or forward prefix ("Re:", "FW:", "AW [2]:", "YNT:").
-    static func hasReplyPrefix(_ subject: String) -> Bool {
-        guard let replyPrefix else { return false }
-        let range = NSRange(subject.startIndex..., in: subject)
-        return replyPrefix.firstMatch(in: subject, range: range) != nil
-    }
-
-    private static let address = try? NSRegularExpression(pattern: #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#)
-    /// A header field in any language: a short label, a colon, then something with an address
-    /// ("Von: …", "De : …", "Kimden: …").
-    private static let headerField = try? NSRegularExpression(pattern: #"^\p{L}[\p{L}\p{M} .-]{0,24}:\s.*@"#)
-
-    /// Lines after the caret searched for the quote header, and lines a header block may have
-    /// (From, Sent, To, Cc, Subject, folded continuations).
-    static let quoteHeaderSearchLines = 60
-    static let maximumHeaderBlockLines = 12
-    /// Text before the caret looked through (UTF-16 units). Longer means no memory: something
-    /// header-like up there could not be ruled out.
-    static let maximumPrecedingUTF16 = 50_000
-
-    /// The addresses in the quote header the mail client put under the reply being written,
-    /// lowercased; empty whenever that header cannot be told apart from text someone typed.
-    ///
-    /// In the field, everything below the client's header is the other person's text, and
-    /// everything above it is the user's draft (including anything they pasted). The client writes
-    /// "On … Ayşe <ayse@example.com> wrote:" (Apple Mail, Gmail; "… tarihinde … yazdı:" in
-    /// Turkish) or a "From: / Sent: / To: / Cc: / Subject:" block (Outlook). A header is accepted
-    /// only when it is the first header-like thing in the whole field, so text that could pass for
-    /// one is never read in its place:
-    /// - The text is normalized first (CRLF and other line breaks, NFKC, so fullwidth "＠" is "@",
-    ///   and invisible format characters such as zero-width and bidi marks removed), so a header
-    ///   cannot hide from these checks or be disguised as one.
-    /// - Nothing above the caret may look like a header or a quote ("> …"): the reply must be
-    ///   written above the quote. An inline reply, or a header pasted into the draft, gives none.
-    /// - The first header-like line after the caret must be one this parser reads, at the quote
-    ///   boundary (the field's start, a blank line or a separator line above it). A header in
-    ///   another language, a quote line, or an address line ending in a colon coming first means
-    ///   the client's header is not the one found, so none.
-    /// - An "On … wrote:" header names exactly one address, and a From line exactly one: a display
-    ///   name that carries an address is someone's text inside the header.
-    /// - Quoted-printable or HTML remnants in the header, or a second header-like block right after
-    ///   it, are ambiguous: none.
-    static func quotedAddresses(precedingText: String, trailingText: String) -> Set<String> {
-        guard precedingText.utf16.count <= maximumPrecedingUTF16 else { return [] }
-        let above = normalizedLines(precedingText)
-        let below = normalizedLines(String(trailingText.prefix(8000)))
-        // The caret's line is split between the two; it counts as below the caret.
-        let caretLine = above.count - 1
-        var lines = Array(above.dropLast())
-        lines.append((above.last ?? "") + (below.first ?? ""))
-        lines += below.dropFirst().prefix(quoteHeaderSearchLines)
-        guard !lines[..<caretLine].contains(where: looksLikeHeaderOrQuote) else { return [] }
-        guard let start = lines[caretLine...].firstIndex(where: looksLikeHeaderOrQuote),
-              isQuoteHeaderStart(lines[start]), !lines[start].hasPrefix(">"),
-              start == 0 || isBoundary(lines[start - 1]) else { return [] }
-
-        let header: [String]
-        let end: Int
-        if isAttributionLine(lines[start]) {
-            // "On … wrote:" may wrap; it ends at the line that says "wrote:" / "yazdı:".
-            end = lines[start...].prefix(3).firstIndex { endsAttribution($0) } ?? start
-            header = Array(lines[start...end])
-            guard addresses(in: header.joined(separator: " ")).count == 1 else { return [] }
-        } else {
-            let block = Array(lines[start...].prefix(maximumHeaderBlockLines).prefix { !$0.isEmpty })
-            end = start + block.count - 1
-            guard addresses(in: block[0]).count == 1 else { return [] }
-            header = block.filter(isAddressHeaderLine)
-        }
-        guard !lines[start...end].contains(where: hasEncodingRemnant) else { return [] }
-        if let next = lines[(end + 1)...].first(where: { !isBoundary($0) }),
-           !next.hasPrefix(">"), looksLikeHeaderOrQuote(next) { return [] }
-        return addresses(in: header.joined(separator: " "))
-    }
-
-    /// The quote header's addresses when the caret is at the very start of the reply (tests and
-    /// callers without the text above the caret).
-    static func quotedAddresses(in trailingText: String) -> Set<String> {
-        quotedAddresses(precedingText: "", trailingText: trailingText)
-    }
-
-    /// Lines with every line break unified, NFKC applied, invisible format characters (zero-width,
-    /// bidi controls, soft hyphens: Unicode category Cf) removed, and outer spaces trimmed.
-    static func normalizedLines(_ text: String) -> [String] {
-        var scalars = String.UnicodeScalarView()
-        var previousWasCR = false
-        for scalar in text.unicodeScalars {
-            defer { previousWasCR = scalar == "\r" }
-            switch scalar {
-            case "\n":
-                if !previousWasCR { scalars.append("\n") }
-            case "\r", "\u{0B}", "\u{0C}", "\u{85}", "\u{2028}", "\u{2029}":
-                scalars.append("\n")
-            default:
-                if scalar.properties.generalCategory != .format { scalars.append(scalar) }
-            }
-        }
-        return String(scalars).precomposedStringWithCompatibilityMapping
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-    }
-
-    /// Anything a header could be confused with: a quote line, a header this parser reads, a
-    /// header field in another language, or a line naming an address and ending in a colon (an
-    /// attribution in another language).
-    private static func looksLikeHeaderOrQuote(_ line: String) -> Bool {
-        if line.hasPrefix(">") || isQuoteHeaderStart(line) { return true }
-        guard line.contains("@") else { return false }
-        if line.hasSuffix(":"), !addresses(in: line).isEmpty { return true }
-        guard let headerField else { return false }
-        return headerField.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
-    }
-
-    /// A blank line or a separator line ("____", "-----Original Message-----" style rules).
-    private static func isBoundary(_ line: String) -> Bool {
-        line.isEmpty || (line.count >= 3 && line.allSatisfy { "_-=—–*".contains($0) })
-            || line.lowercased().hasPrefix("-----original message")
-    }
-
-    /// Quoted-printable or HTML left in the text: the field is not showing the header as the
-    /// client wrote it.
-    private static func hasEncodingRemnant(_ line: String) -> Bool {
-        let lowered = line.lowercased()
-        if ["&lt;", "&gt;", "&amp;", "&#", "<br", "<div", "</", "=?utf-8?", "=?iso-"].contains(where: { lowered.contains($0) })
-            || lowered.hasSuffix("=") { return true }
-        guard let quotedPrintable else { return false }
-        return quotedPrintable.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
-    }
-
-    /// A quoted-printable escape ("=C5=9F", "=3D").
-    private static let quotedPrintable = try? NSRegularExpression(pattern: #"=[0-9A-F]{2}"#)
-
-    /// A From, To or Cc line of an Outlook-style header block (not Sent or Subject).
-    private static func isAddressHeaderLine(_ line: String) -> Bool {
-        let lowered = line.lowercased()
-        return lowered.hasPrefix("from:") || lowered.hasPrefix("to:") || lowered.hasPrefix("cc:")
-    }
-
-    private static func isQuoteHeaderStart(_ line: String) -> Bool {
-        isAttributionLine(line) || line.lowercased().hasPrefix("from:")
-    }
-
-    /// "On … wrote:" (or an "On …" line naming an address, whose "wrote:" wraps onto the next
-    /// line), or Turkish "… tarihinde … yazdı:".
-    private static func isAttributionLine(_ line: String) -> Bool {
-        let lowered = line.lowercased()
-        if lowered.hasPrefix("on ") { return lowered.contains("wrote:") || lowered.contains("@") }
-        return lowered.contains(" tarihinde ")
-    }
-
-    private static func endsAttribution(_ line: String) -> Bool {
-        let lowered = line.lowercased()
-        return lowered.hasSuffix("wrote:") || lowered.hasSuffix("yazdı:")
-    }
-
-    private static func addresses(in text: String) -> Set<String> {
-        guard let address else { return [] }
-        let matches = address.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        return Set(matches.compactMap { Range($0.range, in: text).map { text[$0].lowercased() } })
-    }
 
     static let teamsBundleIdentifiers: Set<String> = ["com.microsoft.teams2", "com.microsoft.teams"]
 

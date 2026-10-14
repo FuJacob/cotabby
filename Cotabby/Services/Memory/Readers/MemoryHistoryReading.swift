@@ -33,9 +33,6 @@ nonisolated struct MemoryReadPage: Sendable {
     /// Conversations whose every record is in this page (a document read whole). Memory drops what
     /// it held for them that the page no longer has, so a shortened file loses its old tail.
     var completeConversations: Set<String> = []
-    /// Mail sources: the addresses the user sends from (the senders of sent mail, per account).
-    /// Memory needs them to tell the user apart from other people in a reply's quote header.
-    var ownAddresses: Set<String> = []
 }
 
 nonisolated protocol MemoryHistoryReading: Sendable {
