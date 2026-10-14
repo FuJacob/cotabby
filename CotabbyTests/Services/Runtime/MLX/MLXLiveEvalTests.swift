@@ -28,9 +28,9 @@ final class MLXLiveEvalTests: XCTestCase {
         await provisioner.refresh()
         let toolchain = try XCTUnwrap(provisioner.state.toolchain, "mlx-lm is not installed: \(provisioner.state)")
         await downloader.refreshCache(toolchain: toolchain)
-        let desire = MLXServerDesireResolver.desire(
+        let desire = MLXServerDesireResolver.desire(for: .init(
             engine: .mlx, isAppleSilicon: true, toolchain: provisioner.state, modelID: modelID,
-            cachedModels: downloader.cachedModels, promptCacheBytes: 1 << 30)
+            cachedModels: downloader.cachedModels, promptCacheBytes: 1 << 30))
         guard case .running = desire else { return XCTFail("cannot run: \(desire)") }
 
         let started = Date()

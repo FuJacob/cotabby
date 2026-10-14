@@ -21,7 +21,7 @@ final class MLXServerDesireResolverTests: XCTestCase {
         cached: [MLXCachedModel]?? = .none,
         rejected: [MLXRepoID: MLXModelCompatibility.Reason] = [:]
     ) -> MLXServerDesire {
-        MLXServerDesireResolver.desire(
+        MLXServerDesireResolver.desire(for: .init(
             engine: engine,
             isAppleSilicon: appleSilicon,
             toolchain: toolchain ?? .ready(self.toolchain),
@@ -29,7 +29,7 @@ final class MLXServerDesireResolverTests: XCTestCase {
             cachedModels: cached ?? [model],
             promptCacheBytes: 1 << 30,
             rejectedModels: rejected
-        )
+        ))
     }
 
     func test_selectedModelRejectedByCompatibilityIsIncompatibleNotMissing() {

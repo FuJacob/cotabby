@@ -173,6 +173,10 @@ final class MLXToolchainProvisioner: ObservableObject {
         guard let handle = try? FileHandle(forReadingFrom: script.resolvingSymlinksInPath()) else { return nil }
         defer { try? handle.close() }
         let head = (try? handle.read(upToCount: 1024)) ?? Data()
-        return MLXToolchainRules.interpreter(fromScript: String(decoding: head, as: UTF8.self))
+        // Only the first two lines matter. Cutting after them keeps a multi-byte character split
+        // by the 1 KB read from failing the decode of the whole head.
+        let lineEnds = head.indices.filter { head[$0] == UInt8(ascii: "\n") }.prefix(2)
+        let lines = head[..<(lineEnds.last.map { head.index(after: $0) } ?? head.endIndex)]
+        return MLXToolchainRules.interpreter(fromScript: String(bytes: lines, encoding: .utf8) ?? "")
     }
 }

@@ -97,3 +97,28 @@ final class MLXProcessRunnerTests: XCTestCase {
         }
     }
 }
+
+/// The collector splits stderr into lines as bytes, so pipe reads that cut a character in half
+/// or redraw a progress line with `\r` still give whole, readable lines.
+final class MLXOutputCollectorTests: XCTestCase {
+    func test_characterSplitAcrossReadsIsDecodedWhole() {
+        let collector = MLXOutputCollector(tailLines: 5)
+        let bytes = Array("Grüße\n".utf8)
+        // "ü" is two bytes; the first read ends between them.
+        collector.appendStderr(Data(bytes[..<3]))
+        collector.appendStderr(Data(bytes[3...]))
+        XCTAssertEqual(collector.stderrTail, ["Grüße"])
+    }
+
+    func test_carriageReturnsSplitLinesAndTheUnterminatedTailIsKept() {
+        let collector = MLXOutputCollector(tailLines: 5)
+        collector.appendStderr(Data("10%\r50%\r\nDone\npartial".utf8))
+        XCTAssertEqual(collector.stderrTail, ["10%", "50%", "Done", "partial"])
+    }
+
+    func test_invalidUTF8IsReportedBySize() {
+        let collector = MLXOutputCollector(tailLines: 5)
+        collector.appendStderr(Data([0xFF, 0xFE, UInt8(ascii: "\n")]))
+        XCTAssertEqual(collector.stderrTail, ["<2 bytes of non-UTF-8 output>"])
+    }
+}

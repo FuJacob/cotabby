@@ -23,7 +23,7 @@ enum SettingsAttentionEvaluator {
         let endpointConnectionFailedReason: String?
         /// Why the MLX engine cannot generate (not installed, no model, failed), or nil when it can
         /// or is merely starting. Defaulted so callers that predate MLX keep compiling.
-        var mlxProblem: String? = nil
+        var mlxProblem: String?
     }
 
     /// Returns the set of categories that should render an attention dot in the sidebar.

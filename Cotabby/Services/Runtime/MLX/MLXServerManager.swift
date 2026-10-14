@@ -503,10 +503,15 @@ final class MLXLiveProcessLauncher: MLXProcessLaunching {
         onExit: @escaping @MainActor (Int32) -> Void
     ) throws -> any MLXRunningProcess {
         // The exit arrives on a background thread; hop to the main actor for the manager.
-        let (process, output, stderr) = Self.configuredProcess(
+        let stderr = Pipe()
+        // Raw lines are kept generously (300) because the filter in `stderrTail()` drops
+        // access-log lines and disconnect tracebacks, which are most of what the server prints.
+        let output = MLXOutputCollector(tailLines: 300)
+        let process = Self.configuredProcess(
             executable: executable,
             arguments: arguments,
             environment: environment,
+            stderr: stderr,
             onExit: { @Sendable status in
                 Task { @MainActor in onExit(status) }
             }
@@ -529,21 +534,18 @@ final class MLXLiveProcessLauncher: MLXProcessLaunching {
         executable: URL,
         arguments: [String],
         environment: [String: String],
+        stderr: Pipe,
         onExit: @escaping @Sendable (Int32) -> Void
-    ) -> (Process, MLXOutputCollector, Pipe) {
+    ) -> Process {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
-        let stderr = Pipe()
         process.standardError = stderr
-        // Raw lines are kept generously (300) because the filter below drops access-log lines and
-        // disconnect tracebacks, which are most of what the server prints.
-        let output = MLXOutputCollector(tailLines: 300)
         process.terminationHandler = { finished in onExit(finished.terminationStatus) }
-        return (process, output, stderr)
+        return process
     }
 
     /// Drains stderr off the main actor: each chunk goes to the in-memory collector and, when one
@@ -636,7 +638,24 @@ nonisolated struct MLXHTTPReadinessProbe: MLXReadinessProbing {
 
     Hi Dana,
 
-    Thanks for sending the revised timeline on Monday. I went through it line by line with the team this morning, and most of the dates hold up well against what we are seeing in the build pipeline. The integration work for the storage layer finished ahead of schedule, which gives us a little room at the end of the month for the reviewer feedback that we always seem to collect late. I still have concerns about the migration step, though. The current plan assumes that every customer account can be moved in a single window on the weekend, but the account export we ran last Thursday took almost twice as long as we estimated, and it only covered about a third of the records. If the remaining records scale the same way, the window will not be long enough, and we would have to split the work across two weekends. That is not a disaster, but it changes who needs to be on call and how we communicate the maintenance notice to customers, so I would like to settle it before we commit to the calendar invitations. Ibrahim has offered to rerun the export with the new indexes enabled, and I think his numbers will tell us quickly whether the single window is realistic. In the meantime, I would suggest we keep the draft schedule as it is, mark the migration as a risk in the tracker, and avoid sending anything to the customer success team until we have the new figures. I know this is not the answer you were hoping for on a Monday morning, and I appreciate that you have been patient while we worked through the details. If it helps, I can join a short call tomorrow to walk through the export log together and agree on the fallback plan before the end of the week, so that everyone leaves the meeting with the same picture of what happens next and who owns each
+    Thanks for sending the revised timeline on Monday. I went through it line by line with the team this \
+    morning, and most of the dates hold up well against what we are seeing in the build pipeline. The \
+    integration work for the storage layer finished ahead of schedule, which gives us a little room at the \
+    end of the month for the reviewer feedback that we always seem to collect late. I still have concerns \
+    about the migration step, though. The current plan assumes that every customer account can be moved in a \
+    single window on the weekend, but the account export we ran last Thursday took almost twice as long as \
+    we estimated, and it only covered about a third of the records. If the remaining records scale the same \
+    way, the window will not be long enough, and we would have to split the work across two weekends. That \
+    is not a disaster, but it changes who needs to be on call and how we communicate the maintenance notice \
+    to customers, so I would like to settle it before we commit to the calendar invitations. Ibrahim has \
+    offered to rerun the export with the new indexes enabled, and I think his numbers will tell us quickly \
+    whether the single window is realistic. In the meantime, I would suggest we keep the draft schedule as \
+    it is, mark the migration as a risk in the tracker, and avoid sending anything to the customer success \
+    team until we have the new figures. I know this is not the answer you were hoping for on a Monday \
+    morning, and I appreciate that you have been patient while we worked through the details. If it helps, I \
+    can join a short call tomorrow to walk through the export log together and agree on the fallback plan \
+    before the end of the week, so that everyone leaves the meeting with the same picture of what happens \
+    next and who owns each
     """
 
     /// Sends one streamed completion shaped like a real suggestion and reads it to `[DONE]` or the
@@ -672,8 +691,8 @@ nonisolated struct MLXHTTPReadinessProbe: MLXReadinessProbing {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else { throw MLXServerError.warmUpFailed(statusCode: status) }
         // The server finishes generation only once the client has read the stream, so drain it.
-        for try await line in bytes.lines {
-            if line == "data: [DONE]" { break }
+        for try await line in bytes.lines where line == "data: [DONE]" {
+            break
         }
     }
 

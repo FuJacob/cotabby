@@ -145,23 +145,7 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
             throw SuggestionClientError.cancelled
         } catch let error as OpenAICompatibleClientError
             where backend == .mlx && MLXGeneratorFailure.reason(for: error) != nil {
-            // Looks like a dead generator, but mlx_lm answers 404 for per-request failures too.
-            // `/health` decides: healthy means this one request failed and the server stays.
-            guard let serverPort, let reason = MLXGeneratorFailure.reason(for: error) else {
-                throw SuggestionClientError.generationFailed(error.localizedDescription)
-            }
-            let health = await healthCheck(serverPort)
-            // The user kept typing while the probe ran: its answer (a cancelled request looks like
-            // "unreachable") says nothing about the server, so never restart it for this.
-            if Task.isCancelled || health == .cancelled { throw SuggestionClientError.cancelled }
-            guard health != .healthy else {
-                CotabbyLogger.suggestion.error(
-                    "MLX request failed but the server is healthy: \(reason)", metadata: metadata)
-                throw SuggestionClientError.generationFailed(error.localizedDescription)
-            }
-            CotabbyLogger.suggestion.error("MLX generator failed: \(reason)", metadata: metadata)
-            onServerBroken?(serverPort, reason)
-            throw SuggestionClientError.unavailable("MLX is restarting…")
+            throw await mlxGeneratorFailure(error, serverPort: serverPort, metadata: metadata)
         } catch let error as SuggestionClientError {
             // The MLX configuration provider reports "server not ready" this way, already phrased
             // for the user; wrapping it again would turn it into a generic generation failure.
@@ -178,6 +162,31 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     }
 
     func resetCachedGenerationContext() async {}
+
+    /// The error to throw for a request that looks like MLX's generator died. It looks that way,
+    /// but mlx_lm answers 404 for per-request failures too, so `/health` decides: healthy means
+    /// this one request failed and the server stays; otherwise the manager is told to restart it.
+    private func mlxGeneratorFailure(
+        _ error: OpenAICompatibleClientError,
+        serverPort: Int?,
+        metadata: Logger.Metadata
+    ) async -> SuggestionClientError {
+        guard let serverPort, let reason = MLXGeneratorFailure.reason(for: error) else {
+            return .generationFailed(error.localizedDescription)
+        }
+        let health = await healthCheck(serverPort)
+        // The user kept typing while the probe ran: its answer (a cancelled request looks like
+        // "unreachable") says nothing about the server, so never restart it for this.
+        if Task.isCancelled || health == .cancelled { return .cancelled }
+        guard health != .healthy else {
+            CotabbyLogger.suggestion.error(
+                "MLX request failed but the server is healthy: \(reason)", metadata: metadata)
+            return .generationFailed(error.localizedDescription)
+        }
+        CotabbyLogger.suggestion.error("MLX generator failed: \(reason)", metadata: metadata)
+        onServerBroken?(serverPort, reason)
+        return .unavailable("MLX is restarting…")
+    }
 
     /// Same sampling values the llama runtime uses, so MLX and Open Source condition alike.
     private static func mlxOptions(for request: SuggestionRequest) -> MLXCompletionOptions {

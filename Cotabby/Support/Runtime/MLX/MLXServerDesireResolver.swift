@@ -30,30 +30,37 @@ nonisolated enum MLXServerDesire: Equatable, Sendable {
 /// struct because there is nothing to construct, and it lives in `Support/` so every combination
 /// stays testable without a process, a file system or Combine.
 nonisolated enum MLXServerDesireResolver {
-    static func desire(
-        engine: SuggestionEngineKind,
-        isAppleSilicon: Bool,
-        toolchain: MLXToolchainState,
-        modelID: String,
-        cachedModels: [MLXCachedModel]?,
-        promptCacheBytes: Int,
-        rejectedModels: [MLXRepoID: MLXModelCompatibility.Reason] = [:]
-    ) -> MLXServerDesire {
-        guard engine == .mlx else { return .stopped }
-        guard isAppleSilicon else { return .unavailable(.unsupportedHardware) }
-        switch toolchain {
+    /// Every input of the decision, gathered by the caller into one value so the table reads as a
+    /// single function of its inputs.
+    struct Input: Equatable {
+        let engine: SuggestionEngineKind
+        let isAppleSilicon: Bool
+        let toolchain: MLXToolchainState
+        /// The selected model's repo id as the user stored it; validated here.
+        let modelID: String
+        /// Usable models from the cache scan; nil until the first scan finishes.
+        let cachedModels: [MLXCachedModel]?
+        let promptCacheBytes: Int
+        /// Downloaded models the compatibility rule turned away, with the reason.
+        var rejectedModels: [MLXRepoID: MLXModelCompatibility.Reason] = [:]
+    }
+
+    static func desire(for input: Input) -> MLXServerDesire {
+        guard input.engine == .mlx else { return .stopped }
+        guard input.isAppleSilicon else { return .unavailable(.unsupportedHardware) }
+        switch input.toolchain {
         case .checking, .installing:
             // Transient: reporting "not installed" here would flash an attention dot at every launch.
             return .stopped
         case .notInstalled, .tooOld, .failed:
             return .unavailable(.notInstalled)
         case .ready(let toolchain):
-            guard let repoID = MLXRepoID(modelID) else { return .unavailable(.noModel) }
+            guard let repoID = MLXRepoID(input.modelID) else { return .unavailable(.noModel) }
             // The first cache scan has not finished: wait rather than claim the model is missing.
-            guard let cachedModels else { return .stopped }
+            guard let cachedModels = input.cachedModels else { return .stopped }
             guard cachedModels.contains(where: { $0.repoID == repoID }) else {
                 // Downloaded but turned away by the compatibility rule: say why, not "download it".
-                if let reason = rejectedModels[repoID] {
+                if let reason = input.rejectedModels[repoID] {
                     return .unavailable(.modelIncompatible(repoID, reason.message))
                 }
                 return .unavailable(.modelNotDownloaded(repoID))
@@ -61,7 +68,7 @@ nonisolated enum MLXServerDesireResolver {
             return .running(MLXServerLaunch(
                 executable: toolchain.serverExecutable,
                 modelID: repoID.value,
-                promptCacheBytes: promptCacheBytes
+                promptCacheBytes: input.promptCacheBytes
             ))
         }
     }

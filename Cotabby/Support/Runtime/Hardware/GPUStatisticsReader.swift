@@ -173,11 +173,18 @@ nonisolated enum GPUStatisticsReader {
 /// the watched pid set changes (the MLX server starting or stopping), otherwise the summed counter
 /// jumps or drops and the growth would read as a spike or as nothing.
 nonisolated struct GPUShareTracker {
-    private var previous: (pids: Set<pid_t>, nanoseconds: UInt64?, date: Date)?
+    /// One earlier reading: which processes it summed, their GPU time, and when.
+    private struct Reading {
+        let pids: Set<pid_t>
+        let nanoseconds: UInt64?
+        let date: Date
+    }
+
+    private var previous: Reading?
 
     mutating func update(pids: [pid_t], nanoseconds: UInt64?, at date: Date) -> Double? {
         let pidSet = Set(pids)
-        defer { previous = (pidSet, nanoseconds, date) }
+        defer { previous = Reading(pids: pidSet, nanoseconds: nanoseconds, date: date) }
         guard let previous, previous.pids == pidSet else { return nil }
         return GPUStatisticsReader.processUtilizationPercent(
             previousNanoseconds: previous.nanoseconds,

@@ -148,7 +148,8 @@ nonisolated enum MLXToolchainRules {
         while arguments.count < argc, index < bytes.count {
             let start = index
             while index < bytes.count, bytes[index] != 0 { index += 1 }
-            arguments.append(String(decoding: bytes[start..<index], as: UTF8.self))
+            // A non-UTF-8 argument cannot be one of the ASCII markers the caller looks for.
+            arguments.append(String(bytes: bytes[start..<index], encoding: .utf8) ?? "")
             index += 1
         }
         return arguments.count == argc ? arguments : nil

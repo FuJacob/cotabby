@@ -52,7 +52,8 @@ extension EngineAndModelPaneView {
         case .notInstalled:
             return "Cotabby installs Apple's mlx-lm and runs it on this Mac (about 250 MB, plus a model)."
         case .tooOld(let version, let path):
-            return "Found mlx-lm \(version) at \(path). Cotabby needs \(MLXToolchainRules.minimumVersion) or newer; Install adds Cotabby's own copy."
+            return "Found mlx-lm \(version) at \(path). Cotabby needs \(MLXToolchainRules.minimumVersion) " +
+                "or newer; Install adds Cotabby's own copy."
         case .installing(let phase):
             return phase.label
         case .ready(let toolchain):
@@ -192,7 +193,8 @@ extension EngineAndModelPaneView {
         VStack(alignment: .leading, spacing: 6) {
             SettingsRowLabel(
                 title: "Other MLX Model",
-                description: "A Hugging Face model id or link, for example mlx-community/Qwen3-4B-4bit. Base models complete text better than chat models.",
+                description: "A Hugging Face model id or link, for example mlx-community/Qwen3-4B-4bit. " +
+                    "Base models complete text better than chat models.",
                 systemImage: "plus.circle"
             )
             HStack(spacing: 8) {
@@ -239,7 +241,8 @@ extension EngineAndModelPaneView {
                 } label: {
                     SettingsRowLabel(
                         title: "Prompt Cache Memory",
-                        description: "The most memory MLX keeps for reusing recent prompts. More can speed up suggestions in long documents; changing it restarts MLX.",
+                        description: "The most memory MLX keeps for reusing recent prompts. More can speed up " +
+                            "suggestions in long documents; changing it restarts MLX.",
                         systemImage: "memorychip"
                     )
                 }

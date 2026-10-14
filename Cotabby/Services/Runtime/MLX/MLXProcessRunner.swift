@@ -34,7 +34,9 @@ nonisolated final class MLXOutputCollector: @unchecked Sendable {
     private let tailLines: Int
     private var stdout = Data()
     private var stderrLines: [String] = []
-    private var partialStderrLine = ""
+    /// Bytes after the last line break. Kept as bytes, not text, so a UTF-8 character split across
+    /// two pipe reads is decoded whole once its line is complete.
+    private var partialStderrLine = Data()
     /// Cap on an unterminated stderr fragment (keeps the last bytes).
     private static let partialLineLimit = 8 * 1024
     private var stdoutClosed = false
@@ -61,12 +63,35 @@ nonisolated final class MLXOutputCollector: @unchecked Sendable {
         lock.withLock {
             // `\r` separates lines too: progress redraws (tqdm) overwrite one line with carriage
             // returns and would otherwise grow a single "line" without bound.
-            partialStderrLine += String(decoding: data, as: UTF8.self)
-            var lines = partialStderrLine.components(separatedBy: CharacterSet(charactersIn: "\r\n"))
-            partialStderrLine = String(lines.removeLast().suffix(Self.partialLineLimit))
-            stderrLines.append(contentsOf: lines.filter { !$0.isEmpty })
+            partialStderrLine.append(data)
+            var lineStart = partialStderrLine.startIndex
+            for index in partialStderrLine.indices where Self.isLineBreak(partialStderrLine[index]) {
+                let line = partialStderrLine[lineStart..<index]
+                if !line.isEmpty { stderrLines.append(Self.text(line)) }
+                lineStart = partialStderrLine.index(after: index)
+            }
+            partialStderrLine = Self.boundedFragment(partialStderrLine[lineStart...])
             if stderrLines.count > tailLines { stderrLines.removeFirst(stderrLines.count - tailLines) }
         }
+    }
+
+    private static func isLineBreak(_ byte: UInt8) -> Bool {
+        byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\r")
+    }
+
+    /// The last `partialLineLimit` bytes of an unterminated fragment. A cut can land inside a
+    /// multi-byte character, so leading UTF-8 continuation bytes (`10xxxxxx`) are dropped with it.
+    private static func boundedFragment(_ fragment: Data) -> Data {
+        guard fragment.count > partialLineLimit else { return Data(fragment) }
+        var kept = fragment.suffix(partialLineLimit)
+        while let first = kept.first, first & 0xC0 == 0x80 { kept = kept.dropFirst() }
+        return Data(kept)
+    }
+
+    /// Decodes one line or answer. A child's output is almost always UTF-8; anything else is
+    /// reported by size rather than shown as mojibake.
+    static func text(_ bytes: Data) -> String {
+        String(bytes: bytes, encoding: .utf8) ?? "<\(bytes.count) bytes of non-UTF-8 output>"
     }
 
     func markStdoutClosed() {
@@ -78,12 +103,12 @@ nonisolated final class MLXOutputCollector: @unchecked Sendable {
     }
 
     var stdoutText: String {
-        lock.withLock { String(decoding: stdout, as: UTF8.self) }
+        lock.withLock { Self.text(stdout) }
     }
 
     var stderrTail: [String] {
         lock.withLock {
-            let all = partialStderrLine.isEmpty ? stderrLines : stderrLines + [partialStderrLine]
+            let all = partialStderrLine.isEmpty ? stderrLines : stderrLines + [Self.text(partialStderrLine)]
             return Array(all.suffix(tailLines))
         }
     }
@@ -179,7 +204,8 @@ nonisolated enum MLXProcessRunner {
                         try await Task.sleep(for: timeout)
                         return nil
                     }
-                    let first = try await group.next() ?? nil
+                    // `next()` is `Int32??`: nil when the group is empty, `.some(nil)` on timeout.
+                    let first = try await group.next().flatMap { $0 }
                     if first == nil { Self.stop(process) }
                     group.cancelAll()
                     return first

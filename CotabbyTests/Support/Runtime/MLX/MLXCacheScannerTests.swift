@@ -99,13 +99,13 @@ final class MLXCacheScannerTests: XCTestCase {
         XCTAssertTrue(result.models.isEmpty)
         XCTAssertTrue(result.rejected.isEmpty)
         XCTAssertEqual(
-            MLXServerDesireResolver.desire(
+            MLXServerDesireResolver.desire(for: .init(
                 engine: .mlx, isAppleSilicon: true,
                 toolchain: .ready(MLXToolchain(
                     serverExecutable: URL(fileURLWithPath: "/s"), pythonExecutable: URL(fileURLWithPath: "/p"),
                     version: "0.32.0", isCotabbyInstall: true)),
                 modelID: "a/configonly", cachedModels: result.models, promptCacheBytes: 1 << 30,
-                rejectedModels: result.rejected),
+                rejectedModels: result.rejected)),
             .unavailable(.modelNotDownloaded(MLXRepoID("a/configonly")!)))
     }
 
