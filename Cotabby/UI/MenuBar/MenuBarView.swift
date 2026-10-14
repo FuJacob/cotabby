@@ -22,6 +22,8 @@ struct MenuBarView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var powerSourceMonitor: PowerSourceMonitor
+    @ObservedObject var mlxServerManager: MLXServerManager
+    @ObservedObject var menuResourceMonitor: MenuResourceMonitor
     let appUpdateManager: AppUpdateManager
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
@@ -42,10 +44,15 @@ struct MenuBarView: View {
         .frame(width: 340)
         .modifier(MenuBarWindowBackgroundModifier())
         .background(
-            MenuBarPresentationObserver {
-                permissionManager.refresh()
-                runtimeModel.refreshAvailableModels()
-            }
+            MenuBarPresentationObserver(
+                onPresent: {
+                    permissionManager.refresh()
+                    runtimeModel.refreshAvailableModels()
+                    // The real window edge, not `onAppear`: the panel's content can outlive a close.
+                    menuResourceMonitor.start()
+                },
+                onDismiss: { menuResourceMonitor.stop() }
+            )
         )
         .background(
             MenuBarPopoverDismisserBinder(
@@ -56,7 +63,10 @@ struct MenuBarView: View {
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
+            menuResourceMonitor.start()
         }
+        // Sampling runs only while the popover is on screen.
+        .onDisappear { menuResourceMonitor.stop() }
     }
 
     // MARK: - Header
@@ -199,6 +209,19 @@ struct MenuBarView: View {
                         .foregroundStyle(.orange)
                 }
 
+                // MLX pauses suggestions until its server is ready, so say why.
+                if suggestionSettings.selectedEngine == .mlx {
+                    if let problem = mlxServerManager.state.problem {
+                        Text(problem)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else if case .starting = mlxServerManager.state {
+                        Text(mlxServerManager.state.summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if suggestionSettings.selectedEngine.supportsLocalModelManagement {
                     modelRow
                 }
@@ -219,6 +242,16 @@ struct MenuBarView: View {
                     .pickerStyle(.menu)
                 }
 
+                // Live usage, refreshed only while this popover is visible (see the presentation
+                // observer above).
+                if let summary = menuResourceMonitor.summary {
+                    Text(ResourceUsageSummary.menuLine(summary))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
             }
         }
         .padding(.bottom, 12)
@@ -385,6 +418,8 @@ struct MenuBarView: View {
                     profile = .llama(filename: runtimeModel.selectedModelFilename ?? "")
                 case .openAICompatible:
                     profile = .openAICompatible(modelName: suggestionSettings.openAICompatibleModelName)
+                case .mlx:
+                    profile = .mlx(modelID: suggestionSettings.mlxModelID)
                 }
                 applyProfileForCurrentPowerSource(profile)
             }

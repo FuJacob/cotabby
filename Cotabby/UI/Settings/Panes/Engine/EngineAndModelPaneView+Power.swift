@@ -80,6 +80,10 @@ extension EngineAndModelPaneView {
             ForEach(endpointPowerModels, id: \.self) { modelName in
                 Text("Endpoint · \(modelName)").tag(PowerProfile.openAICompatible(modelName: modelName))
             }
+
+            ForEach(mlxPowerModels, id: \.self) { modelID in
+                Text("MLX · \(modelID)").tag(PowerProfile.mlx(modelID: modelID))
+            }
         } label: {
             SettingsRowLabel(
                 title: title,
@@ -113,6 +117,9 @@ extension EngineAndModelPaneView {
         if case .openAICompatible(let modelName) = profile, modelName.isEmpty {
             return .openAICompatible(modelName: suggestionSettings.openAICompatibleModelName)
         }
+        if case .mlx(let modelID) = profile, modelID.isEmpty {
+            return .mlx(modelID: suggestionSettings.mlxModelID)
+        }
 
         return profile
     }
@@ -124,5 +131,16 @@ extension EngineAndModelPaneView {
             names.append(configured)
         }
         return names
+    }
+
+    /// Downloaded MLX models plus the configured one, offered only where MLX can run.
+    var mlxPowerModels: [String] {
+        guard MLXHardware.isAppleSilicon else { return [] }
+        var ids = (mlxModelDownloader.cachedModels ?? []).map(\.repoID.value)
+        let configured = suggestionSettings.mlxModelID
+        if !configured.isEmpty, !ids.contains(configured) {
+            ids.append(configured)
+        }
+        return ids
     }
 }

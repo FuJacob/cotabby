@@ -167,7 +167,16 @@ struct PerformancePaneView: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Live Resource Usage")
+            HStack(spacing: 6) {
+                Text("Live Resource Usage")
+                // CPU and Memory add the MLX server process when MLX is running it, so the numbers
+                // are not mistaken for Cotabby's own.
+                if systemMetricsStore.samples.last?.includesMLXServer == true {
+                    Text("CPU and Memory include the MLX server")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         } footer: {
             Text(
                 "Updated every second while this pane is open. CPU can exceed 100% across multiple " +
