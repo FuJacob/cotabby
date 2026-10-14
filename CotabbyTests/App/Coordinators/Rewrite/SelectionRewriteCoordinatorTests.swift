@@ -72,6 +72,8 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
     /// The Rewrite settings the coordinator reads; tests change it to flip the master switch.
     private var prefs = RewritePreferences.defaults
     private var enabledSubject = PassthroughSubject<Bool, Never>()
+    /// What the app gate answers; tests turn it off to stand for pause, Low Power Mode or a disabled domain.
+    private var appAllowed = true
 
     private func snapshot(selected: String, element: String = "composer", preceding: String = "Dear Charlie, ") -> FocusSnapshot {
         let input = CotabbyTestFixtures.focusedInputSnapshot(
@@ -95,7 +97,7 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
             currentSnapshot: { [unowned self] in self.current },
             refreshFocus: {},
             presenter: presenter, output: output, engine: runner,
-            preferences: { [unowned self] in self.prefs }, isAppAllowed: { _ in true }, hotkey: nil, keyTap: nil,
+            preferences: { [unowned self] in self.prefs }, isAppAllowed: { [unowned self] _ in self.appAllowed }, hotkey: nil, keyTap: nil,
             writingLanguages: { languages },
             stableSelectionDelay: 0
         )
@@ -192,6 +194,25 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
         enabledSubject.send(false)
         XCTAssertNil(presenter.popupModel)
         XCTAssertNil(presenter.buttonPress)
+    }
+
+    /// A change the user never accepted stays flagged through Shorter: the refinement is checked
+    /// against the original selection, not against the earlier preview.
+    func test_refinementKeepsAnUnacceptedChangeFlagged() async {
+        let (_, presenter, output, runner) = make()
+        runner.result = "I am 100% sure about the dates."
+        await send(snapshot(selected: "i am 1000% sure about the dates"))
+        presenter.buttonPress?()
+        presenter.popupModel?.onAction(.formal)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(presenter.popupModel?.phase, .preview(text: runner.result, unsupported: ["100"]))
+        runner.result = "I'm 100% sure."
+        presenter.popupModel?.onRefine(.shorter)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(presenter.popupModel?.phase, .preview(text: "I'm 100% sure.", unsupported: ["100"]))
+        presenter.popupModel?.onReplace()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(output.pasted.isEmpty, "plain Replace must stay off")
     }
 
     func test_buttonOffShowsNothingUntilShortcut() async {
@@ -465,5 +486,49 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertTrue(output.pasted.isEmpty)
         XCTAssertTrue(output.copied.isEmpty)
+    }
+
+    /// Low Power Mode, a pause or a disabled domain can come on while a selection stays armed; the
+    /// wand and the shortcut then open nothing, and nothing is sent.
+    func test_appTurnedOffAfterArmingOpensNothing() async {
+        let (coordinator, presenter, _, runner) = make()
+        await send(snapshot(selected: draft))
+        XCTAssertNotNil(presenter.buttonPress)
+        appAllowed = false
+        presenter.buttonPress?()
+        XCTAssertNil(presenter.popupModel)
+        coordinator.handleShortcut()
+        XCTAssertNil(presenter.popupModel)
+        XCTAssertTrue(runner.requests.isEmpty)
+    }
+
+    /// Return never reaches the host while the popup is open: it replaces when it may, and is
+    /// swallowed otherwise (a chat app would send the original draft).
+    func test_returnKeyActions() {
+        typealias Coordinator = SelectionRewriteCoordinator
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: true, phase: .actions), .passToPopup)
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: false, phase: .preview(text: "x", unsupported: [])), .replace)
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: false, phase: .preview(text: "x", unsupported: ["100"])), .swallow)
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: false, phase: .generating("x")), .swallow)
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: false, phase: .actions), .swallow)
+        XCTAssertEqual(Coordinator.returnKeyAction(popupIsKey: false, phase: .failed("no")), .swallow)
+    }
+
+    /// A paste is confirmed by the rewrite sitting where the selection was, not by a shared opening.
+    func test_pasteLandedNeedsTheRewriteInPlace() {
+        let original = "Please send the quarterly report tomorrow."
+        let rewrite = "Please send the quarterly report today."
+        func field(preceding: String, selected: String = "", trailing: String = "") -> FocusedInputSnapshot {
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: preceding, trailingText: trailing, selectedText: selected)
+        }
+        // The host ignored the paste: the original is still selected.
+        XCTAssertFalse(SelectionRewriteCoordinator.pasteLanded(rewrite, replacing: original, in: field(preceding: "Hi, ", selected: original)))
+        // It landed: the caret sits right after the rewrite.
+        XCTAssertTrue(SelectionRewriteCoordinator.pasteLanded(rewrite, replacing: original, in: field(preceding: "Hi, " + rewrite)))
+        // It landed, with paragraphs run together by the host.
+        XCTAssertTrue(SelectionRewriteCoordinator.pasteLanded("Hi Charlie,\n\nthe 28th works.", replacing: "hi charlie the 28th works",
+                                                              in: field(preceding: "Hi Charlie,the 28th works.")))
+        // It landed but the caret moved: the rewrite is in the field and the original is gone.
+        XCTAssertTrue(SelectionRewriteCoordinator.pasteLanded(rewrite, replacing: original, in: field(preceding: "Hi, ", trailing: rewrite + " Thanks")))
     }
 }

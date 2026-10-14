@@ -22,8 +22,35 @@ nonisolated enum SelectionRewriteEligibility {
         else { return .ineligible }
         let text = input.selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .noSelection }
-        guard text.split(whereSeparator: { $0.isWhitespace }).count >= minimumWords else { return .tooShort }
+        guard wordCount(text) >= minimumWords else { return .tooShort }
         guard input.selectedText.count <= maximumCharacters else { return .tooLong }
         return .eligible
+    }
+
+    /// Words by the system's word boundaries rather than spaces: Japanese, Chinese and Thai put no
+    /// spaces between words, so a whole sentence there would otherwise count as one word.
+    static func wordCount(_ text: String) -> Int {
+        var count = 0
+        text.enumerateSubstrings(in: text.startIndex..., options: [.byWords, .substringNotRequired]) { _, _, _, _ in
+            count += 1
+        }
+        return count
+    }
+
+    /// Whether Cotabby is on where the selection is, by the same switches autocomplete honours: on
+    /// globally, not paused, not off for Low Power Mode, the app not disabled, and the page's domain
+    /// not disabled. Nil settings (the graph is going away) mean no.
+    static func isAppAllowed(
+        for input: FocusedInputSnapshot,
+        settings: SuggestionSettingsSnapshot?,
+        isLowPowerModeEnabled: Bool,
+        disabledDomains: Set<String>
+    ) -> Bool {
+        guard let settings, settings.isGloballyEnabled, !settings.isTemporarilyPaused,
+              !(isLowPowerModeEnabled && settings.isLowPowerModeAutoDisableEnabled),
+              !settings.disabledAppBundleIdentifiers.contains(input.bundleIdentifier)
+        else { return false }
+        guard let urlString = input.focusedURLString else { return true }
+        return !BrowserDomain.isHostDisabled(BrowserDomain.host(fromURLString: urlString), disabledDomains: disabledDomains)
     }
 }

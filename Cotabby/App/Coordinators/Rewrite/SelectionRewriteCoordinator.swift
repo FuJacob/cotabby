@@ -32,7 +32,10 @@ final class SelectionRewriteCoordinator {
     private let output: SelectionRewriteTextOutput
     private let engine: SelectionRewriteRunning
     private let preferences: @MainActor () -> RewritePreferences
-    private let isAppAllowed: @MainActor (String) -> Bool
+    /// Whether Cotabby is on where the selection is (app, domain, pause, Low Power Mode). Asked when
+    /// a selection arms and again before the popup opens or a rewrite runs, because those switches
+    /// can change while a selection stays armed.
+    private let isAppAllowed: @MainActor (FocusedInputSnapshot) -> Bool
     /// The ⌃⌥R shortcut, armed only while an eligible selection exists.
     private let hotkey: TemporaryKeyTap?
     /// Esc and Return while the popup is open.
@@ -79,7 +82,7 @@ final class SelectionRewriteCoordinator {
         output: SelectionRewriteTextOutput,
         engine: SelectionRewriteRunning,
         preferences: @escaping @MainActor () -> RewritePreferences,
-        isAppAllowed: @escaping @MainActor (String) -> Bool,
+        isAppAllowed: @escaping @MainActor (FocusedInputSnapshot) -> Bool,
         hotkey: TemporaryKeyTap?,
         keyTap: TemporaryKeyTap?,
         writingLanguages: @escaping @MainActor () -> [String] = { [] },
@@ -189,7 +192,7 @@ final class SelectionRewriteCoordinator {
         guard snapshot.capability != .blocked(CredentialFieldDetector.blockedReason),
               let input = snapshot.context
         else { return nil }
-        switch SelectionRewriteEligibility.verdict(for: input, appAllowed: isAppAllowed(input.bundleIdentifier)) {
+        switch SelectionRewriteEligibility.verdict(for: input, appAllowed: isAppAllowed(input)) {
         case .eligible, .tooLong: return input
         case .noSelection, .tooShort, .ineligible: return nil
         }
@@ -199,6 +202,8 @@ final class SelectionRewriteCoordinator {
 
     private func openPopup() {
         guard let input = targetInput, model == nil else { return }
+        // Pause, Low Power Mode or a disabled app or domain may have come on since the selection armed.
+        guard isAppAllowed(input) else { return close() }
         stableTask?.cancel()
         let prefs = preferences()
         let model = SelectionRewritePopupModel()
@@ -232,14 +237,16 @@ final class SelectionRewriteCoordinator {
                 DispatchQueue.main.async { self?.dismiss() }
                 return .consume
             }
-            // Return reaches this tap only while the popup is open. When the popup lost the keyboard
-            // (the host is key), Return would send a chat message in the host; a preview that may be
-            // replaced takes the Return and replaces instead.
-            if keyCode == Self.returnKeyCode, let self, self.canReplaceFromTap {
+            guard keyCode == Self.returnKeyCode, let self, let model = self.model else { return .pass }
+            switch Self.returnKeyAction(popupIsKey: self.presenter.isPopupKey, phase: model.phase) {
+            case .passToPopup:
+                return .pass
+            case .replace:
                 DispatchQueue.main.async { self.replace() }
                 return .consume
+            case .swallow:
+                return .consume
             }
-            return .pass
         }
     }
 
@@ -254,6 +261,7 @@ final class SelectionRewriteCoordinator {
     /// tone a refinement keeps.
     private func run(_ action: RewriteAction, draft: String? = nil, tone: RewriteAction? = nil) {
         guard let input = targetInput, let model, let destination else { return }
+        guard isAppAllowed(input) else { return close() }
         lastRun = RewriteRun(action: action, draft: draft, tone: tone)
         let source = draft ?? input.selectedText
         rewriteTask?.cancel()
@@ -285,8 +293,9 @@ final class SelectionRewriteCoordinator {
                     }
                 )
                 guard isCurrent() else { return }
-                // A refinement may keep what the earlier result said, so both texts count as the user's.
-                let ownText = draft.map { input.selectedText + "\n" + $0 } ?? input.selectedText
+                // Always checked against the user's own selection, never an earlier preview: a refinement
+                // that keeps a change the user never accepted ("1000" → "100") must still be flagged.
+                let ownText = input.selectedText
                 let unsupported = RewriteSpecificsCheck.unsupportedSpecifics(in: text, source: ownText)
                 model.changeWarning = RewriteChangeWarning.message(selection: ownText, rewrite: text, unsupported: unsupported)
                 model.phase = .preview(text: text, unsupported: unsupported)
@@ -342,7 +351,7 @@ final class SelectionRewriteCoordinator {
             // `close()` clears the input the notice would anchor to, so its caret rect is read first.
             let anchor = targetInput?.caretRect ?? .zero
             close()
-            verifyInserted(text, in: target, anchor: anchor)
+            verifyInserted(text, original: target.selectedText, in: target, anchor: anchor)
         case .copyInstead(let reason):
             copyAndNotify(text, reason: reason)
         default:
@@ -351,19 +360,11 @@ final class SelectionRewriteCoordinator {
     }
 
     /// Spec: "after inserting, poll until Accessibility shows the new text". Some hosts swallow a
-    /// paste silently; then the result goes to the clipboard so it is not lost. Checks a short
-    /// prefix of the rewrite around the caret, up to 5 times over about a second, after the inserter
-    /// has restored the user's clipboard (~0.3 s).
-    ///
-    /// Hosts report the same text differently: some run paragraphs together or wrap lines, so line
-    /// breaks are collapsed to single spaces on both sides before comparing. A paste that landed right
-    /// at the caret shows up as the suffix of the text before the caret, which is checked first.
-    /// Only a miss in the same field after every poll copies and shows the notice.
-    private func verifyInserted(_ text: String, in target: SelectionRewriteTarget, anchor: CGRect) {
-        let flat = Self.collapsed(text)
-        let head = String(flat.prefix(30))
-        let tail = String(flat.suffix(30))
-        guard !head.isEmpty else { return }
+    /// paste silently; then the result goes to the clipboard so it is not lost. Polls up to 5 times
+    /// over about a second, after the inserter has restored the user's clipboard (~0.3 s). Only a miss
+    /// in the same field after every poll copies and shows the notice.
+    private func verifyInserted(_ text: String, original: String, in target: SelectionRewriteTarget, anchor: CGRect) {
+        guard !Self.squeezed(text).isEmpty else { return }
         Task { [weak self] in
             for _ in 0..<5 {
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -374,10 +375,7 @@ final class SelectionRewriteCoordinator {
                 guard let input = self.currentSnapshot().context,
                       SelectionRewriteTarget.fieldKey(for: input) == target.fieldKey
                 else { return }
-                if Self.collapsed(input.precedingText).hasSuffix(tail)
-                    || Self.collapsed(input.precedingText + input.selectedText + input.trailingText).contains(head) {
-                    return
-                }
+                if Self.pasteLanded(text, replacing: original, in: input) { return }
             }
             guard let self else { return }
             self.output.copyToClipboard(text)
@@ -386,9 +384,26 @@ final class SelectionRewriteCoordinator {
         }
     }
 
-    /// Every run of whitespace and line breaks becomes one space, and the ends are trimmed.
-    private static func collapsed(_ text: String) -> String {
-        text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    /// Whether the field shows the rewrite where the selection was. Hosts report the same text
+    /// differently (some run paragraphs together, some wrap lines), so whitespace is ignored on both
+    /// sides. A paste that landed leaves the caret right after the rewrite, so the text before the
+    /// caret ends with it; failing that, the whole rewrite must be in the field and the original
+    /// selection gone. A shared opening alone ("Please send the report today." pasted over "Please
+    /// send the report tomorrow.") is never enough.
+    static func pasteLanded(_ rewrite: String, replacing original: String, in input: FocusedInputSnapshot) -> Bool {
+        let expected = squeezed(rewrite)
+        guard !expected.isEmpty else { return true }
+        // The last part of a long rewrite is enough here, and fits in the bounded text before the caret.
+        if squeezed(input.precedingText).hasSuffix(expected.suffix(1_000)) { return true }
+        let field = squeezed(input.precedingText + input.selectedText + input.trailingText)
+        let originalText = squeezed(original)
+        let originalGone = originalText.isEmpty || expected.contains(originalText) || !field.contains(originalText)
+        return field.contains(expected) && originalGone
+    }
+
+    /// The text with every whitespace character removed.
+    private static func squeezed(_ text: String) -> String {
+        String(text.unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) }.map(Character.init))
     }
 
     /// A short notice in a fresh popup that does not take the keyboard, closed after 2.5 s. Used after
@@ -406,10 +421,23 @@ final class SelectionRewriteCoordinator {
         }
     }
 
-    /// True when the popup shows a preview that Replace may use, but the popup is not the key window.
-    private var canReplaceFromTap: Bool {
-        guard let model, case .preview(_, let unsupported) = model.phase, unsupported.isEmpty else { return false }
-        return !presenter.isPopupKey
+    /// What Return does while the popup is open.
+    enum ReturnKeyAction: Equatable {
+        /// The popup has the keyboard: its own default button or text field handles Return.
+        case passToPopup
+        /// The host has the keyboard and the preview may replace: Return replaces.
+        case replace
+        /// The host has the keyboard but nothing may replace yet (still generating, a change warning,
+        /// an error): Return is taken anyway, because in a chat app it would send the original draft.
+        case swallow
+    }
+
+    /// The Return decision, pure so the "never reaches the host while the popup is open" rule is
+    /// pinned by tests. A notice has no key tap at all, so it never gets here.
+    static func returnKeyAction(popupIsKey: Bool, phase: SelectionRewritePopupModel.Phase) -> ReturnKeyAction {
+        if popupIsKey { return .passToPopup }
+        if case .preview(_, let unsupported) = phase, unsupported.isEmpty { return .replace }
+        return .swallow
     }
 
     private func copyPreview() {

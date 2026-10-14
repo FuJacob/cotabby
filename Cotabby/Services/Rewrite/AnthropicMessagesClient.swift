@@ -63,7 +63,9 @@ final class AnthropicMessagesClient {
                 continue
             }
         }
-        return accumulated
+        // The stream ended without `message_stop`: a proxy or server closed it part-way. What arrived
+        // may read like a whole message, so it is an error, never a preview Replace could paste.
+        throw AnthropicMessagesError.incomplete
     }
 
     /// What one SSE line means for the rewrite. Thinking deltas, pings and block boundaries are nil.
@@ -185,6 +187,7 @@ nonisolated struct AnthropicMessage: Equatable, Sendable {
 nonisolated enum AnthropicMessagesError: LocalizedError, Equatable {
     case invalidURL
     case missingKey
+    case incomplete
     case refused
     case api(status: Int, message: String)
 
@@ -192,6 +195,7 @@ nonisolated enum AnthropicMessagesError: LocalizedError, Equatable {
         switch self {
         case .invalidURL: return "The Claude API address is not valid."
         case .missingKey: return "Add your Claude API key in Settings → Rewrite."
+        case .incomplete: return "Claude's reply ended early — try again."
         case .refused: return "Claude declined to rewrite this text."
         case .api(let status, let message): return "Claude API error \(status): \(message)"
         }

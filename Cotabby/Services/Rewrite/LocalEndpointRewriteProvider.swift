@@ -76,10 +76,10 @@ final class LocalEndpointRewriteProvider: RewriteProviding {
     }
 
     /// Sampling for a base-model rewrite, shared with the MLX provider's base path: a low
-    /// temperature like the llama path, the rewrite stop sequences, and `completionTokenBudget`.
+    /// temperature like the llama path, the rewrite stop sequences, and `tokenBudget`.
     static func completionOptions(for request: RewriteRequest) -> OpenAICompatibleGenerationOptions {
         OpenAICompatibleGenerationOptions(
-            maxPredictionTokens: RewritePromptBuilder.completionTokenBudget(for: request),
+            maxPredictionTokens: RewritePromptBuilder.tokenBudget(request),
             temperature: 0.3, topP: 0.9, stop: RewritePromptBuilder.baseStopSequences
         )
     }

@@ -47,4 +47,29 @@ final class SelectionRewriteEligibilityTests: XCTestCase {
     func test_disabledAppIsNeverEligible() {
         XCTAssertEqual(SelectionRewriteEligibility.verdict(for: snapshot(selected: draft), appAllowed: false), .ineligible)
     }
+
+    /// Japanese has no spaces between words; a sentence is still a draft.
+    func test_languagesWithoutSpacesCountWords() {
+        XCTAssertEqual(SelectionRewriteEligibility.verdict(for: snapshot(selected: "明日の会議に参加できますか"), appAllowed: true), .eligible)
+        XCTAssertGreaterThanOrEqual(SelectionRewriteEligibility.wordCount("明日の会議に参加できますか"), 2)
+    }
+
+    @MainActor
+    func test_appGateHonoursCotabbysSwitches() {
+        let page = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: "com.google.Chrome", focusedURLString: "https://mail.example.com/compose", selectedText: draft
+        )
+        func allowed(_ settings: SuggestionSettingsSnapshot?, lowPower: Bool = false, domains: Set<String> = []) -> Bool {
+            SelectionRewriteEligibility.isAppAllowed(for: page, settings: settings, isLowPowerModeEnabled: lowPower, disabledDomains: domains)
+        }
+        XCTAssertTrue(allowed(CotabbyTestFixtures.settingsSnapshot()))
+        XCTAssertFalse(allowed(nil))
+        XCTAssertFalse(allowed(CotabbyTestFixtures.settingsSnapshot(isGloballyEnabled: false)))
+        XCTAssertFalse(allowed(CotabbyTestFixtures.settingsSnapshot(isTemporarilyPaused: true)))
+        XCTAssertFalse(allowed(CotabbyTestFixtures.settingsSnapshot(disabledAppBundleIdentifiers: ["com.google.Chrome"])))
+        XCTAssertFalse(allowed(CotabbyTestFixtures.settingsSnapshot(), lowPower: true))
+        XCTAssertTrue(allowed(CotabbyTestFixtures.settingsSnapshot(isLowPowerModeAutoDisableEnabled: false), lowPower: true))
+        XCTAssertFalse(allowed(CotabbyTestFixtures.settingsSnapshot(), domains: ["example.com"]), "a disabled domain covers its subdomains")
+        XCTAssertTrue(allowed(CotabbyTestFixtures.settingsSnapshot(), domains: ["other.org"]))
+    }
 }

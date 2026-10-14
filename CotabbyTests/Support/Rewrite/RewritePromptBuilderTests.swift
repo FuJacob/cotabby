@@ -101,26 +101,28 @@ final class RewritePromptBuilderTests: XCTestCase {
         XCTAssertTrue(system.contains("Keep the same tone: warm and caring, for a family member."))
     }
 
-    func test_completionTokenBudgetMatchesTheInProcessBudgetAndCapsAt800() {
-        func budget(_ count: Int) -> Int {
-            RewritePromptBuilder.completionTokenBudget(
-                for: RewriteRequest(selection: String(repeating: "a", count: count), action: .rewrite))
-        }
-        XCTAssertEqual(budget(2), 48)
-        XCTAssertEqual(budget(800), 800 * 3 / 8 + 48)
-        XCTAssertEqual(budget(4000), 800, "a long selection is not cut short")
+    // MARK: - Base model output and choices
+
+    /// Decoding stops once the text holds a stop sequence, so the label is cut before it reaches
+    /// the preview or the field.
+    func test_baseOutputIsCutAtTheEarliestStopSequence() {
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\n\nDraft:"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\nDraft: next"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine.\n\n\n"), " Fine.")
+        XCTAssertEqual(RewritePromptBuilder.cutAtBaseStop(" Fine, no stop yet"), " Fine, no stop yet")
     }
 
-    func test_longerAlwaysGetsMoreRoomThanTheOtherActions() {
-        func budget(_ count: Int, _ action: RewriteAction) -> Int {
-            RewritePromptBuilder.completionTokenBudget(
-                for: RewriteRequest(selection: String(repeating: "a", count: count), action: action))
-        }
-        XCTAssertEqual(budget(2, .longer), 96)
-        XCTAssertEqual(budget(400, .longer), 2 * (400 * 3 / 8 + 48))
-        XCTAssertEqual(budget(4000, .longer), 800)
-        for count in [1, 20, 100, 400, 1000] {
-            XCTAssertGreaterThanOrEqual(budget(count, .longer), budget(count, .rewrite), "\(count) characters")
-        }
+    func test_basePromptKeepsARefinementsTone() {
+        var request = RewriteRequest(selection: "Are you coming on Sunday?", action: .shorter)
+        request.tone = .family
+        XCTAssertTrue(RewritePromptBuilder.basePrompt(request).contains("Keep the same tone: warm and caring, for a family member."))
+    }
+
+    /// The examples fix typos, so the default prompt is unchanged; turning the tick box off says so.
+    func test_basePromptFollowsTheFixTickBox() {
+        var request = RewriteRequest(selection: draft, action: .formal)
+        XCTAssertFalse(RewritePromptBuilder.basePrompt(request).contains("spelling"))
+        request.fixesMistakes = false
+        XCTAssertTrue(RewritePromptBuilder.basePrompt(request).contains("Do not correct the user's spelling"))
     }
 }

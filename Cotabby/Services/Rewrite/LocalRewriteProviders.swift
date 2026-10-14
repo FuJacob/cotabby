@@ -92,9 +92,9 @@ final class OpenSourceRewriteProvider: RewriteProviding {
         defer { relay.finish() }
         let output = try await runtimeManager.generate(
             prompt: RewritePromptBuilder.basePrompt(request), options: options,
-            onPartialRawText: { text in relay.send(text) }
+            onPartialRawText: { text in relay.send(RewritePromptBuilder.cutAtBaseStop(text)) }
         )
-        return output.text
+        return RewritePromptBuilder.cutAtBaseStop(output.text)
     }
 }
 

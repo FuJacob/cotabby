@@ -103,7 +103,7 @@ final class MLXRewriteProviderTests: XCTestCase {
             let body = (try? JSONSerialization.jsonObject(with: Self.bodyData(httpRequest)) as? [String: Any]) ?? [:]
             XCTAssertEqual(body["prompt"] as? String, RewritePromptBuilder.basePrompt(request))
             XCTAssertEqual(body["stop"] as? [String], RewritePromptBuilder.baseStopSequences)
-            XCTAssertEqual(body["max_tokens"] as? Int, RewritePromptBuilder.completionTokenBudget(for: request))
+            XCTAssertEqual(body["max_tokens"] as? Int, RewritePromptBuilder.tokenBudget(request))
             XCTAssertNil(body["messages"])
         }
         async let result = rig.provider.rewrite(request, onPartial: { _ in })

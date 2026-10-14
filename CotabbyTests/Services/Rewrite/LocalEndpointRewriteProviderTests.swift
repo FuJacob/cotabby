@@ -90,7 +90,7 @@ final class LocalEndpointRewriteProviderTests: XCTestCase {
             XCTAssertEqual(body["prompt"] as? String, RewritePromptBuilder.basePrompt(request))
             XCTAssertNil(body["messages"])
             XCTAssertEqual(body["stop"] as? [String], RewritePromptBuilder.baseStopSequences)
-            XCTAssertEqual(body["max_tokens"] as? Int, RewritePromptBuilder.completionTokenBudget(for: request))
+            XCTAssertEqual(body["max_tokens"] as? Int, RewritePromptBuilder.tokenBudget(request))
             XCTAssertNil(body["top_k"], "no MLX-only fields for a generic endpoint")
             return Self.sse("Fixed text.")
         }
