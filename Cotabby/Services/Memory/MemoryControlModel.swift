@@ -42,15 +42,22 @@ final class MemoryControlModel: ObservableObject {
     func beginObserving() {
         observers += 1
         guard observers == 1 else { return }
-        pollTask = Task { [weak self] in
+        // The loop body lives in `pollOnce()`: a typed Task with a short closure type-checks quickly
+        // on older compilers, and `self` is only held while a refresh runs, not across the sleep.
+        pollTask = Task<Void, Never> { [weak self] in
             while !Task.isCancelled {
-                guard let self else { return }
-                await self.refresh()
-                // Counts change while indexing; refresh faster then.
-                let interval: UInt64 = self.controller.status.isIndexing ? 2 : 5
-                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+                guard let delay = await self?.pollOnce() else { return }
+                try? await Task.sleep(nanoseconds: delay)
             }
         }
+    }
+
+    /// One poll: refreshes, then returns the wait before the next one, in nanoseconds.
+    private func pollOnce() async -> UInt64 {
+        await refresh()
+        // Counts change while indexing; refresh faster then.
+        let seconds: UInt64 = controller.status.isIndexing ? 2 : 5
+        return seconds * 1_000_000_000
     }
 
     func endObserving() {
