@@ -36,16 +36,26 @@ final class MemoryRetriever: SuggestionMemoryProviding {
     private var latestByScope: [ConversationScope: [String]] = [:]
     private var inFlight: CacheKey?
     private var lastRequested: CacheKey?
-    /// The engine and its `dataGeneration` the caches were filled under. When either changes
-    /// (something was deleted, excluded or switched off, or memory restarted), the caches go and a
-    /// lookup started before lands nowhere: a deleted message is never served from here.
-    private var cachedEngine: ObjectIdentifier?
+    /// The engine (`MemoryEngine.instanceID`) and its `dataGeneration` the caches were filled
+    /// under. When either changes (something was deleted, excluded or switched off, or memory
+    /// restarted), the caches go, and a lookup started before lands nowhere: a deleted message is
+    /// never kept or served from here. Both the check and every cache write happen inside the
+    /// engine's `withDataGeneration`, so a removal cannot begin between them.
+    private var cachedEngine: UUID?
     private var cachedGeneration: UInt64 = 0
 
     static let maximumCacheEntries = 64
 
-    init(engine: @escaping @MainActor () -> MemoryEngine?) {
+    /// The search a lookup runs, off the main actor (the engine's own; tests hold it back).
+    typealias Search = @Sendable (MemoryEngine, String, MemoryEngine.Scope) -> MemorySearchResult?
+    private let search: Search
+
+    init(
+        engine: @escaping @MainActor () -> MemoryEngine?,
+        search: @escaping Search = { engine, query, scope in engine.search(query: query, scope: scope) }
+    ) {
         self.engine = engine
+        self.search = search
     }
 
     // All stored state is safe to release from any thread (Combine publishers, closures, task
@@ -72,6 +82,7 @@ final class MemoryRetriever: SuggestionMemoryProviding {
     /// after source changes.
     func reloadSources() async {
         guard let engine = engine() else {
+            dropCaches()
             updateSources([])
             return
         }
@@ -82,8 +93,12 @@ final class MemoryRetriever: SuggestionMemoryProviding {
 
     func memorySnippets(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String] {
         // Memory is private history from this Mac: never part of a request the endpoint could send.
-        guard engine != .openAICompatible, !context.isSecure, let memory = self.engine() else { return [] }
-        dropCachesIfStale(memory)
+        guard engine != .openAICompatible, !context.isSecure else { return [] }
+        guard let memory = self.engine() else {
+            // Memory off: what it found while on is not kept for when it comes back.
+            dropCaches()
+            return []
+        }
         guard let scope = ConversationScopeResolver.scope(
                   bundleIdentifier: context.bundleIdentifier,
                   conversationTitle: context.windowTitle,
@@ -94,28 +109,38 @@ final class MemoryRetriever: SuggestionMemoryProviding {
 
         let key = CacheKey(scope: scope, query: ConversationScopeResolver.query(precedingText: context.precedingText, scope: scope))
         lastRequested = key
-        if let cached = cache[key] { return cached }
-        startLookup(key)
-        return latestByScope[scope] ?? []
+        let (cached, latest): ([String]?, [String]?) = memory.withDataGeneration { generation in
+            dropCachesIfStale(memory, generation: generation)
+            return (cache[key], latestByScope[scope])
+        }
+        if let cached { return cached }
+        startLookup(key, engine: memory)
+        return latest ?? []
     }
 
     /// Empties the caches when the engine was replaced or its stored data changed since they were
-    /// filled (a cheap locked read of the engine's counter).
-    private func dropCachesIfStale(_ engine: MemoryEngine) {
-        let identity = ObjectIdentifier(engine)
-        let generation = engine.dataGeneration
-        guard identity != cachedEngine || generation != cachedGeneration else { return }
-        cachedEngine = identity
+    /// filled. Called inside the engine's `withDataGeneration`.
+    private func dropCachesIfStale(_ engine: MemoryEngine, generation: UInt64) {
+        guard engine.instanceID != cachedEngine || generation != cachedGeneration else { return }
+        dropCaches()
+        cachedEngine = engine.instanceID
         cachedGeneration = generation
+    }
+
+    private func dropCaches() {
         cache.removeAll()
         latestByScope.removeAll()
         inFlight = nil
+        cachedEngine = nil
     }
 
-    private func startLookup(_ key: CacheKey) {
-        guard inFlight != key, let engine = engine() else { return }
+    private func startLookup(_ key: CacheKey, engine: MemoryEngine) {
+        guard inFlight != key else { return }
         inFlight = key
-        let generation = cachedGeneration
+        // Read before the search starts: a removal that begins after this moves it, and the
+        // search's result is then dropped when it lands.
+        let generation = engine.dataGeneration
+        let search = search
         let started = Date()
         var scope = MemoryEngine.Scope()
         scope.title = key.scope.title
@@ -123,13 +148,10 @@ final class MemoryRetriever: SuggestionMemoryProviding {
         scope.requiredParticipants = key.scope.requiredParticipants
         Task { [weak self] in
             let result: MemorySearchResult? = await Task.detached(priority: .userInitiated) {
-                engine.search(query: key.query, scope: scope)
+                search(engine, key.query, scope)
             }.value
             guard let self else { return }
             if self.inFlight == key { self.inFlight = nil }
-            // Started before a deletion (or under another engine): its lines may hold what is gone.
-            guard self.cachedEngine == ObjectIdentifier(engine), self.cachedGeneration == generation,
-                  engine.dataGeneration == generation else { return }
             let lines = MemorySnippetFormatter.lines((result?.hits ?? []).map {
                 MemorySnippetFormatter.Message(
                     sender: $0.sender, isFromMe: $0.isFromMe,
@@ -146,12 +168,20 @@ final class MemoryRetriever: SuggestionMemoryProviding {
                 "memory_scope": .string(result?.scope ?? "failed")
             ])
             guard result != nil else { return }
-            if self.cache.count >= Self.maximumCacheEntries { self.cache.removeAll() }
-            self.cache[key] = lines
-            let changed = self.latestByScope[key.scope] != lines
-            self.latestByScope[key.scope] = lines
+            // Kept only if nothing was removed since the search started, under this engine, and
+            // with the caches still the ones filled under that generation; checked and written
+            // while no removal can begin.
+            let changed: Bool? = engine.withDataGeneration { current in
+                guard current == generation, self.cachedEngine == engine.instanceID,
+                      self.cachedGeneration == generation else { return nil }
+                if self.cache.count >= Self.maximumCacheEntries { self.cache.removeAll() }
+                self.cache[key] = lines
+                let changed = self.latestByScope[key.scope] != lines
+                self.latestByScope[key.scope] = lines
+                return changed
+            }
             // Offer a suggestion that uses it only if it is new for the conversation still in focus.
-            if changed, !lines.isEmpty, self.lastRequested?.scope == key.scope {
+            if changed == true, !lines.isEmpty, self.lastRequested?.scope == key.scope {
                 self.onMemoryReady?()
             }
         }

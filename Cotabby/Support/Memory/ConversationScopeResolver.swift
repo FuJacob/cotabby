@@ -68,57 +68,129 @@ nonisolated enum ConversationScopeResolver {
     }
 
     private static let address = try? NSRegularExpression(pattern: #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#)
+    /// A header field in any language: a short label, a colon, then something with an address
+    /// ("Von: …", "De : …", "Kimden: …").
+    private static let headerField = try? NSRegularExpression(pattern: #"^\p{L}[\p{L}\p{M} .-]{0,24}:\s.*@"#)
 
-    /// Lines of the text after the caret searched for the quote header, and lines a header block
-    /// may have (From, Sent, To, Cc, Subject, folded continuations).
+    /// Lines after the caret searched for the quote header, and lines a header block may have
+    /// (From, Sent, To, Cc, Subject, folded continuations).
     static let quoteHeaderSearchLines = 60
     static let maximumHeaderBlockLines = 12
-    /// Text before the caret searched for a header (UTF-16 units). Longer means no memory: a header
-    /// further up could not be ruled out.
-    static let maximumPrecedingUTF16 = 200_000
+    /// Text before the caret looked through (UTF-16 units). Longer means no memory: something
+    /// header-like up there could not be ruled out.
+    static let maximumPrecedingUTF16 = 50_000
 
-    /// The addresses in the client's quote header of a reply being written, the whole field
-    /// considered. In a reply written above the quote the header is the first one after the caret;
-    /// in one written below or inside it (inline replies), the client's header is above the caret,
-    /// and whatever header-like text follows the caret is the sender's, so the first header of
-    /// the field is the one read. Empty when there is none, or the text above is too long to tell.
+    /// The addresses in the quote header the mail client put under the reply being written,
+    /// lowercased; empty whenever that header cannot be told apart from text someone typed.
+    ///
+    /// In the field, everything below the client's header is the other person's text, and
+    /// everything above it is the user's draft (including anything they pasted). The client writes
+    /// "On … Ayşe <ayse@example.com> wrote:" (Apple Mail, Gmail; "… tarihinde … yazdı:" in
+    /// Turkish) or a "From: / Sent: / To: / Cc: / Subject:" block (Outlook). A header is accepted
+    /// only when it is the first header-like thing in the whole field, so text that could pass for
+    /// one is never read in its place:
+    /// - The text is normalized first (CRLF and other line breaks, NFKC, so fullwidth "＠" is "@",
+    ///   and invisible format characters such as zero-width and bidi marks removed), so a header
+    ///   cannot hide from these checks or be disguised as one.
+    /// - Nothing above the caret may look like a header or a quote ("> …"): the reply must be
+    ///   written above the quote. An inline reply, or a header pasted into the draft, gives none.
+    /// - The first header-like line after the caret must be one this parser reads, at the quote
+    ///   boundary (the field's start, a blank line or a separator line above it). A header in
+    ///   another language, a quote line, or an address line ending in a colon coming first means
+    ///   the client's header is not the one found, so none.
+    /// - An "On … wrote:" header names exactly one address, and a From line exactly one: a display
+    ///   name that carries an address is someone's text inside the header.
+    /// - Quoted-printable or HTML remnants in the header, or a second header-like block right after
+    ///   it, are ambiguous: none.
     static func quotedAddresses(precedingText: String, trailingText: String) -> Set<String> {
         guard precedingText.utf16.count <= maximumPrecedingUTF16 else { return [] }
-        let lineCount = precedingText.reduce(into: 1) { count, character in
-            if character == "\n" { count += 1 }
-        }
-        return quotedAddresses(in: precedingText + trailingText.prefix(8000), searchLines: lineCount + quoteHeaderSearchLines)
-    }
+        let above = normalizedLines(precedingText)
+        let below = normalizedLines(String(trailingText.prefix(8000)))
+        // The caret's line is split between the two; it counts as below the caret.
+        let caretLine = above.count - 1
+        var lines = Array(above.dropLast())
+        lines.append((above.last ?? "") + (below.first ?? ""))
+        lines += below.dropFirst().prefix(quoteHeaderSearchLines)
+        guard !lines[..<caretLine].contains(where: looksLikeHeaderOrQuote) else { return [] }
+        guard let start = lines[caretLine...].firstIndex(where: looksLikeHeaderOrQuote),
+              isQuoteHeaderStart(lines[start]), !lines[start].hasPrefix(">"),
+              start == 0 || isBoundary(lines[start - 1]) else { return [] }
 
-    /// The addresses in the quote header of the message being answered, lowercased.
-    ///
-    /// Everything below the caret in a reply was written by the other person, except the header
-    /// the mail client puts above the quote: "On … Ayşe <ayse@example.com> wrote:" (Apple Mail,
-    /// Gmail; "… tarihinde … yazdı:" in Turkish) or a "From: / Sent: / To: / Cc: / Subject:"
-    /// block (Outlook). Only the first such header is read: a "From:" line or an address further
-    /// down is the sender's own text, and a sender must not be able to name another thread's
-    /// people there and so pull that thread's memory into a reply to them.
-    static func quotedAddresses(in trailingText: String) -> Set<String> {
-        quotedAddresses(in: String(trailingText.prefix(8000)), searchLines: quoteHeaderSearchLines)
-    }
-
-    private static func quotedAddresses(in text: String, searchLines: Int) -> Set<String> {
-        let lines = text
-            .split(separator: "\n", maxSplits: searchLines, omittingEmptySubsequences: false)
-            .prefix(searchLines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        guard let start = lines.firstIndex(where: isQuoteHeaderStart) else { return [] }
         let header: [String]
+        let end: Int
         if isAttributionLine(lines[start]) {
             // "On … wrote:" may wrap; it ends at the line that says "wrote:" / "yazdı:".
-            let end = lines[start...].prefix(3).firstIndex { endsAttribution($0) } ?? start
+            end = lines[start...].prefix(3).firstIndex { endsAttribution($0) } ?? start
             header = Array(lines[start...end])
+            guard addresses(in: header.joined(separator: " ")).count == 1 else { return [] }
         } else {
-            let block: [String] = Array(lines[start...].prefix(maximumHeaderBlockLines).prefix { !$0.isEmpty })
+            let block = Array(lines[start...].prefix(maximumHeaderBlockLines).prefix { !$0.isEmpty })
+            end = start + block.count - 1
+            guard addresses(in: block[0]).count == 1 else { return [] }
             header = block.filter(isAddressHeaderLine)
         }
+        guard !lines[start...end].contains(where: hasEncodingRemnant) else { return [] }
+        if let next = lines[(end + 1)...].first(where: { !isBoundary($0) }),
+           !next.hasPrefix(">"), looksLikeHeaderOrQuote(next) { return [] }
         return addresses(in: header.joined(separator: " "))
     }
+
+    /// The quote header's addresses when the caret is at the very start of the reply (tests and
+    /// callers without the text above the caret).
+    static func quotedAddresses(in trailingText: String) -> Set<String> {
+        quotedAddresses(precedingText: "", trailingText: trailingText)
+    }
+
+    /// Lines with every line break unified, NFKC applied, invisible format characters (zero-width,
+    /// bidi controls, soft hyphens: Unicode category Cf) removed, and outer spaces trimmed.
+    static func normalizedLines(_ text: String) -> [String] {
+        var scalars = String.UnicodeScalarView()
+        var previousWasCR = false
+        for scalar in text.unicodeScalars {
+            defer { previousWasCR = scalar == "\r" }
+            switch scalar {
+            case "\n":
+                if !previousWasCR { scalars.append("\n") }
+            case "\r", "\u{0B}", "\u{0C}", "\u{85}", "\u{2028}", "\u{2029}":
+                scalars.append("\n")
+            default:
+                if scalar.properties.generalCategory != .format { scalars.append(scalar) }
+            }
+        }
+        return String(scalars).precomposedStringWithCompatibilityMapping
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// Anything a header could be confused with: a quote line, a header this parser reads, a
+    /// header field in another language, or a line naming an address and ending in a colon (an
+    /// attribution in another language).
+    private static func looksLikeHeaderOrQuote(_ line: String) -> Bool {
+        if line.hasPrefix(">") || isQuoteHeaderStart(line) { return true }
+        guard line.contains("@") else { return false }
+        if line.hasSuffix(":"), !addresses(in: line).isEmpty { return true }
+        guard let headerField else { return false }
+        return headerField.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    /// A blank line or a separator line ("____", "-----Original Message-----" style rules).
+    private static func isBoundary(_ line: String) -> Bool {
+        line.isEmpty || (line.count >= 3 && line.allSatisfy { "_-=—–*".contains($0) })
+            || line.lowercased().hasPrefix("-----original message")
+    }
+
+    /// Quoted-printable or HTML left in the text: the field is not showing the header as the
+    /// client wrote it.
+    private static func hasEncodingRemnant(_ line: String) -> Bool {
+        let lowered = line.lowercased()
+        if ["&lt;", "&gt;", "&amp;", "&#", "<br", "<div", "</", "=?utf-8?", "=?iso-"].contains(where: { lowered.contains($0) })
+            || lowered.hasSuffix("=") { return true }
+        guard let quotedPrintable else { return false }
+        return quotedPrintable.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    /// A quoted-printable escape ("=C5=9F", "=3D").
+    private static let quotedPrintable = try? NSRegularExpression(pattern: #"=[0-9A-F]{2}"#)
 
     /// A From, To or Cc line of an Outlook-style header block (not Sent or Subject).
     private static func isAddressHeaderLine(_ line: String) -> Bool {

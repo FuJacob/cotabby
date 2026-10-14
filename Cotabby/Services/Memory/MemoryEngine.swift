@@ -124,21 +124,37 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         configurationValue = Self.loadConfiguration(paths.configuration)
         statusValue.modelBytes = size
         statusValue.modelName = modelURL.deletingPathExtension().lastPathComponent
+        // Set before the engine is shared: the store calls it before it removes or replaces rows.
+        store.willRemove = { [weak self] in self?.bumpDataGeneration() }
     }
 
     deinit {
         indexingTask?.cancel()
     }
 
-    /// Changes whenever stored messages are removed or the settings change (forget, delete,
-    /// never-remember, retention, a source switched off, a deleted document). Callers that keep
-    /// search results (`MemoryRetriever`) drop them when it moves, so nothing deleted is served
-    /// from a cache.
+    /// Changes whenever stored messages are removed, replaced or moved, or the settings change
+    /// (forget, delete, never-remember, retention, a source switched off, a deleted document). It
+    /// moves twice: once before anything is removed (the store calls back, still holding the
+    /// rows) and once after. A search result is only good while it has not moved since the search
+    /// started; callers that keep results (`MemoryRetriever`) check and store them inside
+    /// `withDataGeneration`, so nothing deleted is kept or served from a cache.
     var dataGeneration: UInt64 {
         generationLock.lock()
         defer { generationLock.unlock() }
         return dataGenerationValue
     }
+
+    /// Runs `body` with the current data generation while no removal can begin (the generation
+    /// cannot move until `body` returns). Keep `body` short: removals wait for it.
+    func withDataGeneration<T>(_ body: (UInt64) throws -> T) rethrows -> T {
+        generationLock.lock()
+        defer { generationLock.unlock() }
+        return try body(dataGenerationValue)
+    }
+
+    /// This engine's identity: a cache filled under one engine is never served under the next,
+    /// even one created at the same address after memory was switched off and on.
+    let instanceID = UUID()
 
     private func bumpDataGeneration() {
         generationLock.lock()
@@ -220,6 +236,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         change(&configurationValue)
         let after = configurationValue
         configurationLock.unlock()
+        // Results found under the old settings (a source now off, a conversation now excluded)
+        // are stale from here on, and again once the purge below is done.
+        bumpDataGeneration()
         defer { bumpDataGeneration() }
         try Self.saveConfiguration(after, to: paths.configuration)
         if after.privacy != before.privacy {
@@ -369,6 +388,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
             let result = try store.upsert(source: source, records: Array(kept[start..<min(start + 200, kept.count)]))
             stored += result.changed
             index.remove(recordIDs: Set(result.replacedRecordIDs))
+            // Replaced or moved messages: lines found before are stale (the store moved the
+            // generation before writing, this is the second move).
+            if !result.replacedRecordIDs.isEmpty { bumpDataGeneration() }
         }
         if let cursor { try store.setCursor(cursor, source: source) }
         if !completeConversations.isEmpty {

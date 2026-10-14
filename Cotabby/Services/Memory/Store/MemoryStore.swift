@@ -50,6 +50,10 @@ nonisolated final class MemoryStore: @unchecked Sendable {
     let vault: MemoryVault
     private let database: MemoryDatabase
     private let lock = NSRecursiveLock()
+    /// Called (under the store's lock) just before rows are removed, replaced or moved, so the
+    /// engine can mark earlier search results stale before the change lands. Set once by the
+    /// engine before the store is shared.
+    var willRemove: (@Sendable () -> Void)?
     /// Decrypted (conversation id, title) per (source, conv_key): small, and read on every search.
     private var conversationNames: [String: (id: String, title: String)] = [:]
 
@@ -199,6 +203,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                 let moved = existing.map { $0["conv_key"]?.string != convKey } ?? false
                 let owner = existing.map { ($0["is_from_me"]?.int ?? 0) != (record.isFromMe ? 1 : 0) } ?? false
                 if existing?["text_tag"]?.string != textTag || moved || owner {
+                    if existing != nil { willRemove?() }
                     if moved, let old = existing?["conv_key"]?.string { leftConversations.insert(old) }
                     try database.run(
                         """
@@ -376,6 +381,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
     func deleteSource(_ source: String) throws {
         lock.lock()
         defer { lock.unlock() }
+        willRemove?()
         try database.transaction {
             for table in ["messages", "conversations", "participants", "cursors", "vectors", "term_documents", "own_addresses"] {
                 try database.run("DELETE FROM \(table) WHERE source = ?", [.text(source)])
@@ -420,6 +426,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                 )
             }
             let ids = Set(doomed.compactMap { $0["record_id"]?.string })
+            if !ids.isEmpty { willRemove?() }
             for id in ids {
                 try database.run("DELETE FROM messages WHERE record_id = ?", [.text(id)])
             }
@@ -442,6 +449,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
                                              [.text(source), .text(conversationKey(source: source, conversationID: conversationID))])
                 doomed += rows.compactMap { $0["record_id"]?.string }.filter { !kept.contains($0) }
             }
+            if !doomed.isEmpty { willRemove?() }
             for id in doomed { try database.run("DELETE FROM messages WHERE record_id = ?", [.text(id)]) }
             try removeIndexEntries(recordIDs: doomed)
             return doomed
@@ -458,6 +466,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
             let gone = try database.rows("SELECT conv_key FROM conversations WHERE source = ?", [.text(source)])
                 .compactMap { $0["conv_key"]?.string }.filter { !liveKeys.contains($0) }
             var doomed: [String] = []
+            if !gone.isEmpty { willRemove?() }
             for key in gone {
                 doomed += try database.rows("SELECT record_id FROM messages WHERE source = ? AND conv_key = ?", [.text(source), .text(key)])
                     .compactMap { $0["record_id"]?.string }
@@ -475,6 +484,7 @@ nonisolated final class MemoryStore: @unchecked Sendable {
     func deleteEverything() throws {
         lock.lock()
         defer { lock.unlock() }
+        willRemove?()
         try database.transaction {
             for table in ["messages", "conversations", "participants", "cursors", "vectors", "terms", "term_documents", "own_addresses"] {
                 try database.run("DELETE FROM \(table)")
