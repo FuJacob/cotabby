@@ -15,9 +15,9 @@ nonisolated struct ConversationScope: Equatable, Hashable, Sendable {
     /// The memory sources that serve the focused app (`whatsapp` for WhatsApp, `apple_mail` for
     /// Mail). Title matching never crosses into other apps' history.
     let sources: [String]
-    /// For mail: the addresses quoted below the caret. The matched thread must have exactly the
-    /// people among them that memory knows, so a mail to other people that happens to share a
-    /// subject never gets this thread (`MemoryEngine.Scope.requiredParticipants`).
+    /// For mail: the addresses in the quote header below the caret. Without the user's own
+    /// addresses they must be exactly the matched thread's people, so a mail to other people that
+    /// happens to share a subject never gets this thread (`MemoryEngine.Scope.requiredParticipants`).
     var requiredParticipants: Set<String> = []
 }
 

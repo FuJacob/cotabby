@@ -173,7 +173,8 @@ final class MemoryHistorySync: ObservableObject {
                     // The cursor is saved with the page it ends, so an interrupted sync resumes at a
                     // page boundary and never skips messages.
                     stored += try engine.ingest(source: sourceID, records: page.records, cursor: page.nextCursor,
-                                                completeConversations: page.completeConversations).stored
+                                                completeConversations: page.completeConversations,
+                                                ownAddresses: page.ownAddresses).stored
                 }
                 // Read through to the end: what the source no longer has (deleted documents) goes too.
                 if !hasMore, !cancellation.isCancelled, let live = reader.liveConversationIDs() {

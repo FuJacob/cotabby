@@ -129,7 +129,8 @@ nonisolated struct AppleMailHistoryReader: MemoryHistoryReading {
             ))
         }
         let last = rows.last?["rowid"]?.int
-        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit)
+        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit,
+                              ownAddresses: ownAddresses)
     }
 
     // MARK: - Helpers

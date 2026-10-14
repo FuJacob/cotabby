@@ -448,8 +448,9 @@ settings file (never-remember lists included) are not encrypted. A search never 
 conversation the focused window names, except to conversations with exactly the same people; an
 unknown or ambiguous title returns nothing rather than a guess. A mail subject alone never selects
 a thread: a mail must be a reply, and the people the client's quote header names (only the first
-header block; addresses in the quoted body are the sender's text and ignored; as far as memory
-knows them; the user's own address never is) must be exactly the thread's people. Groups (Teams,
+header block; addresses in the quoted body are the sender's text and ignored), less the addresses
+the user sends from (learned from sent mail), must be exactly the thread's people; an address
+memory does not know is someone else, so it gives no memory. Groups (Teams,
 WhatsApp) carry a per-group marker, so they never have exactly the people of a 1:1 chat or of
 another group, and titles match whole, never in part. Mail threads are joined by headers a sender
 controls, so each audience within a thread is its own conversation (`MailAudience`), mail people are

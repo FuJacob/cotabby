@@ -36,9 +36,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         var conversation: (source: String, conversationID: String)?
         /// Everything (the Playground's exploring mode; suggestions never use it).
         var global = false
-        /// When not empty (a mail reply's quoted addresses), the conversation found by title must have
-        /// exactly the people among these that memory knows; the user's own address, never stored
-        /// as a participant, is the only one ignored. Otherwise it is not this conversation.
+        /// When not empty (a mail reply's quote header addresses), these minus the user's own
+        /// addresses must be exactly the people of the conversation found by title; an address
+        /// memory does not know is another person. Otherwise it is not this conversation.
         var requiredParticipants: Set<String> = []
 
         static func == (lhs: Scope, rhs: Scope) -> Bool {
@@ -267,7 +267,8 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
     /// sync resumes after the last batch stored.
     @discardableResult
     func ingest(
-        source: String, records: [MemoryIngestRecord], cursor: String?, completeConversations: Set<String> = []
+        source: String, records: [MemoryIngestRecord], cursor: String?, completeConversations: Set<String> = [],
+        ownAddresses: Set<String> = []
     ) throws -> IngestResult {
         let configuration = configuration
         guard !isStopped, configuration.sources[source]?.enabled == true else {
@@ -296,6 +297,9 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
                 timestamp: record.timestamp, text: cleaned, participants: record.participants, subject: record.subject
             ))
         }
+        // The addresses the user sends from, so a mail reply's own address is recognised (see
+        // `isSameAudience`).
+        try store.addOwnAddresses(ownAddresses, source: source)
         var stored = 0
         // Short transactions, so a search never waits behind a whole sync.
         for start in stride(from: 0, to: kept.count, by: 200) {
@@ -530,17 +534,19 @@ nonisolated final class MemoryEngine: @unchecked Sendable {
         return found.count == 1 ? found[0] : nil
     }
 
-    /// A shared subject is not a shared audience. The people the reply quotes, as far as memory
-    /// knows them (the user's own address is never a participant, so it drops out), must be exactly
-    /// the thread's people: not a subset (a reply to part of a group), not a superset (someone new).
-    /// People are compared by address: a mail thread also lists its senders' display names, which a
-    /// quoted header cannot be matched against.
+    /// A shared subject is not a shared audience. Every address in the reply's quote header, minus
+    /// the addresses the user sends from (learned from sent mail), must be exactly the thread's
+    /// people: not a subset (a reply to part of a group), not a superset. An address memory does
+    /// not know is someone else, so it means another audience: otherwise a stranger could copy a
+    /// thread's people and subject into their header and have the reply to them draw on that
+    /// thread. An own address memory has not learned counts the same way, the safe side. People
+    /// are compared by address: a thread also lists its senders' display names, which a header
+    /// cannot be matched against.
     private func isSameAudience(_ conversation: MemoryConversation, quoted: Set<String>, sources: [String]) -> Bool {
         let thread = Set(conversation.participants.map(ParticipantNormalizer.normalize).filter { $0.contains("@") })
-        guard !thread.isEmpty, let known = try? store.knownParticipants(quoted, sources: sources), !known.isEmpty else {
-            return false
-        }
-        return known == thread
+        let quoted = Set(quoted.map(ParticipantNormalizer.normalize).filter { !$0.isEmpty })
+        guard !thread.isEmpty, let own = try? store.ownAddresses(among: quoted, sources: sources) else { return false }
+        return quoted.subtracting(own) == thread
     }
 
     private func scopedHybrid(

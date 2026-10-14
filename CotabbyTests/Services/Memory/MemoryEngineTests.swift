@@ -132,16 +132,16 @@ final class MemoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.search(query: "invoice", scope: same).hits.map(\.text), ["the invoice total is 300 EUR"])
     }
 
-    /// The people a reply quotes, as far as memory knows them, must be exactly the thread's people:
-    /// a reply to part of a group or with someone new gets nothing; the user's own address, which
-    /// memory never stores as a participant, does not count.
+    /// Every address a reply quotes, minus the user's own (learned from sent mail), must be exactly
+    /// the thread's people: a reply to part of a group or with someone new gets nothing, and the
+    /// user's own address in the header does not stop a legitimate reply.
     func test_aMailReplyNeedsExactlyTheThreadsPeople() throws {
         let engine = try makeEngine(sources: ["apple_mail"])
         try engine.ingest(source: "apple_mail", records: [
             record("t1", "the budget is approved", sender: "Ayşe", title: "Budget",
                    participants: ["ayse@example.com", "bob@example.com"], subject: "Budget"),
             record("t2", "lunch at noon", sender: "Carol", title: "Lunch", participants: ["carol@example.com"], subject: "Lunch")
-        ], cursor: nil)
+        ], cursor: nil, ownAddresses: ["Me@Example.org"])
         func reply(quoting addresses: Set<String>) -> MemorySearchResult {
             var scope = scope("Re: Budget", ["apple_mail"])
             scope.requiredParticipants = addresses
@@ -151,8 +151,25 @@ final class MemoryEngineTests: XCTestCase {
         XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com", "carol@example.com"]).scope, "none",
                        "someone known from another thread is not in this one")
         XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com", "me@example.org"]).hits.map(\.text),
-                       ["the budget is approved"], "exactly its people; the unknown own address drops out")
-        XCTAssertEqual(reply(quoting: ["me@example.org"]).scope, "none", "nobody memory knows")
+                       ["the budget is approved"], "exactly its people; the user's own address drops out")
+        XCTAssertEqual(reply(quoting: ["ayse@example.com", "bob@example.com"]).hits.map(\.text), ["the budget is approved"])
+        XCTAssertEqual(reply(quoting: ["me@example.org"]).scope, "none", "only the user")
+    }
+
+    /// A stranger who copies a thread's people and subject into their own mail's quote header is
+    /// still a stranger: an address memory does not know means another audience, so the reply to
+    /// them gets nothing. An own address memory has not learned counts the same way (the safe side).
+    func test_anOutsiderCopyingAThreadsAudienceGetsNoMemory() throws {
+        let engine = try makeEngine(sources: ["apple_mail"])
+        try engine.ingest(source: "apple_mail", records: [
+            record("t1", "the budget is 40,000, keep it between us", sender: "Ayşe", title: "Budget",
+                   participants: ["ayse@example.com", "bob@example.com"], subject: "Budget")
+        ], cursor: nil, ownAddresses: ["me@example.org"])
+        var scope = scope("Re: Budget", ["apple_mail"])
+        scope.requiredParticipants = ["mallory@example.net", "ayse@example.com", "bob@example.com", "me@example.org"]
+        XCTAssertEqual(engine.search(query: "budget", scope: scope).scope, "none")
+        scope.requiredParticipants = ["ayse@example.com", "bob@example.com", "me-too@example.org"]
+        XCTAssertEqual(engine.search(query: "budget", scope: scope).scope, "none", "an own address memory never learned")
     }
 
     /// One Mail thread, two audiences (a stranger joined it by headers): a reply picks the
