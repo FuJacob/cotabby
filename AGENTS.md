@@ -160,6 +160,32 @@ Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly 
 Normalize, bound, and mark unavailable states explicitly. Screen Recording permission is separate
 from Accessibility and Input Monitoring.
 
+## Conversation Memory
+
+Conversation memory is an optional, off-by-default, on-device index of the user's chat, mail,
+calendar and document history:
+
+- `MemoryEngineController` (Services/Memory): on/off, the pinned embedding model download, the
+  Keychain key, and the running `MemoryEngine`.
+- `MemoryEngine`: the ingest pipeline (exclusions, retention, `MailQuoteStripper`,
+  `MemoryTextScrubber`), background indexing under `EmbeddingSchedulePolicy`, and the scoped search.
+- `MemoryStore` / `MemoryVault` / `FlatVectorIndex`: the encrypted SQLite store, AES-GCM sealing
+  with HMAC lookup tags, and the exact half-precision vector scan.
+- `EmbeddingCore`: the llama.cpp embedding engine from the CotabbyInference patch.
+- `MemoryHistorySync` and `Readers/`: one read-only reader per source (`MemoryHistoryReading`).
+- `MemoryRetriever` + `ConversationScopeResolver` (`SuggestionMemoryProviding`): the earlier
+  messages of the focused conversation for the suggestion pipeline, from cache, never waiting.
+- `MemoryControlModel` and `UI/Settings/Panes/Memory`: the Settings → Memory pane.
+
+Keep its privacy rules: memory never reaches the endpoint engine (retriever, request factory and
+router each refuse it); a search is scoped to the conversation the window names, then to
+conversations with exactly the same people, and an unknown or ambiguous title returns nothing.
+A mail gets memory only as a reply, from a thread with exactly the people its quote header (the
+client's first header block, never the quoted body) names. Groups carry a per-group participant marker so they never widen into a 1:1 chat. A mail
+conversation is one thread with one audience (`MailAudience`), identified by addresses only.
+Mail is the user's own only when it is in a Sent mailbox. A sync is cancelled and awaited before
+anything is deleted (`MemoryHistorySync.cancelSync`). Reader fixtures must stay synthetic.
+
 ## Runtime And Prompting
 
 Runtime generation is split by responsibility:
