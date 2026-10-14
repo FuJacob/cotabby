@@ -60,4 +60,9 @@ final class DebouncePolicyTests: XCTestCase {
         // Without a latency, a configured fallback above the 180 ms floor wins.
         assertDebounce([(nil, 250)], fallback: 250, engine: .openAICompatible)
     }
+
+    func test_mlxUsesTheLocalDebounce() {
+        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 60, fallback: 40, engine: .mlx), 15)
+        XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: nil, fallback: 40, engine: .mlx), 40)
+    }
 }

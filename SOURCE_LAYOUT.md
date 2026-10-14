@@ -66,6 +66,7 @@ Cotabby/
 │   ├── Runtime/
 │   │   ├── AppleIntelligence/        Foundation Models availability and engine
 │   │   ├── Llama/                    llama engine, manager, and native core
+│   │   ├── MLX/                      mlx-lm install, mlx_lm.server lifecycle, MLX model files
 │   │   └── OpenAICompatible/         endpoint transport, credentials, and engine
 │   ├── Spelling/                     live spell-checking services
 │   ├── Suggestion/
@@ -96,6 +97,7 @@ Cotabby/
 │   ├── Rewrite/                      rewrite eligibility, prompts, output cleanup, replace checks
 │   ├── Runtime/
 │   │   ├── Hardware/                 device capability and resource sampling
+│   │   ├── MLX/                      MLX cache scan, toolchain rules, server decision
 │   │   ├── BundledRuntimeLocator.swift
 │   │   ├── DecodeStopPolicy.swift
 │   │   ├── DownloadOutcomeClassifier.swift

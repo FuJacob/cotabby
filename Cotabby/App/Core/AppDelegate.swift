@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
+    let mlxServerManager: MLXServerManager
+    let menuResourceMonitor: MenuResourceMonitor
     let suggestionCoordinator: SuggestionCoordinator
     let inlineCommandCoordinator: InlineCommandCoordinator
     let welcomeCoordinator: WelcomeCoordinator
@@ -57,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         powerSourceMonitor = environment.powerSourceMonitor
+        mlxServerManager = environment.mlxServerManager
+        menuResourceMonitor = environment.menuResourceMonitor
         suggestionCoordinator = environment.suggestionCoordinator
         inlineCommandCoordinator = environment.inlineCommandCoordinator
         welcomeCoordinator = environment.welcomeCoordinator
@@ -171,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         applyLaunchAtLoginDefaultIfNeeded()
         startRuntimeIfPreferredEngineRequiresIt()
+        environment.startMLXEngine()
         focusModel.start()
         inputMonitor.start()
         appUpdateManager.start()
@@ -265,6 +270,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor.stop()
         focusModel.stop()
 
+        // Waits at most 3 s for mlx_lm.server to exit (SIGKILL after that), so quitting Cotabby
+        // never leaves a Python process holding the model's memory.
+        environment.mlxServerManager.shutdownSync(timeoutSeconds: 3)
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
     }
 
@@ -305,8 +313,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runtimeModel.startIfNeeded()
         } else {
             // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
-            // user still pays the duplicate memory cost the external endpoint is meant to avoid, and
-            // an Apple Intelligence user keeps a model they asked not to keep loaded.
+            // user still pays the duplicate memory cost the external endpoint is meant to avoid, an
+            // Apple Intelligence user keeps a model they asked not to keep loaded, and an MLX user
+            // holds a second copy of the weights beside the one mlx_lm.server loaded.
             runtimeModel.stop()
         }
     }

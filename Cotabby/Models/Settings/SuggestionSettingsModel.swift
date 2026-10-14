@@ -63,6 +63,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var openAICompatibleBaseURL: String
     @Published private(set) var openAICompatibleModelName: String
     @Published private(set) var openAICompatibleAPIMode: OpenAICompatibleAPIMode
+    /// MLX model repo id and prompt-cache cap. Read by the MLX server wiring in
+    /// `CotabbyAppEnvironment`; changing either restarts the server.
+    @Published private(set) var mlxModelID: String
+    @Published private(set) var mlxPromptCacheBytes: Int
     /// Non-secret change token that lets lifecycle observers react to Keychain updates without
     /// publishing the credential itself.
     @Published private(set) var endpointCredentialRevision: UInt64 = 0
@@ -173,6 +177,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var pluggedInEngine: SuggestionEngineKind
     @Published private(set) var pluggedInModelFilename: String
     @Published private(set) var pluggedInEndpointModelName: String
+    @Published private(set) var batteryMLXModelID: String
+    @Published private(set) var pluggedInMLXModelID: String
 
     /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
     /// routes every load and save through it.
@@ -304,6 +310,10 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        mlxModelID = data.mlxModelID
+        mlxPromptCacheBytes = data.mlxPromptCacheBytes
+        batteryMLXModelID = data.batteryMLXModelID
+        pluggedInMLXModelID = data.pluggedInMLXModelID
         schedulePauseExpirationIfNeeded()
     }
 
@@ -390,6 +400,10 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        mlxModelID = data.mlxModelID
+        mlxPromptCacheBytes = data.mlxPromptCacheBytes
+        batteryMLXModelID = data.batteryMLXModelID
+        pluggedInMLXModelID = data.pluggedInMLXModelID
         do {
             try endpointCredentialStore.deleteAPIKey()
             endpointCredentialRevision &+= 1
@@ -427,7 +441,11 @@ final class SuggestionSettingsModel: ObservableObject {
                 pluggedInModelFilename: pluggedInModelFilename,
                 pluggedInEndpointModelName: pluggedInEndpointModelName,
                 isAppleLanguageFallbackEnabled: isAppleLanguageFallbackEnabled,
-                keepsFallbackModelLoaded: keepsFallbackModelLoaded
+                keepsFallbackModelLoaded: keepsFallbackModelLoaded,
+                mlxModelID: mlxModelID,
+                mlxPromptCacheBytes: mlxPromptCacheBytes,
+                batteryMLXModelID: batteryMLXModelID,
+                pluggedInMLXModelID: pluggedInMLXModelID
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: selectedWordCountPreset,
@@ -574,6 +592,32 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveOpenAICompatibleAPIMode(mode)
     }
 
+    func setMLXModelID(_ modelID: String) {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard mlxModelID != trimmed else { return }
+        mlxModelID = trimmed
+        store.saveMLXModelID(trimmed)
+    }
+
+    func setMLXPromptCacheBytes(_ bytes: Int) {
+        let clamped = SuggestionSettingsStore.clampedMLXPromptCacheBytes(bytes)
+        guard mlxPromptCacheBytes != clamped else { return }
+        mlxPromptCacheBytes = clamped
+        store.saveMLXPromptCacheBytes(clamped)
+    }
+
+    func setBatteryMLXModelID(_ modelID: String) {
+        guard batteryMLXModelID != modelID else { return }
+        batteryMLXModelID = modelID
+        store.saveBatteryMLXModelID(modelID)
+    }
+
+    func setPluggedInMLXModelID(_ modelID: String) {
+        guard pluggedInMLXModelID != modelID else { return }
+        pluggedInMLXModelID = modelID
+        store.savePluggedInMLXModelID(modelID)
+    }
+
     var openAICompatibleConfiguration: OpenAICompatibleEndpointConfiguration {
         get throws {
             try OpenAICompatibleEndpointConfiguration(
@@ -700,6 +744,7 @@ final class SuggestionSettingsModel: ObservableObject {
         case .appleIntelligence: return .appleIntelligence
         case .llamaOpenSource: return .llama(filename: batteryModelFilename)
         case .openAICompatible: return .openAICompatible(modelName: batteryEndpointModelName)
+        case .mlx: return .mlx(modelID: batteryMLXModelID)
         }
     }
 
@@ -709,6 +754,7 @@ final class SuggestionSettingsModel: ObservableObject {
         case .appleIntelligence: return .appleIntelligence
         case .llamaOpenSource: return .llama(filename: pluggedInModelFilename)
         case .openAICompatible: return .openAICompatible(modelName: pluggedInEndpointModelName)
+        case .mlx: return .mlx(modelID: pluggedInMLXModelID)
         }
     }
 
@@ -720,6 +766,9 @@ final class SuggestionSettingsModel: ObservableObject {
         if case .openAICompatible(let modelName) = profile {
             setBatteryEndpointModelName(modelName)
         }
+        if case .mlx(let modelID) = profile {
+            setBatteryMLXModelID(modelID)
+        }
     }
 
     func setPluggedInProfile(_ profile: PowerProfile) {
@@ -730,6 +779,9 @@ final class SuggestionSettingsModel: ObservableObject {
         if case .openAICompatible(let modelName) = profile {
             setPluggedInEndpointModelName(modelName)
         }
+        if case .mlx(let modelID) = profile {
+            setPluggedInMLXModelID(modelID)
+        }
     }
 
     /// Seeds each per-power-source profile from the active engine + model the first time the feature
@@ -739,7 +791,8 @@ final class SuggestionSettingsModel: ObservableObject {
     func initializePowerProfiles(
         currentEngine: SuggestionEngineKind,
         currentModelFilename: String?,
-        currentEndpointModelName: String? = nil
+        currentEndpointModelName: String? = nil,
+        currentMLXModelID: String? = nil
     ) {
         if batteryEngine == .llamaOpenSource, batteryModelFilename.isEmpty {
             setBatteryEngine(currentEngine)
@@ -747,6 +800,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 setBatteryModelFilename(currentModelFilename)
             } else if currentEngine == .openAICompatible, let currentEndpointModelName {
                 setBatteryEndpointModelName(currentEndpointModelName)
+            } else if currentEngine == .mlx, let currentMLXModelID {
+                setBatteryMLXModelID(currentMLXModelID)
             }
         }
 
@@ -756,6 +811,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 setPluggedInModelFilename(currentModelFilename)
             } else if currentEngine == .openAICompatible, let currentEndpointModelName {
                 setPluggedInEndpointModelName(currentEndpointModelName)
+            } else if currentEngine == .mlx, let currentMLXModelID {
+                setPluggedInMLXModelID(currentMLXModelID)
             }
         }
     }

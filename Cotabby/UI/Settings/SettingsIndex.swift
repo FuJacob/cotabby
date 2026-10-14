@@ -86,6 +86,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case endpointAPIKey
     case endpointStatus
     case endpointModel
+    case mlxRuntime
+    case mlxModel
+    case mlxCustomModel
+    case mlxPromptCache
     // Shortcuts
     case acceptanceMode
     case acceptWord
@@ -182,6 +186,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointAPIKey: return "Endpoint API Key"
         case .endpointStatus: return "Endpoint Status"
         case .endpointModel: return "Endpoint Model"
+        case .mlxRuntime: return "MLX"
+        case .mlxModel: return "MLX Model"
+        case .mlxCustomModel: return "Other MLX Model"
+        case .mlxPromptCache: return "MLX Prompt Cache Memory"
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
@@ -273,6 +281,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointAPIKey: return "key"
         case .endpointStatus: return "info.circle"
         case .endpointModel: return "shippingbox"
+        case .mlxRuntime: return "bolt.fill"
+        case .mlxModel: return "shippingbox"
+        case .mlxCustomModel: return "plus.circle"
+        case .mlxPromptCache: return "memorychip"
         case .acceptanceMode: return "textformat.abc"
         case .acceptWord: return "arrow.right.to.line"
         case .acceptEntireSuggestion: return "text.insert"
@@ -321,7 +333,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .appleLanguageFallbackModel, .modelStatus, .selectedModel, .lowPowerModeAutoDisable,
              .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
-             .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
+             .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel,
+             .mlxRuntime, .mlxModel, .mlxCustomModel, .mlxPromptCache:
             return .engineAndModel
         case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
             return .shortcuts
@@ -410,6 +423,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
         case .endpointStatus: return "Whether Cotabby can reach the server and list its models."
         case .endpointModel: return "The model identifier sent to the configured endpoint."
+        case .mlxRuntime: return "Install, remove or restart Apple's mlx-lm, which runs MLX models."
+        case .mlxModel: return "Download and choose the MLX model used for suggestions."
+        case .mlxCustomModel: return "Use any MLX model from Hugging Face by its id."
+        case .mlxPromptCache: return "How much memory MLX may use to reuse recent prompts."
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
@@ -630,6 +647,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["connect", "connection", "server", "status", "refresh", "health", "models"]
         case .endpointModel:
             return ["model", "identifier", "ollama", "lm studio", "vllm", "endpoint"]
+        case .mlxRuntime:
+            return ["mlx", "mlx-lm", "apple silicon", "install", "python", "server", "engine"]
+        case .mlxModel:
+            return ["mlx", "model", "download", "gemma", "hugging face", "cache"]
+        case .mlxCustomModel:
+            return ["mlx", "custom", "hugging face", "repo", "model id", "mlx-community"]
+        case .mlxPromptCache:
+            return ["mlx", "prompt cache", "memory", "kv cache", "ram"]
         case .acceptanceMode:
             return ["acceptance", "word", "phrase", "mode", "tap", "hold", "behavior",
                     "how to accept"]

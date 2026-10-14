@@ -11,6 +11,7 @@ final class SuggestionEngineRouter {
     private let foundationModelEngine: any SuggestionGenerating
     private let llamaEngine: any SuggestionGenerating
     private let openAICompatibleEngine: any SuggestionGenerating
+    private let mlxEngine: any SuggestionGenerating
     private let performanceMetricsStore: PerformanceMetricsStore
     private let qualityMetricsStore: SuggestionQualityMetricsStore
     /// Closure that returns the currently selected llama model filename (e.g. `Qwen3-0.6B-Q8_0.gguf`).
@@ -18,6 +19,10 @@ final class SuggestionEngineRouter {
     /// on the concrete runtime type — useful for tests that want to fake the model label.
     private let llamaModelNameProvider: @MainActor () -> String?
     private let endpointModelNameProvider: @MainActor () -> String?
+    /// Closure that returns the MLX model repo id the MLX engine is serving, used to label its
+    /// performance metrics. Like the llama provider, a closure keeps the router from depending on
+    /// the MLX service types.
+    private let mlxModelNameProvider: @MainActor () -> String?
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -27,7 +32,9 @@ final class SuggestionEngineRouter {
         qualityMetricsStore: SuggestionQualityMetricsStore,
         llamaModelNameProvider: @escaping @MainActor () -> String?,
         openAICompatibleEngine: (any SuggestionGenerating)? = nil,
-        endpointModelNameProvider: @escaping @MainActor () -> String? = { nil }
+        endpointModelNameProvider: @escaping @MainActor () -> String? = { nil },
+        mlxEngine: (any SuggestionGenerating)? = nil,
+        mlxModelNameProvider: @escaping @MainActor () -> String? = { nil }
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
@@ -39,6 +46,10 @@ final class SuggestionEngineRouter {
         self.qualityMetricsStore = qualityMetricsStore
         self.llamaModelNameProvider = llamaModelNameProvider
         self.endpointModelNameProvider = endpointModelNameProvider
+        self.mlxEngine = mlxEngine ?? UnavailableSuggestionEngine(
+            message: "Set up MLX in Settings → Engine & Model."
+        )
+        self.mlxModelNameProvider = mlxModelNameProvider
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
@@ -113,6 +124,16 @@ final class SuggestionEngineRouter {
             recordPerformanceMetric(modelName: endpointModelNameProvider() ?? "Local Endpoint", latency: result.latency)
             recordQualityOutcome(result)
             return result
+        case .mlx:
+            // MLX runs in a 127.0.0.1 server Cotabby launched itself, so typing history stays on
+            // this Mac: unlike the endpoint branch, nothing is withheld here. When the server is
+            // not ready the MLX engine throws `.unavailable` with the reason; there is deliberately
+            // no fallback to another engine.
+            CotabbyLogger.suggestion.debug("Routing to MLX engine", metadata: metadata)
+            let result = try await mlxEngine.generateSuggestion(for: request, onPartial: onPartial)
+            recordPerformanceMetric(modelName: mlxModelNameProvider() ?? "MLX", latency: result.latency)
+            recordQualityOutcome(result)
+            return result
         }
     }
 
@@ -146,6 +167,8 @@ final class SuggestionEngineRouter {
             return "llama"
         case .openAICompatible:
             return "openai_compatible"
+        case .mlx:
+            return "mlx"
         }
     }
 
@@ -156,6 +179,7 @@ final class SuggestionEngineRouter {
         await foundationModelEngine.resetCachedGenerationContext()
         await llamaEngine.resetCachedGenerationContext()
         await openAICompatibleEngine.resetCachedGenerationContext()
+        await mlxEngine.resetCachedGenerationContext()
     }
 
     /// Forwards the warmup hook only to the currently selected engine. The inactive backend has
@@ -169,6 +193,8 @@ final class SuggestionEngineRouter {
             await llamaEngine.prewarm(for: request)
         case .openAICompatible:
             await openAICompatibleEngine.prewarm(for: request)
+        case .mlx:
+            await mlxEngine.prewarm(for: request)
         }
     }
 

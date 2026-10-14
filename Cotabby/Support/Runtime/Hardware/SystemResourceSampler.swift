@@ -18,14 +18,81 @@ struct SystemResourceSample: Equatable {
     /// Physical memory footprint in bytes. `phys_footprint` is the same figure Activity Monitor and
     /// Xcode's memory gauge report, so the graph matches what a debugging contributor sees there.
     let footprintBytes: UInt64
+
+    /// True when the numbers above also count a helper process Cotabby runs (the MLX server), so
+    /// the Performance pane can say so instead of making Cotabby look like it alone uses that much.
+    /// Set by the caller that chose to include the helper, not by the sampler itself.
+    var includesMLXServer = false
 }
 
 nonisolated enum SystemResourceSampler {
-    static func sample() -> SystemResourceSample {
-        SystemResourceSample(
-            cpuPercent: currentCPUPercent(),
-            footprintBytes: currentMemoryFootprint()
-        )
+    /// `extraProcessIDs` are child processes whose CPU and memory are added to the totals (the MLX
+    /// server does the model work that llama.cpp does inside this process, so leaving it out would
+    /// make an MLX user's graph read near zero). A pid that no longer exists contributes nothing.
+    ///
+    /// `baseline` holds the per-pid CPU readings the next call measures against. The default is one
+    /// shared cache; a second periodic caller (the menu bar monitor) passes its own instance, because
+    /// two callers sharing one cache would each reset the other's baseline and read CPU over a
+    /// shortened, wrong window.
+    static func sample(
+        extraProcessIDs: [Int32] = [],
+        baseline previousCPUTime: PreviousCPUReadings = sharedBaseline
+    ) -> SystemResourceSample {
+        var cpu = currentCPUPercent()
+        var footprint = currentMemoryFootprint()
+        let now = Date()
+        var seen = Set<Int32>()
+        for pid in extraProcessIDs {
+            guard let usage = processUsage(pid: pid) else { continue }
+            seen.insert(pid)
+            footprint += usage.footprintBytes
+            if let previous = previousCPUTime.withLock({ $0[pid] }) {
+                cpu += cpuPercent(
+                    previousTicks: previous.ticks, currentTicks: usage.cpuTicks,
+                    elapsedSeconds: now.timeIntervalSince(previous.date), timebase: machTimebase)
+            }
+            previousCPUTime.withLock { $0[pid] = (usage.cpuTicks, now) }
+        }
+        // Forget processes that are gone or no longer asked about, so a reused pid cannot be
+        // measured against a stranger's old reading.
+        previousCPUTime.withLock { cache in cache = cache.filter { seen.contains($0.key) } }
+        return SystemResourceSample(cpuPercent: cpu, footprintBytes: footprint)
+    }
+
+    /// CPU use of one process between two readings, in percent of one core (so it can exceed 100).
+    /// `ri_user_time + ri_system_time` are Mach absolute-time ticks, which on Apple Silicon are not
+    /// nanoseconds, so they are scaled by the timebase first. Pure so the conversion is testable.
+    static func cpuPercent(
+        previousTicks: UInt64, currentTicks: UInt64, elapsedSeconds: TimeInterval,
+        timebase: (numer: UInt32, denom: UInt32)
+    ) -> Double {
+        guard elapsedSeconds > 0, currentTicks >= previousTicks, timebase.denom > 0 else { return 0 }
+        let deltaNanoseconds = Double(currentTicks - previousTicks) * Double(timebase.numer) / Double(timebase.denom)
+        return deltaNanoseconds / (elapsedSeconds * 1_000_000_000) * 100
+    }
+
+    /// Default CPU baseline, used by the Performance pane's store. The lock keeps it valid if two
+    /// threads sample at once; separate callers should still use separate instances.
+    static let sharedBaseline = PreviousCPUReadings()
+
+    private static let machTimebase: (numer: UInt32, denom: UInt32) = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return (info.numer, info.denom)
+    }()
+
+    private static func processUsage(pid: Int32) -> (footprintBytes: UInt64, cpuTicks: UInt64)? {
+        var info = rusage_info_v4()
+        // `proc_pid_rusage` fills a caller-provided struct through an untyped `rusage_info_t`
+        // pointer; the rebind hands it our typed storage. Failure (no such process, not ours to
+        // inspect) returns nonzero and we report nothing for that pid.
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                proc_pid_rusage(pid, RUSAGE_INFO_V4, rebound)
+            }
+        }
+        guard result == 0 else { return nil }
+        return (info.ri_phys_footprint, info.ri_user_time + info.ri_system_time)
     }
 
     private static func currentMemoryFootprint() -> UInt64 {
@@ -80,5 +147,18 @@ nonisolated enum SystemResourceSampler {
             }
         }
         return total
+    }
+}
+
+/// A tiny lock-protected dictionary of the previous per-pid CPU readings. A class because a static
+/// needs reference storage that two callers can share; it owns nothing else.
+nonisolated final class PreviousCPUReadings: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Int32: (ticks: UInt64, date: Date)] = [:]
+
+    func withLock<T>(_ body: (inout [Int32: (ticks: UInt64, date: Date)]) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&storage)
     }
 }

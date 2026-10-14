@@ -78,7 +78,7 @@ CGEvent and focus poll
        -> SuggestionRequestFactory
             -> bounded AX / surface / clipboard / visual / user context
        -> SuggestionEngineRouter
-            -> Apple | in-process llama | OpenAI-compatible endpoint
+            -> Apple | in-process llama | MLX (loopback mlx_lm.server) | OpenAI-compatible endpoint
        -> SuggestionTextNormalizer + seam guards
        -> SuggestionInteractionState
        -> SuggestionOverlayPresenter -> OverlayController
@@ -257,6 +257,12 @@ text. Posting events is not treated as proof of success; the later AX snapshot i
   for completion/chat APIs and SSE streams. The default is loopback Ollama at
   http://127.0.0.1:11434/v1; LAN and public HTTPS endpoints are supported, while insecure public HTTP
   is rejected.
+- MLX: `OpenAICompatibleSuggestionEngine.mlx` talks to an `mlx_lm.server` child process that
+  [MLXServerManager.swift](Cotabby/Services/Runtime/MLX/MLXServerManager.swift) runs on 127.0.0.1.
+  `MLXToolchainProvisioner` finds mlx-lm or installs it with a checksum- and signature-pinned uv
+  under Application Support; `MLXModelDownloader` manages MLX models in the Hugging Face cache;
+  `MLXServerDesireResolver` decides when the server runs. MLX is on-device (typing history
+  allowed) but takes no speculative work.
 
 LlamaRuntimeCore is a nonisolated lock/condition-protected native boundary, not a Swift actor. Its
 autocomplete lock serializes cache/decode state, and its lifecycle condition prevents shutdown from

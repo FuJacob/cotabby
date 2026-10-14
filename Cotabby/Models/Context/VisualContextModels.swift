@@ -30,7 +30,7 @@ nonisolated struct VisualContextConfiguration: Equatable, Sendable {
     )
 
     static func forEngine(_ engine: SuggestionEngineKind) -> Self {
-        engine == .openAICompatible ? .default : .local
+        engine.isOnDevice ? .local : .default
     }
 
     static let `default` = VisualContextConfiguration(
