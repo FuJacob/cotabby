@@ -96,5 +96,6 @@ final class VisualContextModelTests: XCTestCase {
         XCTAssertEqual(VisualContextConfiguration.forEngine(.openAICompatible), .default)
         XCTAssertEqual(VisualContextConfiguration.forEngine(.appleIntelligence), .local)
         XCTAssertEqual(VisualContextConfiguration.forEngine(.llamaOpenSource), .local)
+        XCTAssertEqual(VisualContextConfiguration.forEngine(.mlx), .local)
     }
 }

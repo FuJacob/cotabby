@@ -16,6 +16,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let permissionGuidanceController: PermissionGuidanceController
     private let suggestionSettings: SuggestionSettingsModel
     private let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
+    private let mlxToolchainProvisioner: MLXToolchainProvisioner
+    private let mlxServerManager: MLXServerManager
+    private let mlxModelDownloader: MLXModelDownloader
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
@@ -42,6 +45,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         permissionGuidanceController: PermissionGuidanceController,
         suggestionSettings: SuggestionSettingsModel,
         openAICompatibleConnectionModel: OpenAICompatibleConnectionModel,
+        mlxToolchainProvisioner: MLXToolchainProvisioner,
+        mlxServerManager: MLXServerManager,
+        mlxModelDownloader: MLXModelDownloader,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager,
@@ -58,6 +64,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
+        self.mlxToolchainProvisioner = mlxToolchainProvisioner
+        self.mlxServerManager = mlxServerManager
+        self.mlxModelDownloader = mlxModelDownloader
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
@@ -88,6 +97,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     permissionGuidanceController: permissionGuidanceController,
                     suggestionSettings: suggestionSettings,
                     openAICompatibleConnectionModel: openAICompatibleConnectionModel,
+                    mlxToolchainProvisioner: mlxToolchainProvisioner,
+                    mlxServerManager: mlxServerManager,
+                    mlxModelDownloader: mlxModelDownloader,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
                     runtimeModel: runtimeModel,
                     modelDownloadManager: modelDownloadManager,

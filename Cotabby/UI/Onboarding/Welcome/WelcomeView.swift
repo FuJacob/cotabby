@@ -531,7 +531,8 @@ extension WelcomeView {
                 return false
             }
             return state == .downloaded || state.isDownloading
-        case .openAICompatible:
+        case .openAICompatible, .mlx:
+            // Onboarding never offers MLX, but a returning user may have it selected.
             return true
         }
     }

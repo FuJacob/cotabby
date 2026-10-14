@@ -21,17 +21,19 @@ final class LocalRuntimeResidencyPolicyTests: XCTestCase {
         }
     }
 
-    func test_endpointNeverKeepsTheModelLoaded() {
-        for fallback in [false, true] {
-            for keepLoaded in [false, true] {
-                XCTAssertFalse(
-                    LocalRuntimeResidencyPolicy.keepsModelLoaded(
-                        engine: .openAICompatible,
-                        isAppleLanguageFallbackEnabled: fallback,
-                        keepsFallbackModelLoaded: keepLoaded
-                    ),
-                    "The endpoint runs its own model, so a resident GGUF would only duplicate memory"
-                )
+    func test_endpointAndMLXNeverKeepTheModelLoaded() {
+        for engine in [SuggestionEngineKind.openAICompatible, .mlx] {
+            for fallback in [false, true] {
+                for keepLoaded in [false, true] {
+                    XCTAssertFalse(
+                        LocalRuntimeResidencyPolicy.keepsModelLoaded(
+                            engine: engine,
+                            isAppleLanguageFallbackEnabled: fallback,
+                            keepsFallbackModelLoaded: keepLoaded
+                        ),
+                        "\(engine) runs its own model, so a resident GGUF would only duplicate memory"
+                    )
+                }
             }
         }
     }
