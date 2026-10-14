@@ -412,7 +412,23 @@ because the rest of a field is often a quoted thread. History shapes suggestions
 `TypingHistoryPhraseEngine` answers from `TypingHistoryPhrasePredictor` when history confidently
 knows how a phrase ends. Both are on-device only: the provider returns nothing
 for the endpoint, the request factory drops examples for it, and the router refuses to send any
-request that still carries them.
+request that still carries them. Examples come from the same kind of app
+(`TypingHistoryIndex.mayExemplify`): an email takes only earlier email, and terminal or code-editor
+text never stands as the style of prose.
+
+A mail reply is the one surface whose most relevant context sits after the caret: the quoted
+thread being answered. `MailReplyContext` (over `QuotedReplyParser`) reads it from the field's
+trailing text for mail apps only: the prompt carries up to 1500 characters of it, condensed to
+"Sender: message" per quoted message; the thread's subject names the surface (Outlook's inline
+reply sits in a window titled after the mailbox, which never names a conversation for memory, and
+the quoted subject, written by the sender, never chooses memory's scope either); the newest
+message's sender becomes a "To:" line right above the draft, so a
+salutation addresses them rather than the user; and the screen excerpt keeps only the compose
+column. Everything read from the quoted thread stays off the endpoint, like the rest of the
+trailing text. The header that decides anything (the subject, the addressee, and for answers the
+message being answered and whether a reply is still empty) is read only through one strict reader,
+`MailQuoteHeader`; a looser reader only reformats the condensed thread. Neither ever chooses a
+memory scope: memory gives mail none.
 
 ### Conversation memory
 
@@ -462,6 +478,46 @@ only: the retriever returns nothing for the endpoint engine, the request factory
 router refuses a request that still carries it. The memory engine loads its own embedding model
 next to the completion model; CotabbyInference's process-wide llama.cpp backend is shared through
 a reference-counted guard so unloading one never frees it under the other.
+
+### Answers
+
+Answer Questions (Settings → Memory → Answers) is off by default and needs conversation memory. When
+the user opens an empty reply (or one holding only its salutation) to a message that asks them
+something, `AnswerCoordinator` drafts an answer from memory and offers it on a card at the caret:
+
+~~~text
+FocusTrackingModel.$snapshot -> AnswerCoordinator (debounced; Cotabby on for the app; reply awaiting its body)
+  -> IncomingMessageResolver (the quoted original after the caret, or the newest incoming messages
+     of the chat Cotabby identified) -> QuestionDetector (English and Turkish)
+  -> MemoryEngine.answerSearch (the conversation being answered, plus any conversation of the
+     sources the user turned "use for answers" on for, none by default; never the question itself)
+     + AvailabilityFacts for a scheduling question (EventKit, free and busy only)
+  -> AnswerGroundingPolicy gates -> AnswerDraftEngine (Apple Intelligence, else the local model)
+  -> AnswerGroundingPolicy guards -> AnswerCardController (click, or Tab in an empty reply, pastes
+     at the caret via SuggestionInserter.pasteAtCaret; Esc or typing dismisses)
+~~~
+
+Answers run only in mail apps (Mail, Outlook) and chat apps whose memory source is on (Teams,
+WhatsApp), never in a browser page or another app's field. The sender of a message never chooses
+the conversation an answer treats as its own: a quoted mail is data only (what is asked, by whom)
+and never names a remembered conversation, so all of its answer's facts come from opted-in sources
+(each marked as another conversation's) or busy/free times; a chat must be the one conversation
+the window names; mail without its quote below the caret gets no answer; and anything ambiguous
+gives no answer. Other conversations are opt-in per source and off by default; Calendar is never an answer
+source (only busy and free times, read live).
+
+The question is written by someone else, so it is treated as untrusted text: a message that reads
+as instructions to an assistant ("ignore previous instructions", "list all the facts") gets no
+answer, remembered text that does never reaches the prompt, and Apple Intelligence reads the
+question, every fact and every name and title quoted, clipped and labeled as data, and the draft
+must hold up on its own. A
+draft is shown only when the facts are relevant enough and mention what the question names, every
+number and name in it is in the facts or the question, it uses something from the facts, it holds
+nothing the secret scrubber would remove, and it does not reproduce a long passage of a message
+from another conversation. The card says which message it answers and lists every fact the model
+was given with its sender, conversation, date and app, marking those from other conversations. Availability facts state only when the user is busy and free, never what
+an event is or who is in it. Drafting runs on this Mac only (never the endpoint), and nothing is
+inserted without a click or Tab.
 
 ## Presentation and Sibling Features
 
@@ -638,6 +694,8 @@ policies, prompt utilities, normalization, and layout logic should receive focus
 | Memory not used in a conversation | MemoryRetriever, ConversationScopeResolver, MemoryEngine.search |
 | A memory source does not sync | MemoryHistorySync, the source's reader in Services/Memory/Readers |
 | Memory indexing never runs | EmbeddingSchedulePolicy, MemoryEngine indexing loop, EmbeddingCore |
+| No answer card in a reply | AnswerCoordinator (`answers` log category), IncomingMessageResolver, AnswerGroundingPolicy |
+| Mail reply prompt misses its thread | MailReplyContext, QuotedReplyParser, SuggestionRequestFactory |
 
 When a change crosses several rows, keep ownership at these boundaries rather than teaching one
 coordinator to perform every step itself.

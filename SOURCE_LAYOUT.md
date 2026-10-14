@@ -27,6 +27,7 @@ Cotabby/
 ├── App/
 │   ├── Core/                         process entry, composition root, lifecycle
 │   └── Coordinators/
+│       ├── Answers/                  answer-card flow
 │       ├── InlineFeatures/           emoji/macro capture arbitration
 │       ├── Suggestion/               autocomplete interaction state machine
 │       ├── SettingsCoordinator.swift
@@ -49,6 +50,7 @@ Cotabby/
 │       ├── Result/                   engine result and client error values
 │       └── Session/                  active, paused, and presented session values
 ├── Services/
+│   ├── Answers/                      incoming-message lookup and on-device answer drafting
 │   ├── Context/                      live clipboard acquisition
 │   ├── Focus/
 │   │   ├── Caching/                  field-scoped focus caches
@@ -81,7 +83,8 @@ Cotabby/
 │   └── Visual/                       capture, OCR, and visual-context sessions
 ├── Support/
 │   ├── Accessibility/                pure AX and secure-surface policies
-│   ├── Context/                      sanitization, relevance, and OCR hygiene
+│   ├── Answers/                      question, grounding, availability, and answer-prompt rules
+│   ├── Context/                      sanitization, relevance, OCR hygiene, and mail replies
 │   ├── Emoji/
 │   │   ├── Catalog/                  searchable catalog and synonyms
 │   │   ├── Interaction/              query, trigger, picker, and variant rules
@@ -120,7 +123,7 @@ Cotabby/
 │   └── Utilities/                    small cross-subsystem value helpers
 └── UI/
     ├── Components/                   application-wide reusable views
-    ├── InlineFeatures/               emoji picker and macro reference surfaces
+    ├── InlineFeatures/               emoji picker, macro reference, and answer card surfaces
     ├── MenuBar/                      menu-bar status and popover content
     ├── Onboarding/
     │   └── Welcome/                  composed welcome flow and step views

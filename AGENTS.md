@@ -188,6 +188,23 @@ identified by addresses only.
 Mail is the user's own only when it is in a Sent mailbox. A sync is cancelled and awaited before
 anything is deleted (`MemoryHistorySync.cancelSync`). Reader fixtures must stay synthetic.
 
+Answers (`App/Coordinators/Answers`, `Services/Answers`, `Support/Answers`) draft a reply to a
+question someone sent the user from memory and offer it on a card at the caret, only in mail apps
+and chat apps with an enabled memory source (`IncomingMessageResolver.answersIn`). The sender never
+chooses the scope: a quoted mail is data only and never names a remembered conversation
+(`IncomingMessageResolver.quotedIncoming`), other conversations are opt-in per source and off by
+default, Calendar never answers from its events, and anything ambiguous gives no answer. The
+question and remembered text are untrusted input: keep `AnswerGroundingPolicy`'s gates and guards
+(relevance, named-subject match,
+unsupported numbers and names, secret scrubbing, copied passages from other conversations,
+instruction-like text), quote everything in the prompt as data, attribute every fact on the card, draft
+on-device only (`AnswerDraftEngine` never uses the endpoint), keep availability facts to busy and
+free, and never insert without the user's click or Tab. `MailReplyContext` (Support/Context) reads a
+mail reply's quoted thread, subject and addressee from the trailing text; keep it off the endpoint.
+Any decision that reads a mail quote header goes through the one strict reader, `MailQuoteHeader`
+(via `QuotedReplyParser.quotedMessage`), and it never chooses a scope; never add a second header
+parser that decides anything.
+
 ## Runtime And Prompting
 
 Runtime generation is split by responsibility:

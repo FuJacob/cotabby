@@ -69,6 +69,8 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 - **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
 - **Optional screen context** — control visual context independently of the local prediction settings
 - **Conversation memory** *(optional, off by default)* — when you write in a Microsoft Teams chat, suggestions can draw on what was said earlier in that conversation. Apple Mail and Outlook mail, WhatsApp chats, Calendar events and documents in a folder or cloud drive you choose are synced and searchable in Settings → Memory; WhatsApp chats will feed suggestions once Cotabby reads the open chat's name
+- **Answer cards** *(optional, off by default)* — when an Outlook mail or a Microsoft Teams chat asks you something, Cotabby drafts an answer from your memory and offers it at the caret with every message it drew on; a click pastes it, Esc dismisses it, nothing is ever sent for you. "Are you free Thursday?" is answered from your calendar, busy and free times only
+- **Mail replies** — suggestions in a reply read the quoted thread: who said what, its subject, and who you are answering
 
 ## Privacy
 
@@ -86,6 +88,9 @@ Privacy is the whole point, so Cotabby's default engines keep generation on your
   (the key is in your Keychain), embeds them on-device, and never sends any of it to an endpoint.
   Its embedding model is downloaded once from Hugging Face. Reading a cloud drive makes the drive's
   own app download files that are only online, which it then gives back.
+- Answer cards are drafted on this Mac (Apple Intelligence or the local model, never an endpoint)
+  and are only ever inserted when you click them or press Tab. They draw on other conversations
+  only from the sources you turn "Use for answers" on for.
 
 ## Engines
 
