@@ -62,7 +62,7 @@ Cotabby/
 │   │   └── Guidance/                 permission overlay and System Settings guidance
 │   ├── Power/                        power-source observation
 │   ├── Presentation/                 process-level AppKit panels and indicators
-│   ├── Rewrite/                      rewrite engine, local and cloud providers, preferences store
+│   ├── Rewrite/                      rewrite engine, per-engine and cloud providers, MLX rewrite server, preferences store
 │   ├── Runtime/
 │   │   ├── AppleIntelligence/        Foundation Models availability and engine
 │   │   ├── Llama/                    llama engine, manager, and native core
@@ -94,7 +94,7 @@ Cotabby/
 │   │   ├── Policy/                   render-mode, fade, and stability decisions
 │   │   └── Style/                    ghost text font and color rules
 │   ├── Prompting/                    Apple and base-model prompt rendering
-│   ├── Rewrite/                      rewrite eligibility, prompts, output cleanup, replace checks
+│   ├── Rewrite/                      rewrite eligibility, prompts, provider choice, output cleanup, replace checks
 │   ├── Runtime/
 │   │   ├── Hardware/                 device capability and resource sampling
 │   │   ├── MLX/                      MLX cache scan, toolchain rules, server decision

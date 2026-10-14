@@ -82,9 +82,11 @@ Privacy is the whole point, so Cotabby's default engines keep generation on your
 - A normal install never writes what you type to disk.
 - Apart from a configured endpoint, the network is used for model downloads, the optional MLX
   install, and update checks, not suggestion generation.
-- Rewrite with AI runs on your Mac by default. Only if you pick a cloud service in Settings → Rewrite
-  and enter your own key is the selected text (and the tone or instruction) sent to that service; the
-  key is kept in the Keychain.
+- Rewrite with AI uses the engine autocomplete uses unless you pick another one in Settings → Rewrite,
+  and that default never sends text off your Mac: if autocomplete uses an endpoint on another host,
+  rewrites run on Apple Intelligence or Open Source instead. Only if you choose Local Endpoint for an
+  endpoint on another host, or a cloud service with your own key (kept in the Keychain), is the
+  selected text (and the tone or instruction) sent there, and the popup names the host.
 
 ## Engines
 

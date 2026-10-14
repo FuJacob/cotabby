@@ -514,10 +514,20 @@ wand (`ActivationIndicatorController.showRewrite`) and arms ⌃⌥R through a `T
 while that selection is armed; the "Rewrite Selected Text" switch in Settings → Rewrite turns all of it off. The popup is
 a non-activating panel that takes the keyboard while open, so Return can never reach a chat app.
 [RewriteEngine.swift](Cotabby/Services/Rewrite/RewriteEngine.swift) runs one rewrite on the provider
-chosen in Settings → Rewrite: `LocalRewriteProvider` (Apple Intelligence, else the selected llama base
-model with an example-style prompt that stops at the next `Draft:`), or `APIRewriteProvider` (Claude via
-Anthropic's Messages API, other services via OpenAI-compatible chat completions, each service's key in
-its own Keychain item). [RewritePromptBuilder.swift](Cotabby/Support/Rewrite/RewritePromptBuilder.swift)
+chosen in Settings → Rewrite. The default, "Same as autocomplete", is resolved by the pure
+`RewriteProviderResolver` to the provider of the current autocomplete engine, except that it never
+sends text off the Mac on its own: an autocomplete endpoint on a LAN or public host resolves to Apple
+Intelligence, else Open Source (choosing Local Endpoint explicitly still uses that host). Every local provider
+reuses autocomplete's model; there is no rewrite-only model: `AppleIntelligenceRewriteProvider`,
+`OpenSourceRewriteProvider` (the selected llama base model with an example-style prompt that stops at
+the next `Draft:`), `LocalEndpointRewriteProvider` (autocomplete's OpenAI-compatible endpoint: chat
+mode gets the instruct prompt, completions mode the base prompt with the standard `stop` field), and
+`MLXRewriteProvider` (autocomplete's MLX server when autocomplete is on MLX, never a second one;
+otherwise an on-demand server with autocomplete's MLX model, owned by `MLXRewriteServerController`,
+with its own pid file, stopped after five idle minutes). `APIRewriteProvider` covers Claude via
+Anthropic's Messages API and other services via OpenAI-compatible chat completions, each service's key
+in its own Keychain item. The popup names the host whenever the resolved provider sends the text off
+this Mac, including an explicitly chosen Local Endpoint on a LAN or public host. [RewritePromptBuilder.swift](Cotabby/Support/Rewrite/RewritePromptBuilder.swift)
 names the draft's language (`RewriteLanguageDetector`), `RewriteOutputCleaner` strips prefaces, fences
 and quotes and rejects runaway output, and `RewriteSpecificsCheck` flags numbers and names the user did
 not write, which turns plain Replace off. Replace pastes over the selection only after
