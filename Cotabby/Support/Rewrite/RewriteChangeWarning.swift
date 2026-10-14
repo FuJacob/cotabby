@@ -10,8 +10,9 @@ nonisolated enum RewriteChangeWarning {
     /// The warning for `unsupported` terms, or nil when there are none.
     static func message(selection: String, rewrite: String, unsupported: [String]) -> String? {
         guard !unsupported.isEmpty else { return nil }
-        let addedNumbers = unsupported.filter { $0.allSatisfy(\.isNumber) }
-        let addedNames = unsupported.filter { !$0.allSatisfy(\.isNumber) }
+        // Numbers start with a digit ("3.5", "1:30"); names never do.
+        let addedNumbers = unsupported.filter { $0.first?.isNumber == true }
+        let addedNames = unsupported.filter { $0.first?.isNumber != true }
         var sentences: [String] = []
 
         if !addedNumbers.isEmpty {

@@ -188,6 +188,25 @@ final class SelectionRewriteCoordinatorTests: XCTestCase {
         XCTAssertNil(presenter.buttonPress)
     }
 
+    /// A change the user never accepted stays flagged through Shorter: the refinement is checked
+    /// against the original selection, not against the earlier preview.
+    func test_refinementKeepsAnUnacceptedChangeFlagged() async {
+        let (_, presenter, output, runner) = make()
+        runner.result = "I am 100% sure about the dates."
+        await send(snapshot(selected: "i am 1000% sure about the dates"))
+        presenter.buttonPress?()
+        presenter.popupModel?.onAction(.formal)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(presenter.popupModel?.phase, .preview(text: runner.result, unsupported: ["100"]))
+        runner.result = "I'm 100% sure."
+        presenter.popupModel?.onRefine(.shorter)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(presenter.popupModel?.phase, .preview(text: "I'm 100% sure.", unsupported: ["100"]))
+        presenter.popupModel?.onReplace()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(output.pasted.isEmpty, "plain Replace must stay off")
+    }
+
     func test_buttonOffShowsNothingUntilShortcut() async {
         var prefs = RewritePreferences.defaults
         prefs.showsButtonOnSelection = false

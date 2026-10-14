@@ -285,8 +285,9 @@ final class SelectionRewriteCoordinator {
                     }
                 )
                 guard isCurrent() else { return }
-                // A refinement may keep what the earlier result said, so both texts count as the user's.
-                let ownText = draft.map { input.selectedText + "\n" + $0 } ?? input.selectedText
+                // Always checked against the user's own selection, never an earlier preview: a refinement
+                // that keeps a change the user never accepted ("1000" → "100") must still be flagged.
+                let ownText = input.selectedText
                 let unsupported = RewriteSpecificsCheck.unsupportedSpecifics(in: text, source: ownText)
                 model.changeWarning = RewriteChangeWarning.message(selection: ownText, rewrite: text, unsupported: unsupported)
                 model.phase = .preview(text: text, unsupported: unsupported)

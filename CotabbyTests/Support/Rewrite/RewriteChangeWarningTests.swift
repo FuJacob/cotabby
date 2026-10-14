@@ -53,4 +53,11 @@ final class RewriteChangeWarningTests: XCTestCase {
     func test_nothingUnsupportedIsNoWarning() {
         XCTAssertNil(RewriteChangeWarning.message(selection: "a", rewrite: "b", unsupported: []))
     }
+
+    func test_changedDecimalIsNamedAsANumber() {
+        XCTAssertEqual(
+            RewriteChangeWarning.message(selection: "it takes 3.5 hours", rewrite: "It takes 35 hours.", unsupported: ["35"]),
+            "The number changed: you wrote 3.5, the rewrite says 35."
+        )
+    }
 }
