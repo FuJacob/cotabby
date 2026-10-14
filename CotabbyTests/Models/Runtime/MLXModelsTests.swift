@@ -21,6 +21,17 @@ final class MLXRepoIDTests: XCTestCase {
         XCTAssertNil(MLXRepoID("https://example.com/mlx-community/x"))
     }
 
+    /// Dataset and Space links must not turn into a wrong model id ("datasets/org"), and a link
+    /// copied without its scheme is still recognized.
+    func test_rejectsNonModelURLsAndAcceptsALinkWithoutScheme() {
+        XCTAssertNil(MLXRepoID("https://huggingface.co/datasets/org/name"))
+        XCTAssertNil(MLXRepoID("https://huggingface.co/spaces/org/app"))
+        XCTAssertNil(MLXRepoID("https://huggingface.co/models"))
+        XCTAssertEqual(MLXRepoID("huggingface.co/mlx-community/gemma-4-e4b-5bit")?.value,
+                       "mlx-community/gemma-4-e4b-5bit")
+        XCTAssertEqual(MLXRepoID("www.huggingface.co/org/name/tree/main")?.value, "org/name")
+    }
+
     func test_rejectsAnythingElse() {
         for raw in ["", "gemma", "org/name/extra", "../../etc", "org/..", "org/a b", "org/-x",
                     "org/.hidden", "org/a--b", "org/a;rm", "/name", "org/"] {
