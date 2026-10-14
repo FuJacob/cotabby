@@ -23,7 +23,8 @@ final class MailReplyContextTests: XCTestCase {
 
     func test_readsTheSubjectFromOutlooksQuotedHeader() {
         XCTAssertEqual(MailReplyContext.quotedSubject(in: outlookReplyTail), "Re: Q3 rollout plan")
-        XCTAssertEqual(QuotedReplyParser.quotedSubject(in: "Kimden: Deniz\nKonu: Teklif\n\nNe durumda?"), "Teklif")
+        XCTAssertNil(QuotedReplyParser.quotedSubject(in: "Kimden: Deniz\nKonu: Teklif\n\nNe durumda?"),
+                     "a block with no sender address is not a header the shared parser accepts")
     }
 
     func test_noSubjectWithoutAQuotedHeader() {

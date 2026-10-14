@@ -47,6 +47,8 @@ final class CotabbyAppEnvironment {
     let memoryControl: MemoryControlModel
     /// Answers the suggestion pipeline's memory lookups (`SuggestionMemoryProviding`).
     let memoryRetriever: MemoryRetriever
+    /// Drafts answers to questions from memory and offers them on a card in empty replies.
+    let answerCoordinator: AnswerCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -264,6 +266,32 @@ final class CotabbyAppEnvironment {
         )
         let memoryControl = MemoryControlModel(controller: memoryController, historySync: memoryHistorySync)
         let memoryRetriever = MemoryRetriever(engine: { [weak memoryController] in memoryController?.engine })
+        // Answers: drafted on this Mac (Apple Intelligence or the local model, never the endpoint)
+        // from memory, offered on a card at the caret. The shared inserter pastes an accepted draft.
+        let answerCoordinator = AnswerCoordinator(
+            focusModel: focusModel,
+            memory: memoryController,
+            resolver: IncomingMessageResolver(
+                engine: { [weak memoryController] in memoryController?.engine },
+                historySync: memoryHistorySync,
+                sourcesByBundle: { [weak memoryRetriever] in memoryRetriever?.sourcesByBundle ?? [:] }
+            ),
+            draftEngine: AnswerDraftEngine(
+                runtimeManager: runtimeManager,
+                // The local model drafts only when it is the engine the user chose, so answers never
+                // load a model behind an Apple Intelligence or endpoint user's back.
+                hasLocalModel: { [weak runtimeModel, weak suggestionSettings] in
+                    suggestionSettings?.selectedEngine == .llamaOpenSource && runtimeModel?.selectedModelFilename != nil
+                },
+                availability: foundationModelAvailabilityService
+            ),
+            card: AnswerCardController(),
+            keyTap: TemporaryKeyTap(suppressionController: suppressionController),
+            inserter: suggestionInserter,
+            isAppAllowed: { [weak suggestionSettings, weak lowPowerModeMonitor] bundleIdentifier in
+                Self.isCotabbyOn(for: bundleIdentifier, settings: suggestionSettings, lowPowerModeMonitor: lowPowerModeMonitor)
+            }
+        )
 
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
@@ -395,6 +423,7 @@ final class CotabbyAppEnvironment {
         self.memoryController = memoryController
         self.memoryControl = memoryControl
         self.memoryRetriever = memoryRetriever
+        self.answerCoordinator = answerCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
@@ -521,6 +550,17 @@ final class CotabbyAppEnvironment {
     /// when actually available, so a configured-but-unavailable profile never strands the user on a
     /// dead engine; the Open Source branch reloads the model only when it is installed and not already
     /// selected, so the sole side effect is a deliberate reload on a real change.
+    /// Whether Cotabby is on for an app right now: globally on, not paused, not turned off by Low
+    /// Power Mode, and not disabled for the app. Answers follow the same switches as autocomplete.
+    private static func isCotabbyOn(
+        for bundleIdentifier: String, settings model: SuggestionSettingsModel?, lowPowerModeMonitor: LowPowerModeMonitor?
+    ) -> Bool {
+        guard let settings = model?.snapshot else { return false }
+        let lowPower = (lowPowerModeMonitor?.isLowPowerModeEnabled ?? false) && settings.isLowPowerModeAutoDisableEnabled
+        return settings.isGloballyEnabled && !settings.isTemporarilyPaused && !lowPower
+            && !settings.disabledAppBundleIdentifiers.contains(bundleIdentifier)
+    }
+
     private static func applyPowerProfile(
         isPluggedIn: Bool,
         runtimeModel: RuntimeBootstrapModel,

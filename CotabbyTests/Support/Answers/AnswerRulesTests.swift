@@ -104,7 +104,7 @@ final class AnswerRulesTests: XCTestCase {
     }
 
     func test_turkishAttributionAndOutlookBlocksAreRead() throws {
-        let turkish = "3 Eki 2026 tarihinde Deniz Kaya şunu yazdı:\n> Teklif ne durumda?"
+        let turkish = "3 Eki 2026 tarihinde Deniz Kaya <deniz@example.com> şunu yazdı:\n> Teklif ne durumda?"
         let turkishQuote = try XCTUnwrap(QuotedReplyParser.quotedMessage(in: turkish))
         XCTAssertEqual(turkishQuote.sender, "Deniz Kaya")
         XCTAssertEqual(turkishQuote.body, "Teklif ne durumda?")

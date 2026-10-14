@@ -69,7 +69,7 @@ enum SuggestionRequestFactory {
         )
         let promptTrailingText = readsMailThread ? MailReplyContext.condensedThread(context.trailingText) : context.trailingText
         let surfaceWindowTitle = readsMailThread
-            ? MailReplyContext.quotedSubject(in: context.trailingText) ?? context.windowTitle
+            ? MailReplyContext.quotedSubject(in: context.trailingText, precedingText: context.precedingText) ?? context.windowTitle
             : context.windowTitle
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
         // base-model OSS path cannot obey free-text instructions and the rule text leaks into output,
@@ -109,7 +109,7 @@ enum SuggestionRequestFactory {
                 focusedURLString: context.focusedURLString,
                 fieldPlaceholder: context.fieldPlaceholder,
                 replyingTo: readsMailThread
-                    ? MailReplyContext.replyRecipient(in: context.trailingText, userName: userName)
+                    ? MailReplyContext.replyRecipient(in: context.trailingText, precedingText: context.precedingText, userName: userName)
                     : nil
             )
             : nil

@@ -64,6 +64,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Memory
     case memoryService
     case memorySources
+    case memoryAnswers
     case memoryIndex
     case memoryPrivacy
     case memoryPlayground
@@ -163,6 +164,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "Live Preview"
         case .memoryService: return "Conversation Memory"
         case .memorySources: return "Memory Sources"
+        case .memoryAnswers: return "Answer Questions"
         case .memoryIndex: return "Memory Index"
         case .memoryPrivacy: return "Memory Privacy"
         case .memoryPlayground: return "Memory Playground"
@@ -256,6 +258,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "text.cursor"
         case .memoryService: return "brain"
         case .memorySources: return "tray.full"
+        case .memoryAnswers: return "text.bubble"
         case .memoryIndex: return "square.stack.3d.up"
         case .memoryPrivacy: return "hand.raised"
         case .memoryPlayground: return "magnifyingglass"
@@ -321,7 +324,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .writing
         case .extendedContext, .contextLivePreview, .typingHistory:
             return .context
-        case .memoryService, .memorySources, .memoryIndex, .memoryPrivacy, .memoryPlayground:
+        case .memoryService, .memorySources, .memoryAnswers, .memoryIndex, .memoryPrivacy, .memoryPlayground:
             return .memory
         case .engine, .appleIntelligenceAvailability, .appleLanguageFallback, .keepFallbackModelLoaded,
              .appleLanguageFallbackModel, .modelStatus, .selectedModel, .lowPowerModeAutoDisable,
@@ -395,6 +398,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .memoryService: return "Remember chat and mail history on this Mac for suggestions."
         case .memorySources: return "WhatsApp, Mail, Outlook, Teams, Calendar and document sources."
+        case .memoryAnswers: return "Draft answers to questions from your chat and mail history."
         case .memoryIndex: return "How memory is embedded and searched, and its statistics."
         case .memoryPrivacy: return "Retention, exclusions, and deleting memory."
         case .memoryPlayground: return "Try what memory would retrieve for a conversation."
@@ -580,6 +584,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .memorySources:
             return ["whatsapp", "mail", "outlook", "teams", "calendar", "icloud drive", "google drive",
                     "onedrive", "documents", "sources", "sync", "full disk access"]
+        case .memoryAnswers:
+            return ["answer", "answers", "question", "reply", "draft", "smart reply", "respond", "availability"]
         case .memoryIndex:
             return ["index", "embedding", "rag", "vector", "passage", "re-index", "rebuild", "statistics"]
         case .memoryPrivacy:

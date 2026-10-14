@@ -3,7 +3,7 @@ import SwiftUI
 
 /// File overview:
 /// The Memory pane's sources: which message sources feed memory, whether each is ready
-/// (permission, folder), and how much it holds.
+/// (permission, folder), how much it holds, and whether answers to questions may use it.
 ///
 /// Presentation only: every change goes through `MemoryControlModel`. Requirements are rendered
 /// from each source's declared requirements (`MemorySourceCatalog`).
@@ -62,6 +62,20 @@ struct MemorySourcesSection: View {
 
             ForEach(source.requirements, id: \.kind) { requirement in
                 requirementControl(requirement, source: source)
+            }
+
+            // Calendar never answers from its events; availability answers read busy/free live.
+            if source.enabled, MemorySourceCatalog.canAnswer(source.id) {
+                Toggle(isOn: Binding(
+                    get: { source.isAnswerSource },
+                    set: { control.setAnswerSource(source.id, enabled: $0) }
+                )) {
+                    Text("Use for answers to questions (other conversations too)")
+                        .font(.caption)
+                }
+                .controlSize(.small)
+                .help("Off by default. When on, answers can quote facts from any conversation of this source, " +
+                      "shown with where they came from before you insert them.")
             }
 
             if source.stats.messages > 0 || source.enabled {

@@ -128,6 +128,7 @@ struct MemoryPlaygroundSection: View {
         case "conversation": scope = "from this conversation"
         case "person": scope = "from this conversation and others with exactly the same people"
         case "global": scope = "from all of memory"
+        case "answer": scope = "from your answer sources"
         default: scope = "conversation not found, so nothing (suggestions never fall back to other chats)"
         }
         return "\(result.hits.count) result\(result.hits.count == 1 ? "" : "s") \(scope) in \(Int(result.elapsedMs.rounded())) ms"

@@ -105,7 +105,8 @@ nonisolated enum QuestionDetector {
 ///
 /// A chat composer is empty when it holds no text. A mail reply never is: below the caret sit the
 /// user's signature and the quoted message being answered. So: nothing before the caret, and after
-/// it only whitespace, or a short signature followed by the quote (`QuotedReplyParser`).
+/// it only whitespace, or a short signature followed by the client's quote header as the strict
+/// shared parser reads it (`MailQuoteHeader`).
 ///
 /// Mail replies usually start with a salutation the user types before thinking about the answer
 /// ("Dear Jordan,"), so `isAwaitingBody` also accepts a reply holding only that line, with the caret
@@ -117,17 +118,21 @@ nonisolated enum ReplyFieldEmptiness {
 
     static func isEmpty(precedingText: String, trailingText: String) -> Bool {
         guard precedingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        let trailing = trailingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trailing.isEmpty { return true }
-        guard let headerStart = QuotedReplyParser.headerRange(in: trailing)?.lowerBound else { return false }
-        let beforeQuote = trailing[..<headerStart].trimmingCharacters(in: .whitespacesAndNewlines)
-        let lines = beforeQuote.split(whereSeparator: \.isNewline)
-        return lines.count <= maximumSignatureLines && beforeQuote.count <= maximumSignatureCharacters
+        return holdsOnlySignatureAndQuote(precedingText: precedingText, trailingText: trailingText)
+    }
+
+    /// After the caret: nothing, or a short signature and then the client's quote header, as the
+    /// strict shared parser reads it (`MailQuoteHeader`).
+    private static func holdsOnlySignatureAndQuote(precedingText: String, trailingText: String) -> Bool {
+        if trailingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        guard let header = MailQuoteHeader.client(precedingText: precedingText, trailingText: trailingText) else { return false }
+        let signature = header.linesAboveHeader.filter { !$0.isEmpty }
+        return signature.count <= maximumSignatureLines && signature.joined(separator: "\n").count <= maximumSignatureCharacters
     }
 
     /// Empty, or holding only a salutation line with the caret on a line of its own below it.
     static func isAwaitingBody(precedingText: String, trailingText: String) -> Bool {
-        guard isEmpty(precedingText: "", trailingText: trailingText) else { return false }
+        guard holdsOnlySignatureAndQuote(precedingText: precedingText, trailingText: trailingText) else { return false }
         let before = precedingText.trimmingCharacters(in: .whitespacesAndNewlines)
         if before.isEmpty { return true }
         let caretLine = precedingText.reversed().prefix { !$0.isNewline }

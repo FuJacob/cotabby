@@ -108,6 +108,11 @@ final class MemoryControlModel: ObservableObject {
         })
     }
 
+    /// Whether answers may quote facts from this source (Settings → Memory → Sources).
+    func setAnswerSource(_ id: String, enabled: Bool) {
+        change { $0.sources[id, default: MemorySourceSettings(enabled: false)].answerSource = enabled }
+    }
+
     func updateIndexSettings(_ settings: MemoryIndexSettings) {
         change { $0.index = settings }
     }
@@ -125,6 +130,10 @@ final class MemoryControlModel: ObservableObject {
         }, then: {
             self.loadConversations(source: conversation.source)
         })
+    }
+
+    func updateAnswers(_ answers: MemoryAnswerSettings) {
+        change { $0.answers = answers }
     }
 
     /// Syncs one source, or every enabled one.
@@ -201,6 +210,22 @@ final class MemoryControlModel: ObservableObject {
         scope.global = true
         scope.sources = sources
         runSearch(query, scope)
+    }
+
+    /// What an answer to `question` would draw on, from the answer sources (the Answers section's
+    /// "Find Facts"; the result shows in the Playground).
+    func searchAnswers(question: String) {
+        guard let engine else { return }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let answerSources = sources.filter { $0.enabled && $0.isAnswerSource }.map(\.id)
+        isSearching = true
+        Task {
+            playgroundResult = await Task.detached(priority: .userInitiated) {
+                engine.answerSearch(question: trimmed, sources: answerSources, currentConversation: nil, excludingRecordIDs: [])
+            }.value
+            isSearching = false
+        }
     }
 
     private func runSearch(_ query: String, _ scope: MemoryEngine.Scope) {

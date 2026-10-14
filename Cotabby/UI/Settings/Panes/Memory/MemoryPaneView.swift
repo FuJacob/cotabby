@@ -3,7 +3,7 @@ import SwiftUI
 
 /// File overview:
 /// Settings → Memory: everything about conversation memory, the encrypted, on-device index of the
-/// user's chat and mail history that suggestions draw on.
+/// user's chat and mail history that suggestions and answers draw on.
 ///
 /// Presentation only. Memory's lifecycle (on/off, the embedding model, starting the engine) belongs
 /// to `MemoryEngineController`; settings, sources and searches go through `MemoryControlModel`. The
@@ -28,6 +28,7 @@ struct MemoryPaneView: View {
             engineSection
             if controller.state == .running {
                 MemorySourcesSection(control: control, historySync: control.historySync)
+                MemoryAnswersSection(control: control)
                 MemoryIndexSection(control: control, controller: controller)
                 MemoryPlaygroundSection(control: control)
             }

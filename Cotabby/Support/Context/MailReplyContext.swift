@@ -54,7 +54,7 @@ nonisolated enum MailReplyContext {
         if !ownText.isEmpty { parts.append(ownText) }
         var rest = String(trailingText[first.lowerBound...])
         while parts.count <= maximumQuotedMessages, let header = QuotedReplyParser.headerRange(in: rest) {
-            guard let message = QuotedReplyParser.quotedMessage(in: String(rest[header.lowerBound...])) else { break }
+            guard let message = QuotedReplyParser.looseMessage(in: String(rest[header.lowerBound...])) else { break }
             let body = cleanedLines(Substring(message.body))
             if !body.isEmpty { parts.append("\(message.sender ?? "They"): \(String(body.prefix(maximumMessageCharacters)))") }
             // Continue after this header line; the next header found is the next, older message.
@@ -112,8 +112,8 @@ nonisolated enum MailReplyContext {
     /// The subject of the message being replied to, from the quoted header after the caret
     /// ("Subject: Re: Q3 rollout plan"). Nil when the field holds no Outlook-style header (a new
     /// message, or Mail's "On …, X wrote:" quote, whose compose window title already is the subject).
-    static func quotedSubject(in trailingText: String) -> String? {
-        QuotedReplyParser.quotedSubject(in: trailingText)
+    static func quotedSubject(in trailingText: String, precedingText: String = "") -> String? {
+        QuotedReplyParser.quotedSubject(precedingText: precedingText, in: trailingText)
     }
 
     /// Who the reply is addressed to: the sender of the newest quoted message ("From: Jordan Lee
@@ -123,8 +123,8 @@ nonisolated enum MailReplyContext {
     /// Why: without it the model saw the user's name everywhere (the quoted message greets them,
     /// their own signature signs with it) and no one else's as the addressee, so "Dear " completed
     /// to the user's own name.
-    static func replyRecipient(in trailingText: String, userName: String?) -> String? {
-        guard let sender = QuotedReplyParser.quotedMessage(in: trailingText)?.sender?
+    static func replyRecipient(in trailingText: String, precedingText: String = "", userName: String?) -> String? {
+        guard let sender = QuotedReplyParser.quotedMessage(precedingText: precedingText, trailingText: trailingText)?.sender?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             // A bare address is no name to greet, and the model would copy it into the salutation.
             !sender.isEmpty, !sender.contains("@")

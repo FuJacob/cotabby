@@ -1,0 +1,178 @@
+[
+  {
+    "id": "answer-pilot-status-en",
+    "question": "How did the Acme pilot go?",
+    "asker": "Dana Miles",
+    "facts": [
+      {"sender": "Sam Rivera", "title": "Pilot - Acme", "date": "2026-09-10", "text": "The Acme pilot passed all 14 acceptance tests; they want the production quote by Friday."}
+    ],
+    "mustContain": ["14"],
+    "tags": ["answer", "en"]
+  },
+  {
+    "id": "answer-price-en",
+    "question": "What is the monthly price for the starter plan?",
+    "asker": "Priya Shah",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Pricing", "date": "2026-08-20", "text": "The starter plan is 3,200 EUR per month for up to 400 seats."},
+      {"sender": "Jordan Lee", "title": "Planning", "date": "2026-08-02", "text": "Booth at the trade fair costs 1,800 EUR."}
+    ],
+    "mustContain": ["3200"],
+    "mustNotContain": ["1800"],
+    "tags": ["answer", "distractor", "en"]
+  },
+  {
+    "id": "answer-meeting-place-tr",
+    "question": "Yarın nerede buluşuyoruz?",
+    "asker": "Ayşe",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Ayşe", "date": "2026-10-03", "text": "Yarın saat üçte Karaköy'deki ofiste buluşalım."}
+    ],
+    "mustContain": ["Karaköy"],
+    "tags": ["answer", "tr"]
+  },
+  {
+    "id": "answer-ticket-en",
+    "question": "What's the ticket number for the billing integration issue?",
+    "asker": "Vic Dalton",
+    "facts": [
+      {"sender": "Can Demir", "title": "Bugs", "date": "2026-09-28", "text": "Opened ticket 4817 for the billing integration timeout."},
+      {"sender": "Can Demir", "title": "Bugs", "date": "2026-09-21", "text": "Ticket 4290 for the dashboard export is closed."}
+    ],
+    "mustContain": ["4817"],
+    "mustNotContain": ["4290"],
+    "tags": ["answer", "distractor", "en"]
+  },
+  {
+    "id": "answer-license-count-tr",
+    "question": "Kaç kullanıcı için lisans almıştık?",
+    "asker": "Selin Aydın",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Lisans", "date": "2026-07-14", "text": "Lisansı 180 kullanıcı için aldık, yenileme Mart'ta."}
+    ],
+    "mustContain": ["180"],
+    "tags": ["answer", "tr"]
+  },
+  {
+    "id": "answer-delivery-date-en",
+    "question": "When will the onboarding guides be delivered?",
+    "asker": "Riley Chen",
+    "facts": [
+      {"sender": "Sam Rivera", "title": "Guides", "date": "2026-09-30", "text": "The onboarding and offboarding guides will be delivered on October 15."}
+    ],
+    "mustContain": ["15"],
+    "tags": ["answer", "en"]
+  },
+  {
+    "id": "answer-contact-person-en",
+    "question": "Who is our contact at Contoso?",
+    "asker": "Jordan Lee",
+    "facts": [
+      {"sender": "Morgan Patel", "title": "Contoso Meeting", "date": "2026-09-05", "text": "I'll be your point of contact at Contoso for the support rollout."}
+    ],
+    "mustContain": ["Morgan"],
+    "tags": ["answer", "en"]
+  },
+  {
+    "id": "answer-pilot-length-tr",
+    "question": "Pilot ne kadar sürecek?",
+    "asker": "Emre Demir",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Pilot", "date": "2026-09-12", "text": "Pilot altı hafta sürecek, iki ekip ile başlıyoruz."}
+    ],
+    "mustContain": ["altı"],
+    "tags": ["answer", "tr"]
+  },
+  {
+    "id": "answer-wifi-en",
+    "question": "What's the guest wifi network at the office?",
+    "asker": "Riley Chen",
+    "facts": [
+      {"sender": "Office", "title": "Office info", "date": "2026-06-01", "text": "Guest wifi network is Acme-Guest, ask reception for the code."}
+    ],
+    "mustContain": ["Acme-Guest"],
+    "tags": ["answer", "en"]
+  },
+  {
+    "id": "answer-budget-distractor-en",
+    "question": "What budget did the client approve for Q4?",
+    "asker": "Priya Shah",
+    "facts": [
+      {"sender": "Vic Dalton", "title": "Client Status", "date": "2026-09-25", "text": "The client approved a Q4 budget of 120,000 EUR."},
+      {"sender": "Vic Dalton", "title": "Client Status", "date": "2026-06-25", "text": "Q3 budget was 80,000 EUR."}
+    ],
+    "mustContain": ["120"],
+    "mustNotContain": ["80"],
+    "tags": ["answer", "distractor", "en"]
+  },
+  {
+    "id": "answer-integration-tr",
+    "question": "Fatura entegrasyonu tamamlandı mı?",
+    "asker": "Deniz Kaya",
+    "facts": [
+      {"sender": "Can Demir", "title": "Integration", "date": "2026-09-29", "text": "Fatura entegrasyonu tamamlandı, ödeme sistemi için test devam ediyor."}
+    ],
+    "mustContain": ["tamamlandı"],
+    "tags": ["answer", "tr"]
+  },
+  {
+    "id": "answer-flight-en",
+    "question": "Which flight are you taking to Izmir?",
+    "asker": "Ayşe",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Family", "date": "2026-10-01", "text": "I'm on XY2312 to Izmir, landing at 9:40."}
+    ],
+    "mustContain": ["2312"],
+    "tags": ["answer", "en"]
+  },
+  {
+    "id": "abstain-unrelated-en",
+    "question": "Did you send the signed NDA to Northwind?",
+    "asker": "Priya Shah",
+    "facts": [
+      {"sender": "Sam Rivera", "title": "Guides", "date": "2026-09-30", "text": "The onboarding guide is ready for review."}
+    ],
+    "abstain": true,
+    "tags": ["abstain", "en"]
+  },
+  {
+    "id": "abstain-unrelated-tr",
+    "question": "Northwind toplantısı ne zaman?",
+    "asker": "Selin Aydın",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Lisans", "date": "2026-07-14", "text": "Lisansı 180 kullanıcı için aldık."}
+    ],
+    "abstain": true,
+    "tags": ["abstain", "tr"]
+  },
+  {
+    "id": "abstain-price-unknown-en",
+    "question": "How much does the SSO add-on cost?",
+    "asker": "Jordan Lee",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Pricing", "date": "2026-08-20", "text": "The starter plan is 3,200 EUR per month for up to 400 seats."}
+    ],
+    "abstain": true,
+    "tags": ["abstain", "distractor", "en"]
+  },
+  {
+    "id": "abstain-person-unknown-en",
+    "question": "Who is leading the Northwind project?",
+    "asker": "Riley Chen",
+    "facts": [
+      {"sender": "Morgan Patel", "title": "Contoso Meeting", "date": "2026-09-05", "text": "I'll be your point of contact at Contoso."}
+    ],
+    "abstain": true,
+    "tags": ["abstain", "en"]
+  },
+  {
+    "id": "abstain-date-unknown-tr",
+    "question": "Teklifi ne zaman göndereceksin?",
+    "asker": "Emre Demir",
+    "facts": [
+      {"sender": "You", "fromMe": true, "title": "Pilot", "date": "2026-09-12", "text": "Pilot altı hafta sürecek."}
+    ],
+    "abstain": true,
+    "tags": ["abstain", "tr"]
+  }
+]
