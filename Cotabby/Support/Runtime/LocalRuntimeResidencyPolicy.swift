@@ -25,8 +25,9 @@ enum LocalRuntimeResidencyPolicy {
             // Both switches must be on: a kept-loaded model is useless when the fallback that
             // would use it is turned off.
             return isAppleLanguageFallbackEnabled && keepsFallbackModelLoaded
-        case .openAICompatible:
-            // The endpoint runs its own model, so a resident GGUF would only double memory use.
+        case .openAICompatible, .mlx:
+            // The endpoint and mlx_lm.server each run their own model, so a resident GGUF would
+            // only double memory use.
             return false
         }
     }

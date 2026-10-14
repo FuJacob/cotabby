@@ -25,7 +25,7 @@ final class SuggestionEngineModelsTests: XCTestCase {
         // would silently reset every saved engine choice.
         XCTAssertEqual(
             SuggestionEngineKind.allCases.map(\.rawValue),
-            ["appleIntelligence", "llamaOpenSource", "openAICompatible"]
+            ["appleIntelligence", "llamaOpenSource", "openAICompatible", "mlx"]
         )
     }
 

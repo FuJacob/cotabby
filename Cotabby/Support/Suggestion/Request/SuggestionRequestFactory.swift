@@ -94,10 +94,10 @@ enum SuggestionRequestFactory {
                 fieldPlaceholder: context.fieldPlaceholder
             )
             : nil
-        // Typing history stays on this Mac. The provider already returns nothing for the endpoint
-        // engine; dropping it here as well keeps that guarantee in the one pure place every request
-        // passes through.
-        let activeHistoryExamples = settings.selectedEngine == .openAICompatible ? [] : historyExamples
+        // Typing history stays on this Mac. The provider already returns nothing for engines that
+        // are not on-device; dropping it here as well keeps that guarantee in the one pure place
+        // every request passes through.
+        let activeHistoryExamples = settings.selectedEngine.isOnDevice ? historyExamples : []
         let maxPredictionTokens = activeMaxPredictionTokens(
             configuration: configuration,
             wordRange: settings.effectiveWordRange,
@@ -116,7 +116,7 @@ enum SuggestionRequestFactory {
             // The endpoint backend shares this renderer, but adding document-tail content to a
             // network request needs its own disclosure and consent. Keep this new context local;
             // Apple's fallback request can use it because both eligible engines run on-device.
-            trailingText: settings.selectedEngine == .openAICompatible ? "" : context.trailingText,
+            trailingText: settings.selectedEngine.isOnDevice ? context.trailingText : "",
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             customRules: customRules,
             extendedContext: activeExtendedContext,
@@ -188,7 +188,8 @@ enum SuggestionRequestFactory {
         case .appleIntelligence:
             maxCharacters = configuration.maxPrefixCharactersFoundationModel
             maxWords = configuration.maxPrefixWordsFoundationModel
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlx:
+            // MLX serves the same base model family on the same prompt, so it shares the budget.
             maxCharacters = configuration.maxPrefixCharacters
             maxWords = configuration.maxPrefixWords
         case .openAICompatible:
@@ -313,7 +314,7 @@ enum SuggestionRequestFactory {
         switch selectedEngine {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlx:
             return request.prompt
         case .openAICompatible:
             return request.prompt

@@ -15,14 +15,31 @@ final class SuggestionEngineSelectionPolicyTests: XCTestCase {
     }
 
     func test_isSelectable_otherEnginesIgnoreAppleAvailability() {
-        for engine in [SuggestionEngineKind.llamaOpenSource, .openAICompatible] {
+        for engine in [SuggestionEngineKind.llamaOpenSource, .openAICompatible, .mlx] {
             for available in [true, false] {
                 XCTAssertTrue(
-                    SuggestionEngineSelectionPolicy.isSelectable(engine, foundationModelAvailable: available),
+                    SuggestionEngineSelectionPolicy.isSelectable(
+                        engine, foundationModelAvailable: available, isAppleSilicon: true
+                    ),
                     "\(engine) available=\(available)"
                 )
             }
         }
+    }
+
+    func test_mlxNeedsAppleSilicon() {
+        XCTAssertTrue(SuggestionEngineSelectionPolicy.isSelectable(
+            .mlx, foundationModelAvailable: false, isAppleSilicon: true))
+        XCTAssertFalse(SuggestionEngineSelectionPolicy.isSelectable(
+            .mlx, foundationModelAvailable: true, isAppleSilicon: false))
+        XCTAssertEqual(
+            SuggestionEngineSelectionPolicy.pickerLabel(
+                for: .mlx, foundationModelAvailable: true, isAppleSilicon: false),
+            "MLX (Unavailable)"
+        )
+        // Intel does not affect the engines that do not need MLX.
+        XCTAssertTrue(SuggestionEngineSelectionPolicy.isSelectable(
+            .llamaOpenSource, foundationModelAvailable: false, isAppleSilicon: false))
     }
 
     func test_pickerLabel_marksOnlyUnselectableEngines() {

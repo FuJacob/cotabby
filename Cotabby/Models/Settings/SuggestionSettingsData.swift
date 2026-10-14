@@ -33,6 +33,12 @@ struct SuggestionEngineSettings: Equatable {
     /// Keep that fallback model loaded while Apple Intelligence is selected, so the first
     /// fallback suggestion does not wait for the model to load. Costs the model's memory.
     var keepsFallbackModelLoaded: Bool
+    /// Hugging Face repo id of the MLX model, exactly as `mlx_lm.server --model` receives it.
+    var mlxModelID: String = ""
+    /// Upper bound on the MLX server's prompt (KV) cache, in bytes.
+    var mlxPromptCacheBytes: Int = SuggestionSettingsStore.defaultMLXPromptCacheBytes
+    var batteryMLXModelID: String = ""
+    var pluggedInMLXModelID: String = ""
 }
 
 /// Completion length, timing, streaming, and acceptance behavior.
@@ -188,6 +194,26 @@ extension SuggestionSettingsData {
     var openAICompatibleAPIMode: OpenAICompatibleAPIMode {
         get { engine.openAICompatibleAPIMode }
         set { engine.openAICompatibleAPIMode = newValue }
+    }
+
+    var mlxModelID: String {
+        get { engine.mlxModelID }
+        set { engine.mlxModelID = newValue }
+    }
+
+    var mlxPromptCacheBytes: Int {
+        get { engine.mlxPromptCacheBytes }
+        set { engine.mlxPromptCacheBytes = newValue }
+    }
+
+    var batteryMLXModelID: String {
+        get { engine.batteryMLXModelID }
+        set { engine.batteryMLXModelID = newValue }
+    }
+
+    var pluggedInMLXModelID: String {
+        get { engine.pluggedInMLXModelID }
+        set { engine.pluggedInMLXModelID = newValue }
     }
 
     var isPowerBasedModelSwitchingEnabled: Bool {

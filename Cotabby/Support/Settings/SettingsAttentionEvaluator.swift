@@ -21,6 +21,9 @@ enum SettingsAttentionEvaluator {
         let llamaRuntimeFailedReason: String?
         let endpointConfigurationError: String?
         let endpointConnectionFailedReason: String?
+        /// Why the MLX engine cannot generate (not installed, no model, failed), or nil when it can
+        /// or is merely starting. Defaulted so callers that predate MLX keep compiling.
+        var mlxProblem: String? = nil
     }
 
     /// Returns the set of categories that should render an attention dot in the sidebar.
@@ -42,6 +45,10 @@ enum SettingsAttentionEvaluator {
             }
         case .openAICompatible:
             if inputs.endpointConfigurationError != nil || inputs.endpointConnectionFailedReason != nil {
+                categories.insert(.engineAndModel)
+            }
+        case .mlx:
+            if inputs.mlxProblem != nil {
                 categories.insert(.engineAndModel)
             }
         }

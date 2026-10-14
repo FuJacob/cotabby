@@ -533,7 +533,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     // MARK: - SuggestionHistoryProviding
 
     func historyExamples(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String] {
-        guard preferences.isUsingHistory, engine != .openAICompatible, let index else { return [] }
+        guard preferences.isUsingHistory, engine.isOnDevice, let index else { return [] }
         let stableText = TypingHistoryQuery.stableText(from: context.precedingText)
         // The window title (an email subject, a document name) is the most stable topical signal a
         // field has, so it joins the query even before the first full block of words is typed.
@@ -557,7 +557,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     }
 
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String? {
-        guard preferences.isUsingHistory, engine != .openAICompatible, let phrases else { return nil }
+        guard preferences.isUsingHistory, engine.isOnDevice, let phrases else { return nil }
         // Text after the caret on the same line would be pushed along by an inserted phrase; leave
         // those mid-line positions to the model, which sees the trailing text.
         let restOfLine = request.context.trailingText.prefix { !$0.isNewline }
