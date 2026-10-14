@@ -8,6 +8,13 @@ nonisolated struct OpenAICompatibleGenerationOptions: Equatable, Sendable {
     let topP: Double
 }
 
+/// One chat message for requests that bring their own system prompt (selection rewrite), unlike
+/// autocomplete's single-message continuation prompt.
+nonisolated struct OpenAICompatibleChatMessage: Encodable, Equatable, Sendable {
+    let role: String
+    let content: String
+}
+
 enum OpenAICompatibleClientError: LocalizedError, Equatable {
     case invalidResponse
     case server(statusCode: Int)
@@ -99,6 +106,41 @@ final class OpenAICompatibleAPIClient {
             options: options
         )
 
+        return try await streamSSE(request, mode: configuration.apiMode, onPartialRawText: onPartialRawText)
+    }
+
+    /// Streams a chat completion for a caller-built message list (selection rewrite). Sends only
+    /// model, messages and stream, so hosted models that reject sampling or reasoning fields accept it.
+    func streamChat(
+        configuration: OpenAICompatibleEndpointConfiguration,
+        apiKey: String?,
+        messages: [OpenAICompatibleChatMessage],
+        timeout: TimeInterval,
+        onPartialRawText: (@MainActor (String) -> Void)?
+    ) async throws -> String {
+        guard !configuration.modelName.isEmpty else { throw OpenAICompatibleEndpointError.emptyModelName }
+        var request = URLRequest(
+            url: configuration.apiURL(path: OpenAICompatibleAPIMode.chatCompletions.route),
+            timeoutInterval: timeout
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        applyHeaders(to: &request, apiKey: apiKey)
+        request.httpBody = try encoder.encode(
+            ChatMessagesRequest(model: configuration.modelName, messages: messages)
+        )
+        return try await streamSSE(request, mode: .chatCompletions, onPartialRawText: onPartialRawText)
+    }
+
+    /// The SSE loop shared by `generate` and `streamChat`. It returns the accumulated text at the
+    /// `[DONE]` sentinel, reports each cumulative partial, and treats a stream with no data events
+    /// as a malformed response rather than an empty suggestion.
+    private func streamSSE(
+        _ request: URLRequest,
+        mode: OpenAICompatibleAPIMode,
+        onPartialRawText: (@MainActor (String) -> Void)?
+    ) async throws -> String {
         let (bytes, response) = try await session.bytes(for: request)
         try Self.validate(response)
 
@@ -106,11 +148,10 @@ final class OpenAICompatibleAPIClient {
         var sawEvent = false
         for try await line in bytes.lines {
             try Task.checkCancellation()
-            switch try OpenAICompatibleSSEDecoder.decode(line, mode: configuration.apiMode) {
+            switch try OpenAICompatibleSSEDecoder.decode(line, mode: mode) {
             case .ignore:
                 continue
             case .done:
-                sawEvent = true
                 return accumulated
             case .text(let text):
                 sawEvent = true
@@ -343,6 +384,15 @@ private nonisolated struct ChatCompletionRequest: Encodable {
         case topP = "top_p"
         case reasoningEffort = "reasoning_effort"
     }
+}
+
+/// A rewrite request: model, messages and stream only. Sampling and reasoning fields are left out
+/// because hosted models differ in which of them they reject (some refuse `max_tokens` or a
+/// non-default temperature), and a rewrite needs none of them.
+private nonisolated struct ChatMessagesRequest: Encodable {
+    let model: String
+    let messages: [OpenAICompatibleChatMessage]
+    let stream = true
 }
 
 private nonisolated struct StreamChunk: Decodable {

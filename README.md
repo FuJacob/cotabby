@@ -68,6 +68,7 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 - **One-key autocorrect** — fix a likely typo with a single keystroke
 - **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
 - **Optional screen context** — control visual context independently of the local prediction settings
+- **Rewrite with AI** — select text you wrote, pick a tone (or fix typos, or give your own instruction), preview, and replace it in place (`⌃⌥R` or the wand beside the field)
 
 ## Privacy
 
@@ -80,6 +81,9 @@ Privacy is the whole point, so Cotabby's default engines keep generation on your
 - A normal install never writes what you type to disk.
 - Apart from a configured endpoint, the network is used for model downloads and update checks, not
   suggestion generation.
+- Rewrite with AI runs on your Mac by default. Only if you pick a cloud service in Settings → Rewrite
+  and enter your own key is the selected text (and the tone or instruction) sent to that service; the
+  key is kept in the Keychain.
 
 ## Engines
 

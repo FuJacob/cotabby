@@ -198,7 +198,9 @@ The Swift generation loop owns the maximum output-token budget.
   reads as overwriting them. Change those pure helpers and their tests rather than nudging offsets
   in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
-- `ActivationIndicatorController` owns the optional caret/field-edge indicator.
+- `ActivationIndicatorController` owns the optional caret/field-edge indicator. Selection rewrite
+  borrows it as its wand button while text is selected (`showRewrite` / `endRewrite`);
+  `SelectionRewriteCoordinator` owns that flow, its popup and its Replace checks.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
   options, not normal user settings.
 - Settings panes (under `Cotabby/UI/Settings/Panes/`) and onboarding views should remain

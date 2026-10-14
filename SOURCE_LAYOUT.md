@@ -28,6 +28,7 @@ Cotabby/
 │   ├── Core/                         process entry, composition root, lifecycle
 │   └── Coordinators/
 │       ├── InlineFeatures/           emoji/macro capture arbitration
+│       ├── Rewrite/                  selection-rewrite state machine
 │       ├── Suggestion/               autocomplete interaction state machine
 │       ├── SettingsCoordinator.swift
 │       └── WelcomeCoordinator.swift
@@ -39,6 +40,7 @@ Cotabby/
 │   ├── Input/                        keyboard event values
 │   ├── Onboarding/                   onboarding templates
 │   ├── Permissions/                  TCC permission values
+│   ├── Rewrite/                      rewrite actions, requests, cloud services, and preferences
 │   ├── Runtime/
 │   │   └── Metrics/                  performance and system metric stores
 │   ├── Settings/                     durable and UI-facing settings values
@@ -60,6 +62,7 @@ Cotabby/
 │   │   └── Guidance/                 permission overlay and System Settings guidance
 │   ├── Power/                        power-source observation
 │   ├── Presentation/                 process-level AppKit panels and indicators
+│   ├── Rewrite/                      rewrite engine, local and cloud providers, preferences store
 │   ├── Runtime/
 │   │   ├── AppleIntelligence/        Foundation Models availability and engine
 │   │   ├── Llama/                    llama engine, manager, and native core
@@ -90,6 +93,7 @@ Cotabby/
 │   │   ├── Policy/                   render-mode, fade, and stability decisions
 │   │   └── Style/                    ghost text font and color rules
 │   ├── Prompting/                    Apple and base-model prompt rendering
+│   ├── Rewrite/                      rewrite eligibility, prompts, output cleanup, replace checks
 │   ├── Runtime/
 │   │   ├── Hardware/                 device capability and resource sampling
 │   │   ├── BundledRuntimeLocator.swift
@@ -109,7 +113,7 @@ Cotabby/
 │   └── Utilities/                    small cross-subsystem value helpers
 └── UI/
     ├── Components/                   application-wide reusable views
-    ├── InlineFeatures/               emoji picker and macro reference surfaces
+    ├── InlineFeatures/               emoji picker, macro reference, and rewrite popup surfaces
     ├── MenuBar/                      menu-bar status and popover content
     ├── Onboarding/
     │   └── Welcome/                  composed welcome flow and step views

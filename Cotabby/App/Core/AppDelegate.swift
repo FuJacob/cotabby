@@ -94,6 +94,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Selection rewrite borrows the field-edge icon while text is selected; when it gives the icon
+        // back, show the normal icon for the current focus at once.
+        activationIndicatorController.onRewriteEnded = { [weak self] in
+            guard let self else { return }
+            self.updateActivationIndicator(for: self.focusModel.snapshot)
+        }
+
         focusModel.$snapshot
             .sink { [weak self] snapshot in
                 self?.updateActivationIndicator(for: snapshot)
@@ -169,6 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
+        environment.selectionRewriteCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -253,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Write the field being typed in now; the debounced background save may not have run yet.
         environment.typingHistoryStore.flush()
         inlineCommandCoordinator.stop()
+        environment.selectionRewriteCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
 

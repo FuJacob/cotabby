@@ -30,6 +30,11 @@ struct SettingsContainerView: View {
     let clearEmojiHistory: () -> Void
     /// Owned by `CotabbyAppEnvironment`; the Context pane observes it for the Typing History section.
     let typingHistoryStore: TypingHistoryStore
+    /// Selection rewrite's settings and keys; the same instances the rewrite engine reads, so a change
+    /// here applies to the next rewrite.
+    @ObservedObject var rewritePreferences: RewritePreferencesStore
+    let rewriteCredentials: RewriteCredentialVault
+    let rewriteModelList: RewriteModelListService
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -146,6 +151,12 @@ struct SettingsContainerView: View {
             WritingPaneView(suggestionSettings: suggestionSettings)
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings, typingHistory: typingHistoryStore)
+        case .rewrite:
+            // The local provider prefers Apple Intelligence whenever it is available, so the label
+            // follows the live availability rather than a value captured at launch.
+            RewritePaneView(preferences: rewritePreferences, credentials: rewriteCredentials,
+                            modelList: rewriteModelList,
+                            usesAppleIntelligence: foundationModelAvailabilityService.isAvailable)
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:
