@@ -21,6 +21,17 @@ final class MLXRepoIDTests: XCTestCase {
         XCTAssertNil(MLXRepoID("https://example.com/mlx-community/x"))
     }
 
+    /// Dataset and Space links must not turn into a wrong model id ("datasets/org"), and a link
+    /// copied without its scheme is still recognized.
+    func test_rejectsNonModelURLsAndAcceptsALinkWithoutScheme() {
+        XCTAssertNil(MLXRepoID("https://huggingface.co/datasets/org/name"))
+        XCTAssertNil(MLXRepoID("https://huggingface.co/spaces/org/app"))
+        XCTAssertNil(MLXRepoID("https://huggingface.co/models"))
+        XCTAssertEqual(MLXRepoID("huggingface.co/mlx-community/gemma-4-e4b-5bit")?.value,
+                       "mlx-community/gemma-4-e4b-5bit")
+        XCTAssertEqual(MLXRepoID("www.huggingface.co/org/name/tree/main")?.value, "org/name")
+    }
+
     func test_rejectsAnythingElse() {
         for raw in ["", "gemma", "org/name/extra", "../../etc", "org/..", "org/a b", "org/-x",
                     "org/.hidden", "org/a--b", "org/a;rm", "/name", "org/"] {
@@ -64,6 +75,20 @@ final class MLXModelCatalogTests: XCTestCase {
             MLXModelCatalog.defaultSelection(cached: [cached("alpha/a"), cached("mlx-community/gemma-4-e2b-6bit")])?.value,
             "mlx-community/gemma-4-e2b-6bit"
         )
+    }
+
+    /// A custom model downloads before it is cached, so no catalog row shows it: the custom field
+    /// must. A catalog model's download stays on its own row.
+    func test_downloadWithoutRowIsOnlyACustomModelsDownload() {
+        let options = MLXModelCatalog.options(cached: [])
+        let custom = MLXDownloadState(repoID: MLXRepoID("org/custom")!, fraction: 0.4, failure: nil, isActive: true)
+        XCTAssertEqual(MLXModelCatalog.downloadWithoutRow(custom, options: options), custom)
+        let failed = MLXDownloadState(repoID: MLXRepoID("org/custom")!, fraction: nil, failure: "No space", isActive: false)
+        XCTAssertEqual(MLXModelCatalog.downloadWithoutRow(failed, options: options), failed)
+        let curated = MLXDownloadState(
+            repoID: MLXModelCatalog.curated[0].repoID, fraction: 0.1, failure: nil, isActive: true)
+        XCTAssertNil(MLXModelCatalog.downloadWithoutRow(curated, options: options))
+        XCTAssertNil(MLXModelCatalog.downloadWithoutRow(nil, options: options))
     }
 }
 

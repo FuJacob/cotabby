@@ -59,8 +59,40 @@ final class MLXCacheScannerTests: XCTestCase {
         XCTAssertEqual(models.first?.isInstruct, false)
     }
 
-    func test_incompleteDownloadIsSkipped() throws {
-        try repo("models--a--partial", files: modelFiles(type: "gemma4"), incompleteBlob: true)
+    /// A file still downloading has an `.incomplete` blob and no snapshot link yet, so the snapshot
+    /// misses it. An unrelated partial blob (another revision, an unused file) must not hide a
+    /// complete snapshot.
+    func test_incompleteBlobsMatterOnlyThroughTheSnapshot() throws {
+        var downloading = modelFiles(type: "gemma4"); downloading["model.safetensors"] = nil
+        try repo("models--a--partial", files: downloading, incompleteBlob: true)
+        try repo("models--a--complete", files: modelFiles(type: "gemma4"), incompleteBlob: true)
+        XCTAssertEqual(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).map(\.repoID.value),
+                       ["a/complete"])
+    }
+
+    /// A download stopped between shards leaves the config, the tokenizer and some shards: the
+    /// index names a shard that is not there, so the model is not downloaded.
+    func test_shardedModelNeedsEveryShardTheIndexNames() throws {
+        var files = modelFiles(type: "gemma4"); files["model.safetensors"] = nil
+        files["model.safetensors.index.json"] = """
+        {"weight_map": {"a": "model-00001-of-00002.safetensors", "b": "model-00002-of-00002.safetensors"}}
+        """
+        files["model-00001-of-00002.safetensors"] = "w1"
+        try repo("models--a--sharded", files: files)
+        XCTAssertTrue(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).isEmpty)
+
+        files["model-00002-of-00002.safetensors"] = "w2"
+        try repo("models--a--sharded", files: files)
+        XCTAssertEqual(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).count, 1)
+    }
+
+    /// A snapshot link whose blob was deleted cannot be loaded.
+    func test_danglingSnapshotLinkIsNotDownloaded() throws {
+        let repoURL = try repo("models--a--dangling", files: modelFiles(type: "gemma4"))
+        let weights = repoURL.appendingPathComponent("snapshots/rev1/model.safetensors")
+        try FileManager.default.removeItem(at: weights)
+        try FileManager.default.createSymbolicLink(
+            atPath: weights.path, withDestinationPath: "../../blobs/gone")
         XCTAssertTrue(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).isEmpty)
     }
 
@@ -82,7 +114,9 @@ final class MLXCacheScannerTests: XCTestCase {
     func test_detailedScanReportsRejectedRepos() throws {
         try repo("models--mlx-community--Qwen3-Embedding-0.6B-8bit", files: modelFiles(type: "qwen3"))
         try repo("models--mlx-community--Qwen3-TTS-12Hz-1.7B-Base-bf16", files: modelFiles(type: "qwen3"))
-        try repo("models--a--partial", files: modelFiles(type: "qwen3"), incompleteBlob: true)
+        // Still downloading: the weights blob is `.incomplete` and not linked into the snapshot yet.
+        var downloading = modelFiles(type: "qwen3"); downloading["model.safetensors"] = nil
+        try repo("models--a--partial", files: downloading, incompleteBlob: true)
         try repo("models--a--ok", files: modelFiles(type: "qwen3"))
         let result = MLXCacheScanner.scanDetailed(cacheRoot: root, supportedModelTypes: ["qwen3"])
         XCTAssertEqual(result.models.map(\.repoID.value), ["a/ok"])
@@ -125,18 +159,21 @@ final class MLXCacheScannerTests: XCTestCase {
         XCTAssertFalse(MLXCacheScanner.isInstructName("unit-test"), "'it' must be a whole token")
     }
 
-    func test_refsMainPicksTheSnapshotElseTheNewest() throws {
+    /// The server loads the repo id offline, which huggingface_hub resolves through `refs/main`. A
+    /// snapshot without it (cached by commit) could not be loaded, so it is not downloaded.
+    func test_onlyTheSnapshotRefsMainNamesCounts() throws {
         let folder = "models--a--revs"
-        try repo(folder, revision: "old", refsMain: false, files: ["config.json": "{}"])
-        Thread.sleep(forTimeInterval: 0.01)
         try repo(folder, revision: "new", refsMain: false, files: modelFiles(type: "gemma4"))
-        XCTAssertEqual(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).first?.snapshotURL.lastPathComponent, "new")
+        XCTAssertTrue(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).isEmpty,
+                      "no refs/main: the offline server could not resolve the repo")
 
-        try FileManager.default.createDirectory(
-            at: root.appendingPathComponent("\(folder)/refs"), withIntermediateDirectories: true)
-        try "old".write(to: root.appendingPathComponent("\(folder)/refs/main"), atomically: true, encoding: .utf8)
+        try repo(folder, revision: "old", files: ["config.json": "{}"])
         XCTAssertTrue(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"]).isEmpty,
                       "refs/main points at the snapshot without weights")
+
+        try "new".write(to: root.appendingPathComponent("\(folder)/refs/main"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(MLXCacheScanner.scan(cacheRoot: root, supportedModelTypes: ["gemma4"])
+            .first?.snapshotURL.lastPathComponent, "new")
     }
 
     func test_cacheRootFollowsHuggingFaceEnvironment() {

@@ -34,8 +34,8 @@ nonisolated enum MLXCacheScanner {
 
     /// Like `scan`, but also reports the repos that have a complete snapshot and still fail
     /// `MLXModelCompatibility`, so the UI can say why a downloaded model is not offered. A repo with
-    /// no snapshot, or with `.incomplete` blobs, is neither listed nor rejected: it is simply not
-    /// downloaded.
+    /// no `refs/main` snapshot, or whose snapshot is incomplete (`isComplete`), is neither listed
+    /// nor rejected: it is simply not downloaded.
     static func scanDetailed(
         cacheRoot: URL,
         supportedModelTypes: Set<String>?,
@@ -49,9 +49,9 @@ nonisolated enum MLXCacheScanner {
         for folder in folders {
             guard let repoID = MLXRepoID(cacheFolderName: folder) else { continue }
             let repoURL = cacheRoot.appendingPathComponent(folder, isDirectory: true)
-            guard !hasIncompleteBlob(repoURL, fileManager: fileManager),
-                  let snapshot = currentSnapshot(repoURL, fileManager: fileManager),
-                  let files = try? fileManager.contentsOfDirectory(atPath: snapshot.path)
+            guard let snapshot = currentSnapshot(repoURL, fileManager: fileManager),
+                  let files = try? fileManager.contentsOfDirectory(atPath: snapshot.path),
+                  isComplete(snapshot, files: files, fileManager: fileManager)
             else { continue }
             let config = readConfig(snapshot.appendingPathComponent("config.json"))
             switch MLXModelCompatibility.verdict(
@@ -100,28 +100,36 @@ nonisolated enum MLXCacheScanner {
 
     // MARK: - Private
 
-    private static func hasIncompleteBlob(_ repo: URL, fileManager: FileManager) -> Bool {
-        let names = (try? fileManager.contentsOfDirectory(atPath: repo.appendingPathComponent("blobs").path)) ?? []
-        return names.contains { $0.hasSuffix(".incomplete") }
-    }
-
-    /// The revision `refs/main` names, else the most recently modified snapshot.
-    private static func currentSnapshot(_ repo: URL, fileManager: FileManager) -> URL? {
-        let snapshots = repo.appendingPathComponent("snapshots", isDirectory: true)
-        if let revision = try? String(contentsOf: repo.appendingPathComponent("refs/main"), encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !revision.isEmpty {
-            let url = snapshots.appendingPathComponent(revision, isDirectory: true)
-            return fileManager.fileExists(atPath: url.path) ? url : nil
+    /// Whether the snapshot holds everything `mlx_lm` will load. huggingface_hub links a file into
+    /// the snapshot only after its blob is complete, so a download in progress elsewhere in the repo
+    /// (an `.incomplete` blob for another revision or an unused file) does not matter here. Two
+    /// things do: every entry must reach a readable file (a deleted blob leaves a dangling link),
+    /// and a sharded model's `model.safetensors.index.json` must find every shard it names, because
+    /// a download stopped between files leaves some shards, the config and the tokenizer in place.
+    static func isComplete(_ snapshot: URL, files: [String], fileManager: FileManager = .default) -> Bool {
+        for name in files {
+            let target = snapshot.appendingPathComponent(name).resolvingSymlinksInPath()
+            guard fileManager.isReadableFile(atPath: target.path) else { return false }
         }
-        let revisions = (try? fileManager.contentsOfDirectory(atPath: snapshots.path)) ?? []
-        return revisions
-            .map { snapshots.appendingPathComponent($0, isDirectory: true) }
-            .max { modificationDate($0, fileManager) < modificationDate($1, fileManager) }
+        let indexName = "model.safetensors.index.json"
+        guard files.contains(indexName) else { return true }
+        guard let data = try? Data(contentsOf: snapshot.appendingPathComponent(indexName)),
+              let index = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let weightMap = index["weight_map"] as? [String: String]
+        else { return false }
+        return Set(weightMap.values).isSubset(of: Set(files))
     }
 
-    private static func modificationDate(_ url: URL, _ fileManager: FileManager) -> Date {
-        ((try? fileManager.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date) ?? .distantPast
+    /// The revision `refs/main` names. `mlx_lm.server` runs offline with the repo id, which
+    /// huggingface_hub resolves through `refs/main`; a snapshot cached only by commit could not be
+    /// loaded, so it does not count as downloaded.
+    private static func currentSnapshot(_ repo: URL, fileManager: FileManager) -> URL? {
+        guard let revision = try? String(contentsOf: repo.appendingPathComponent("refs/main"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !revision.isEmpty
+        else { return nil }
+        let url = repo.appendingPathComponent("snapshots/\(revision)", isDirectory: true)
+        return fileManager.fileExists(atPath: url.path) ? url : nil
     }
 
     private static func readConfig(_ url: URL) -> [String: Any]? {

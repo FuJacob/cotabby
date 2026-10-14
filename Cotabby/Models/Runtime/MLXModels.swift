@@ -80,12 +80,23 @@ nonisolated struct MLXRepoID: Equatable, Hashable, Sendable, CustomStringConvert
     /// The folder `huggingface_hub` caches this repo under.
     var cacheFolderName: String { "models--\(owner)--\(name)" }
 
+    /// First path segments that Hugging Face uses for its own pages (datasets, Spaces, listings),
+    /// so a URL starting with one of them is not a model page.
+    private static let reservedURLSegments: Set<String> = [
+        "api", "collections", "datasets", "docs", "models", "organizations", "papers", "settings", "spaces"
+    ]
+
     init?(_ raw: String) {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A link copied without its scheme has no host for `URL` to find; give it one.
+        let lowered = text.lowercased()
+        if lowered.hasPrefix("huggingface.co/") || lowered.hasPrefix("www.huggingface.co/") {
+            text = "https://" + text
+        }
         if let url = URL(string: text), let host = url.host {
             guard host == "huggingface.co" || host == "www.huggingface.co" else { return nil }
             let parts = url.path.split(separator: "/").map(String.init)
-            guard parts.count >= 2 else { return nil }
+            guard parts.count >= 2, !Self.reservedURLSegments.contains(parts[0]) else { return nil }
             text = "\(parts[0])/\(parts[1])"
         }
         let parts = text.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
@@ -198,6 +209,14 @@ nonisolated enum MLXModelCatalog {
                 )
             }
         return curatedRows + otherRows
+    }
+
+    /// The download that no row in `options` shows: a custom model started from the "Other MLX
+    /// Model" field is not in the catalog until it is cached, so its progress, Cancel and failure
+    /// need a place of their own. Nil when the download (if any) already has a row.
+    static func downloadWithoutRow(_ download: MLXDownloadState?, options: [MLXModelOption]) -> MLXDownloadState? {
+        guard let download, !options.contains(where: { $0.repoID == download.repoID }) else { return nil }
+        return download
     }
 
     /// The model to select when the user picks MLX without having chosen one: a downloaded

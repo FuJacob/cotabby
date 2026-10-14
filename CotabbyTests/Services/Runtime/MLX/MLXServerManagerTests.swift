@@ -602,6 +602,22 @@ final class MLXServerManagerBrokenGeneratorTests: XCTestCase {
         XCTAssertEqual(manager.state, .starting(modelID: "mlx-community/a"))
     }
 
+    /// A quit that lands before the report's task runs must still reach the broken process: the
+    /// report signals it and records it as stopping without suspending first.
+    func test_quitRightAfterAReportStillStopsTheBrokenServer() async {
+        launcher.exitsOnTerminate = false
+        let manager = makeManager()
+        await startReady(manager)
+        manager.reportBroken(port: 50123, reason: "HTTP 404")
+        manager.shutdownSync(timeoutSeconds: 0.05)
+        XCTAssertEqual(launcher.launches[0].process.terminateCount, 1)
+        XCTAssertEqual(launcher.launches[0].process.killCount, 1, "shutdown SIGKILLs the stubborn process")
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(launcher.launches[0].process.terminateCount, 1, "SIGTERM is sent once")
+        XCTAssertEqual(launcher.launches.count, 1, "a quit leaves nothing to restart")
+        XCTAssertEqual(manager.state, .idle)
+    }
+
     func test_aSecondReportDuringTheRestartDoesNotCountAgain() async {
         let manager = makeManager()
         await startReady(manager)
