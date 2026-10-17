@@ -77,6 +77,12 @@ final class SuggestionCoordinator: ObservableObject {
     /// a slow HTTP backend retain an appropriate debounce without leaking that latency into the
     /// in-process engines.
     var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
+    /// Latency to the first streamed text of the most recent request per backend: what starting a
+    /// request costs once the KV prefix is warm. `DebouncePolicy` prefers it, because a superseded
+    /// request stops at its next token while a debounce delays every keystroke. Recorded once per
+    /// work item (`firstTextRecordedWorkID`), only for the request that is still current.
+    var lastFirstTextLatencyByEngine: [SuggestionEngineKind: Int] = [:]
+    var firstTextRecordedWorkID: UInt64?
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0

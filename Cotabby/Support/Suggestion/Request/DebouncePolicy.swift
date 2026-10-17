@@ -7,9 +7,17 @@ import Foundation
 /// that cannot keep up (each cancel still costs a decode setup and teardown). Keying the debounce
 /// to the most recent generation latency makes fast machines snappier and slow machines calmer,
 /// with no configuration. The configured value remains the fallback until a first latency exists.
+///
+/// For the in-process engines the cost a debounce saves is the cost of *starting* a request, not
+/// of finishing it: a superseded generation is cancelled between tokens, and with KV prefix reuse a
+/// warm request decodes only the typed delta before its first text appears. So when the latency to
+/// that first text is known and small, the debounce shrinks to nothing; keying it to the full
+/// latency instead made every short-but-complete suggestion (100-200 ms) buy the maximum 55 ms
+/// wait in front of the next keystroke, the largest single delay before visible text.
 nonisolated enum DebouncePolicy {
     static func milliseconds(
         lastGenerationLatencyMilliseconds: Int?,
+        lastFirstTextLatencyMilliseconds: Int? = nil,
         fallback: Int,
         engine: SuggestionEngineKind = .llamaOpenSource
     ) -> Int {
@@ -25,6 +33,14 @@ nonisolated enum DebouncePolicy {
             case ...300: return 100
             case ...700: return 150
             default: return 220
+            }
+        }
+
+        if let firstText = lastFirstTextLatencyMilliseconds, firstText > 0 {
+            switch firstText {
+            case ...60: return 0
+            case ...120: return 10
+            default: break
             }
         }
 

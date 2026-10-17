@@ -34,9 +34,13 @@ nonisolated struct TypingCadence {
         guard self.identityKey == identityKey, let last = lastLetterAt,
               CaretWordContext.unfinishedWord(in: precedingText) != nil else { return 0 }
         let ordered = intervals.sorted()
-        // These are bounded presentation limits, not a new global debounce. Before enough rhythm
-        // exists, 80ms merely absorbs an ordinary brief hesitation; a completed word pays no delay.
-        let quietWindow = ordered.count >= 2 ? min(0.22, max(0.08, ordered[ordered.count / 2] * 1.2)) : 0.08
+        // These are bounded presentation limits, not a new global debounce, and they only suppress
+        // a mid-word ghost that would flash for a fraction of a keystroke. The window runs from the
+        // last letter, so it overlaps the generation itself: a warm request needs ~40-60 ms to
+        // produce text, and by then a window of at most 50 ms has usually elapsed and costs
+        // nothing. The previous 80-220 ms window (1.2x the typing interval) held every mid-word
+        // suggestion back for a whole keystroke on top of generation. A completed word pays none.
+        let quietWindow = ordered.count >= 2 ? min(0.05, max(0.02, ordered[ordered.count / 2] * 0.4)) : 0.04
         return max(0, quietWindow - max(0, time - last))
     }
 }
