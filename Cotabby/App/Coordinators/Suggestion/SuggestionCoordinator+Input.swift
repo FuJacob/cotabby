@@ -220,10 +220,19 @@ extension SuggestionCoordinator {
             // null the freshly primed session out from under us.
             await self.awaitCachedGenerationContextResetIfNeeded()
             let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
+            // Build the prompt from the same context sources the first real request will read
+            // (`SuggestionCoordinator+Prediction`): the pinned clipboard and any ready screen
+            // excerpt. The prefill is only worth its decode if the next request shares its bytes;
+            // leaving these out made the first request diverge right after the surface line and
+            // re-decode everything the prewarm had already paid for.
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
                 configuration: configuration,
+                clipboardContext: self.pinnedClipboardContext(rawContext: rawContext),
+                visualContextSummary: self.permissionManager.screenRecordingGranted
+                    ? self.visualContextCoordinator.excerpt(for: prewarmContext)
+                    : nil,
                 historyExamples: self.historyExamples(for: prewarmContext)
             ).request
             await suggestionEngine.prewarm(for: request)

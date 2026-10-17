@@ -304,6 +304,27 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertEqual(rig.engine.prewarmedRequests.first?.generation, 0)
     }
 
+    /// The focus prefill is only reusable if the first real request renders the same prompt bytes,
+    /// so the prewarm must carry the same pinned clipboard context a prediction would.
+    func test_fieldSwitchPrewarmIncludesPinnedClipboardContext() async {
+        let rig = retained(makeCoordinatorRig())
+        _ = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        rig.clipboardFilter.filtered = "Quarterly numbers attached"
+
+        let otherApp = CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456, precedingText: "Hi")
+        rig.coordinator.handleSupportedSnapshot(FocusSnapshot(
+            applicationName: otherApp.applicationName,
+            bundleIdentifier: otherApp.bundleIdentifier,
+            capability: .supported,
+            context: otherApp
+        ))
+
+        await waitUntil("Engine was never prewarmed for the new field") {
+            !rig.engine.prewarmedRequests.isEmpty
+        }
+        XCTAssertEqual(rig.engine.prewarmedRequests.first?.clipboardContext, "Quarterly numbers attached")
+    }
+
     func test_handleSupportedSnapshot_withoutContextDisablesOutright() {
         let rig = retained(makeCoordinatorRig())
         let bareSnapshot = FocusSnapshot(
