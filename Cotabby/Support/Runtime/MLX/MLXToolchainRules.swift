@@ -32,28 +32,53 @@ nonisolated enum MLXToolchainRules {
     static let downloadScript =
         "import sys; from huggingface_hub import snapshot_download; snapshot_download(sys.argv[1])"
 
-    /// Starts `mlx_lm.server` (its path is `sys.argv[1]`, its flags follow) with full-size caches
-    /// for the sliding-window layers of models verified to mask the window themselves.
+    /// Starts `mlx_lm.server` (its path is `sys.argv[1]`, its flags follow) with two fixes to its
+    /// prompt cache.
     ///
-    /// Gemma 4 builds a `RotatingKVCache(max_size=sliding_window)` for its sliding layers. Once a
-    /// prompt plus its output passes the 512-token window the ring buffer wraps, the cache can no
-    /// longer be trimmed, and the server's prompt cache cannot reuse a request whose tokens diverge
-    /// after the shared prefix (a keystroke after a generation): it re-processes the whole prompt.
-    /// A plain `KVCache` keeps every position and trims exactly, while the model's own mask
-    /// (`create_causal_mask(window_size=...)`) still limits attention to the window, so outputs are
-    /// unchanged. This is the MLX counterpart of llama.cpp's `swa_full`.
+    /// 1. An exact cache hit no longer kills the server. When a request's tokens equal a cached
+    ///    entry, `LRUPromptCache.fetch_nearest_cache` returns no tokens left to process, the server
+    ///    drops every prompt segment, and the batch generator raises "Sequence N has an empty
+    ///    prompt" on its generation thread. That thread is never restarted, so every later request
+    ///    fails until Cotabby restarts the whole server. Cotabby hits it routinely: accepting a
+    ///    suggestion makes the next prompt equal the cached prompt plus its completion. The wrapper
+    ///    keeps one token to process, trimming it off a trimmable cache and falling back to a full
+    ///    re-process otherwise. This applies to every model.
     ///
-    /// The cache module, the server, and the batch generator each bind `make_prompt_cache` by name,
-    /// so all three are replaced, or none: if any binding is missing or different (another mlx-lm
-    /// version), the server runs unpatched rather than with a mix of cache types.
+    /// 2. Gemma 4's sliding-window layers get full-size caches. Gemma 4 builds a
+    ///    `RotatingKVCache(max_size=sliding_window)` for them. Once a prompt plus its output passes
+    ///    the 512-token window the ring buffer wraps, the cache can no longer be trimmed, and a
+    ///    request that diverges from a cached one inside the shared prefix (a backspace, or a
+    ///    keystroke after a generation) re-processes the whole prompt. A plain `KVCache` keeps every
+    ///    position and trims exactly, while the model's own mask (`create_causal_mask(window_size=)`)
+    ///    still limits attention to the window, so outputs stay within MLX's own numeric noise. This
+    ///    is the MLX counterpart of llama.cpp's `swa_full`. The cache module, the server, and the
+    ///    batch generator each bind `make_prompt_cache` by name, so all three are replaced, or none
+    ///    if any binding differs (another mlx-lm version).
+    ///
+    /// Each fix is applied independently; one that does not fit the installed mlx-lm is skipped
+    /// with a note on stderr and the server runs without it.
     static let fullCacheServerScript = """
     import importlib, sys
+    # import_module, not `import mlx_lm.generate as ...`: the package exports a `generate` function
+    # that shadows the submodule, and the `as` form would bind that function.
+    server_module = importlib.import_module("mlx_lm.server")
     try:
-        # import_module, not `import mlx_lm.generate as ...`: the package exports a `generate`
-        # function that shadows the submodule, and the `as` form would bind that function.
+        cache_module = importlib.import_module("mlx_lm.models.cache")
+        fetch = cache_module.LRUPromptCache.fetch_nearest_cache
+        def fetch_nearest_cache(self, model, tokens):
+            cache, rest = fetch(self, model, tokens)
+            if cache is None or len(rest) > 0 or len(tokens) == 0:
+                return cache, rest
+            if cache_module.can_trim_prompt_cache(cache):
+                cache_module.trim_prompt_cache(cache, 1)
+                return cache, tokens[-1:]
+            return None, tokens
+        cache_module.LRUPromptCache.fetch_nearest_cache = fetch_nearest_cache
+    except (ImportError, AttributeError) as error:
+        sys.stderr.write(f"exact-hit guard unavailable, running without it: {error}\\n")
+    try:
         generate_module = importlib.import_module("mlx_lm.generate")
         cache_module = importlib.import_module("mlx_lm.models.cache")
-        server_module = importlib.import_module("mlx_lm.server")
         original = cache_module.make_prompt_cache
         full_cache_model_types = {"gemma4", "gemma4_text"}
         def make_prompt_cache(model, max_kv_size=None):
@@ -68,8 +93,7 @@ nonisolated enum MLXToolchainRules {
         for module in (cache_module, server_module, generate_module):
             module.make_prompt_cache = make_prompt_cache
     except (ImportError, AttributeError) as error:
-        sys.stderr.write(f"full-size cache patch unavailable, running unpatched: {error}\\n")
-        import mlx_lm.server as server_module
+        sys.stderr.write(f"full-size cache patch unavailable, running without it: {error}\\n")
     sys.argv = sys.argv[1:]
     server_module.main()
     """
