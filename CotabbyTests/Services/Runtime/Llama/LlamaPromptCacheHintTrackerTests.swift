@@ -56,6 +56,15 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
         XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", topK: 40)))
     }
 
+    /// Performance tuning moves the output budget between requests; the cached prompt does not
+    /// depend on it, so the hint must survive the change.
+    func test_cacheHint_survivesOutputBudgetChange() {
+        var tracker = LlamaPromptCacheHintTracker()
+        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", maxPredictionTokens: 26))
+
+        XCTAssertEqual(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", maxPredictionTokens: 6)), 5)
+    }
+
     func test_cacheHint_invalidatesWhenProcessChanges() {
         var tracker = LlamaPromptCacheHintTracker()
         tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", processIdentifier: 100))
@@ -123,6 +132,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
         elementIdentifier: String = "field",
         processIdentifier: Int32 = 123,
         topK: Int = 20,
+        maxPredictionTokens: Int = 8,
         inputFrameRect: CGRect? = nil
     ) -> SuggestionRequest {
         let context = CotabbyTestFixtures.focusedInputContext(
@@ -137,7 +147,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
             prefixText: prompt,
             prompt: prompt,
             generation: context.generation,
-            maxPredictionTokens: 8,
+            maxPredictionTokens: maxPredictionTokens,
             temperature: 0.1,
             topK: topK,
             topP: 0.7,

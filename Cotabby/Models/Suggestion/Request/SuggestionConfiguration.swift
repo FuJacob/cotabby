@@ -146,11 +146,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // can hold after the preface), not by a word cap: a 150-word cap left most of a long
         // document out of the prompt, and the model's sense of the topic with it. The caps here
         // only stop pathological fields (a megabyte of log text) from being windowed each poll.
-        // Latency honesty: where KV prefix reuse works (dense models), the window is prefilled
-        // once per field and every keystroke after that decodes only the delta (measured: one
-        // token); the hybrid/SWA catalog models reject partial trims and re-prefill per request,
-        // so there the wider window costs prefill only in long-document sessions, which is
-        // exactly where it buys quality.
+        // Latency honesty: dense and sliding-window models (Gemma, via the native `swa_full`
+        // cache) prefill the window once per field, and every keystroke after that decodes only
+        // the delta. Hybrid/recurrent catalog models restore from a near-caret checkpoint and
+        // re-prefill when an edit lands before it, so there the wider window costs prefill only
+        // in long-document sessions, which is exactly where it buys quality.
         maxPrefixWords: 2400,
         maxPrefixCharacters: 14000,
         // Apple's on-device model has a 4096-token shared context. Even with instructions plus
