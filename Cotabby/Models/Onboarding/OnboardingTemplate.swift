@@ -86,16 +86,19 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         }
     }
 
+    /// Short suggestions are both faster (fewer generated tokens) and more often exactly right, and
+    /// accepting one extends it with a continuation, so every tier but Powerful starts short.
+    /// Powerful keeps the long preset for users who explicitly choose longer suggestions.
     var wordCountPreset: SuggestionWordCountPreset {
         switch self {
         case .quick:
-            return .fourToSeven
+            return .twoToFour
         case .everyday:
-            return .sevenToTwelve
+            return .fourToSeven
         case .powerful:
             return .twelveToTwenty
         case .custom:
-            return .sevenToTwelve
+            return .fourToSeven
         }
     }
 
