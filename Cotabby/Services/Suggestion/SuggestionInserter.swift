@@ -186,6 +186,14 @@ final class SuggestionInserter {
         return true
     }
 
+    /// Pastes `text` at the caret; a live selection is replaced, as any paste replaces it. Used by
+    /// selection rewrite to put the rewrite over the selected text. Paste rather than keystrokes
+    /// because a rewrite can be long or multi-line, and a typed line break would send the message in
+    /// a chat app. Restores the user's clipboard; never presses Return.
+    func pasteAtCaret(_ text: String) -> Bool {
+        insertViaPaste(text)
+    }
+
     /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
     /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
     /// synthetic event could not be created, so the caller falls back to keystroke insertion. The

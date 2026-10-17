@@ -12,7 +12,8 @@ final class SurfaceContextComposerTests: XCTestCase {
         isIntegratedTerminal: Bool = false,
         windowTitle: String? = nil,
         focusedURLString: String? = nil,
-        fieldPlaceholder: String? = nil
+        fieldPlaceholder: String? = nil,
+        replyingTo: String? = nil
     ) -> SurfaceContext? {
         SurfaceContextComposer.compose(
             surfaceClass: AppSurfaceClassifier.classify(
@@ -22,7 +23,8 @@ final class SurfaceContextComposerTests: XCTestCase {
             applicationName: applicationName,
             windowTitle: windowTitle,
             focusedURLString: focusedURLString,
-            fieldPlaceholder: fieldPlaceholder
+            fieldPlaceholder: fieldPlaceholder,
+            replyingTo: replyingTo
         )
     }
 
@@ -118,6 +120,20 @@ final class SurfaceContextComposerTests: XCTestCase {
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
             ["Format: email; App: Mail; Title: Re: Q3 budget review."]
         )
+    }
+
+    func testEmailReplyKeepsItsRecipientOffTheSurfaceLine() throws {
+        let surface = try XCTUnwrap(compose(windowTitle: "Clarification required", replyingTo: "  Jordan Lee "))
+        XCTAssertEqual(surface.replyingTo, "Jordan Lee")
+        // The renderer writes the recipient as a "To:" header above the draft, not as a label here.
+        XCTAssertEqual(
+            SurfaceContextComposer.prefaceLines(for: surface),
+            ["Format: email; App: Mail; Title: Clarification required."]
+        )
+        // A chat's addressee is the open conversation, never a parsed quote.
+        let chat = compose(applicationName: "Slack", bundleIdentifier: "com.tinyspeck.slackmacgap",
+                           fieldPlaceholder: "Message #design", replyingTo: "Jordan Lee")
+        XCTAssertNil(chat?.replyingTo)
     }
 
     func testChatPreface() throws {

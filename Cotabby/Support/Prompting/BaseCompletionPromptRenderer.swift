@@ -31,6 +31,7 @@ enum BaseCompletionPromptRenderer {
         visualContextSummary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
         historyExamples: [String] = [],
+        memorySnippets: [String] = [],
         usesCompactSurfaceContext: Bool = false,
         contextBudget: Int = defaultContextBudget,
         maxScreenCharacters: Int = 4000,
@@ -63,9 +64,9 @@ enum BaseCompletionPromptRenderer {
             // the whole blob lands.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
         }
-        if let history = Self.historySection(historyExamples) {
-            sections.append(history)
-        }
+        // Earlier messages of this conversation, then the user's own earlier writing; each section is
+        // all or nothing, and absent when there is nothing to show.
+        sections.append(contentsOf: [Self.memorySection(memorySnippets), Self.historySection(historyExamples)].compactMap { $0 })
         if let clip = Self.nonEmpty(clipboardContext) {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
         }
@@ -112,13 +113,21 @@ enum BaseCompletionPromptRenderer {
         let prefix = kept.first { $0.name == "prefix" }?.content ?? ""
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
+        // An email reply's addressee, written as the "To:" header a reply carries right above its
+        // body. The quoted message under the caret greets the user and the user's own writing signs
+        // with their name, so without it "Dear " completed to the user's own name. Replaying a logged
+        // Outlook reply prompt on Gemma E4B (greedy): "Dear ", "Hi " and "Dea" all gave the user's
+        // name before and the sender's with this line. The same fact as a "Replying to:" label on
+        // the surface line, or a relabelled quote, changed nothing: the name has to sit next to
+        // the salutation (`MailReplyContext.replyRecipient`).
+        let addresseeHeader = surfaceContext?.replyingTo.map { "To: \($0)\n\n" } ?? ""
         guard !preface.isEmpty else {
             // No context to condition on: hand the model the bare text and let it continue.
-            return prefix
+            return addresseeHeader + prefix
         }
         // A blank line separates the conditioning preface from the live text without a label the
         // model could copy. The prefix remains the final bytes of the prompt.
-        return preface.joined(separator: "\n") + "\n\n" + prefix
+        return preface.joined(separator: "\n") + "\n\n" + addresseeHeader + prefix
     }
 
     /// Token-aware budgeting (opt-in): when a token budget is supplied, fill sections against an
@@ -173,6 +182,33 @@ enum BaseCompletionPromptRenderer {
     }
 
     private static let historyMaxCharacters = 760
+
+    /// Earlier messages of the same conversation from conversation memory. Phrased as part of the
+    /// document a base model continues (a recap of the thread), not as an instruction, and placed
+    /// just above the user's own earlier writing in priority: it is about this conversation, while
+    /// history is about the author's style. All or nothing, so a budget cut never leaves half a line
+    /// that misattributes who said what.
+    private static func memorySection(_ lines: [String]) -> PromptSection? {
+        let heading = "Earlier in this conversation:"
+        var content = heading
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard content.count + trimmed.count + 1 <= memoryMaxCharacters else { continue }
+            content += "\n" + trimmed
+        }
+        guard content.count > heading.count else { return nil }
+        return PromptSection(
+            name: "memory",
+            content: content,
+            priority: 39,
+            minChars: content.count,
+            maxChars: content.count,
+            truncation: .preserveStart
+        )
+    }
+
+    private static let memoryMaxCharacters = 960
 
     private static func contextSection(
         _ name: String,

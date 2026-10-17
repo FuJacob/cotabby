@@ -85,4 +85,20 @@ final class TypingHistoryIndexTests: XCTestCase {
             TypingHistoryQuery.stableText(from: "a b c d e f", wordsPerBlock: 4)
         )
     }
+
+    /// An email is written in email's register: text typed into a terminal (an assistant session,
+    /// commands) must not be shown to the model as how the user writes mail.
+    func test_anEmailTakesOnlyEarlierEmailAsItsExamples() {
+        let index = TypingHistoryIndex(records: [
+            record("The rollout lookup in Outlook found nothing for the billing connector inbox.", app: "com.mitchellh.ghostty"),
+            record("Hi Jordan, the rollout with the billing connector is ready; the connector inbox is configured.")
+        ])
+
+        let examples = index.examples(for: query("rollout billing connector inbox"))
+
+        XCTAssertEqual(examples.count, 1)
+        XCTAssertEqual(examples.first?.hasPrefix("Hi Jordan"), true)
+        XCTAssertFalse(TypingHistoryIndex.mayExemplify(.terminal, for: .chat))
+        XCTAssertTrue(TypingHistoryIndex.mayExemplify(.email, for: .chat))
+    }
 }

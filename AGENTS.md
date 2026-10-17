@@ -160,6 +160,51 @@ Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly 
 Normalize, bound, and mark unavailable states explicitly. Screen Recording permission is separate
 from Accessibility and Input Monitoring.
 
+## Conversation Memory
+
+Conversation memory is an optional, off-by-default, on-device index of the user's chat, mail,
+calendar and document history:
+
+- `MemoryEngineController` (Services/Memory): on/off, the pinned embedding model download, the
+  Keychain key, and the running `MemoryEngine`.
+- `MemoryEngine`: the ingest pipeline (exclusions, retention, `MailQuoteStripper`,
+  `MemoryTextScrubber`), background indexing under `EmbeddingSchedulePolicy`, and the scoped search.
+- `MemoryStore` / `MemoryVault` / `FlatVectorIndex`: the encrypted SQLite store, AES-GCM sealing
+  with HMAC lookup tags, and the exact half-precision vector scan.
+- `EmbeddingCore`: the llama.cpp embedding engine from the CotabbyInference patch.
+- `MemoryHistorySync` and `Readers/`: one read-only reader per source (`MemoryHistoryReading`).
+- `MemoryRetriever` + `ConversationScopeResolver` (`SuggestionMemoryProviding`): the earlier
+  messages of the focused conversation for the suggestion pipeline, from cache, never waiting.
+- `MemoryControlModel` and `UI/Settings/Panes/Memory`: the Settings → Memory pane.
+
+Keep its privacy rules: memory never reaches the endpoint engine (retriever, request factory and
+router each refuse it); a search is scoped to the conversation the window names, then to
+conversations with exactly the same people, and an unknown or ambiguous title returns nothing.
+A mail gets no conversation scope: its subject does not say who it is for, and nothing in the body
+(the quoted header included) can be trusted to, since the other person shapes it. Mail scope waits
+for the compose window's own To/Cc fields. Groups carry a per-group participant marker so they
+never widen into a 1:1 chat. A mail conversation is one thread with one audience (`MailAudience`),
+identified by addresses only.
+Mail is the user's own only when it is in a Sent mailbox. A sync is cancelled and awaited before
+anything is deleted (`MemoryHistorySync.cancelSync`). Reader fixtures must stay synthetic.
+
+Answers (`App/Coordinators/Answers`, `Services/Answers`, `Support/Answers`) draft a reply to a
+question someone sent the user from memory and offer it on a card at the caret, only in mail apps
+and chat apps with an enabled memory source (`IncomingMessageResolver.answersIn`). The sender never
+chooses the scope: a quoted mail is data only and never names a remembered conversation
+(`IncomingMessageResolver.quotedIncoming`), other conversations are opt-in per source and off by
+default, Calendar never answers from its events, and anything ambiguous gives no answer. The
+question and remembered text are untrusted input: keep `AnswerGroundingPolicy`'s gates and guards
+(relevance, named-subject match,
+unsupported numbers and names, secret scrubbing, copied passages from other conversations,
+instruction-like text), quote everything in the prompt as data, attribute every fact on the card, draft
+on-device only (`AnswerDraftEngine` never uses the endpoint), keep availability facts to busy and
+free, and never insert without the user's click or Tab. `MailReplyContext` (Support/Context) reads a
+mail reply's quoted thread, subject and addressee from the trailing text; keep it off the endpoint.
+Any decision that reads a mail quote header goes through the one strict reader, `MailQuoteHeader`
+(via `QuotedReplyParser.quotedMessage`), and it never chooses a scope; never add a second header
+parser that decides anything.
+
 ## Runtime And Prompting
 
 Runtime generation is split by responsibility:

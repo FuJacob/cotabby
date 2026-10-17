@@ -114,6 +114,22 @@ protocol SuggestionHistoryProviding: AnyObject {
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String?
 }
 
+/// Read-only access to conversation memory (earlier messages of the conversation being written in,
+/// from the on-device memory engine) for the suggestion pipeline.
+///
+/// Never waits: it answers from what is already cached for the field's conversation and query, and
+/// starts a lookup for the next request when that is stale, so memory can never delay a
+/// suggestion. Empty for the endpoint engine (memory stays on this Mac) and whenever memory is off,
+/// the app has no memory source, or the window is not a recognized conversation.
+@MainActor
+protocol SuggestionMemoryProviding: AnyObject {
+    /// Prompt lines ("12 Sep · Ayşe: the invoice is paid"), oldest first.
+    func memorySnippets(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String]
+    /// Called when a lookup finished with new lines for the focused conversation, so the
+    /// coordinator can offer a suggestion that uses them instead of waiting for the next keystroke.
+    var onMemoryReady: (@MainActor () -> Void)? { get set }
+}
+
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult

@@ -149,7 +149,8 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
                 lines: extracted.lines,
                 fieldText: context.precedingText + " " + context.trailingText,
                 focusBounds: screenshot.focusBounds,
-                maxCharacters: configuration.maxSummaryCharacters
+                maxCharacters: configuration.maxSummaryCharacters,
+                keepsOnlyFieldColumn: MailReplyContext.isMail(bundleIdentifier: context.bundleIdentifier)
             ) : OCRTextHygiene.clean(
                 lines: extracted.lines,
                 fieldText: context.precedingText + " " + context.trailingText,

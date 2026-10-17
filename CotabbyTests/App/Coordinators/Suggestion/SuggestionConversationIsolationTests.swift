@@ -92,6 +92,45 @@ final class SuggestionConversationIsolationTests: XCTestCase {
         XCTAssertNotEqual(rig.coordinator.currentWorkID, workID)
     }
 
+    // MARK: - Conversation memory
+
+    @MainActor
+    private final class FakeMemory: SuggestionMemoryProviding {
+        var lines: [String] = []
+        var onMemoryReady: (@MainActor @Sendable () -> Void)?
+        func memorySnippets(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String] { lines }
+    }
+
+    @MainActor private static var retainedMemories: [AnyObject] = []
+
+    func test_memoryLinesReachTheEngineRequest() async {
+        let rig = makeCoordinatorRig()
+        defer { rig.coordinator.stop() }
+        let memory = FakeMemory()
+        Self.retainedMemories.append(memory)
+        memory.lines = ["12 Sep · Ayşe: the invoice is paid"]
+        rig.coordinator.memoryProvider = memory
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.engine.requests.count == 1 }
+        XCTAssertEqual(rig.engine.requests.first?.memorySnippets, ["12 Sep · Ayşe: the invoice is paid"])
+    }
+
+    /// Memory that lands while nothing is shown is used at once; a visible suggestion is left alone.
+    func test_arrivingMemoryOffersASuggestionOnlyWhenNoneIsShown() async {
+        let rig = makeCoordinatorRig()
+        defer { rig.coordinator.stop() }
+        let memory = FakeMemory()
+        Self.retainedMemories.append(memory)
+        rig.coordinator.memoryProvider = memory
+
+        memory.onMemoryReady?()
+        await waitUntil { rig.engine.requests.count == 1 && rig.coordinator.overlayState.isVisible }
+
+        memory.onMemoryReady?()
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(rig.engine.requests.count, 1, "a visible suggestion is not replaced")
+    }
+
     func test_changedScreenTextReplacesVisiblePredictionEvenWhenHostIdentityIsUnchanged() async {
         let rig = makeCoordinatorRig()
         defer { rig.coordinator.stop() }

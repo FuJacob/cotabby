@@ -169,6 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
+        // Brings conversation memory up only if the user switched Memory on; a no-op otherwise.
+        environment.memoryController.startIfEnabled()
+        // Watches focus for empty replies; offers nothing unless Answer Questions is on.
+        environment.answerCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -247,6 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         CotabbyLogger.app.info("Cotabby terminating, releasing services")
+        // Removes any answer card and its key tap; then asks memory to stop indexing and refuse
+        // further writes (exiting frees the model anyway).
+        environment.answerCoordinator.stop()
+        environment.memoryController.stop()
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()

@@ -27,6 +27,7 @@ Cotabby/
 ├── App/
 │   ├── Core/                         process entry, composition root, lifecycle
 │   └── Coordinators/
+│       ├── Answers/                  answer-card flow
 │       ├── InlineFeatures/           emoji/macro capture arbitration
 │       ├── Suggestion/               autocomplete interaction state machine
 │       ├── SettingsCoordinator.swift
@@ -37,6 +38,7 @@ Cotabby/
 │   ├── Focus/                        focus snapshots and tracking state
 │   ├── History/                      typing-history records, archive, and preferences
 │   ├── Input/                        keyboard event values
+│   ├── Memory/                       memory settings, sources, results, calendar snapshots
 │   ├── Onboarding/                   onboarding templates
 │   ├── Permissions/                  TCC permission values
 │   ├── Runtime/
@@ -48,6 +50,7 @@ Cotabby/
 │       ├── Result/                   engine result and client error values
 │       └── Session/                  active, paused, and presented session values
 ├── Services/
+│   ├── Answers/                      incoming-message lookup and on-device answer drafting
 │   ├── Context/                      live clipboard acquisition
 │   ├── Focus/
 │   │   ├── Caching/                  field-scoped focus caches
@@ -55,6 +58,15 @@ Cotabby/
 │   │   └── Resolution/               focus snapshots, geometry, bounded AX walks
 │   ├── History/                      typing-history store, recording, and encrypted vault
 │   ├── Input/                        event taps and input-source monitoring
+│   ├── Memory/                       conversation memory engine, controller, sync, and retriever
+│   │   ├── Calendar/                 EventKit access
+│   │   ├── Embedding/                llama.cpp embedding core
+│   │   ├── Index/                    in-memory vector index
+│   │   ├── Readers/                  one read-only reader per memory source
+│   │   │   ├── CloudDocuments/       iCloud Drive, Google Drive, OneDrive documents
+│   │   │   ├── OutlookHxStore/       New Outlook's HxStore file
+│   │   │   └── TeamsIndexedDB/       Snappy, LevelDB, IndexedDB, and V8 readers for Teams
+│   │   └── Store/                    encrypted SQLite store and vault
 │   ├── ModelManagement/              model discovery, download, and validation
 │   ├── Permission/
 │   │   └── Guidance/                 permission overlay and System Settings guidance
@@ -71,7 +83,8 @@ Cotabby/
 │   └── Visual/                       capture, OCR, and visual-context sessions
 ├── Support/
 │   ├── Accessibility/                pure AX and secure-surface policies
-│   ├── Context/                      sanitization, relevance, and OCR hygiene
+│   ├── Answers/                      question, grounding, availability, and answer-prompt rules
+│   ├── Context/                      sanitization, relevance, OCR hygiene, and mail replies
 │   ├── Emoji/
 │   │   ├── Catalog/                  searchable catalog and synonyms
 │   │   ├── Interaction/              query, trigger, picker, and variant rules
@@ -84,6 +97,7 @@ Cotabby/
 │   ├── Logging/                      debug options, request IDs, and JSONL handlers
 │   ├── Macros/
 │   │   └── Evaluators/               deterministic arithmetic/date/unit evaluators
+│   ├── Memory/                       memory text rules, scoping, parsers, and schedule policy
 │   ├── Onboarding/                   pure onboarding recommendation rules
 │   ├── Presentation/
 │   │   ├── Geometry/                 caret, anchor, direction, and overlay layout
@@ -109,7 +123,7 @@ Cotabby/
 │   └── Utilities/                    small cross-subsystem value helpers
 └── UI/
     ├── Components/                   application-wide reusable views
-    ├── InlineFeatures/               emoji picker and macro reference surfaces
+    ├── InlineFeatures/               emoji picker, macro reference, and answer card surfaces
     ├── MenuBar/                      menu-bar status and popover content
     ├── Onboarding/
     │   └── Welcome/                  composed welcome flow and step views
@@ -121,7 +135,8 @@ Cotabby/
         ├── ModelManagement/           model catalog and browser views
         └── Panes/
             ├── About/                 product and acknowledgement panes
-            └── Engine/                engine pane and backend-specific extensions
+            ├── Engine/                engine pane and backend-specific extensions
+            └── Memory/                conversation memory pane sections
 ~~~
 
 Files left directly inside a subsystem are intentionally its root owners or a small cohesive set.
