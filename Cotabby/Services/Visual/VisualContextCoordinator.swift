@@ -217,6 +217,7 @@ final class VisualContextCoordinator {
                     excerpt,
                     for: session.sessionID,
                     identity: snapshotContext.identity,
+                    fieldText: snapshotContext.precedingText + snapshotContext.trailingText,
                     capturedAt: capturedAt
                 )
             } catch is CancellationError {
@@ -332,10 +333,17 @@ final class VisualContextCoordinator {
     }
 
     /// Commits the generated screenshot excerpt and reports readiness for the still-focused field.
+    ///
+    /// A refresh that only differs by OCR noise or by the user's own typing keeps the excerpt text
+    /// already in the prompt (`VisualContextChangePolicy`) and only renews its capture time. The
+    /// new capture still proves the screen looks the same, so expiry semantics hold, while the
+    /// prompt stays byte-identical: the KV cache keeps the screen section and the visible
+    /// suggestion is not retired. Only a material change replaces the text and notifies.
     private func applyExcerpt(
         _ excerpt: VisualContextExcerpt,
         for sessionID: UUID,
         identity: FocusedInputIdentity,
+        fieldText: String,
         capturedAt: TimeInterval
     ) {
         guard activeAugmentationSession?.sessionID == sessionID,
@@ -350,14 +358,18 @@ final class VisualContextCoordinator {
             return
         }
 
-        let changed = activeAugmentationSession?.excerpt?.text != excerpt.text
+        let previousText = activeAugmentationSession?.excerpt?.text
+        let changed = VisualContextChangePolicy.isMaterialChange(
+            previous: previousText, next: excerpt.text, fieldText: fieldText
+        )
+        let committed = changed ? excerpt : VisualContextExcerpt(text: previousText ?? excerpt.text)
         activeAugmentationSession?.status = .ready
-        activeAugmentationSession?.excerpt = excerpt
+        activeAugmentationSession?.excerpt = committed
         status = .ready
-        latestExcerpt = excerpt.text
+        latestExcerpt = committed.text
         excerptCapturedAt = capturedAt
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
-        CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
+        CotabbyLogger.app.debug("Visual context ready: \(committed.text.count) chars\(changed ? "" : " (unchanged; kept prompt text)")")
         publishState()
         if changed { onInjectedContextReady?(identity) }
     }

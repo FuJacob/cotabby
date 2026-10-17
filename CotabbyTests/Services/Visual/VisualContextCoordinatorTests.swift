@@ -23,6 +23,27 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
+    /// A refresh that only misreads a letter must keep the excerpt already in the prompt, so the
+    /// prompt stays byte-identical (KV reuse) and no prediction is retired.
+    func test_ocrJitterKeepsPromptTextAndDoesNotNotify() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Draft")
+        coordinator.refreshContextProvider = { snapshot }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { generator.contexts.count >= 1 && coordinator.status == .ready }
+        let original = coordinator.latestExcerpt
+        generator.text = "Project agenda and deadlinc"
+        try await waitUntil { generator.contexts.count >= 2 }
+        try await waitUntil { generator.completedCount >= 2 }
+        XCTAssertEqual(notifications, 1)
+        XCTAssertEqual(coordinator.latestExcerpt, original, "OCR noise must not replace the prompt's screen text")
+        XCTAssertEqual(coordinator.status, .ready)
+    }
+
     func test_permissionRevocationStopsRefreshAndClearsExcerpt() async throws {
         let generator = StubVisualContextGenerator()
         var allowed = true
