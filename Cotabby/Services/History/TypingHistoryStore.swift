@@ -566,18 +566,38 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         // matches; a passage that dropped out of the top candidates, or now echoes the draft, is
         // still replaced at once.
         let fieldKey = context.focusedInputIdentityKey
+        var examples = fresh
         if let shown = shownExamples, shown.fieldKey == fieldKey, !shown.examples.isEmpty {
             let stillRanked = TypingHistoryIndex.examples(
                 from: candidates, currentFieldText: context.precedingText, limit: Self.stickyExampleRankLimit
             )
-            if shown.examples.allSatisfy(stillRanked.contains) { return shown.examples }
+            examples = Self.stableExamples(shown: shown.examples, ranked: stillRanked, fresh: fresh)
         }
-        shownExamples = (fieldKey, fresh)
-        return fresh
+        shownExamples = (fieldKey, examples)
+        return examples
     }
 
     /// How far down the new ranking an example already in the prompt may fall and still be kept.
-    private static let stickyExampleRankLimit = 4
+    private static let stickyExampleRankLimit = 6
+
+    /// Keeps every shown example that is still ranked, in its position, and fills only the slots of
+    /// examples that dropped out with the best fresh ones. The prompt then diverges at the first
+    /// replaced example instead of at the start of the section, so less of it is re-decoded.
+    static func stableExamples(shown: [String], ranked: [String], fresh: [String]) -> [String] {
+        var replacements = fresh.filter { !shown.contains($0) }
+        var result: [String] = []
+        for example in shown {
+            if ranked.contains(example) {
+                result.append(example)
+            } else if !replacements.isEmpty {
+                result.append(replacements.removeFirst())
+            }
+        }
+        while result.count < fresh.count, !replacements.isEmpty {
+            result.append(replacements.removeFirst())
+        }
+        return result
+    }
 
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String? {
         guard preferences.isUsingHistory, engine != .openAICompatible, let phrases else { return nil }

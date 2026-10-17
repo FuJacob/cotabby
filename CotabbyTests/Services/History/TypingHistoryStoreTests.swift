@@ -645,6 +645,16 @@ final class TypingHistoryStoreTests: XCTestCase {
                           "Without shown examples the later query must rank differently, or this test proves nothing")
     }
 
+    /// A dropped example is replaced in its own slot; survivors keep their positions, so the prompt
+    /// diverges as late as possible.
+    func test_stableExamplesReplaceOnlyDroppedSlots() {
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["b", "a", "c"], fresh: ["b", "c"]), ["a", "b"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["b", "c"], fresh: ["c", "b"]), ["c", "b"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["a", "c"], fresh: ["c", "a"]), ["a", "c"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a"], ranked: ["a", "c"], fresh: ["c", "a"]), ["a", "c"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: [], fresh: []), [])
+    }
+
     func test_anExampleHiddenByTheFieldsLatestWordsComesBackWhenTheWordingMovesOn() async throws {
         let store = makeStore()
         store.setUsingHistory(true)
