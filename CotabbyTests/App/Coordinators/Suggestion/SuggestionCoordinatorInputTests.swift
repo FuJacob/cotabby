@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import XCTest
 @testable import Cotabby
@@ -343,6 +344,22 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             !rig.engine.requests.isEmpty
         }
         XCTAssertEqual(rig.engine.requests.first?.context.precedingText, "Thanks for the quick repl")
+    }
+
+    /// The speculated character follows Shift XOR Caps Lock for letters, and shifted symbols are
+    /// not guessed because their character depends on the keyboard layout.
+    func test_speculatedCharactersApplyShiftAndSkipShiftedSymbols() {
+        func event(_ characters: String, _ flags: CGEventFlags = []) -> CapturedInputEvent {
+            CapturedInputEvent(kind: .textMutation, keyCode: 1, characters: characters, flags: flags)
+        }
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event("s")), "s")
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event("s", .maskShift)), "S")
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event("S", .maskShift)), "S")
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event("s", .maskAlphaShift)), "S")
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event("s", [.maskShift, .maskAlphaShift])), "s")
+        XCTAssertEqual(SuggestionCoordinator.speculatedCharacters(for: event(",")), ",")
+        XCTAssertNil(SuggestionCoordinator.speculatedCharacters(for: event("/", .maskShift)))
+        XCTAssertNil(SuggestionCoordinator.speculatedCharacters(for: event("ab")))
     }
 
     /// Deletions, multi-character input, and the speculation kill switch keep the ordinary

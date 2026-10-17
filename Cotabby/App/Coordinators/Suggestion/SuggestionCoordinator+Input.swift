@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Logging
 
@@ -356,13 +357,25 @@ extension SuggestionCoordinator {
     /// (`session`), which the snapshot may not include yet. When it still misses an unpublished key,
     /// the speculated text simply misses and the publish poll falls back to the ordinary request.
     private func speculateOnTypedCharacter(_ event: CapturedInputEvent, after session: ActiveSuggestionSession? = nil) {
-        guard event.kind == .textMutation, !event.characters.isEmpty,
+        guard event.kind == .textMutation, let typed = Self.speculatedCharacters(for: event),
               let raw = focusModel.snapshot.context else { return }
         let typedThrough = session.flatMap { session -> String? in
             guard session.baseContext.elementIdentifier == raw.elementIdentifier else { return nil }
             return session.baseContext.precedingText + String(session.fullText.prefix(session.consumedCharacterCount))
         }
-        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: event.characters, knownPrecedingText: typedThrough)
+        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: typed, knownPrecedingText: typedThrough)
+    }
+
+    /// The character the host will most likely insert for `event`, or nil when it cannot be told
+    /// from the event alone. A key event's Unicode string does not always carry Shift (synthetic
+    /// events report "s" for a shifted S), so a letter follows Shift XOR Caps Lock; uppercasing an
+    /// already-capital letter changes nothing. A shifted symbol depends on the keyboard layout
+    /// ("/" becomes "?" on US layouts), so it is left to the ordinary publish-gated request.
+    static func speculatedCharacters(for event: CapturedInputEvent) -> String? {
+        guard event.characters.count == 1, let character = event.characters.first else { return nil }
+        let shift = event.flags.contains(.maskShift)
+        guard character.isLetter else { return shift ? nil : event.characters }
+        return shift != event.flags.contains(.maskAlphaShift) ? event.characters.uppercased() : event.characters
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -437,6 +450,27 @@ extension SuggestionCoordinator {
         }
     }
 
+    /// Records why a publish did not match the speculated text, without logging either text: the
+    /// lengths, selections, and the first differing UTF-16 offset are enough to tell a lagging base
+    /// snapshot from a host transformation (smart punctuation, auto-pairing, a shifted key).
+    private func logSpeculationMiss(expected: FocusedInputContext, published: FocusedInputSnapshot) {
+        let lhs = Array(expected.precedingText.utf16), rhs = Array(published.precedingText.utf16)
+        let shared = zip(lhs, rhs).prefix { $0 == $1 }.count
+        CotabbyLogger.suggestion.debug(
+            "Speculation missed the published text",
+            metadata: [
+                "stage": .string("speculation-missed"),
+                "same_session": .stringConvertible(expected.sessionIdentity == published.sessionIdentity),
+                "expected_utf16": .stringConvertible(lhs.count),
+                "published_utf16": .stringConvertible(rhs.count),
+                "first_difference": .stringConvertible(shared),
+                "expected_selection": .stringConvertible(expected.selection.location),
+                "published_selection": .stringConvertible(published.selection.location),
+                "trailing_matches": .stringConvertible(expected.trailingText == published.trailingText)
+            ]
+        )
+    }
+
     /// The AX state captured at keystroke time, against which the host-publish poll detects "the
     /// host has processed the key", plus the uptime anchor for folding the wait into the debounce.
     private struct HostPublishBaseline {
@@ -505,6 +539,9 @@ extension SuggestionCoordinator {
                     message: "Host published exactly the speculated text; keeping the in-flight generation."
                 )
                 return
+            }
+            if let expected = pendingSpeculativeContext, let published = currentContext {
+                logSpeculationMiss(expected: expected, published: published)
             }
             pendingSpeculativeContext = nil
             schedulePrediction(
