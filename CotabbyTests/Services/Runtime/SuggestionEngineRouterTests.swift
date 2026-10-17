@@ -114,6 +114,31 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(rig.metrics.entries.first?.latencyMs, 20)
     }
 
+    /// Memory's indexing reads this to stay off the GPU while a suggestion generates.
+    func test_generationsInFlightCountsOnlyWhileGenerating() async throws {
+        let rig = makeRig(engine: .llamaOpenSource)
+        var observed = -1
+        rig.llama.script = { [weak router = rig.router] request in
+            observed = router?.generationsInFlight ?? -1
+            return SuggestionResult(generation: request.generation, rawText: " ok", text: " ok", latency: 0.01)
+        }
+        XCTAssertEqual(rig.router.generationsInFlight, 0)
+        _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+        XCTAssertEqual(observed, 1)
+        XCTAssertEqual(rig.router.generationsInFlight, 0)
+    }
+
+    func test_endpointNeverReceivesARequestCarryingConversationMemory() async throws {
+        let rig = makeRig(engine: .openAICompatible)
+
+        let result = try await rig.router.generateSuggestion(
+            for: CotabbyTestFixtures.suggestionRequest(memorySnippets: ["12 Sep · Ayşe: the invoice is paid"])
+        )
+
+        XCTAssertTrue(rig.endpoint.requests.isEmpty)
+        XCTAssertEqual(result.suppressionReason, "memoryWithheldFromEndpoint")
+    }
+
     func test_endpointNeverReceivesARequestCarryingTypingHistory() async throws {
         let rig = makeRig(engine: .openAICompatible)
 
