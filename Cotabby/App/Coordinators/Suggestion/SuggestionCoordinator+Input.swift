@@ -352,12 +352,17 @@ extension SuggestionCoordinator {
     }
 
     /// Starts the keystroke-time speculative generation for a plain typed character. The base is
-    /// the last captured snapshot; when it does not yet include an earlier unpublished key, the
-    /// speculated text simply misses and the publish poll falls back to the ordinary request.
-    private func speculateOnTypedCharacter(_ event: CapturedInputEvent) {
+    /// the last captured snapshot, extended by the letters a visible suggestion was typed through
+    /// (`session`), which the snapshot may not include yet. When it still misses an unpublished key,
+    /// the speculated text simply misses and the publish poll falls back to the ordinary request.
+    private func speculateOnTypedCharacter(_ event: CapturedInputEvent, after session: ActiveSuggestionSession? = nil) {
         guard event.kind == .textMutation, !event.characters.isEmpty,
               let raw = focusModel.snapshot.context else { return }
-        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: event.characters)
+        let typedThrough = session.flatMap { session -> String? in
+            guard session.baseContext.elementIdentifier == raw.elementIdentifier else { return nil }
+            return session.baseContext.precedingText + String(session.fullText.prefix(session.consumedCharacterCount))
+        }
+        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: event.characters, knownPrecedingText: typedThrough)
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -579,7 +584,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                speculateOnTypedCharacter(event)
+                speculateOnTypedCharacter(event, after: session)
                 schedulePredictionAfterHostPublishDelay()
             }
             return false

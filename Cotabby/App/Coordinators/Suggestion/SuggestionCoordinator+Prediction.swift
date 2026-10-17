@@ -271,13 +271,22 @@ extension SuggestionCoordinator {
     ///
     /// Endpoint requests keep their debounced path: speculative traffic must not multiply requests
     /// to a configured server.
-    func dispatchSpeculativeTypingGeneration(rawContext: FocusedInputSnapshot, typed characters: String) {
+    ///
+    /// `knownPrecedingText` is the text before the caret as Cotabby already knows it when the
+    /// captured snapshot lags: typing through a visible suggestion advances the session without a
+    /// new AX capture, so the snapshot can still miss those letters. It is used only when it
+    /// extends the snapshot's own text.
+    func dispatchSpeculativeTypingGeneration(
+        rawContext: FocusedInputSnapshot, typed characters: String, knownPrecedingText: String? = nil
+    ) {
         guard settingsSnapshot.selectedEngine != .openAICompatible,
               !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey),
               characters.count == 1, let typed = characters.first, !typed.isNewline,
               rawContext.selection.length == 0, !rawContext.isSecure else { return }
+        let base = knownPrecedingText.flatMap { $0.hasPrefix(rawContext.precedingText) ? $0 : nil }
+            ?? rawContext.precedingText
         dispatchSpeculativeGeneration(
-            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: characters),
+            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, precedingText: base + characters),
             message: "Started generating against the typed character before the host published it."
         )
     }
