@@ -363,7 +363,16 @@ extension SuggestionCoordinator {
     /// own tap callback before the host has even processed the key and therefore always misses. A
     /// short first retry catches fast-publishing native apps in ~10ms instead of making them wait a
     /// full steady interval; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
-    private static let hostPublishFirstPollIntervalMs = 10
+    private static let hostPublishFirstPollIntervalMs = 6
+
+    /// Native hosts publish a keystroke to AX within roughly 10-40 ms, so the wait polls densely
+    /// during that window and only then backs off to `hostPublishPollIntervalMs` for slow Chromium
+    /// hosts. With a 30 ms step from the start, a publish that landed just after the first retry
+    /// waited a further ~30 ms (live TextEdit trace: key-to-request 50 ms instead of ~20 ms), the
+    /// largest remaining wait before generation. The dense phase costs a handful of ~2-3 ms AX
+    /// reads per keystroke and ends after `hostPublishFastPhaseMs`.
+    private static let hostPublishFastPollIntervalMs = 8
+    private static let hostPublishFastPhaseMs = 60
 
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
@@ -491,8 +500,11 @@ extension SuggestionCoordinator {
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
         // its next prediction.
         // We already waited the short first interval before entering this method; remaining polls
-        // use the steady cadence until the ceiling.
-        let interval = Self.hostPublishPollIntervalMs
+        // stay dense while native hosts usually publish, then use the steady cadence until the
+        // ceiling.
+        let interval = elapsedMs < Self.hostPublishFastPhaseMs
+            ? Self.hostPublishFastPollIntervalMs
+            : Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
             if baseline.requiresTextChange {
