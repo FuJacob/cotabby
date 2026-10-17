@@ -40,7 +40,7 @@ nonisolated enum DebouncePolicy {
             switch firstText {
             case ...60: return 0
             case ...120: return 10
-            default: break
+            default: return 20
             }
         }
 

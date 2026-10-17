@@ -69,7 +69,7 @@ extension SuggestionCoordinator {
         guard workController.isCurrent(workID) else { return }
         if firstTextRecordedWorkID != workID {
             firstTextRecordedWorkID = workID
-            lastFirstTextLatencyByEngine[settingsSnapshot.selectedEngine] = Int((result.latency * 1_000).rounded())
+            recordFirstTextLatency(Int((result.latency * 1_000).rounded()), engine: settingsSnapshot.selectedEngine)
         }
         if var candidate = typingPrediction {
             guard !candidate.isFinal, result.generation == candidate.context.generation else { return }
