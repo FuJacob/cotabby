@@ -190,6 +190,62 @@ final class CloudDocumentsTests: XCTestCase {
         XCTAssertEqual(CloudDriveReader.Cursor("1790000000.0"), CloudDriveReader.Cursor(after: 1_790_000_000), "older cursors still read")
     }
 
+    /// Reading an online-only file downloads it and gives it back, which moves its status-change
+    /// time. That must not make it new on the next sync (it would be downloaded on every sync),
+    /// while an edit, and a file moved in with an old date, still arrive. File Provider placeholders
+    /// cannot be made in a test, so the file attributes come from a fake.
+    private func stamp(_ name: String, in root: URL, modified: TimeInterval) throws {
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: modified)],
+                                              ofItemAtPath: root.appendingPathComponent(name).path)
+    }
+
+    func test_aFileWeGaveBackIsNotDownloadedAgainButEditsAndArrivalsStillCount() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("Quarterly plan notes for the pilot rollout.".utf8).write(to: root.appendingPathComponent("Plan.md"))
+        let attributes = FakeFileAttributes()
+        try stamp("Plan.md", in: root, modified: 1_000)
+        attributes.set("Plan.md", onlineOnly: true, arrival: 1_000)
+        var reader = drive([root])
+        reader.isOnlineOnly = { attributes.isOnlineOnly($0) }
+        reader.arrival = { url, _, _ in attributes.arrival(url) }
+
+        let first = try reader.read(after: nil, since: nil, limit: 400)
+        XCTAssertEqual(first.records.map(\.conversationTitle), ["Plan"])
+        let id = "GoogleDrive-me@example.com/Plan.md"
+        XCTAssertEqual(CloudDriveReader.Cursor(first.nextCursor).evicted, [CloudDriveReader.Cursor.evictionKey(id)])
+
+        // Given back: still online-only, its status-change time now after the cursor.
+        try stamp("Plan.md", in: root, modified: 1_000)
+        attributes.set("Plan.md", onlineOnly: true, arrival: 5_000)
+        let afterEviction = try reader.read(after: first.nextCursor, since: nil, limit: 400)
+        XCTAssertTrue(afterEviction.records.isEmpty, "our own eviction does not make it new")
+
+        // A file moved in with an old modification date still arrives (the reason the cursor follows ctime).
+        try Data("Pricing tiers for the starter and team plans.".utf8).write(to: root.appendingPathComponent("Pricing.md"))
+        try stamp("Pricing.md", in: root, modified: 500)
+        attributes.set("Pricing.md", onlineOnly: true, arrival: 6_000)
+        let moved = try reader.read(after: first.nextCursor, since: nil, limit: 400)
+        XCTAssertEqual(moved.records.map(\.conversationTitle), ["Pricing"])
+        XCTAssertEqual(CloudDriveReader.Cursor(moved.nextCursor).evicted.count, 2)
+
+        // Edited in the cloud: a newer modification time brings it back.
+        try stamp("Plan.md", in: root, modified: 7_000)
+        attributes.set("Plan.md", onlineOnly: true, arrival: 7_000)
+        let edited = try reader.read(after: moved.nextCursor, since: nil, limit: 400)
+        XCTAssertEqual(edited.records.map(\.conversationTitle), ["Plan"])
+
+        // Downloaded by the user (no longer online-only): the arrival rule applies again.
+        try stamp("Pricing.md", in: root, modified: 500)
+        attributes.set("Pricing.md", onlineOnly: false, arrival: 8_000)
+        let downloaded = try reader.read(after: edited.nextCursor, since: nil, limit: 400)
+        XCTAssertEqual(downloaded.records.map(\.conversationTitle), ["Pricing"])
+
+        // Cursors written before `evicted` existed still read.
+        XCTAssertEqual(CloudDriveReader.Cursor(#"{"after":12,"retry":["x"]}"#), CloudDriveReader.Cursor(after: 12, retry: ["x"]))
+        XCTAssertEqual(CloudDriveReader.Cursor(after: 3).encoded, "3.0", "nothing pending: the plain form")
+    }
+
     /// One account (or folder) that cannot be read makes the listing incomplete, and an incomplete
     /// listing removes nothing: the readable account's documents do not make the other's look deleted.
     func test_aPartlyUnreadableDriveRemovesNothing() throws {
@@ -260,5 +316,30 @@ final class CloudDocumentsTests: XCTestCase {
         XCTAssertEqual(try store.sourceStats("google_drive").messages, 1)
         XCTAssertTrue(MemorySourceCatalog.keepsAllDates("onedrive"))
         XCTAssertFalse(MemorySourceCatalog.keepsAllDates("apple_mail"))
+    }
+}
+
+/// File attributes a test sets per file name, standing in for a File Provider drive.
+private final class FakeFileAttributes: @unchecked Sendable {
+    private let lock = NSLock()
+    private var files: [String: (onlineOnly: Bool, arrival: Double)] = [:]
+
+    /// The modification time is the real file's (the listing reads it from disk), set by `stamp`.
+    func set(_ name: String, onlineOnly: Bool, arrival: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        files[name] = (onlineOnly, arrival)
+    }
+
+    func isOnlineOnly(_ url: URL) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return files[url.lastPathComponent]?.onlineOnly ?? false
+    }
+
+    func arrival(_ url: URL) -> Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return files[url.lastPathComponent]?.arrival ?? 0
     }
 }

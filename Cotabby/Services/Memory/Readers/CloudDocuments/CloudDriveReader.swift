@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// File overview:
@@ -22,6 +23,15 @@ import Foundation
 /// pages end between files. Unreadable files are tried again on the next sync rather than left
 /// behind the cursor. `liveConversationIDs` lists every file still there, so the sync removes
 /// deleted files from memory, but only from a listing that read every account and folder.
+///
+/// A file's time for the cursor is the later of its modification and status-change times
+/// (`DocumentArrival`), so a file moved or renamed in with an old date still arrives. Reading an
+/// online-only file downloads it and gives it back (`DocumentTextExtractor`), and giving it back
+/// moves its status-change time too; keyed on that, the file would look new on every sync and be
+/// downloaded again each time. So the cursor also remembers which files this reader gave back
+/// (`Cursor.evicted`, hashed), and while such a file is still online-only only its modification
+/// time counts: an edit still brings it back, our own eviction does not. A file moved or renamed in
+/// has a new id, so the arrival rule still applies to it.
 nonisolated struct CloudDriveReader: MemoryHistoryReading {
     nonisolated struct Drive: Sendable {
         let id: String
@@ -47,6 +57,13 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
 
     let drive: Drive
     var sourceID: String { drive.id }
+    /// Whether a file's content is only in the cloud right now. A seam for tests: a File Provider
+    /// cannot be faked on disk.
+    var isOnlineOnly: @Sendable (URL) -> Bool = { DocumentTextExtractor.isOnlineOnly($0) }
+    /// When a file last changed or arrived (`DocumentArrival`). A seam for tests, as above.
+    var arrival: @Sendable (URL, _ modified: Double, URLResourceValues?) -> Double = { _, modified, values in
+        DocumentArrival.changed(modified: modified, values: values)
+    }
 
     init(drive: Drive) {
         self.drive = drive
@@ -70,7 +87,11 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         // cursor); ones that failed in this sync wait for the next, so a page never retries them.
         var retry = state.retry.intersection(present)
         var failed = state.failed.intersection(present)
-        let files = found.filter { $0.changed > state.after || retry.contains($0.id) }
+        var evicted = state.evicted.intersection(Set(present.map(Cursor.evictionKey)))
+        // A file this reader gave back, still online-only: its modification time alone (see above).
+        let files = found.map { file in
+            file.isOnlineOnly && evicted.contains(Cursor.evictionKey(file.id)) ? file.keyedOnModification : file
+        }.filter { $0.changed > state.after || retry.contains($0.id) }
             .sorted { $0.changed < $1.changed }
         var records: [MemoryIngestRecord] = []
         var complete = Set<String>()
@@ -89,6 +110,8 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
                 continue
             }
             failed.remove(file.id)
+            // Read while online-only: the extractor downloaded it and gave it back.
+            if file.isOnlineOnly { evicted.insert(Cursor.evictionKey(file.id)) }
             let title = file.url.deletingPathExtension().lastPathComponent
             for (number, section) in DocumentSections.split(text).enumerated() {
                 records.append(MemoryIngestRecord(
@@ -102,8 +125,8 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         guard index > 0 else { return MemoryReadPage(records: [], nextCursor: nil, hasMore: false) }
         let hasMore = index < files.count
         // The last page of a sync hands this sync's failures to the next one.
-        let next = hasMore ? Cursor(after: newest, retry: retry, failed: failed)
-            : Cursor(after: newest, retry: retry.union(failed), failed: [])
+        let next = hasMore ? Cursor(after: newest, retry: retry, failed: failed, evicted: evicted)
+            : Cursor(after: newest, retry: retry.union(failed), failed: [], evicted: evicted)
         return MemoryReadPage(records: records, nextCursor: next.encoded, hasMore: hasMore,
                               completeConversations: complete)
     }
@@ -125,11 +148,29 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         var retry: Set<String> = []
         /// Failed in the sync under way: moved to `retry` when it ends.
         var failed: Set<String> = []
+        /// Files this reader read while online-only, and so gave back (`evictionKey` of their ids).
+        var evicted: Set<String> = []
 
-        init(after: Double, retry: Set<String> = [], failed: Set<String> = []) {
+        init(after: Double, retry: Set<String> = [], failed: Set<String> = [], evicted: Set<String> = []) {
             self.after = after
             self.retry = retry
             self.failed = failed
+            self.evicted = evicted
+        }
+
+        /// Missing keys (cursors written before a field existed) read as empty.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            after = try container.decode(Double.self, forKey: .after)
+            retry = try container.decodeIfPresent(Set<String>.self, forKey: .retry) ?? []
+            failed = try container.decodeIfPresent(Set<String>.self, forKey: .failed) ?? []
+            evicted = try container.decodeIfPresent(Set<String>.self, forKey: .evicted) ?? []
+        }
+
+        /// A file id as `evicted` keeps it: 16 hex digits of its SHA-256, so a drive with thousands
+        /// of online-only files keeps a small cursor.
+        static func evictionKey(_ id: String) -> String {
+            SHA256.hash(data: Data(id.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
         }
 
         init(_ stored: String?) {
@@ -143,7 +184,7 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         }
 
         var encoded: String {
-            if retry.isEmpty, failed.isEmpty { return String(after) }
+            if retry.isEmpty, failed.isEmpty, evicted.isEmpty { return String(after) }
             let encoder = JSONEncoder()
             encoder.outputFormatting = .sortedKeys
             return (try? encoder.encode(self)).flatMap { String(bytes: $0, encoding: .utf8) } ?? String(after)
@@ -158,6 +199,13 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
         let id: String
         let modified: Double
         let changed: Double
+        /// Only in the cloud when listed (a placeholder the drive downloads when read).
+        var isOnlineOnly = false
+
+        /// The same file with only its modification time as its time for the cursor.
+        var keyedOnModification: Document {
+            Document(url: url, id: id, modified: modified, changed: modified, isOnlineOnly: isOnlineOnly)
+        }
     }
 
     /// Every supported document under the drive's roots, with its id (account folder + path inside
@@ -194,7 +242,7 @@ nonisolated struct CloudDriveReader: MemoryHistoryReading {
                 let relative = String(url.resolvingSymlinksInPath().path.dropFirst(rootPath.count))
                     .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 found.append(Document(url: url, id: root.lastPathComponent + "/" + relative, modified: modified,
-                                      changed: DocumentArrival.changed(modified: modified, values: values)))
+                                      changed: arrival(url, modified, values), isOnlineOnly: isOnlineOnly(url)))
             }
         }
         return (found, isComplete)
