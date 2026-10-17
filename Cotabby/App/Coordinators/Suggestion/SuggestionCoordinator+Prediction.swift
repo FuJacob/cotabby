@@ -254,11 +254,37 @@ extension SuggestionCoordinator {
         guard !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }
         guard !insertionChunk.isEmpty else { return }
 
-        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(
-            after: rawContext,
-            inserting: insertionChunk
+        dispatchSpeculativeGeneration(
+            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: insertionChunk),
+            message: "Started the post-acceptance generation against the expected post-insert text."
         )
+    }
 
+    /// Starts generating for a plain typed character at keystroke time, against the text the host
+    /// is about to publish, instead of after the host-publish poll sees it (10-50 ms in native
+    /// hosts, longer in Chromium). The poll that follows validates exactly as it does for
+    /// post-acceptance speculation: a matching publish keeps this request, anything else (smart
+    /// quotes, dead keys, IME, auto-pairing, a key the host had not yet applied to the snapshot)
+    /// schedules the ordinary request and retires this one. Results and streamed partials are only
+    /// shown once the live text matches, so a wrong bet costs one discarded generation, never a
+    /// ghost at the wrong caret.
+    ///
+    /// Endpoint requests keep their debounced path: speculative traffic must not multiply requests
+    /// to a configured server.
+    func dispatchSpeculativeTypingGeneration(rawContext: FocusedInputSnapshot, typed characters: String) {
+        guard settingsSnapshot.selectedEngine != .openAICompatible,
+              !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey),
+              characters.count == 1, let typed = characters.first, !typed.isNewline,
+              rawContext.selection.length == 0, !rawContext.isSecure else { return }
+        dispatchSpeculativeGeneration(
+            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: characters),
+            message: "Started generating against the typed character before the host published it."
+        )
+    }
+
+    /// Shared body of the speculative paths: gate, build the request for `optimistic`, and run it
+    /// with no debounce while `pendingSpeculativeContext` lets the publish poll validate it.
+    private func dispatchSpeculativeGeneration(optimistic: FocusedInputSnapshot, message: String) {
         // Same pre-generation gates the ordinary cycle applies, minus their UI side effects: a
         // speculative request must not spend a decode on text the normal path would refuse (too
         // little text) or suppress (typo gate). The post-publish regeneration still runs the full
@@ -308,7 +334,7 @@ extension SuggestionCoordinator {
             "speculative-generating",
             workID: workID,
             generation: context.generation,
-            message: "Started the post-acceptance generation against the expected post-insert text.",
+            message: message,
             prompt: requestBuildResult.promptPreview
         )
     }
@@ -578,7 +604,25 @@ extension SuggestionCoordinator {
             }
             return rebased
         }
-        return liveContext.generation == partial.generation ? partial : nil
+        if liveContext.generation == partial.generation { return partial }
+        // A speculative request was built against text the host had not published yet, so any
+        // read of the pre-publish snapshot moves the live generation past the partial's. Like
+        // `apply`, accept it by content instead: once the live field reads exactly what was
+        // speculated, the partial is current; before that it stays hidden.
+        if let expected = pendingSpeculativeContext,
+           expected.sessionIdentity == liveContext.sessionIdentity,
+           expected.contentSignature == liveContext.contentSignature,
+           expected.generation == partial.generation {
+            return SuggestionResult(
+                generation: liveContext.generation,
+                rawText: partial.rawText,
+                text: partial.text,
+                latency: partial.latency,
+                suppressionReason: partial.suppressionReason,
+                spacingIsExact: partial.spacingIsExact
+            )
+        }
+        return nil
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,

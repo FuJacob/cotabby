@@ -325,6 +325,40 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertEqual(rig.engine.prewarmedRequests.first?.clipboardContext, "Quarterly numbers attached")
     }
 
+    // MARK: - Keystroke-time speculation
+
+    /// A plain typed character starts generating at once against the text the host is about to
+    /// publish; the host-publish poll only validates it.
+    func test_typedCharacterStartsSpeculativeGenerationBeforeHostPublish() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Thanks for the quick rep")
+        ))
+        _ = rig.coordinator.handleInputEvent(
+            CapturedInputEvent(kind: .textMutation, keyCode: 37, characters: "l", flags: [])
+        )
+
+        XCTAssertEqual(rig.coordinator.pendingSpeculativeContext?.precedingText, "Thanks for the quick repl")
+        XCTAssertEqual(rig.coordinator.state, .generating)
+        await waitUntil("The speculative request never reached the engine") {
+            !rig.engine.requests.isEmpty
+        }
+        XCTAssertEqual(rig.engine.requests.first?.context.precedingText, "Thanks for the quick repl")
+    }
+
+    /// Deletions, multi-character input, and the speculation kill switch keep the ordinary
+    /// publish-gated request.
+    func test_typedSpeculationSkipsDeletionsAndHonorsKillSwitch() {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Thanks for the quick rep")
+        ))
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: []))
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "Backspace has no character to speculate with")
+
+        rig.coordinator.userDefaults.set(true, forKey: SuggestionCoordinator.speculativePrefetchDisabledDefaultsKey)
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 37, characters: "l", flags: []))
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "The kill switch must skip typing speculation")
+    }
+
     func test_handleSupportedSnapshot_withoutContextDisablesOutright() {
         let rig = retained(makeCoordinatorRig())
         let bareSnapshot = FocusSnapshot(

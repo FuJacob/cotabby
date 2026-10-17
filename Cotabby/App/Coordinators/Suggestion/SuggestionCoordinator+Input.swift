@@ -343,9 +343,21 @@ extension SuggestionCoordinator {
             // *before* the host app processes the keystroke, so a synchronous `refreshNow()` here
             // reads pre-keystroke text and feeds it into generation. The result is a suggestion
             // that looks like the typed character was ignored — see
-            // `schedulePredictionAfterHostPublishDelay` for the full rationale.
+            // `schedulePredictionAfterHostPublishDelay` for the full rationale. A plain typed
+            // character can still start generating now, against the text the host is about to
+            // publish; the poll then validates that bet instead of gating the request.
+            speculateOnTypedCharacter(event)
             schedulePredictionAfterHostPublishDelay()
         }
+    }
+
+    /// Starts the keystroke-time speculative generation for a plain typed character. The base is
+    /// the last captured snapshot; when it does not yet include an earlier unpublished key, the
+    /// speculated text simply misses and the publish poll falls back to the ordinary request.
+    private func speculateOnTypedCharacter(_ event: CapturedInputEvent) {
+        guard event.kind == .textMutation, !event.characters.isEmpty,
+              let raw = focusModel.snapshot.context else { return }
+        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: event.characters)
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -567,6 +579,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                speculateOnTypedCharacter(event)
                 schedulePredictionAfterHostPublishDelay()
             }
             return false
