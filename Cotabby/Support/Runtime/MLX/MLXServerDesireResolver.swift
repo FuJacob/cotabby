@@ -11,6 +11,9 @@ nonisolated struct MLXServerLaunch: Equatable, Sendable {
     let executable: URL
     let modelID: String
     let promptCacheBytes: Int
+    /// The Python the launcher runs. When known, the server starts through
+    /// `MLXToolchainRules.fullCacheServerScript` so its prompt cache can reuse edited prompts.
+    var interpreter: URL?
 }
 
 /// The answer the resolver gives: stop, explain why not, or run this exact launch. A plain value
@@ -68,7 +71,8 @@ nonisolated enum MLXServerDesireResolver {
             return .running(MLXServerLaunch(
                 executable: toolchain.serverExecutable,
                 modelID: repoID.value,
-                promptCacheBytes: input.promptCacheBytes
+                promptCacheBytes: input.promptCacheBytes,
+                interpreter: toolchain.pythonExecutable
             ))
         }
     }

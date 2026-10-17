@@ -53,6 +53,22 @@ final class MLXToolchainRulesTests: XCTestCase {
         )
     }
 
+    func test_serverRunsThroughTheFullCacheBootstrapWhenThePythonIsKnown() {
+        let script = URL(fileURLWithPath: "/S/MLX/bin/mlx_lm.server")
+        let python = URL(fileURLWithPath: "/S/MLX/tools/mlx-lm/bin/python")
+        let command = MLXToolchainRules.serverCommand(serverScript: script, interpreter: python, arguments: ["--port", "1"])
+        XCTAssertEqual(command.executable, python)
+        XCTAssertEqual(command.arguments,
+                       ["-I", "-c", MLXToolchainRules.fullCacheServerScript, script.path, "--port", "1"])
+        // The launcher path stays in argv, so a leftover server is still recognized as ours.
+        XCTAssertTrue(MLXToolchainRules.isOurServer(arguments:
+            [python.path] + command.arguments + ["--host", "127.0.0.1"]))
+
+        let fallback = MLXToolchainRules.serverCommand(serverScript: script, interpreter: nil, arguments: ["--port", "1"])
+        XCTAssertEqual(fallback.executable, script)
+        XCTAssertEqual(fallback.arguments, ["--port", "1"])
+    }
+
     func test_environmentsDropPythonOverridesAndPinOfflineServing() {
         let base = ["HOME": "/Users/u", "PATH": "/x", "PYTHONPATH": "/evil", "PYTHONHOME": "/evil",
                     "VIRTUAL_ENV": "/venv", "CONDA_PREFIX": "/conda", "UV_INDEX_URL": "https://mirror",

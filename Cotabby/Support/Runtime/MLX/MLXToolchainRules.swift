@@ -32,6 +32,59 @@ nonisolated enum MLXToolchainRules {
     static let downloadScript =
         "import sys; from huggingface_hub import snapshot_download; snapshot_download(sys.argv[1])"
 
+    /// Starts `mlx_lm.server` (its path is `sys.argv[1]`, its flags follow) with full-size caches
+    /// for the sliding-window layers of models verified to mask the window themselves.
+    ///
+    /// Gemma 4 builds a `RotatingKVCache(max_size=sliding_window)` for its sliding layers. Once a
+    /// prompt plus its output passes the 512-token window the ring buffer wraps, the cache can no
+    /// longer be trimmed, and the server's prompt cache cannot reuse a request whose tokens diverge
+    /// after the shared prefix (a keystroke after a generation): it re-processes the whole prompt.
+    /// A plain `KVCache` keeps every position and trims exactly, while the model's own mask
+    /// (`create_causal_mask(window_size=...)`) still limits attention to the window, so outputs are
+    /// unchanged. This is the MLX counterpart of llama.cpp's `swa_full`.
+    ///
+    /// The cache module, the server, and the batch generator each bind `make_prompt_cache` by name,
+    /// so all three are replaced, or none: if any binding is missing or different (another mlx-lm
+    /// version), the server runs unpatched rather than with a mix of cache types.
+    static let fullCacheServerScript = """
+    import importlib, sys
+    try:
+        # import_module, not `import mlx_lm.generate as ...`: the package exports a `generate`
+        # function that shadows the submodule, and the `as` form would bind that function.
+        generate_module = importlib.import_module("mlx_lm.generate")
+        cache_module = importlib.import_module("mlx_lm.models.cache")
+        server_module = importlib.import_module("mlx_lm.server")
+        original = cache_module.make_prompt_cache
+        full_cache_model_types = {"gemma4", "gemma4_text"}
+        def make_prompt_cache(model, max_kv_size=None):
+            caches = original(model, max_kv_size)
+            model_type = getattr(model, "model_type", None) or getattr(getattr(model, "args", None), "model_type", None)
+            if max_kv_size is not None or model_type not in full_cache_model_types:
+                return caches
+            return [cache_module.KVCache() if type(c) is cache_module.RotatingKVCache else c for c in caches]
+        for module in (cache_module, server_module, generate_module):
+            if module.make_prompt_cache is not original:
+                raise AttributeError(f"{module.__name__}.make_prompt_cache is not the expected function")
+        for module in (cache_module, server_module, generate_module):
+            module.make_prompt_cache = make_prompt_cache
+    except (ImportError, AttributeError) as error:
+        sys.stderr.write(f"full-size cache patch unavailable, running unpatched: {error}\\n")
+        import mlx_lm.server as server_module
+    sys.argv = sys.argv[1:]
+    server_module.main()
+    """
+
+    /// The process Cotabby launches for the server. With the launcher's interpreter known it runs
+    /// `fullCacheServerScript` (`python -I -c <script> <launcher path> <flags>`); the launcher path
+    /// stays in the arguments so `isOurServer` still recognizes the process. Without an interpreter
+    /// it falls back to running the launcher directly, exactly as before.
+    static func serverCommand(
+        serverScript: URL, interpreter: URL?, arguments: [String]
+    ) -> (executable: URL, arguments: [String]) {
+        guard let interpreter else { return (serverScript, arguments) }
+        return (interpreter, ["-I", "-c", fullCacheServerScript, serverScript.path] + arguments)
+    }
+
     /// GUI apps do not inherit the shell's PATH, so the usual install places are checked by path:
     /// Cotabby's own install, uv's default tool bin, Homebrew.
     static func serverCandidates(paths: MLXPaths, home: URL) -> [URL] {

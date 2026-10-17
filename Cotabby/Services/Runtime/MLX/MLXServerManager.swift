@@ -305,10 +305,15 @@ final class MLXServerManager: ObservableObject {
         let process: any MLXRunningProcess
         do {
             port = try pickPort()
-            process = try launcher.launch(
-                executable: launch.executable,
+            let command = MLXToolchainRules.serverCommand(
+                serverScript: launch.executable,
+                interpreter: launch.interpreter,
                 arguments: MLXToolchainRules.serverArguments(
-                    modelID: launch.modelID, port: port, promptCacheBytes: launch.promptCacheBytes),
+                    modelID: launch.modelID, port: port, promptCacheBytes: launch.promptCacheBytes)
+            )
+            process = try launcher.launch(
+                executable: command.executable,
+                arguments: command.arguments,
                 environment: MLXToolchainRules.serverEnvironment(base: baseEnvironment),
                 onExit: { [weak self] status in
                     self?.processExited(generation: launchGeneration, status: status)

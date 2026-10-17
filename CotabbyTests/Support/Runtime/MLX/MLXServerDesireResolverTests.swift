@@ -78,7 +78,8 @@ final class MLXServerDesireResolverTests: XCTestCase {
         XCTAssertEqual(desire(), .running(MLXServerLaunch(
             executable: URL(fileURLWithPath: "/mlx/bin/mlx_lm.server"),
             modelID: "mlx-community/gemma-4-e4b-5bit",
-            promptCacheBytes: 1 << 30
+            promptCacheBytes: 1 << 30,
+            interpreter: URL(fileURLWithPath: "/mlx/python")
         )))
     }
 }
