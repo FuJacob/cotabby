@@ -189,18 +189,19 @@ final class InputMonitor {
 
     private static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
 
-    /// How long the accept tap lingers (fail-open) after the overlay hides before its mach port is
-    /// invalidated. A final-chunk accept runs *inside* this tap's own callback: it posts the
-    /// synthetic insertion to `.cghidEventTap` and then hides the overlay, which routes back here to
-    /// tear the tap down. Invalidating the mach port in that same run-loop turn pulls the tap out of
-    /// the session tap chain before the just-posted synthetic keystroke drains through it, so the
-    /// last accepted word never reaches the host (non-final words keep the overlay visible and never
-    /// hit this path, which is why only the final word failed to commit). Deferring the invalidation
-    /// one short hop lets the synthetic event finish delivery first. This is the invariant PR #385
-    /// ("Fix last tab issue") protected before the two-tap ownership rewrite dropped it.
-    private static let acceptTapTeardownDelaySeconds: TimeInterval = 0.05
+    /// How long the accept tap stays enabled after the last suggestion hid. Switching an active tap
+    /// off pulls it out of the session tap chain, and an event still on its way through it is lost:
+    /// a final-chunk accept runs *inside* this tap's own callback, posts the synthetic insertion to
+    /// `.cghidEventTap`, then hides the overlay, and tearing the tap down in that same run-loop turn
+    /// once made the last accepted word never reach the host (PR #385, "Fix last tab issue"). The
+    /// user's own keystrokes are exposed the same way: toggling the tap around every keystroke of a
+    /// burst dropped about one typed character in a hundred in live TextEdit runs, and none with
+    /// Cotabby quit. Two seconds spans a typing burst, so the tap is only switched off once input
+    /// has gone quiet, and it also covers the synthetic-insertion drain.
+    private static let acceptTapIdleDisableSeconds: TimeInterval = 2
     /// How long a disabled accept tap is kept for its next suggestion before it is released.
     private static let acceptTapReleaseDelaySeconds: TimeInterval = 10
+    private var acceptTapStateGeneration: UInt64 = 0
 
     private var acceptTapWanted: Bool {
         permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
@@ -234,10 +235,11 @@ final class InputMonitor {
         // through immediately.
         isAcceptTapOwningAcceptKeys = wantsTap && suggestionInterceptionActive
         if wantsTap {
+            acceptTapStateGeneration &+= 1
             installAcceptTapIfNeeded()
         } else {
-            // Defer only the mach-port invalidation, so a final-chunk accept's synthetic insertion can
-            // drain before the tap is removed (see `acceptTapTeardownDelaySeconds`). Re-check both
+            // Defer the disable, so a final-chunk accept's synthetic insertion can drain before the
+            // tap stops intercepting (see `acceptTapIdleDisableSeconds`). Re-check both
             // reasons at fire time so a suggestion or an emoji capture that re-armed the tap during the
             // delay keeps it installed.
             //
@@ -246,8 +248,16 @@ final class InputMonitor {
             // (~20-30 ms measured) on the main thread right before the ghost could be presented. A
             // disabled tap intercepts nothing, so typing stays off this synchronous path exactly as
             // before; re-enabling it is cheap. It is released only after a longer idle period.
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapTeardownDelaySeconds) { [weak self] in
-                guard let self, !self.acceptTapWanted else { return }
+            //
+            // The tap is disabled only after a quiet period, never between keystrokes of a burst.
+            // Switching an active tap off while a keystroke is in flight through it can lose that
+            // keystroke: live runs dropped one character in roughly a hundred while the tap was
+            // toggled around every keystroke, and none with Cotabby quit. Every state change bumps
+            // `acceptTapStateGeneration`, so only a disable scheduled after the last change runs.
+            acceptTapStateGeneration &+= 1
+            let generation = acceptTapStateGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapIdleDisableSeconds) { [weak self] in
+                guard let self, generation == self.acceptTapStateGeneration, !self.acceptTapWanted else { return }
                 self.disableAcceptTap()
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapReleaseDelaySeconds) { [weak self] in
                     guard let self, !self.acceptTapWanted, !self.acceptTapEnabled else { return }
