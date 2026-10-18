@@ -202,22 +202,27 @@ final class VisualContextCoordinator {
                 guard !Task.isCancelled else {
                     return
                 }
+                // The field as it reads now, not at capture start: everything the capture saw of
+                // the user's typing is already in it, so the change policy can discount all of it.
+                var fieldContext = snapshotContext
                 if let provider = refreshContextProvider {
                     let liveContext = provider()
                     guard activeAugmentationSession?.sessionID == session.sessionID else { return }
-                    guard screenRecordingPermissionProvider(), liveContext?.identity == snapshotContext.identity,
-                          liveContext?.sessionIdentity == snapshotContext.sessionIdentity,
-                          liveContext?.isSecure == false else {
+                    guard screenRecordingPermissionProvider(), let liveContext,
+                          liveContext.identity == snapshotContext.identity,
+                          liveContext.sessionIdentity == snapshotContext.sessionIdentity,
+                          !liveContext.isSecure else {
                         cancel(resetState: true)
                         return
                     }
+                    fieldContext = liveContext
                 }
 
                 applyExcerpt(
                     excerpt,
                     for: session.sessionID,
                     identity: snapshotContext.identity,
-                    fieldText: snapshotContext.precedingText + snapshotContext.trailingText,
+                    fieldText: fieldContext.precedingText + fieldContext.trailingText,
                     capturedAt: capturedAt
                 )
             } catch is CancellationError {

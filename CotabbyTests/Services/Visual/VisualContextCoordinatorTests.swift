@@ -288,6 +288,38 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(generator.configurations, [.local, .default])
     }
 
+    /// TextEdit or a compose window: the draft fills the capture, and the user keeps typing while
+    /// OCR runs. Words typed after the capture started are on screen but were not in the field when
+    /// it started, so the comparison must use the field as it reads when the result lands.
+    func test_typingIntoAWindowFillingFieldIsNotANavigationSignal() async throws {
+        let generator = StubVisualContextGenerator()
+        let chrome = "Untitled 3 — Edited\nHelvetica Regular 12 B I U S\n"
+        generator.text = chrome + "Hello Martin, thanks for the update on the"
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello Martin, thanks for the update on the")
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+        let original = coordinator.latestExcerpt
+
+        generator.suspendNext = true
+        try await waitUntil { generator.pending != nil }
+        live = CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello Martin, thanks for the update on the onboarding project. I wanted to check"
+        )
+        generator.text = chrome + "Hello Martin, thanks for the update on the onboarding project. I wanted to che"
+        let completedBefore = generator.completedCount
+        generator.pending?.resume()
+        generator.pending = nil
+        try await waitUntil { generator.completedCount > completedBefore }
+
+        XCTAssertEqual(notifications, 1, "The user's own typing on screen must not retire the visible suggestion")
+        XCTAssertEqual(coordinator.latestExcerpt, original, "Typing alone must keep the prompt's screen text")
+    }
+
     private func makeCoordinator(
         _ generator: StubVisualContextGenerator,
         permission: @escaping @MainActor () -> Bool = { true }
