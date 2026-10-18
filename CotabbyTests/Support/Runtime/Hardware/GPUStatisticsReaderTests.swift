@@ -75,3 +75,35 @@ final class GPUStatisticsReaderTests: XCTestCase {
         )
     }
 }
+
+final class GPUMultiPidTests: XCTestCase {
+    func testCreatorMatchingIsExactOnPidAndNotPrefixOfLongerPid() {
+        XCTAssertTrue(GPUStatisticsReader.creatorMatches("pid 123, Cotabby", pids: [5, 123]))
+        XCTAssertFalse(GPUStatisticsReader.creatorMatches("pid 1234, Other", pids: [123]))
+        XCTAssertFalse(GPUStatisticsReader.creatorMatches("pid 123, X", pids: []))
+    }
+
+    func testTrackerNeedsTwoReadingsThenReportsGrowthOverWallTime() {
+        var tracker = GPUShareTracker()
+        let start = Date(timeIntervalSince1970: 1000)
+        XCTAssertNil(tracker.update(pids: [1, 2], nanoseconds: 0, at: start))
+        let share = tracker.update(pids: [2, 1], nanoseconds: 1_000_000_000, at: start.addingTimeInterval(2))
+        XCTAssertEqual(try XCTUnwrap(share), 50, accuracy: 0.001)
+    }
+
+    func testTrackerRestartsWhenPidSetChanges() {
+        var tracker = GPUShareTracker()
+        let start = Date(timeIntervalSince1970: 1000)
+        _ = tracker.update(pids: [1], nanoseconds: 100, at: start)
+        XCTAssertNil(tracker.update(pids: [1, 2], nanoseconds: 9_000_000_000, at: start.addingTimeInterval(2)))
+        XCTAssertNotNil(tracker.update(pids: [1, 2], nanoseconds: 9_500_000_000, at: start.addingTimeInterval(4)))
+    }
+
+    func testTrackerNeverReportsNegativeOrAbove100() {
+        var tracker = GPUShareTracker()
+        let start = Date(timeIntervalSince1970: 1000)
+        _ = tracker.update(pids: [1], nanoseconds: 5_000_000_000, at: start)
+        XCTAssertNil(tracker.update(pids: [1], nanoseconds: 1, at: start.addingTimeInterval(1)))
+        XCTAssertEqual(tracker.update(pids: [1], nanoseconds: 9_000_000_000, at: start.addingTimeInterval(2)), 100)
+    }
+}

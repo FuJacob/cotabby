@@ -73,20 +73,24 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 
 Privacy is the whole point, so Cotabby's default engines keep generation on your Mac:
 
-- Apple Intelligence and Open Source generation run on-device.
+- Apple Intelligence and Open Source generation run on-device. The optional MLX engine also runs on
+  your Mac, in an `mlx_lm.server` process that listens only on 127.0.0.1.
 - The optional OpenAI-compatible engine sends a bounded request only to the endpoint you configure;
   that endpoint can be loopback, on your local network, or a public HTTPS service.
 - No analytics, no telemetry, no crash reporting.
 - A normal install never writes what you type to disk.
-- Apart from a configured endpoint, the network is used for model downloads and update checks, not
-  suggestion generation.
+- Apart from a configured endpoint, the network is used for model downloads, the optional MLX
+  install, and update checks, not suggestion generation.
 
 ## Engines
 
-Cotabby generates suggestions in three ways. You choose which in Settings → Engine:
+Cotabby generates suggestions in four ways. You choose which in Settings → Engine:
 
 - **Apple Intelligence** — Apple's model, built into macOS 26 or later on supported Macs. Nothing to download.
 - **Open Source** — a small AI model you download that runs entirely on your Mac. Works on any supported Mac (macOS 14+), with or without Apple Intelligence.
+- **MLX** (Apple Silicon, optional) — an MLX-format model run by Apple's
+  [mlx-lm](https://github.com/ml-explore/mlx-lm). Cotabby installs a pinned mlx-lm into its own
+  folder only when you click Install, and uses models from the Hugging Face cache.
 - **OpenAI-compatible** — a completion or chat endpoint you configure, including local Ollama,
   another LAN host, or a public HTTPS service. Endpoint credentials are stored in Keychain.
 

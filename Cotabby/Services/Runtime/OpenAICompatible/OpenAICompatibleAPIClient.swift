@@ -6,6 +6,15 @@ nonisolated struct OpenAICompatibleGenerationOptions: Equatable, Sendable {
     let maxPredictionTokens: Int
     let temperature: Double
     let topP: Double
+    /// MLX-only sampling fields. Nil for every other server, so they never receive unknown keys.
+    let mlx: MLXCompletionOptions?
+
+    init(maxPredictionTokens: Int, temperature: Double, topP: Double, mlx: MLXCompletionOptions? = nil) {
+        self.maxPredictionTokens = maxPredictionTokens
+        self.temperature = temperature
+        self.topP = topP
+        self.mlx = mlx
+    }
 }
 
 enum OpenAICompatibleClientError: LocalizedError, Equatable {
@@ -78,7 +87,8 @@ final class OpenAICompatibleAPIClient {
         apiKey: String?,
         prompt: String,
         options: OpenAICompatibleGenerationOptions,
-        onPartialRawText: (@MainActor (String) -> Void)?
+        onPartialRawText: (@MainActor (String) -> Void)?,
+        stopWhen: (@MainActor (String, Int) -> Bool)? = nil
     ) async throws -> String {
         guard !configuration.modelName.isEmpty else {
             throw OpenAICompatibleEndpointError.emptyModelName
@@ -104,6 +114,7 @@ final class OpenAICompatibleAPIClient {
 
         var accumulated = ""
         var sawEvent = false
+        var textEvents = 0
         for try await line in bytes.lines {
             try Task.checkCancellation()
             switch try OpenAICompatibleSSEDecoder.decode(line, mode: configuration.apiMode) {
@@ -114,8 +125,16 @@ final class OpenAICompatibleAPIClient {
                 return accumulated
             case .text(let text):
                 sawEvent = true
+                textEvents += 1
                 accumulated += text
                 onPartialRawText?(accumulated)
+                // Returning leaves the `for await`, which cancels the URLSession task and closes the
+                // socket. mlx_lm.server's handler fails on its next write and marks the request
+                // stopped, and its generation thread drops it at the next token, so an early stop
+                // here saves server time as well as the wait.
+                if let stopWhen, stopWhen(accumulated, textEvents) {
+                    return accumulated
+                }
             case .error(let message):
                 throw OpenAICompatibleClientError.streamError(message)
             }
@@ -286,6 +305,12 @@ private nonisolated struct CompletionRequest: Encodable {
     let maxTokens: Int
     let temperature: Double
     let topP: Double
+    // MLX-only fields. Optionals are left out of the JSON when nil (synthesized `encodeIfPresent`).
+    let topK: Int?
+    let minP: Double?
+    let repetitionPenalty: Double?
+    let seed: Int?
+    let stop: [String]?
 
     init(model: String, prompt: String, options: OpenAICompatibleGenerationOptions) {
         self.model = model
@@ -293,12 +318,20 @@ private nonisolated struct CompletionRequest: Encodable {
         maxTokens = options.maxPredictionTokens
         temperature = options.temperature
         topP = options.topP
+        topK = options.mlx?.topK
+        minP = options.mlx?.minP
+        repetitionPenalty = options.mlx?.repetitionPenalty
+        seed = options.mlx?.seed
+        stop = options.mlx.flatMap { $0.stop.isEmpty ? nil : $0.stop }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case model, prompt, stream, temperature
+        case model, prompt, stream, temperature, seed, stop
         case maxTokens = "max_tokens"
         case topP = "top_p"
+        case topK = "top_k"
+        case minP = "min_p"
+        case repetitionPenalty = "repetition_penalty"
     }
 }
 

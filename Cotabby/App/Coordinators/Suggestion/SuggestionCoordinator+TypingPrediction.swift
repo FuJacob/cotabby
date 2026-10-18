@@ -6,10 +6,11 @@ import Foundation
 extension SuggestionCoordinator {
     func beginTypingPrediction(for request: SuggestionRequest) {
         clearTypingPrediction()
-        // Internal partial collection must not add speculative traffic to configured endpoints.
+        // Internal partial collection must not add speculative requests to a server (the endpoint
+        // or MLX), where they would share generation work with the request the user waits for.
         // Post-acceptance speculation has its own publication contract and is kept separate.
         guard settingsSnapshot.predictAheadWhileTyping,
-              settingsSnapshot.selectedEngine != .openAICompatible,
+              settingsSnapshot.selectedEngine.allowsSpeculativeGeneration,
               pendingSpeculativeContext == nil, !request.context.isSecure,
               request.context.selection.length == 0,
               !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }

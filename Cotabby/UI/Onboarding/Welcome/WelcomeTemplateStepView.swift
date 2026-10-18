@@ -333,6 +333,8 @@ private struct TemplateCard: View {
             return "\(model.displayName) · \(model.approximateSizeLabel) download"
         case .openAICompatible:
             return "Local endpoint · configure later in Settings"
+        case .mlx:
+            return "MLX · set up in Settings"
         }
     }
 

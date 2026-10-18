@@ -27,6 +27,21 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(makeInputs()), [])
     }
 
+    func test_mlxProblemFlagsEngineAndModel() {
+        let base = SettingsAttentionEvaluator.Inputs(
+            permissionsGranted: true,
+            selectedEngine: .mlx,
+            foundationModelAvailable: true,
+            llamaRuntimeFailedReason: nil,
+            endpointConfigurationError: nil,
+            endpointConnectionFailedReason: nil
+        )
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(base), [])
+        var broken = base
+        broken.mlxProblem = "MLX is not installed."
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(broken), [.engineAndModel])
+    }
+
     func test_missingPermissions_flagsPermissionsPane() {
         let categories = SettingsAttentionEvaluator.categoriesNeedingAttention(
             makeInputs(permissionsGranted: false)
