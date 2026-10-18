@@ -35,6 +35,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var autocompletePromptBytes: [UInt8] = []
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
+    /// Prompt tokens the most recent generate/prefill kept from native KV instead of decoding
+    /// (0 after a fresh build). Diagnostics and tests read it to prove reuse actually happened;
+    /// equal outputs alone cannot distinguish a reused cache from a silent rebuild.
+    private(set) var lastReusedPromptTokens = 0
 
     /// The sequence the in-flight autocomplete operation is decoding into, published for
     /// `abortInFlightGeneration` to target from the canceller's thread. Guarded by its own lock
@@ -317,13 +321,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let healingPrefix = healing.replayBytes
         // A byte-fallback vocabulary can replay at most one token per prefix byte. Reserve a
         // separate bounded allowance so healing cannot consume the user's output-token budget.
+        // A front-truncated prompt shifts every token position, so its token prefix no longer
+        // matches the cached one and reuse simply finds nothing in common; no flag is needed.
         let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens
             - options.maxPredictionTokens - healingPrefix.count)
-        let truncated = tokens.count > maxPromptTokens
         return PreparedPrompt(
             promptBytes: promptBytes,
             promptTokens: Array(tokens.suffix(maxPromptTokens)),
-            cachedPrefixBytes: truncated ? nil : cachedPrefixBytes,
             healingPrefix: healingPrefix,
             fingerprint: SamplingFingerprint(options: options)
         )
@@ -332,7 +336,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private struct PreparedPrompt {
         let promptBytes: [UInt8]
         let promptTokens: [Int32]
-        let cachedPrefixBytes: Int?
         let healingPrefix: [UInt8]
         let fingerprint: SamplingFingerprint
     }
@@ -561,6 +564,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// retain generated tokens or a cancellation flag; restoration is mandatory before reuse,
     /// even when both prompt descriptions are identical. A missed checkpoint rebuilds cold.
     /// Must be called while holding `autocompleteLock`.
+    ///
+    /// Reuse is decided here from the token prefix alone. KV contents are a pure function of the
+    /// token sequence and its positions, so a shared token prefix is always safe to keep no matter
+    /// which field, frame, or request produced it; the caller's byte hint is diagnostic only.
+    /// Requiring the hint used to discard the cache whenever the hint tracker had no record
+    /// (every cancelled request) or saw the field's frame grow while the user typed.
     private func obtainAutocompleteSequence(
         preparation: PreparedPrompt,
         options: LlamaGenerationOptions
@@ -568,16 +577,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let promptTokens = preparation.promptTokens
         let promptBytes = preparation.promptBytes
         let fingerprint = preparation.fingerprint
-        let cachedPrefixBytes = preparation.cachedPrefixBytes
         let healingPrefix = preparation.healingPrefix
         if autocompleteSequenceID >= 0,
-           let cachedPrefixBytes, cachedPrefixBytes > 0,
-           autocompleteSamplingFingerprint == fingerprint {
+           adoptSamplingIfNeeded(fingerprint, options: options) {
 
-            let confirmedCommonBytes = min(
-                cachedPrefixBytes,
-                Self.commonPrefixCount(autocompletePromptBytes, promptBytes)
-            )
+            let confirmedCommonBytes = Self.commonPrefixCount(autocompletePromptBytes, promptBytes)
 
             if confirmedCommonBytes > 0 {
                 let commonTokenPrefix = Self.commonPrefixCount(autocompletePromptTokens, promptTokens)
@@ -630,6 +634,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                                 return try buildFreshSequence(promptTokens: promptTokens, healingPrefix: healingPrefix, options: options)
                             }
                         }
+                        lastReusedPromptTokens = reusableTokenCount
                         CotabbyLogger.runtime.debug(
                             "KV prefix reused",
                             metadata: [
@@ -652,11 +657,26 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return try buildFreshSequence(promptTokens: promptTokens, healingPrefix: healingPrefix, options: options)
     }
 
+    /// Brings the live sequence's sampler in line with this request without touching its KV.
+    /// A sampling change (temperature, top-k, single-line mask) only affects how the next tokens
+    /// are drawn, never the cached prompt, so the native sampler chain is rebuilt in place instead
+    /// of destroying the reusable prefix. Returns false when the swap fails; the caller then
+    /// rebuilds the sequence from scratch. Must be called while holding `autocompleteLock`.
+    private func adoptSamplingIfNeeded(_ fingerprint: SamplingFingerprint, options: LlamaGenerationOptions) -> Bool {
+        guard autocompleteSamplingFingerprint != fingerprint else { return true }
+        guard engine.updateSampling(autocompleteSequenceID, Self.samplingConfig(from: options)) else {
+            return false
+        }
+        autocompleteSamplingFingerprint = fingerprint
+        return true
+    }
+
     private func buildFreshSequence(
         promptTokens: [Int32],
         healingPrefix: [UInt8],
         options: LlamaGenerationOptions
     ) throws -> Int32 {
+        lastReusedPromptTokens = 0
         let config = Self.samplingConfig(from: options)
         let seqID = engine.createSequence(config)
         guard seqID >= 0 else {
@@ -783,9 +803,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return index
     }
 
-    /// Generation knobs that intentionally break KV reuse when changed.
+    /// The settings baked into the native sampler chain. A change swaps the chain in place
+    /// (`adoptSamplingIfNeeded`); it never invalidates the KV prefix. The output-token budget is
+    /// deliberately absent: the Swift decode loop enforces it, so performance tuning that moves the
+    /// budget between requests must not look like a different sampler.
     private struct SamplingFingerprint: Equatable {
-        let maxPredictionTokens: Int
         let temperature: Double
         let topK: Int
         let topP: Double
@@ -795,7 +817,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let singleLine: Bool
 
         init(options: LlamaGenerationOptions) {
-            maxPredictionTokens = options.maxPredictionTokens
             temperature = options.temperature
             topK = options.topK
             topP = options.topP

@@ -77,17 +77,15 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         let shareableContent = try await currentShareableContent()
         try Task.checkCancellation()
         let caretCG = convertBetweenAppKitAndCG(rect: context.caretRect)
-        let focusedWindow = capturesEntireWindow ? shareableContent.windows.first(where: {
+        let appWindows = shareableContent.windows.filter {
             $0.owningApplication?.processID == processIdentifier && $0.isOnScreen
-                && $0.frame.contains(CGPoint(x: caretCG.midX, y: caretCG.midY)) && $0.isActive
-        }) : nil
-        let matchingWindow =
-            focusedWindow ?? shareableContent.windows.first(where: {
-                $0.owningApplication?.processID == processIdentifier && $0.isActive && $0.isOnScreen
-            })
-            ?? shareableContent.windows.first(where: {
-                $0.owningApplication?.processID == processIdentifier && $0.isOnScreen
-            })
+        }
+        let selectedWindowID = CaptureWindowSelector.select(
+            appWindows.map { .init(id: $0.windowID, frame: $0.frame, isActive: $0.isActive) },
+            caret: CGPoint(x: caretCG.midX, y: caretCG.midY),
+            frontToBack: Self.frontToBackWindowIDs(for: processIdentifier)
+        )
+        let matchingWindow = appWindows.first { $0.windowID == selectedWindowID }
 
         guard let matchingWindow else {
             CotabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
@@ -136,6 +134,18 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
             height: caret.height / sourceRect.height
         )
         return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title, focusBounds: focusBounds)
+    }
+
+    /// The process's normal-layer on-screen window numbers, front-most first. ScreenCaptureKit's
+    /// window list has no documented order; the window server's list is front to back.
+    private static func frontToBackWindowIDs(for processIdentifier: pid_t) -> [CGWindowID] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        return windows.compactMap { info in
+            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processIdentifier,
+                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { return nil }
+            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        }
     }
 
     private func snapshotRect(

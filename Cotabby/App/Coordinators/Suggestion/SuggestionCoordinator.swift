@@ -77,6 +77,24 @@ final class SuggestionCoordinator: ObservableObject {
     /// a slow HTTP backend retain an appropriate debounce without leaking that latency into the
     /// in-process engines.
     var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
+    /// Latency to the first streamed text of the most recent requests per backend: what starting a
+    /// request costs once the KV prefix is warm. `DebouncePolicy` prefers it, because a superseded
+    /// request stops at its next token while a debounce delays every keystroke. Recorded once per
+    /// work item (`firstTextRecordedWorkID`), only for the request that is still current, and read
+    /// as the median of the last few so one cache miss (a context refresh re-decoding a whole
+    /// section) cannot put the next keystroke behind the slow tier.
+    var recentFirstTextLatenciesByEngine: [SuggestionEngineKind: [Int]] = [:]
+    var firstTextRecordedWorkID: UInt64?
+
+    func recordFirstTextLatency(_ milliseconds: Int, engine: SuggestionEngineKind) {
+        recentFirstTextLatenciesByEngine[engine, default: []].append(milliseconds)
+        recentFirstTextLatenciesByEngine[engine] = Array(recentFirstTextLatenciesByEngine[engine, default: []].suffix(3))
+    }
+
+    func typicalFirstTextLatency(engine: SuggestionEngineKind) -> Int? {
+        let recent = recentFirstTextLatenciesByEngine[engine, default: []].sorted()
+        return recent.isEmpty ? nil : recent[recent.count / 2]
+    }
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0

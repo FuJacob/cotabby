@@ -63,9 +63,12 @@ enum BaseCompletionPromptRenderer {
             // the whole blob lands.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
         }
-        if let history = Self.historySection(historyExamples) {
-            sections.append(history)
-        }
+        // Sections are ordered from least to most volatile so a change invalidates as little of the
+        // cached prompt as possible: everything after the first changed byte is re-decoded. The
+        // clipboard is pinned per field and the screen excerpt only changes on a material update
+        // (`VisualContextChangePolicy`), while history examples move every few words. History
+        // therefore follows the screen text: placed before it, each history step re-decoded the
+        // whole screen section (up to ~1,200 tokens) as well.
         if let clip = Self.nonEmpty(clipboardContext) {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
         }
@@ -73,6 +76,9 @@ enum BaseCompletionPromptRenderer {
             sections.append(Self.contextSection(
                 "screen", "Nearby on screen: \(screen)", priority: screenPriority, maxChars: maxScreenCharacters
             ))
+        }
+        if let history = Self.historySection(historyExamples) {
+            sections.append(history)
         }
         let followingText = String(trailingText.prefix(max(0, maxSuffixCharacters)))
         if !followingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -144,9 +150,10 @@ enum BaseCompletionPromptRenderer {
 
     /// The user's own earlier sentences, quoted. A base model conditions strongly on nearby text in
     /// the same voice, so a couple of real examples pull its word choice toward how this person
-    /// writes. Sits after the stable preface and before the per-keystroke clipboard and screen
-    /// sections: the examples change only every few words (`TypingHistoryQuery.stableText`), so
-    /// placing them earlier keeps more of the prompt's head reusable from the KV cache.
+    /// writes. Sits after the clipboard and screen sections and before the caret text: the examples
+    /// change every few words (`TypingHistoryQuery.stableText`), more often than the pinned
+    /// clipboard or the screen excerpt, so placing them last keeps the larger sections reusable
+    /// from the KV cache.
     ///
     /// All or nothing, like the "following" section: a budget-trimmed history section could end
     /// on an unclosed quote, and the model would then read the live caret text as part of that

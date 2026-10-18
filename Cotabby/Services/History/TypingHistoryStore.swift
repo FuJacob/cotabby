@@ -73,6 +73,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private static let maximumRecentRecordings = 64
     /// Ranked example candidates for the current query block (see `historyExamples`).
     private var exampleCache: (key: String, candidates: [TypingHistoryIndex.Candidate])?
+    /// The examples most recently handed to a prompt, per field, so a new ranking that still rates
+    /// them highly keeps the prompt (and its KV cache) unchanged. Cleared with `exampleCache`.
+    private var shownExamples: (fieldKey: UInt64, examples: [String])?
 
     /// The field being typed in right now. Its raw text is kept here and only scrubbed and copied
     /// into `records` when saving or when focus moves on, so recording costs a string comparison
@@ -128,6 +131,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         preferences.isUsingHistory = enabled
         userDefaults.set(enabled, forKey: DefaultsKey.isUsingHistory)
         exampleCache = nil
+        shownExamples = nil
     }
 
     func setRecording(_ enabled: Bool) {
@@ -251,6 +255,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             self.index = built.0
             self.phrases = built.1
             self.exampleCache = nil
+            self.shownExamples = nil
         }
     }
 
@@ -524,6 +529,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         index = nil
         phrases = nil
         exampleCache = nil
+        shownExamples = nil
         rebuildGeneration += 1
         lastImportMessage = nil
         deletionError = nil
@@ -553,7 +559,44 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         }
         // The ranking holds for a whole block of words, but the field keeps growing inside the
         // block, so the check against echoing the user's own draft runs on the live text each time.
-        return TypingHistoryIndex.examples(from: candidates, currentFieldText: context.precedingText)
+        let fresh = TypingHistoryIndex.examples(from: candidates, currentFieldText: context.precedingText)
+        // Keep the examples already in the prompt while the new ranking still rates them among its
+        // best few. Each change of the examples re-decodes that prompt section and everything after
+        // it (~100 ms on a 4B-class model), and a block boundary often only reshuffles near-equal
+        // matches; a passage that dropped out of the top candidates, or now echoes the draft, is
+        // still replaced at once.
+        let fieldKey = context.focusedInputIdentityKey
+        var examples = fresh
+        if let shown = shownExamples, shown.fieldKey == fieldKey, !shown.examples.isEmpty {
+            let stillRanked = TypingHistoryIndex.examples(
+                from: candidates, currentFieldText: context.precedingText, limit: Self.stickyExampleRankLimit
+            )
+            examples = Self.stableExamples(shown: shown.examples, ranked: stillRanked, fresh: fresh)
+        }
+        shownExamples = (fieldKey, examples)
+        return examples
+    }
+
+    /// How far down the new ranking an example already in the prompt may fall and still be kept.
+    private static let stickyExampleRankLimit = 6
+
+    /// Keeps every shown example that is still ranked, in its position, and fills only the slots of
+    /// examples that dropped out with the best fresh ones. The prompt then diverges at the first
+    /// replaced example instead of at the start of the section, so less of it is re-decoded.
+    static func stableExamples(shown: [String], ranked: [String], fresh: [String]) -> [String] {
+        var replacements = fresh.filter { !shown.contains($0) }
+        var result: [String] = []
+        for example in shown {
+            if ranked.contains(example) {
+                result.append(example)
+            } else if !replacements.isEmpty {
+                result.append(replacements.removeFirst())
+            }
+        }
+        while result.count < fresh.count, !replacements.isEmpty {
+            result.append(replacements.removeFirst())
+        }
+        return result
     }
 
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String? {

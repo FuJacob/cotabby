@@ -90,6 +90,30 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         )
     }
 
+    /// Context runs from least to most volatile so a change re-decodes as little cached prompt as
+    /// possible: pinned clipboard, then the screen excerpt, then history examples (which move
+    /// every few words), then the following text and the caret prefix.
+    func test_historyExamplesFollowClipboardAndScreenText() {
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: "the meeting is at ",
+            applicationName: "Mail",
+            userName: nil,
+            trailingText: " on Friday.",
+            clipboardContext: "zoom link",
+            visualContextSummary: "Calendar: Q3 planning 3pm",
+            historyExamples: ["See you at the standup."]
+        )
+        XCTAssertEqual(
+            prompt,
+            [
+                "On the clipboard: zoom link",
+                "Nearby on screen: Calendar: Q3 planning 3pm",
+                "Earlier writing by the same author:\n“See you at the standup.”",
+                "Later in the same passage:\n“ on Friday.”"
+            ].joined(separator: "\n") + "\n\nthe meeting is at "
+        )
+    }
+
     /// The following text is cut to `maxSuffixCharacters` and quoted, keeping its whitespace.
     func test_followingTextIsBoundedQuotedContextBeforeExactPrefix() {
         let prefix = "We are meeting "

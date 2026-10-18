@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Logging
 
@@ -220,10 +221,19 @@ extension SuggestionCoordinator {
             // null the freshly primed session out from under us.
             await self.awaitCachedGenerationContextResetIfNeeded()
             let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
+            // Build the prompt from the same context sources the first real request will read
+            // (`SuggestionCoordinator+Prediction`): the pinned clipboard and any ready screen
+            // excerpt. The prefill is only worth its decode if the next request shares its bytes;
+            // leaving these out made the first request diverge right after the surface line and
+            // re-decode everything the prewarm had already paid for.
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
                 configuration: configuration,
+                clipboardContext: self.pinnedClipboardContext(rawContext: rawContext),
+                visualContextSummary: self.permissionManager.screenRecordingGranted
+                    ? self.visualContextCoordinator.excerpt(for: prewarmContext)
+                    : nil,
                 historyExamples: self.historyExamples(for: prewarmContext)
             ).request
             await suggestionEngine.prewarm(for: request)
@@ -334,9 +344,38 @@ extension SuggestionCoordinator {
             // *before* the host app processes the keystroke, so a synchronous `refreshNow()` here
             // reads pre-keystroke text and feeds it into generation. The result is a suggestion
             // that looks like the typed character was ignored — see
-            // `schedulePredictionAfterHostPublishDelay` for the full rationale.
+            // `schedulePredictionAfterHostPublishDelay` for the full rationale. A plain typed
+            // character can still start generating now, against the text the host is about to
+            // publish; the poll then validates that bet instead of gating the request.
+            speculateOnTypedCharacter(event)
             schedulePredictionAfterHostPublishDelay()
         }
+    }
+
+    /// Starts the keystroke-time speculative generation for a plain typed character. The base is
+    /// the last captured snapshot, extended by the letters a visible suggestion was typed through
+    /// (`session`), which the snapshot may not include yet. When it still misses an unpublished key,
+    /// the speculated text simply misses and the publish poll falls back to the ordinary request.
+    private func speculateOnTypedCharacter(_ event: CapturedInputEvent, after session: ActiveSuggestionSession? = nil) {
+        guard event.kind == .textMutation, let typed = Self.speculatedCharacters(for: event),
+              let raw = focusModel.snapshot.context else { return }
+        let typedThrough = session.flatMap { session -> String? in
+            guard session.baseContext.elementIdentifier == raw.elementIdentifier else { return nil }
+            return session.baseContext.precedingText + String(session.fullText.prefix(session.consumedCharacterCount))
+        }
+        dispatchSpeculativeTypingGeneration(rawContext: raw, typed: typed, knownPrecedingText: typedThrough)
+    }
+
+    /// The character the host will most likely insert for `event`, or nil when it cannot be told
+    /// from the event alone. A key event's Unicode string does not always carry Shift (synthetic
+    /// events report "s" for a shifted S), so a letter follows Shift XOR Caps Lock; uppercasing an
+    /// already-capital letter changes nothing. A shifted symbol depends on the keyboard layout
+    /// ("/" becomes "?" on US layouts), so it is left to the ordinary publish-gated request.
+    static func speculatedCharacters(for event: CapturedInputEvent) -> String? {
+        guard event.characters.count == 1, let character = event.characters.first else { return nil }
+        let shift = event.flags.contains(.maskShift)
+        guard character.isLetter else { return shift ? nil : event.characters }
+        return shift != event.flags.contains(.maskAlphaShift) ? event.characters.uppercased() : event.characters
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -354,7 +393,16 @@ extension SuggestionCoordinator {
     /// own tap callback before the host has even processed the key and therefore always misses. A
     /// short first retry catches fast-publishing native apps in ~10ms instead of making them wait a
     /// full steady interval; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
-    private static let hostPublishFirstPollIntervalMs = 10
+    private static let hostPublishFirstPollIntervalMs = 6
+
+    /// Native hosts publish a keystroke to AX within roughly 10-40 ms, so the wait polls densely
+    /// during that window and only then backs off to `hostPublishPollIntervalMs` for slow Chromium
+    /// hosts. With a 30 ms step from the start, a publish that landed just after the first retry
+    /// waited a further ~30 ms (live TextEdit trace: key-to-request 50 ms instead of ~20 ms), the
+    /// largest remaining wait before generation. The dense phase costs a handful of ~2-3 ms AX
+    /// reads per keystroke and ends after `hostPublishFastPhaseMs`.
+    private static let hostPublishFastPollIntervalMs = 8
+    private static let hostPublishFastPhaseMs = 60
 
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
@@ -400,6 +448,27 @@ extension SuggestionCoordinator {
                 elapsedMs: Self.hostPublishFirstPollIntervalMs
             )
         }
+    }
+
+    /// Records why a publish did not match the speculated text, without logging either text: the
+    /// lengths, selections, and the first differing UTF-16 offset are enough to tell a lagging base
+    /// snapshot from a host transformation (smart punctuation, auto-pairing, a shifted key).
+    private func logSpeculationMiss(expected: FocusedInputContext, published: FocusedInputSnapshot) {
+        let lhs = Array(expected.precedingText.utf16), rhs = Array(published.precedingText.utf16)
+        let shared = zip(lhs, rhs).prefix { $0 == $1 }.count
+        CotabbyLogger.suggestion.debug(
+            "Speculation missed the published text",
+            metadata: [
+                "stage": .string("speculation-missed"),
+                "same_session": .stringConvertible(expected.sessionIdentity == published.sessionIdentity),
+                "expected_utf16": .stringConvertible(lhs.count),
+                "published_utf16": .stringConvertible(rhs.count),
+                "first_difference": .stringConvertible(shared),
+                "expected_selection": .stringConvertible(expected.selection.location),
+                "published_selection": .stringConvertible(published.selection.location),
+                "trailing_matches": .stringConvertible(expected.trailingText == published.trailingText)
+            ]
+        )
     }
 
     /// The AX state captured at keystroke time, against which the host-publish poll detects "the
@@ -471,6 +540,9 @@ extension SuggestionCoordinator {
                 )
                 return
             }
+            if let expected = pendingSpeculativeContext, let published = currentContext {
+                logSpeculationMiss(expected: expected, published: published)
+            }
             pendingSpeculativeContext = nil
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
@@ -482,8 +554,11 @@ extension SuggestionCoordinator {
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
         // its next prediction.
         // We already waited the short first interval before entering this method; remaining polls
-        // use the steady cadence until the ceiling.
-        let interval = Self.hostPublishPollIntervalMs
+        // stay dense while native hosts usually publish, then use the steady cadence until the
+        // ceiling.
+        let interval = elapsedMs < Self.hostPublishFastPhaseMs
+            ? Self.hostPublishFastPollIntervalMs
+            : Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
             if baseline.requiresTextChange {
@@ -546,6 +621,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                speculateOnTypedCharacter(event, after: session)
                 schedulePredictionAfterHostPublishDelay()
             }
             return false
