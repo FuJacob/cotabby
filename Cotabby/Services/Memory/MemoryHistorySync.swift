@@ -168,8 +168,10 @@ final class MemoryHistorySync: ObservableObject {
         let retentionDays = engine.configuration.privacy.retentionDays
         do {
             // Detached so the reading runs off the main actor; it does not inherit cancellation,
-            // which is why the loop checks `cancellation` between pages.
-            let stored = try await Task.detached(priority: .utility) { () throws -> Int in
+            // which is why the loop checks `cancellation` between pages. Background priority keeps
+            // it on the efficiency cores, away from the suggestions typed meanwhile; measured on a
+            // drive catching up, it read as fast as at utility priority.
+            let stored = try await Task.detached(priority: .background) { () throws -> Int in
                 var cursor = engine.cursor(source: sourceID)
                 let since = retentionDays > 0 ? Date().addingTimeInterval(-Double(retentionDays) * 86_400) : nil
                 var stored = 0

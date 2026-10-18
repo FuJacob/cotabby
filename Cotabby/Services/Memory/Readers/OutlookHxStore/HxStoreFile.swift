@@ -18,6 +18,10 @@ import Foundation
 ///
 /// The file is memory-mapped and read only; Outlook keeps writing it, so a record cut off by a
 /// concurrent write simply fails its check and is picked up by the next sync.
+///
+/// Given an `HxStoreScanCache`, a scan reuses what the previous scan of the file read wherever the
+/// bytes are unchanged (see that type), so a sync decodes only the records Outlook wrote since.
+/// Only the messages the caller asks for (`sentAfter`) are decoded in full for their bodies.
 nonisolated enum HxStoreFile {
     static let headerSize = 20
     static let maximumRecordSize = 64 * 1024 * 1024
@@ -26,80 +30,237 @@ nonisolated enum HxStoreFile {
     static let maximumBodyCharacters = 16_000
     static let maximumHTMLCharacters = 60_000
 
-    static func messages(at url: URL, now: Date = Date()) throws -> [HxMailRecord] {
-        let data = try Data(contentsOf: url, options: .alwaysMapped)
-        return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> [HxMailRecord] in
-            // Pass 1: find every mail record and remember where the fullest version of each message
-            // is. Bodies are not converted yet: a message has several versions, and converting each
-            // one would do most of the work for versions that are then replaced.
-            var best: [String: Version] = [:]
-            let count = buffer.count
-            var offset = 8
-            while offset + headerSize <= count {
-                let compressed = Int(readUInt32(buffer, offset))
-                let uncompressed = Int(readUInt32(buffer, offset + 4))
-                let type = readUInt32(buffer, offset + 8)
-                let start = offset + headerSize
-                // LZ4 can expand incompressible data slightly (its worst case is n + n/255 + 16).
-                let worstCaseCompressed: Int = uncompressed + uncompressed / 255 + 16
-                let maximumExpansion: Int = compressed * 255
-                guard compressed >= 8, compressed <= worstCaseCompressed, uncompressed <= maximumRecordSize,
-                      uncompressed <= maximumExpansion, type < 64, start + compressed <= count,
-                      let record = try? LZ4BlockDecoder.decode(buffer, range: start..<(start + compressed), maximumOutput: uncompressed),
-                      record.count == uncompressed else {
-                    offset += 1
-                    continue
-                }
-                autoreleasepool {
-                    guard var message = HxStoreRecordParser.parse(record, now: now) else { return }
-                    // The fullest version wins: one with a body over one with a preview, then the later one.
-                    let rank = (message.bodyHTML?.utf8.count ?? 0) * 4 + (message.sent != nil ? 2 : 0) + (message.subject != nil ? 1 : 0)
-                    // Versions are matched on id *and* sender. A record without its own id reads its
-                    // reply-to id instead; keyed on the id alone, a reply from anyone could replace
-                    // the message it answers.
-                    let key = versionKey(message)
-                    guard rank >= (best[key]?.rank ?? -1) else { return }
-                    message.bodyHTML = nil
-                    best[key] = Version(record: message, rank: rank, block: start..<(start + compressed), size: uncompressed)
-                }
-                offset = start + compressed
-            }
+    /// What a scan did, for the sync log.
+    struct ScanReport: Equatable, Sendable {
+        var bytes = 0
+        var records = 0
+        /// Records and bytes taken from the previous scan without decoding.
+        var reusedRecords = 0
+        var reusedBytes = 0
+        /// Segments kept for the next scan.
+        var segments = 0
+        var messages = 0
+    }
 
-            // Pass 2: the winners' bodies, as text. Each conversion in its own autorelease pool, and
-            // from the first part of the HTML only (enough for the kept text; a long thread's HTML
-            // runs to megabytes).
-            // A version that lost its sender is dropped when one with a sender exists for the id.
-            let sendersByID = Set(best.values.compactMap { $0.record.senderAddress == nil ? nil : $0.record.messageID })
-            return best.values.filter { $0.record.senderAddress != nil || !sendersByID.contains($0.record.messageID) }.map { entry in
-                var message = entry.record
-                guard entry.rank >= 4 else { return message }  // No body.
-                autoreleasepool {
-                    guard let record = try? LZ4BlockDecoder.decode(buffer, range: entry.block, maximumOutput: entry.size),
-                          let html = HxStoreRecordParser.parse(record, now: now)?.bodyHTML else { return }
-                    let text = TeamsMessageHTML.text(String(html.prefix(maximumHTMLCharacters)))
-                    message.bodyText = String(text.prefix(maximumBodyCharacters))
+    /// The store's messages, the fullest version of each, with its body as text. `sentAfter`
+    /// limits the result to messages sent after it (and spares decoding the others' bodies).
+    static func messages(
+        at url: URL, now: Date = Date(), sentAfter: Date? = nil, cache: HxStoreScanCache? = nil
+    ) throws -> [HxMailRecord] {
+        try scan(at: url, now: now, sentAfter: sentAfter, cache: cache).messages
+    }
+
+    static func scan(
+        at url: URL, now: Date = Date(), sentAfter: Date? = nil, cache: HxStoreScanCache? = nil
+    ) throws -> (messages: [HxMailRecord], report: ScanReport) {
+        let data = try Data(contentsOf: url, options: .alwaysMapped)
+        let previous = cache?.segments(for: url.path) ?? []
+        return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+            var pass = ScanPass(buffer: buffer, previous: previous, now: now)
+            pass.run()
+            cache?.store(pass.segments, for: url.path)
+            pass.report.segments = pass.segments.count
+            let messages = pass.messages(sentAfter: sentAfter)
+            pass.report.messages = messages.count
+            return (messages, pass.report)
+        }
+    }
+
+    /// What the bytes at `offset` are: no record (the header is implausible), a plausible header
+    /// whose block does not decode to its declared size, or a record.
+    enum Attempt {
+        case implausible
+        case failed
+        case record([UInt8], compressedSize: Int)
+    }
+
+    static func attempt(_ buffer: UnsafeRawBufferPointer, at offset: Int) -> Attempt {
+        let count = buffer.count
+        guard offset + headerSize <= count else { return .failed }
+        let compressed = Int(readUInt32(buffer, offset))
+        let uncompressed = Int(readUInt32(buffer, offset + 4))
+        let type = readUInt32(buffer, offset + 8)
+        // LZ4 can expand incompressible data slightly (its worst case is n + n/255 + 16).
+        guard compressed >= 8, compressed <= uncompressed + uncompressed / 255 + 16, uncompressed <= maximumRecordSize,
+              uncompressed <= compressed * 255, type < 64 else {
+            return .implausible
+        }
+        let start = offset + headerSize
+        guard start + compressed <= count,
+              let record = try? LZ4BlockDecoder.decode(buffer, range: start..<(start + compressed), maximumOutput: uncompressed),
+              record.count == uncompressed else {
+            return .failed
+        }
+        return .record(record, compressedSize: compressed)
+    }
+
+    /// The fullest version wins: one with a body over one with a preview, then the later one.
+    static func rank(_ message: HxMailRecord) -> Int {
+        (message.bodyHTML?.utf8.count ?? 0) * 4 + (message.sent != nil ? 2 : 0) + (message.subject != nil ? 1 : 0)
+    }
+
+    /// Versions are matched on id *and* sender. A record without its own id reads its reply-to id
+    /// instead; keyed on the id alone, a reply from anyone could replace the message it answers.
+    static func versionKey(messageID: String, senderAddress: String?) -> String {
+        messageID + "\u{1F}" + (senderAddress ?? "")
+    }
+
+    static func readUInt32(_ buffer: UnsafeRawBufferPointer, _ offset: Int) -> UInt32 {
+        UInt32(buffer[offset]) | UInt32(buffer[offset + 1]) << 8 | UInt32(buffer[offset + 2]) << 16 | UInt32(buffer[offset + 3]) << 24
+    }
+}
+
+/// One scan of the mapped file: pass 1 (`run`) finds every record, reusing the previous scan's
+/// segments where the bytes are unchanged, and keeps the fullest version of each message; pass 2
+/// (`messages`) decodes the kept versions the caller wants.
+private nonisolated struct ScanPass {
+    let buffer: UnsafeRawBufferPointer
+    let previous: [HxStoreSegment]
+    let now: Date
+    private(set) var segments: [HxStoreSegment] = []
+    var report = HxStoreFile.ScanReport()
+    /// The fullest version found so far per message (`versionKey`).
+    private var best: [String: KeptVersion] = [:]
+    private var gapStart: Int?
+    private var gapCandidates: [Int] = []
+
+    init(buffer: UnsafeRawBufferPointer, previous: [HxStoreSegment], now: Date) {
+        self.buffer = buffer
+        self.previous = previous
+        self.now = now
+    }
+
+    mutating func run() {
+        let headerSize = HxStoreFile.headerSize
+        report.bytes = buffer.count
+        var previousIndex = 0
+        var offset = 8
+        while offset + headerSize <= buffer.count {
+            while previousIndex < previous.count, previous[previousIndex].start < offset { previousIndex += 1 }
+            if previousIndex < previous.count, previous[previousIndex].start == offset, isUnchanged(previous[previousIndex]) {
+                let segment = previous[previousIndex]
+                closeGap(at: offset)
+                segments.append(segment)
+                report.reusedBytes += segment.length
+                if case let .record(size, summary) = segment.kind {
+                    report.records += 1
+                    report.reusedRecords += 1
+                    consider(summary, block: (segment.start + headerSize)..<(segment.start + segment.length), size: size)
                 }
+                offset += segment.length
+                continue
+            }
+            switch HxStoreFile.attempt(buffer, at: offset) {
+            case .implausible:
+                if gapStart == nil { gapStart = offset }
+                offset += 1
+            case .failed:
+                if gapStart == nil { gapStart = offset }
+                gapCandidates.append(offset)
+                offset += 1
+            case let .record(record, compressed):
+                closeGap(at: offset)
+                let end = offset + headerSize + compressed
+                let summary = summarize(record)
+                segments.append(HxStoreSegment(
+                    start: offset, length: end - offset, digest: HxStoreDigest.digest(buffer, offset..<end),
+                    kind: .record(uncompressedSize: record.count, summary: summary)
+                ))
+                report.records += 1
+                consider(summary, block: (offset + headerSize)..<end, size: record.count)
+                offset = end
+            }
+        }
+        closeGap(at: offset)
+    }
+
+    /// Pass 2: the kept versions sent after `sentAfter` (all when nil), each decoded once more for
+    /// its fields and body. A version that no longer decodes (Outlook rewrote it since pass 1) is
+    /// left for the next sync, whose look-back reads it again.
+    func messages(sentAfter: Date?) -> [HxMailRecord] {
+        // A version that lost its sender is dropped when one with a sender exists for the id.
+        let sendersByID = Set(best.values.compactMap { $0.summary.senderAddress == nil ? nil : $0.summary.messageID })
+        return best.values.compactMap { entry -> HxMailRecord? in
+            let summary = entry.summary
+            guard summary.senderAddress != nil || !sendersByID.contains(summary.messageID) else { return nil }
+            if let sentAfter {
+                guard let sent = summary.sent, sent > sentAfter else { return nil }
+            }
+            // Each conversion in its own autorelease pool, and from the first part of the HTML only
+            // (enough for the kept text; a long thread's HTML runs to megabytes).
+            return autoreleasepool { () -> HxMailRecord? in
+                guard let record = try? LZ4BlockDecoder.decode(buffer, range: entry.block, maximumOutput: entry.size),
+                      var message = HxStoreRecordParser.parse(record, now: now) else { return nil }
+                if summary.rank >= 4, let html = message.bodyHTML {
+                    message.bodyText = String(
+                        TeamsMessageHTML.text(String(html.prefix(HxStoreFile.maximumHTMLCharacters)))
+                            .prefix(HxStoreFile.maximumBodyCharacters)
+                    )
+                }
+                message.bodyHTML = nil
                 return message
             }
         }
     }
 
-    /// The fullest version of one message seen so far: its record (body not converted yet), how
-    /// full it is, and where its compressed block is, so pass 2 can decode only the winners.
-    private struct Version {
-        let record: HxMailRecord
-        let rank: Int
+    /// Whether `segment` from the previous scan still describes the bytes at its offset.
+    private func isUnchanged(_ segment: HxStoreSegment) -> Bool {
+        let end = segment.start + segment.length
+        switch segment.kind {
+        case let .record(_, summary):
+            guard end <= buffer.count else { return false }
+            if let summary, summary.sent == nil, let from = summary.sentPlausibleFrom, now >= from { return false }
+            return HxStoreDigest.digest(buffer, segment.start..<end) == segment.digest
+        case let .gap(candidates):
+            guard HxStoreDigest.digest(buffer, gapCoverage(segment.start, end)) == segment.digest else { return false }
+            // A plausible header whose block did not decode may belong to a record Outlook has
+            // finished writing since; its block lies past the gap, outside the digest.
+            return !candidates.contains { offset in
+                if case .record = HxStoreFile.attempt(buffer, at: offset) { return true }
+                return false
+            }
+        }
+    }
+
+    /// The bytes that decide a gap's offsets: the gap and the header bytes read past its end.
+    private func gapCoverage(_ start: Int, _ end: Int) -> Range<Int> {
+        start..<min(end + HxStoreFile.headerSize - 1, buffer.count)
+    }
+
+    private mutating func closeGap(at end: Int) {
+        guard let start = gapStart else { return }
+        segments.append(HxStoreSegment(
+            start: start, length: end - start, digest: HxStoreDigest.digest(buffer, gapCoverage(start, end)),
+            kind: .gap(candidates: gapCandidates)
+        ))
+        gapStart = nil
+        gapCandidates = []
+    }
+
+    private func summarize(_ record: [UInt8]) -> HxStoreRecordSummary? {
+        autoreleasepool {
+            guard let message = HxStoreRecordParser.parse(record, now: now) else { return nil }
+            // A time more than a day ahead is not a send time yet; it becomes one a day before it.
+            let plausibleFrom = message.sent == nil
+                ? HxStoreRecordParser.parse(record, now: .distantFuture)?.sent?.addingTimeInterval(-86_400)
+                : nil
+            return HxStoreRecordSummary(
+                messageID: message.messageID, senderAddress: message.senderAddress, rank: HxStoreFile.rank(message),
+                sent: message.sent, sentPlausibleFrom: plausibleFrom
+            )
+        }
+    }
+
+    private struct KeptVersion {
+        let summary: HxStoreRecordSummary
         let block: Range<Int>
         let size: Int
     }
 
-    private static func versionKey(_ message: HxMailRecord) -> String {
-        message.messageID + "\u{1F}" + (message.senderAddress ?? "")
-    }
-
-    private static func readUInt32(_ buffer: UnsafeRawBufferPointer, _ offset: Int) -> UInt32 {
-        var value: UInt32 = 0
-        for index in (0..<4).reversed() { value = value << 8 | UInt32(buffer[offset + index]) }
-        return value
+    private mutating func consider(_ summary: HxStoreRecordSummary?, block: Range<Int>, size: Int) {
+        guard let summary else { return }
+        let key = summary.versionKey
+        guard summary.rank >= (best[key]?.summary.rank ?? -1) else { return }
+        best[key] = KeptVersion(summary: summary, block: block, size: size)
     }
 }

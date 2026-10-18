@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Reads the mail that Outlook for Mac keeps in its local profile database, for conversation memory.
@@ -31,10 +32,13 @@ import Foundation
 /// user's own addresses (the classic database's outgoing senders and the accounts in macOS Internet
 /// Accounts) are left out of the participants; the body is the message's HTML as text (else its
 /// preview). Its part of the cursor is the newest sent time read, re-read with a two-day look-back
-/// so edited and late-synced messages are picked up.
+/// so edited and late-synced messages are picked up. Each sync after the first reuses what the
+/// previous one read of the store wherever its bytes are unchanged (`HxStoreScanCache`).
 nonisolated struct OutlookHistoryReader: MemoryHistoryReading {
     let sourceID = "outlook"
     let profilesRoot: String
+    /// What the last scan of New Outlook's store read, shared by copies of this reader.
+    let scanCache = HxStoreScanCache()
 
     init(profilesRoot: String = NSHomeDirectory()
         + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles") {
@@ -140,7 +144,18 @@ nonisolated struct OutlookHistoryReader: MemoryHistoryReading {
         let own = ownAddresses()
         var newest = previous
         var records: [MemoryIngestRecord] = []
-        for message in try HxStoreFile.messages(at: URL(fileURLWithPath: hxStorePath)) {
+        let started = Date()
+        let (messages, report) = try HxStoreFile.scan(at: URL(fileURLWithPath: hxStorePath), sentAfter: after, cache: scanCache)
+        CotabbyLogger.app.info("Outlook store scanned", metadata: [
+            "megabytes": .stringConvertible(report.bytes >> 20),
+            "records": .stringConvertible(report.records),
+            "reused_records": .stringConvertible(report.reusedRecords),
+            "reused_percent": .stringConvertible(report.bytes > 0 ? 100 * report.reusedBytes / report.bytes : 0),
+            "segments": .stringConvertible(report.segments),
+            "messages": .stringConvertible(report.messages),
+            "seconds": .string(String(format: "%.1f", Date().timeIntervalSince(started)))
+        ])
+        for message in messages {
             guard let sent = message.sent, sent > after, sent >= (since ?? .distantPast) else { continue }
             newest = max(newest, sent.timeIntervalSince1970 * 1000)
             guard let record = Self.ingestRecord(message, sent: sent, ownAddresses: own) else { continue }
