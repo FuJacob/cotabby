@@ -1,4 +1,5 @@
 import Compression
+import CoreGraphics
 import CryptoKit
 import Foundation
 import XCTest
@@ -190,60 +191,184 @@ final class CloudDocumentsTests: XCTestCase {
         XCTAssertEqual(CloudDriveReader.Cursor("1790000000.0"), CloudDriveReader.Cursor(after: 1_790_000_000), "older cursors still read")
     }
 
-    /// Reading an online-only file downloads it and gives it back, which moves its status-change
-    /// time. That must not make it new on the next sync (it would be downloaded on every sync),
-    /// while an edit, and a file moved in with an old date, still arrive. File Provider placeholders
-    /// cannot be made in a test, so the file attributes come from a fake.
+    /// A file the drive still holds right after the read ("in use") is given back again a moment
+    /// later; other errors are not retried.
+    func test_onlyABusyFileIsGivenBackAgain() {
+        let busy = NSError(domain: NSCocoaErrorDomain, code: 255, userInfo: [
+            NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EBUSY))
+        ])
+        XCTAssertTrue(DocumentTextExtractor.isBusy(busy))
+        XCTAssertTrue(DocumentTextExtractor.isBusy(NSError(domain: NSPOSIXErrorDomain, code: Int(EBUSY))))
+        XCTAssertFalse(DocumentTextExtractor.isBusy(NSError(domain: NSCocoaErrorDomain, code: 257)))
+    }
+
+    /// A sync whose last page has nothing left to read (the file it stopped before is gone) still
+    /// hands the failures of its earlier pages to the next sync.
+    func test_failuresReachTheNextSyncWhenTheLastPageIsEmpty() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        for (name, time) in [("Locked.md", 1_000.0), ("Read.md", 2_000), ("Gone.md", 3_000)] {
+            try Data("A document long enough to be a section, \(name).".utf8).write(to: root.appendingPathComponent(name))
+            try stamp(name, in: root, modified: time)
+        }
+        let locked = root.appendingPathComponent("Locked.md")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path) }
+        let reader = drive([root])
+
+        let first = try reader.read(after: nil, since: nil, limit: 1)
+        XCTAssertTrue(first.hasMore)
+        XCTAssertEqual(CloudDriveReader.Cursor(first.nextCursor).failed, ["GoogleDrive-me@example.com/Locked.md"])
+        try FileManager.default.removeItem(at: root.appendingPathComponent("Gone.md"))
+        let last = try reader.read(after: first.nextCursor, since: nil, limit: 1)
+        XCTAssertFalse(last.hasMore)
+        let cursor = CloudDriveReader.Cursor(last.nextCursor ?? first.nextCursor)
+        XCTAssertEqual(cursor.retry, ["GoogleDrive-me@example.com/Locked.md"], "tried again next sync")
+        XCTAssertEqual(cursor.failed, [])
+    }
+
+    /// A file read with no text in it (a scanned PDF, an empty note) is done until it changes: it is
+    /// not read again on every sync, which for an online-only file meant downloading it each time.
+    func test_aFileWithNoTextIsNotReadAgainUntilItChanges() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Self.blankPDF().write(to: root.appendingPathComponent("Scan.pdf"))
+        try Data().write(to: root.appendingPathComponent("Empty.md"))
+        try stamp("Scan.pdf", in: root, modified: 1_000)
+        try stamp("Empty.md", in: root, modified: 1_000)
+        let attributes = FakeFileAttributes()
+        attributes.set("Scan.pdf", arrival: 1_000)
+        attributes.set("Empty.md", arrival: 1_000)
+        var reader = drive([root])
+        reader.arrival = { url, _, _ in attributes.arrival(url) }
+
+        let first = try reader.read(after: nil, since: nil, limit: 400)
+        XCTAssertTrue(first.records.isEmpty)
+        let prefix = "GoogleDrive-me@example.com/"
+        XCTAssertEqual(first.completeConversations, [prefix + "Scan.pdf", prefix + "Empty.md"], "what an earlier version held goes")
+        XCTAssertEqual(CloudDriveReader.Cursor(first.nextCursor).retry, [], "not tried again")
+
+        // Given back to the cloud after the read: its status-change time moves, which is no change.
+        attributes.set("Scan.pdf", arrival: 5_000)
+        let again = try reader.read(after: first.nextCursor, since: nil, limit: 400)
+        XCTAssertNil(again.nextCursor, "nothing to read")
+
+        try Data("Now the note has text about the pilot.".utf8).write(to: root.appendingPathComponent("Empty.md"))
+        try stamp("Empty.md", in: root, modified: 6_000)
+        attributes.set("Empty.md", arrival: 6_000)
+        let edited = try reader.read(after: first.nextCursor, since: nil, limit: 400)
+        XCTAssertEqual(edited.records.map(\.conversationTitle), ["Empty"], "a change reads it again")
+    }
+
+    /// A one-page PDF with nothing on it, as a scan without a text layer reads.
+    static func blankPDF() -> Data {
+        let data = NSMutableData()
+        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let consumer = CGDataConsumer(data: data as CFMutableData),
+              let context = CGContext(consumer: consumer, mediaBox: &box, nil) else { return Data() }
+        context.beginPDFPage(nil)
+        context.setFillColor(gray: 0.5, alpha: 1)
+        context.fill(CGRect(x: 100, y: 100, width: 200, height: 200))
+        context.endPDFPage()
+        context.closePDF()
+        return data as Data
+    }
+
+    /// A sync lists the drive once: the files that still exist are the listing its read took, and a
+    /// later call lists again.
+    func test_theListingOfARead() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("A document long enough to be a section.".utf8).write(to: root.appendingPathComponent("Doc.md"))
+        try Data("Another document long enough to be one.".utf8).write(to: root.appendingPathComponent("Other.md"))
+        let reader = drive([root])
+        _ = try reader.read(after: nil, since: nil, limit: 400)
+        try FileManager.default.removeItem(at: root.appendingPathComponent("Other.md"))
+        XCTAssertEqual(reader.liveConversationIDs()?.count, 2, "the read's listing")
+        XCTAssertEqual(reader.liveConversationIDs(), ["GoogleDrive-me@example.com/Doc.md"], "taken once, then listed afresh")
+    }
+
+    /// A file's status-change time moves when its content is downloaded or given back (by this
+    /// reader, the user or the drive) and when the drive updates its records: for a file seen
+    /// before, only a new modification time is a change, or every sync would download unchanged
+    /// files again. A file not seen before still arrives by its status-change time, so one moved in
+    /// with an old date is read. File Provider placeholders cannot be made in a test, so arrival
+    /// times come from a fake.
     private func stamp(_ name: String, in root: URL, modified: TimeInterval) throws {
         try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: modified)],
                                               ofItemAtPath: root.appendingPathComponent(name).path)
     }
 
-    func test_aFileWeGaveBackIsNotDownloadedAgainButEditsAndArrivalsStillCount() throws {
+    func test_aSeenFileChangesOnlyWhenModifiedAndANewOneArrives() throws {
         let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try Data("Quarterly plan notes for the pilot rollout.".utf8).write(to: root.appendingPathComponent("Plan.md"))
         let attributes = FakeFileAttributes()
         try stamp("Plan.md", in: root, modified: 1_000)
-        attributes.set("Plan.md", onlineOnly: true, arrival: 1_000)
+        attributes.set("Plan.md", arrival: 1_000)
         var reader = drive([root])
-        reader.isOnlineOnly = { attributes.isOnlineOnly($0) }
         reader.arrival = { url, _, _ in attributes.arrival(url) }
 
         let first = try reader.read(after: nil, since: nil, limit: 400)
         XCTAssertEqual(first.records.map(\.conversationTitle), ["Plan"])
         let id = "GoogleDrive-me@example.com/Plan.md"
-        XCTAssertEqual(CloudDriveReader.Cursor(first.nextCursor).evicted, [CloudDriveReader.Cursor.evictionKey(id)])
+        XCTAssertEqual(CloudDriveReader.Cursor(first.nextCursor).seen, [CloudDriveReader.Cursor.seenKey(id)])
 
-        // Given back: still online-only, its status-change time now after the cursor.
-        try stamp("Plan.md", in: root, modified: 1_000)
-        attributes.set("Plan.md", onlineOnly: true, arrival: 5_000)
-        let afterEviction = try reader.read(after: first.nextCursor, since: nil, limit: 400)
-        XCTAssertTrue(afterEviction.records.isEmpty, "our own eviction does not make it new")
+        // Downloaded, given back, or touched by the drive: its status-change time moves on.
+        attributes.set("Plan.md", arrival: 5_000)
+        XCTAssertNil(try reader.read(after: first.nextCursor, since: nil, limit: 400).nextCursor, "not a change")
 
-        // A file moved in with an old modification date still arrives (the reason the cursor follows ctime).
+        // A file moved in with an old modification date still arrives.
         try Data("Pricing tiers for the starter and team plans.".utf8).write(to: root.appendingPathComponent("Pricing.md"))
         try stamp("Pricing.md", in: root, modified: 500)
-        attributes.set("Pricing.md", onlineOnly: true, arrival: 6_000)
+        attributes.set("Pricing.md", arrival: 6_000)
         let moved = try reader.read(after: first.nextCursor, since: nil, limit: 400)
         XCTAssertEqual(moved.records.map(\.conversationTitle), ["Pricing"])
-        XCTAssertEqual(CloudDriveReader.Cursor(moved.nextCursor).evicted.count, 2)
+        XCTAssertEqual(CloudDriveReader.Cursor(moved.nextCursor).seen?.count, 2)
 
-        // Edited in the cloud: a newer modification time brings it back.
+        // Edited: a newer modification time brings it back.
         try stamp("Plan.md", in: root, modified: 7_000)
-        attributes.set("Plan.md", onlineOnly: true, arrival: 7_000)
+        attributes.set("Plan.md", arrival: 7_000)
         let edited = try reader.read(after: moved.nextCursor, since: nil, limit: 400)
         XCTAssertEqual(edited.records.map(\.conversationTitle), ["Plan"])
 
-        // Downloaded by the user (no longer online-only): the arrival rule applies again.
-        try stamp("Pricing.md", in: root, modified: 500)
-        attributes.set("Pricing.md", onlineOnly: false, arrival: 8_000)
-        let downloaded = try reader.read(after: edited.nextCursor, since: nil, limit: 400)
-        XCTAssertEqual(downloaded.records.map(\.conversationTitle), ["Pricing"])
+        // Downloaded by the user later: unchanged, not read again.
+        attributes.set("Pricing.md", arrival: 8_000)
+        XCTAssertNil(try reader.read(after: edited.nextCursor, since: nil, limit: 400).nextCursor)
+    }
 
-        // Cursors written before `evicted` existed still read.
+    /// A cursor from before `seen` existed: the files listed now count as seen, so the update does
+    /// not read the whole drive again, and the listing is stored for the next sync.
+    func test_aCursorWithoutSeenFilesTakesTheCurrentListing() throws {
+        let root = directory.appendingPathComponent("GoogleDrive-me@example.com", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("Quarterly plan notes for the pilot rollout.".utf8).write(to: root.appendingPathComponent("Plan.md"))
+        try stamp("Plan.md", in: root, modified: 1_000)
+        let attributes = FakeFileAttributes()
+        attributes.set("Plan.md", arrival: 9_000)
+        var reader = drive([root])
+        reader.arrival = { url, _, _ in attributes.arrival(url) }
+
+        let upgraded = try reader.read(after: #"{"after":2000,"evicted":["ab"],"retry":[]}"#, since: nil, limit: 400)
+        XCTAssertTrue(upgraded.records.isEmpty, "a status change alone does not read a file the old cursor covered")
+        let cursor = CloudDriveReader.Cursor(upgraded.nextCursor)
+        XCTAssertEqual(cursor.after, 2_000)
+        XCTAssertEqual(cursor.seen, [CloudDriveReader.Cursor.seenKey("GoogleDrive-me@example.com/Plan.md")])
+
+        try Data("Pricing tiers for the starter and team plans.".utf8).write(to: root.appendingPathComponent("Pricing.md"))
+        try stamp("Pricing.md", in: root, modified: 500)
+        attributes.set("Pricing.md", arrival: 9_500)
+        XCTAssertEqual(try reader.read(after: upgraded.nextCursor, since: nil, limit: 400).records.map(\.conversationTitle), ["Pricing"])
+    }
+
+    func test_cursorFormsReadAndWrite() {
+        XCTAssertEqual(CloudDriveReader.Cursor("1790000000.0"), CloudDriveReader.Cursor(after: 1_790_000_000), "the plain form")
         XCTAssertEqual(CloudDriveReader.Cursor(#"{"after":12,"retry":["x"]}"#), CloudDriveReader.Cursor(after: 12, retry: ["x"]))
         XCTAssertEqual(CloudDriveReader.Cursor(after: 3).encoded, "3.0", "nothing pending: the plain form")
+        let keys: Set<UInt64> = [0, 1, .max, CloudDriveReader.Cursor.seenKey("GoogleDrive-a/Doc.md")]
+        let full = CloudDriveReader.Cursor(after: 7, retry: ["r"], failed: ["f"], seen: keys)
+        XCTAssertEqual(CloudDriveReader.Cursor(full.encoded), full)
+        XCTAssertNil(CloudDriveReader.Cursor.decodeKeys("not base64!"))
     }
 
     /// One account (or folder) that cannot be read makes the listing incomplete, and an incomplete
@@ -319,27 +444,21 @@ final class CloudDocumentsTests: XCTestCase {
     }
 }
 
-/// File attributes a test sets per file name, standing in for a File Provider drive.
+/// Arrival times a test sets per file name, standing in for a File Provider drive.
 private final class FakeFileAttributes: @unchecked Sendable {
     private let lock = NSLock()
-    private var files: [String: (onlineOnly: Bool, arrival: Double)] = [:]
+    private var arrivals: [String: Double] = [:]
 
     /// The modification time is the real file's (the listing reads it from disk), set by `stamp`.
-    func set(_ name: String, onlineOnly: Bool, arrival: Double) {
+    func set(_ name: String, arrival: Double) {
         lock.lock()
         defer { lock.unlock() }
-        files[name] = (onlineOnly, arrival)
-    }
-
-    func isOnlineOnly(_ url: URL) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return files[url.lastPathComponent]?.onlineOnly ?? false
+        arrivals[name] = arrival
     }
 
     func arrival(_ url: URL) -> Double {
         lock.lock()
         defer { lock.unlock() }
-        return files[url.lastPathComponent]?.arrival ?? 0
+        return arrivals[url.lastPathComponent] ?? 0
     }
 }

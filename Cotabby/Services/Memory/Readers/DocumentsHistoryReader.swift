@@ -17,6 +17,8 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
     static let id = "documents"
     let sourceID = Self.id
     let folder: String
+    /// The listing the last `read` took, which `liveConversationIDs` reuses in the same sync.
+    let lastListing = RecentListing<(notes: [Note], isComplete: Bool)>()
 
     static let textSuffixes: Set<String> = ["txt", "md", "markdown", "text", "org", "rst"]
     static let maximumFileBytes = 2_000_000
@@ -37,6 +39,7 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
     func read(after cursor: String?, since: Date?, limit: Int) throws -> MemoryReadPage {
         let after = Double(cursor ?? "") ?? 0
         guard let listing = notes() else { throw ReadOnlySQLiteDatabase.DatabaseError.missing(folder) }
+        lastListing.store(listing)
         let files = listing.notes.filter { $0.changed > after }.sorted { $0.changed < $1.changed }
 
         var records: [MemoryIngestRecord] = []
@@ -68,7 +71,7 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
 
     func liveConversationIDs() -> Set<String>? {
         // Only a listing that read every folder may say a note is gone.
-        guard let listing = notes(), listing.isComplete else { return nil }
+        guard let listing = lastListing.take() ?? notes(), listing.isComplete else { return nil }
         return Set(listing.notes.map(\.id))
     }
 
@@ -117,6 +120,29 @@ nonisolated struct DocumentsHistoryReader: MemoryHistoryReading {
 
 /// Records whether a directory enumeration hit an error (an unreadable subfolder), which the
 /// enumerator otherwise skips silently. Used through its `record` error handler.
+/// A folder listing kept briefly: a sync lists a folder to read what changed, then asks which files
+/// still exist (`liveConversationIDs`), and a second walk of a large drive cost seconds. Taken once,
+/// and only within `maximumAge`, so a later call lists the folder afresh.
+nonisolated final class RecentListing<Listing>: @unchecked Sendable {
+    static var maximumAge: TimeInterval { 60 }
+    private let lock = NSLock()
+    private var kept: (listing: Listing, at: Date)?
+
+    func store(_ listing: Listing) {
+        lock.lock()
+        defer { lock.unlock() }
+        kept = (listing, Date())
+    }
+
+    func take() -> Listing? {
+        lock.lock()
+        defer { lock.unlock() }
+        defer { kept = nil }
+        guard let kept, Date().timeIntervalSince(kept.at) <= Self.maximumAge else { return nil }
+        return kept.listing
+    }
+}
+
 nonisolated final class EnumerationFailures: @unchecked Sendable {
     private let lock = NSLock()
     private var failed = false

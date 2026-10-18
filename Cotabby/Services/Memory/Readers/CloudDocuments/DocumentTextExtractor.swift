@@ -16,8 +16,13 @@ import PDFKit
 /// Online-only files: Google Drive, OneDrive and iCloud Drive keep many files as placeholders whose
 /// content is still in the cloud ("dataless" on disk). Reading one makes the sync client download
 /// it; afterwards the local copy is evicted again (`evictUbiquitousItem`), so indexing a drive does
-/// not leave gigabytes of downloads behind. A file that cannot be fetched (offline) yields nil and is
-/// read on its next change. Every format has a size cap, since shared drives hold exports and dumps.
+/// not leave gigabytes of downloads behind. Every format has a size cap, since shared drives hold
+/// exports and dumps.
+///
+/// What reading gave (`Extraction`): text; no text in a file that was read (a scanned or locked PDF,
+/// an empty file), which stays so until the file changes; or no access to the file's bytes at all
+/// (offline, permissions), which may pass. Readers try the last again on their next sync, never the
+/// second: a drive with many scanned PDFs would otherwise download and parse each on every sync.
 nonisolated enum DocumentTextExtractor {
     static let plainSuffixes: Set<String> = ["txt", "md", "markdown", "text", "org", "rst"]
     static let richSuffixes: Set<String> = ["rtf", "doc", "odt"]
@@ -38,12 +43,31 @@ nonisolated enum DocumentTextExtractor {
         plainSuffixes.contains(url.pathExtension.lowercased()) ? maximumPlainBytes : maximumDocumentBytes
     }
 
-    /// The file's text, nil when it has none or cannot be read.
-    static func text(of url: URL) -> String? {
+    enum Extraction: Equatable {
+        case text(String)
+        /// Read, but there is no text in it: not worth reading again until the file changes.
+        case noText
+        /// The file's bytes could not be read (an online-only file while offline, no permission),
+        /// with the error's domain and code for the log.
+        case unreadable(String)
+    }
+
+    static func extract(_ url: URL) -> Extraction {
         let wasOnlineOnly = isOnlineOnly(url)
         defer {
             // Leave the drive as it was: a file downloaded only to be read goes back to the cloud.
-            if wasOnlineOnly { try? FileManager.default.evictUbiquitousItem(at: url) }
+            if wasOnlineOnly { giveBack(url) }
+        }
+        // Reading the first byte fetches an online-only file; failing here is no access, which
+        // may pass, unlike a file that opens but holds no text.
+        // (An empty file reads as nil, not as an error.)
+        do {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            _ = try handle.read(upToCount: 1)
+        } catch {
+            let error = error as NSError
+            return .unreadable("\(error.domain) \(error.code)")
         }
         let suffix = url.pathExtension.lowercased()
         let text: String?
@@ -56,8 +80,14 @@ nonisolated enum DocumentTextExtractor {
         case "pdf":
             text = pdfText(url)
         case _ where officeSuffixes.contains(suffix):
-            guard let kind = OfficeDocumentText.Kind(rawValue: suffix),
-                  let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+            guard let kind = OfficeDocumentText.Kind(rawValue: suffix) else { return .noText }
+            let data: Data
+            do {
+                data = try Data(contentsOf: url, options: .mappedIfSafe)
+            } catch {
+                let error = error as NSError
+                return .unreadable("\(error.domain) \(error.code)")
+            }
             text = try? OfficeDocumentText.text(of: data, kind: kind)
         case _ where richSuffixes.contains(suffix):
             let type: NSAttributedString.DocumentType = suffix == "rtf" ? .rtf : (suffix == "doc" ? .docFormat : .openDocument)
@@ -65,8 +95,8 @@ nonisolated enum DocumentTextExtractor {
         default:
             text = nil
         }
-        guard let text, !text.isEmpty else { return nil }
-        return text.count > maximumCharacters ? String(text.prefix(maximumCharacters)) : text
+        guard let text, !text.isEmpty else { return .noText }
+        return .text(text.count > maximumCharacters ? String(text.prefix(maximumCharacters)) : text)
     }
 
     private static func pdfText(_ url: URL) -> String? {
@@ -81,6 +111,27 @@ nonisolated enum DocumentTextExtractor {
         }
         // Pages are kept apart as paragraphs; lines inside a page are joined by DocumentSections.
         return pages.joined(separator: "\n\n")
+    }
+
+    /// Evicts a file downloaded only to be read. Right after the read the drive can still hold the
+    /// file ("in use", EBUSY): on a real Google Drive 4 of 138 evictions failed that way and left
+    /// the download behind, so a busy file is tried again a few times.
+    static func giveBack(_ url: URL, attempts: Int = 4, pause: TimeInterval = 0.5) {
+        for attempt in 1...attempts {
+            do {
+                try FileManager.default.evictUbiquitousItem(at: url)
+                return
+            } catch {
+                guard attempt < attempts, isBusy(error) else { return }
+                Thread.sleep(forTimeInterval: pause * Double(attempt))
+            }
+        }
+    }
+
+    static func isBusy(_ error: Error) -> Bool {
+        let error = error as NSError
+        let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
+        return [error, underlying].contains { $0?.domain == NSPOSIXErrorDomain && $0?.code == Int(EBUSY) }
     }
 
     /// Whether the file's content is not on this Mac yet (a cloud placeholder). APFS marks such files
