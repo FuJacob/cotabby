@@ -60,7 +60,8 @@ extension SuggestionCoordinator {
             configuration: configuration, clipboardContext: pinnedClipboardContext(rawContext: rawContext),
             visualContextSummary: permissionManager.screenRecordingGranted
                 ? visualContextCoordinator.excerpt(for: session.baseContext) : nil,
-            historyExamples: historyExamples(for: context)).request
+            historyExamples: historyExamples(for: context),
+            memorySnippets: memorySnippets(for: context)).request
         continuationWorkController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
             await self.awaitCachedGenerationContextResetIfNeeded()

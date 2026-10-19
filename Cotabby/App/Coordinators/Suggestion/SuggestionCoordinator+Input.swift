@@ -224,7 +224,8 @@ extension SuggestionCoordinator {
                 context: prewarmContext,
                 settings: settings,
                 configuration: configuration,
-                historyExamples: self.historyExamples(for: prewarmContext)
+                historyExamples: self.historyExamples(for: prewarmContext),
+                memorySnippets: self.memorySnippets(for: prewarmContext)
             ).request
             await suggestionEngine.prewarm(for: request)
         }

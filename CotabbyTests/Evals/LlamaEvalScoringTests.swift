@@ -176,11 +176,11 @@ final class LlamaEvalScoringTests: XCTestCase {
     /// and a "failure" would really be a demand to hallucinate.
     func testRecallFactsAreActuallyPresentInTheContext() throws {
         for evalCase in try loadRecallDataset() {
-            let context = [
+            let context = ([
                 evalCase.precedingText,
                 evalCase.visualContextSummary ?? "",
                 evalCase.clipboardContext ?? ""
-            ].joined(separator: " ")
+            ] + (evalCase.memorySnippets ?? [])).joined(separator: " ")
             for fact in evalCase.expectation.mustContain {
                 XCTAssertTrue(
                     LlamaEvalScorer.containsAll(shown: context, required: [fact]),

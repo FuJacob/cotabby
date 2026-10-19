@@ -76,6 +76,9 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Always empty for the endpoint engine: history never leaves this Mac, and the router refuses
     /// to send a request that carries any.
     let historyExamples: [String]
+    /// Earlier messages of the conversation being written in, from conversation memory (prompt
+    /// lines, oldest first). Never sent to the endpoint engine: the router drops such a request.
+    let memorySnippets: [String]
     /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
     let isMultiLineEnabled: Bool
     /// The user's word-count preset, so decoding does not stop at a sentence end before the minimum
@@ -109,6 +112,7 @@ struct SuggestionRequest: Equatable, Sendable {
         visualContextSummary: String?,
         surfaceContext: SurfaceContext? = nil,
         historyExamples: [String] = [],
+        memorySnippets: [String] = [],
         isMultiLineEnabled: Bool,
         requestID: String = "req_unknown",
         wordRange: SuggestionWordRange? = nil
@@ -134,6 +138,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.visualContextSummary = visualContextSummary
         self.surfaceContext = surfaceContext
         self.historyExamples = historyExamples
+        self.memorySnippets = memorySnippets
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
         self.wordRange = wordRange

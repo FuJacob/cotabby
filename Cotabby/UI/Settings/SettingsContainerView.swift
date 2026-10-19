@@ -25,6 +25,10 @@ struct SettingsContainerView: View {
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
     @ObservedObject var qualityMetricsStore: SuggestionQualityMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
+    /// Conversation memory: the controller owns on/off and the engine, the control model is what
+    /// the Memory pane reads and acts through.
+    @ObservedObject var memoryController: MemoryEngineController
+    let memoryControl: MemoryControlModel
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
@@ -146,6 +150,8 @@ struct SettingsContainerView: View {
             WritingPaneView(suggestionSettings: suggestionSettings)
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings, typingHistory: typingHistoryStore)
+        case .memory:
+            MemoryPaneView(controller: memoryController, control: memoryControl)
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:

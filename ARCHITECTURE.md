@@ -414,6 +414,55 @@ knows how a phrase ends. Both are on-device only: the provider returns nothing
 for the endpoint, the request factory drops examples for it, and the router refuses to send any
 request that still carries them.
 
+### Conversation memory
+
+Conversation memory (Settings → Memory) is off by default, and each of its sources is opt-in. It
+remembers the user's history from the local stores of WhatsApp, Apple Mail, Outlook (New Outlook's
+`HxStore.hxd` and the classic database), the Microsoft Teams cache (Chromium IndexedDB), Calendar
+(EventKit), a folder of notes, and documents in iCloud Drive, Google Drive and OneDrive. It uses no
+account APIs and sends nothing anywhere; its only own network use is the one-time embedding model
+download. Reading an online-only cloud document makes the drive's app download it (and evict it
+again afterwards). The mail and chat stores need Full Disk Access; Calendar needs the Calendars
+permission and the app's Calendars entitlement.
+
+~~~text
+MemoryHistorySync (15 min on AC, on demand)
+  -> Readers/ (one read-only reader per source, cursor-paged)
+  -> MemoryEngine.ingest (exclusions, retention, mail quote stripping, secret scrubbing)
+  -> MemoryStore (SQLite; text, names, titles, cursors and vectors sealed by MemoryVault)
+  -> background indexing (EmbeddingSchedulePolicy: small deltas anytime, backlogs only plugged in,
+     idle, cool, outside Low Power Mode) -> EmbeddingCore (llama.cpp, Qwen3-Embedding-0.6B)
+  -> FlatVectorIndex (half-precision rows, exact Accelerate scan after filtering)
+
+SuggestionCoordinator.memorySnippets(for:)
+  -> MemoryRetriever (cache first; a stale query starts a background lookup, never waits)
+  -> ConversationScopeResolver (window title -> conversation within the app's sources; mail never
+     gets one)
+  -> MemoryEngine.search (this conversation, then exactly the same people; vector + keyword, RRF)
+  -> MemorySnippetFormatter -> "Earlier in this conversation:" prompt section
+~~~
+
+The store's key is a 256-bit Keychain item that never syncs, per app identity. Message contents,
+names, titles, ids and cursors are sealed and lookups use HMAC tags; timestamps, sources and the
+settings file (never-remember lists included) are not encrypted. A search never widens past the
+conversation the focused window names, except to conversations with exactly the same people; an
+unknown or ambiguous title returns nothing rather than a guess. Mail gets no conversation scope: a
+subject does not say who a mail is for, and the body (the quoted original's header included) is
+shaped by the other person, so no audience read from it can be trusted; the engine never resolves
+a title in a mail source either. Mail scope waits for the compose window's own To/Cc fields, read
+through Accessibility. Groups (Teams,
+WhatsApp) carry a per-group marker, so they never have exactly the people of a 1:1 chat or of
+another group, and titles match whole, never in part. Mail threads are joined by headers a sender
+controls, so each audience within a thread is its own conversation (`MailAudience`), mail people are
+addresses (never display names or Reply-To), and only Mail's Sent mailbox or Outlook's outgoing flag
+makes a message the user's own. Under
+`-cotabby-debug`, `llm-io.jsonl` records full prompts, memory lines included, as it does typing
+history. Like typing history, memory is on-device
+only: the retriever returns nothing for the endpoint engine, the request factory drops it, and the
+router refuses a request that still carries it. The memory engine loads its own embedding model
+next to the completion model; CotabbyInference's process-wide llama.cpp backend is shared through
+a reference-counted guard so unloading one never frees it under the other.
+
 ## Presentation and Sibling Features
 
 [SuggestionOverlayPresenter.swift](Cotabby/Services/Suggestion/SuggestionOverlayPresenter.swift)
@@ -586,6 +635,9 @@ policies, prompt utilities, normalization, and layout logic should receive focus
 | Permission loop or lost grant | PermissionManager, PermissionGuidanceController, app identity |
 | Settings/onboarding window issue | SettingsCoordinator, WelcomeCoordinator |
 | Settings persistence or domain mismatch | SuggestionSettingsModel, SuggestionSettingsData, SuggestionSettingsStore |
+| Memory not used in a conversation | MemoryRetriever, ConversationScopeResolver, MemoryEngine.search |
+| A memory source does not sync | MemoryHistorySync, the source's reader in Services/Memory/Readers |
+| Memory indexing never runs | EmbeddingSchedulePolicy, MemoryEngine indexing loop, EmbeddingCore |
 
 When a change crosses several rows, keep ownership at these boundaries rather than teaching one
 coordinator to perform every step itself.
