@@ -192,6 +192,33 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(SuggestionTextNormalizer.normalize("PROMPT\nworld", for: multilineRequest), "world")
     }
 
+    /// Whitespace-only lines are formatting in single-line mode, even around echoed labels or prompts.
+    func test_normalize_preservesNewlinesAcrossLeadingWhitespaceCleanup() {
+        assertCases([
+            Case(name: "space before newline", precedingText: "Hello", raw: " \nworld", expected: " world"),
+            Case(name: "mixed whitespace", precedingText: "Hello", raw: " \t\n \tworld", expected: " world"),
+            Case(name: "prompt then whitespace", precedingText: "Hello", raw: "PROMPT \nworld", expected: " world"),
+            Case(name: "whitespace before label", precedingText: "Hello", raw: " \nContinuation:world", expected: " world"),
+            Case(name: "whitespace after label", precedingText: "Hello", raw: "Continuation: \nworld", expected: " world"),
+            Case(name: "whitespace between labels", precedingText: "Hello",
+                 raw: "Task: \nContinuation:world", expected: " world"),
+            Case(name: "prefix consumes whitespace boundary", precedingText: "sched",
+                 raw: "PROMPT \nschedule", expected: "ule"),
+            Case(name: "prefix exposes another boundary", precedingText: "Hello",
+                 raw: "PROMPT \nHello \nworld", expected: " world"),
+            Case(name: "ordinary spaces stay intact", precedingText: "Hello", raw: "  world", expected: "  world"),
+            Case(name: "space after formatted newline", precedingText: "Hello", raw: "\n  world", expected: " world"),
+            Case(name: "formatted newline after field space", precedingText: "Hello ", raw: " \nworld", expected: "world"),
+            Case(name: "formatted newline before punctuation", precedingText: "Hello", raw: " \n, world", expected: ", world"),
+            Case(name: "formatted newline before Japanese", precedingText: "今日は", raw: " \n良い天気", expected: "良い天気")
+        ])
+        assertCases([
+            Case(name: "multiline whitespace stays intact", precedingText: "Hello", raw: " \nworld", expected: " \nworld"),
+            Case(name: "multiline prompt whitespace stays intact", precedingText: "Hello",
+                 raw: "PROMPT \nworld", expected: " \nworld")
+        ], isMultiLineEnabled: true)
+    }
+
     /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior
     /// tab reaches the safety gate and is rejected rather than inserted.
     func test_normalize_trimsEdgeControlCharactersButRejectsInteriorOnes() {
