@@ -110,6 +110,7 @@ final class SuggestionTextNormalizerTests: XCTestCase {
 
     // MARK: - Line handling
 
+    /// Leading blank lines do not hide the first content line or erase its word boundary.
     func test_normalize_singleLineKeepsOnlyTheFirstContentLine() {
         assertCases([
             // Leading formatting newlines are trimmed before the split, so they do not read as an
@@ -120,6 +121,7 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         ])
     }
 
+    /// A removed delimiter separates words without overriding punctuation or script-specific spacing.
     func test_normalize_leadingNewlinePreservesSingleLineBoundary() {
         assertCases([
             Case(name: "English word boundary", precedingText: "Hello", raw: "\nworld", expected: " world"),
@@ -152,6 +154,7 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         ])
     }
 
+    /// Cumulative partials must retain one stable insertion boundary as the first word arrives.
     func test_normalize_leadingNewlineCumulativePartialsKeepBoundary() {
         let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello")
         for partial in ["w", "wor", "world"] {
@@ -159,6 +162,34 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         }
         XCTAssertEqual(SuggestionTextNormalizer.normalizeDetailed("\n", for: request),
                        SuggestionNormalizationResult(text: "", suppression: .emptyGeneration))
+    }
+
+    /// A newline anywhere in the removed control prefix is a boundary; a tab alone is formatting.
+    func test_normalize_detectsNewlinesInTrimmedControlRun() {
+        assertCases([
+            Case(name: "tab before newline", precedingText: "Hello", raw: "\t\nworld", expected: " world"),
+            Case(name: "tab before CRLF", precedingText: "Hello", raw: "\t\r\nworld", expected: " world"),
+            Case(name: "controls on both sides", precedingText: "Hello", raw: "\t\n\tworld", expected: " world"),
+            Case(name: "tab without newline", precedingText: "sched", raw: "\tule", expected: "ule"),
+            Case(name: "trailing newline is not a boundary", precedingText: "sched", raw: "ule\n", expected: "ule")
+        ])
+    }
+
+    /// Prompt formatting can supply a boundary, but stripping the echoed caret prefix starts a new seam.
+    func test_normalize_promptEchoPreservesOnlySurvivingBoundary() {
+        assertCases([
+            Case(name: "prompt exposes newline", precedingText: "Hello", raw: "PROMPT\nworld", expected: " world"),
+            Case(name: "prompt exposes mixed controls", precedingText: "Hello", raw: "PROMPT\t\nworld", expected: " world"),
+            Case(name: "prefix consumes prompt boundary", precedingText: "sched", raw: "PROMPT\nschedule", expected: "ule"),
+            Case(name: "prefix exposes its own boundary", precedingText: "Hello", raw: "PROMPT\nHello\nworld", expected: " world"),
+            Case(name: "tab only after prompt", precedingText: "sched", raw: "PROMPT\tule", expected: "ule")
+        ])
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "PROMPT")
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("BACKEND\nworld", for: request,
+                                                         promptEchoCandidates: ["BACKEND"]), " world")
+        let multilineRequest = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "PROMPT",
+                                                                     isMultiLineEnabled: true)
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("PROMPT\nworld", for: multilineRequest), "world")
     }
 
     /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior

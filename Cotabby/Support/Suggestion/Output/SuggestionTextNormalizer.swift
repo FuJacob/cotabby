@@ -73,9 +73,10 @@ enum SuggestionTextNormalizer {
         // the reasoning text never reaches the continuation logic below.
         normalized = stripThinkBlocks(normalized)
 
-        normalized = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
+        let promptCleanup = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
+        normalized = promptCleanup.text
 
-        var removedLeadingNewline = normalized.first?.isNewline == true
+        var removedLeadingNewline = promptCleanup.removedLeadingNewline || leadingControlsContainNewline(normalized)
         normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
 
         // Small instruction-tuned models often emit one or more leading newlines before the actual
@@ -202,19 +203,34 @@ enum SuggestionTextNormalizer {
     }
 
     /// Removes an echoed prompt (or, for Apple Intelligence's short task prompt, the echoed visible
-    /// prefix) from the front of the output.
-    private static func strippingPromptEcho(_ text: String, request: SuggestionRequest, promptEchoCandidates: [String]) -> String {
+    /// prefix) from the front of the output, retaining boundary evidence only for the surviving seam.
+    private static func strippingPromptEcho(
+        _ text: String, request: SuggestionRequest, promptEchoCandidates: [String]
+    ) -> (text: String, removedLeadingNewline: Bool) {
         var normalized = text
+        var removedLeadingNewline = false
         for prompt in [request.prompt] + promptEchoCandidates {
             if !prompt.isEmpty, normalized.hasPrefix(prompt) {
                 normalized.removeFirst(prompt.count)
+                // A later echoed prompt replaces the seam; only its trailing delimiter matters.
+                removedLeadingNewline = leadingControlsContainNewline(normalized)
                 normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
             }
         }
         if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
             normalized.removeFirst(request.prefixText.count)
+            // The newline preceded the echoed prefix, not its suffix (`sched` + `ule`). Any
+            // newline exposed by this removal is detected by the caller at the new seam.
+            removedLeadingNewline = false
         }
-        return normalized
+        return (normalized, removedLeadingNewline)
+    }
+
+    /// Matches the entire prefix removed by control trimming, including a newline hidden by a tab.
+    private static func leadingControlsContainNewline(_ text: String) -> Bool {
+        let trimmedCharacters = CharacterSet.controlCharacters.union(.newlines)
+        return text.unicodeScalars.prefix(while: { trimmedCharacters.contains($0) })
+            .contains(where: { CharacterSet.newlines.contains($0) })
     }
 
     /// Names the most specific cause of an empty normalization outcome at the safety gate. The gate
