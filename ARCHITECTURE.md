@@ -303,6 +303,9 @@ the setup. Both were doubled together after the recall eval showed facts stated 
 tokens before the caret were invisible to the model.
 The request window and section allocator preserve the prefix's spaces, line breaks, and indentation.
 Multiline output cleanup also preserves the leading space needed to join a new word at the caret.
+Single-line cleanup preserves a removed leading newline as a word separator where the existing
+spacing rules require one, without adding spaces around punctuation or between recognized
+spaceless-script characters. Output without a leading newline keeps its original word boundary.
 Bounded right-of-caret text is descriptive reference material before the prefix, not invented
 fill-in-the-middle control tokens. This added suffix section is local-only: the endpoint renderer
 does not receive it. Optional user-authored notes retain their existing budgets and settings; no

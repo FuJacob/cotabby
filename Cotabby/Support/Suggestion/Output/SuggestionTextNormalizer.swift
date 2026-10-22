@@ -75,6 +75,7 @@ enum SuggestionTextNormalizer {
 
         normalized = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
 
+        var removedLeadingNewline = normalized.first?.isNewline == true
         normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
 
         // Small instruction-tuned models often emit one or more leading newlines before the actual
@@ -96,6 +97,7 @@ enum SuggestionTextNormalizer {
         // best-effort catch, not the fix: the durable fix is feeding instruct models their own chat
         // template so instructions never read as content in the first place.
         normalized = stripLeadingScaffoldingLabels(normalized)
+        removedLeadingNewline = removedLeadingNewline || normalized.first?.isNewline == true
         normalized = normalized.trimmingCharacters(in: .newlines)
 
         if request.isMultiLineEnabled {
@@ -136,6 +138,20 @@ enum SuggestionTextNormalizer {
         let beforeEchoStrip = normalized
         normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
         let collapsedByEcho = !beforeEchoStrip.isEmpty && normalized.isEmpty
+
+        // Flattening a leading line break must not glue two words together. Decide at the
+        // surviving seam so echo cleanup, punctuation, existing whitespace and spaceless scripts
+        // cannot turn the removed delimiter into an unwanted space. Multiline behavior stays intact.
+        if removedLeadingNewline, !request.isMultiLineEnabled,
+           let first = normalized.first, let last = request.context.precedingText.last,
+           first.isLetter || first.isNumber,
+           !first.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
+           !last.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
+           GhostSpaceBoundary.needsLeadingSpace(
+               normalized, precedingText: request.context.precedingText, boundary: .newWord
+           ) {
+            normalized = " " + normalized
+        }
 
         // Deterministic space management runs AFTER echo suppression because stripping echoed
         // words can expose a leading space (e.g. "world is" → " is"). If the preceding text

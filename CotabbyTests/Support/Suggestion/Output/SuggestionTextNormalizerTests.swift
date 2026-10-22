@@ -115,9 +115,50 @@ final class SuggestionTextNormalizerTests: XCTestCase {
             // Leading formatting newlines are trimmed before the split, so they do not read as an
             // empty first line that would drop the real continuation.
             Case(name: "leading newlines", precedingText: "Hello",
-                 raw: "\n\nnext words only\nsecond paragraph should be dropped", expected: "next words only"),
+                 raw: "\n\nnext words only\nsecond paragraph should be dropped", expected: " next words only"),
             Case(name: "CRLF line ending", precedingText: "Hello", raw: "next\r\nsecond", expected: "next")
         ])
+    }
+
+    func test_normalize_leadingNewlinePreservesSingleLineBoundary() {
+        assertCases([
+            Case(name: "English word boundary", precedingText: "Hello", raw: "\nworld", expected: " world"),
+            // Cyrillic words need the same separator; Japanese below must remain unspaced.
+            Case(name: "Russian word boundary", precedingText: "почему то на русском",
+                 raw: "\nчасто пишут", expected: " часто пишут"),
+            Case(name: "CRLF boundary", precedingText: "Hello", raw: "\r\nworld", expected: " world"),
+            Case(name: "existing space", precedingText: "Hello ", raw: "\nworld", expected: "world"),
+            Case(name: "existing tab", precedingText: "Hello\t", raw: "\nworld", expected: "world"),
+            Case(name: "existing newline", precedingText: "Hello\n", raw: "\nworld", expected: "world"),
+            Case(name: "model supplies space", precedingText: "Hello", raw: "\n world", expected: " world"),
+            Case(name: "empty field", precedingText: "", raw: "\nHello", expected: "Hello"),
+            Case(name: "binding punctuation", precedingText: "Hello", raw: "\n, world", expected: ", world"),
+            Case(name: "opening bracket", precedingText: "(", raw: "\nhello", expected: "hello"),
+            Case(name: "Japanese continuation", precedingText: "今日は", raw: "\n良い天気", expected: "良い天気"),
+            Case(name: "CJK punctuation", precedingText: "今日は", raw: "\n、良い天気", expected: "、良い天気"),
+            Case(name: "prompt then prefix echo is a suffix", precedingText: "sched",
+                 raw: "PROMPT\nschedule", expected: "ule"),
+            Case(name: "prefix echo exposes boundary", precedingText: "Hello",
+                 raw: "Hello\nworld", expected: " world"),
+            Case(name: "scaffolding exposes boundary", precedingText: "Hello",
+                 raw: "Continuation:\nworld", expected: " world"),
+            Case(name: "template exposes boundary", precedingText: "Hello",
+                 raw: "<|im_start|>\nworld", expected: " world"),
+            Case(name: "newline ends even an ambiguous stem", precedingText: "sched", raw: "\nule", expected: " ule"),
+            Case(name: "ordinary word suffix", precedingText: "sched", raw: "ule", expected: "ule"),
+            Case(name: "ordinary numeric suffix", precedingText: "1", raw: "50K", expected: "50K"),
+            Case(name: "echoed word", precedingText: "hello world",
+                 raw: "\nworld is great", expected: " is great")
+        ])
+    }
+
+    func test_normalize_leadingNewlineCumulativePartialsKeepBoundary() {
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello")
+        for partial in ["w", "wor", "world"] {
+            XCTAssertEqual(SuggestionTextNormalizer.normalize("\n" + partial, for: request), " " + partial)
+        }
+        XCTAssertEqual(SuggestionTextNormalizer.normalizeDetailed("\n", for: request),
+                       SuggestionNormalizationResult(text: "", suppression: .emptyGeneration))
     }
 
     /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior
@@ -228,7 +269,7 @@ final class SuggestionTextNormalizerTests: XCTestCase {
             Case(name: "complete block", precedingText: "Hello",
                  raw: "<think>the user is mid-sentence</think>next words", expected: "next words"),
             Case(name: "multi-line block", precedingText: "Hello",
-                 raw: "<think>line one\nline two</think>\nnext words", expected: "next words"),
+                 raw: "<think>line one\nline two</think>\nnext words", expected: " next words"),
             Case(name: "complete then dangling", precedingText: "Hello",
                  raw: "<think>first</think>real<think>second never closes", expected: "real")
         ])
