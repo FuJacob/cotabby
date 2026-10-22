@@ -219,6 +219,20 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         ], isMultiLineEnabled: true)
     }
 
+    /// Prompt formatting may precede an indented echoed prefix; only formatting before the match is discarded.
+    func test_normalize_preservesWhitespaceOwnedByEchoedPrefix() {
+        for prefix in [" sched", "  sched", "\tsched", "\n sched"] {
+            let request = CotabbyTestFixtures.suggestionRequest(prefixText: prefix, prompt: "PROMPT")
+            for separator in ["\n", "\r\n", "\t\n", " \n"] {
+                for suffix in ["u", "ul", "ule"] {
+                    let raw = "PROMPT" + separator + prefix + suffix
+                    XCTAssertEqual(SuggestionTextNormalizer.normalize(raw, for: request), suffix,
+                                   "prefix=\(prefix.debugDescription), separator=\(separator.debugDescription)")
+                }
+            }
+        }
+    }
+
     /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior
     /// tab reaches the safety gate and is rejected rather than inserted.
     func test_normalize_trimsEdgeControlCharactersButRejectsInteriorOnes() {

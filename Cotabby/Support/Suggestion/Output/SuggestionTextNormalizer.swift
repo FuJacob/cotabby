@@ -219,11 +219,10 @@ enum SuggestionTextNormalizer {
                 // A later echoed prompt replaces the seam; only its trailing delimiter matters.
                 removedLeadingNewline = leadingWhitespaceContainsNewline(normalized)
                 if removedLeadingNewline, !request.isMultiLineEnabled {
-                    // Expose an echoed prefix even after a whitespace-only line so its suffix
-                    // can clear the prompt's boundary evidence below (`PROMPT \nschedule`).
-                    normalized = String(normalized.drop(while: { $0.isWhitespace }))
+                    normalized = strippingLeadingFormatting(normalized, preserving: request.prefixText)
+                } else {
+                    normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
                 }
-                normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
             }
         }
         if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
@@ -233,6 +232,19 @@ enum SuggestionTextNormalizer {
             removedLeadingNewline = false
         }
         return (normalized, removedLeadingNewline)
+    }
+
+    /// Tests each possible start before dropping formatting, so whitespace owned by an echoed
+    /// prefix survives (`PROMPT\n schedule` with prefix ` sched` must leave only `ule`).
+    private static func strippingLeadingFormatting(_ text: String, preserving prefix: String) -> String {
+        var remaining = text[...]
+        let formatting = CharacterSet.controlCharacters.union(.whitespacesAndNewlines)
+        while let first = remaining.first,
+              first.unicodeScalars.allSatisfy({ formatting.contains($0) }),
+              prefix.isEmpty || !remaining.hasPrefix(prefix) {
+            remaining.removeFirst()
+        }
+        return String(remaining)
     }
 
     /// Finds newline evidence even when spaces or tabs precede it in the leading formatting run.
