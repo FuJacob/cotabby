@@ -110,14 +110,127 @@ final class SuggestionTextNormalizerTests: XCTestCase {
 
     // MARK: - Line handling
 
+    /// Leading blank lines do not hide the first content line or erase its word boundary.
     func test_normalize_singleLineKeepsOnlyTheFirstContentLine() {
         assertCases([
             // Leading formatting newlines are trimmed before the split, so they do not read as an
             // empty first line that would drop the real continuation.
             Case(name: "leading newlines", precedingText: "Hello",
-                 raw: "\n\nnext words only\nsecond paragraph should be dropped", expected: "next words only"),
+                 raw: "\n\nnext words only\nsecond paragraph should be dropped", expected: " next words only"),
             Case(name: "CRLF line ending", precedingText: "Hello", raw: "next\r\nsecond", expected: "next")
         ])
+    }
+
+    /// A removed delimiter separates words without overriding punctuation or script-specific spacing.
+    func test_normalize_leadingNewlinePreservesSingleLineBoundary() {
+        assertCases([
+            Case(name: "English word boundary", precedingText: "Hello", raw: "\nworld", expected: " world"),
+            // Cyrillic words need the same separator; Japanese below must remain unspaced.
+            Case(name: "Russian word boundary", precedingText: "почему то на русском",
+                 raw: "\nчасто пишут", expected: " часто пишут"),
+            Case(name: "CRLF boundary", precedingText: "Hello", raw: "\r\nworld", expected: " world"),
+            Case(name: "existing space", precedingText: "Hello ", raw: "\nworld", expected: "world"),
+            Case(name: "existing tab", precedingText: "Hello\t", raw: "\nworld", expected: "world"),
+            Case(name: "existing newline", precedingText: "Hello\n", raw: "\nworld", expected: "world"),
+            Case(name: "model supplies space", precedingText: "Hello", raw: "\n world", expected: " world"),
+            Case(name: "empty field", precedingText: "", raw: "\nHello", expected: "Hello"),
+            Case(name: "binding punctuation", precedingText: "Hello", raw: "\n, world", expected: ", world"),
+            Case(name: "opening bracket", precedingText: "(", raw: "\nhello", expected: "hello"),
+            Case(name: "Japanese continuation", precedingText: "今日は", raw: "\n良い天気", expected: "良い天気"),
+            Case(name: "CJK punctuation", precedingText: "今日は", raw: "\n、良い天気", expected: "、良い天気"),
+            Case(name: "prompt then prefix echo is a suffix", precedingText: "sched",
+                 raw: "PROMPT\nschedule", expected: "ule"),
+            Case(name: "prefix echo exposes boundary", precedingText: "Hello",
+                 raw: "Hello\nworld", expected: " world"),
+            Case(name: "scaffolding exposes boundary", precedingText: "Hello",
+                 raw: "Continuation:\nworld", expected: " world"),
+            Case(name: "template exposes boundary", precedingText: "Hello",
+                 raw: "<|im_start|>\nworld", expected: " world"),
+            Case(name: "newline ends even an ambiguous stem", precedingText: "sched", raw: "\nule", expected: " ule"),
+            Case(name: "ordinary word suffix", precedingText: "sched", raw: "ule", expected: "ule"),
+            Case(name: "ordinary numeric suffix", precedingText: "1", raw: "50K", expected: "50K"),
+            Case(name: "echoed word", precedingText: "hello world",
+                 raw: "\nworld is great", expected: " is great")
+        ])
+    }
+
+    /// Cumulative partials must retain one stable insertion boundary as the first word arrives.
+    func test_normalize_leadingNewlineCumulativePartialsKeepBoundary() {
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello")
+        for partial in ["w", "wor", "world"] {
+            XCTAssertEqual(SuggestionTextNormalizer.normalize("\n" + partial, for: request), " " + partial)
+        }
+        XCTAssertEqual(SuggestionTextNormalizer.normalizeDetailed("\n", for: request),
+                       SuggestionNormalizationResult(text: "", suppression: .emptyGeneration))
+    }
+
+    /// A newline anywhere in the removed control prefix is a boundary; a tab alone is formatting.
+    func test_normalize_detectsNewlinesInTrimmedControlRun() {
+        assertCases([
+            Case(name: "tab before newline", precedingText: "Hello", raw: "\t\nworld", expected: " world"),
+            Case(name: "tab before CRLF", precedingText: "Hello", raw: "\t\r\nworld", expected: " world"),
+            Case(name: "controls on both sides", precedingText: "Hello", raw: "\t\n\tworld", expected: " world"),
+            Case(name: "tab without newline", precedingText: "sched", raw: "\tule", expected: "ule"),
+            Case(name: "trailing newline is not a boundary", precedingText: "sched", raw: "ule\n", expected: "ule")
+        ])
+    }
+
+    /// Prompt formatting can supply a boundary, but stripping the echoed caret prefix starts a new seam.
+    func test_normalize_promptEchoPreservesOnlySurvivingBoundary() {
+        assertCases([
+            Case(name: "prompt exposes newline", precedingText: "Hello", raw: "PROMPT\nworld", expected: " world"),
+            Case(name: "prompt exposes mixed controls", precedingText: "Hello", raw: "PROMPT\t\nworld", expected: " world"),
+            Case(name: "prefix consumes prompt boundary", precedingText: "sched", raw: "PROMPT\nschedule", expected: "ule"),
+            Case(name: "prefix exposes its own boundary", precedingText: "Hello", raw: "PROMPT\nHello\nworld", expected: " world"),
+            Case(name: "tab only after prompt", precedingText: "sched", raw: "PROMPT\tule", expected: "ule")
+        ])
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "PROMPT")
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("BACKEND\nworld", for: request,
+                                                         promptEchoCandidates: ["BACKEND"]), " world")
+        let multilineRequest = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "PROMPT",
+                                                                     isMultiLineEnabled: true)
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("PROMPT\nworld", for: multilineRequest), "world")
+    }
+
+    /// Whitespace-only lines are formatting in single-line mode, even around echoed labels or prompts.
+    func test_normalize_preservesNewlinesAcrossLeadingWhitespaceCleanup() {
+        assertCases([
+            Case(name: "space before newline", precedingText: "Hello", raw: " \nworld", expected: " world"),
+            Case(name: "mixed whitespace", precedingText: "Hello", raw: " \t\n \tworld", expected: " world"),
+            Case(name: "prompt then whitespace", precedingText: "Hello", raw: "PROMPT \nworld", expected: " world"),
+            Case(name: "whitespace before label", precedingText: "Hello", raw: " \nContinuation:world", expected: " world"),
+            Case(name: "whitespace after label", precedingText: "Hello", raw: "Continuation: \nworld", expected: " world"),
+            Case(name: "whitespace between labels", precedingText: "Hello",
+                 raw: "Task: \nContinuation:world", expected: " world"),
+            Case(name: "prefix consumes whitespace boundary", precedingText: "sched",
+                 raw: "PROMPT \nschedule", expected: "ule"),
+            Case(name: "prefix exposes another boundary", precedingText: "Hello",
+                 raw: "PROMPT \nHello \nworld", expected: " world"),
+            Case(name: "ordinary spaces stay intact", precedingText: "Hello", raw: "  world", expected: "  world"),
+            Case(name: "space after formatted newline", precedingText: "Hello", raw: "\n  world", expected: " world"),
+            Case(name: "formatted newline after field space", precedingText: "Hello ", raw: " \nworld", expected: "world"),
+            Case(name: "formatted newline before punctuation", precedingText: "Hello", raw: " \n, world", expected: ", world"),
+            Case(name: "formatted newline before Japanese", precedingText: "今日は", raw: " \n良い天気", expected: "良い天気")
+        ])
+        assertCases([
+            Case(name: "multiline whitespace stays intact", precedingText: "Hello", raw: " \nworld", expected: " \nworld"),
+            Case(name: "multiline prompt whitespace stays intact", precedingText: "Hello",
+                 raw: "PROMPT \nworld", expected: " \nworld")
+        ], isMultiLineEnabled: true)
+    }
+
+    /// Prompt formatting may precede an indented echoed prefix; only formatting before the match is discarded.
+    func test_normalize_preservesWhitespaceOwnedByEchoedPrefix() {
+        for prefix in [" sched", "  sched", "\tsched", "\n sched"] {
+            let request = CotabbyTestFixtures.suggestionRequest(prefixText: prefix, prompt: "PROMPT")
+            for separator in ["\n", "\r\n", "\t\n", " \n"] {
+                for suffix in ["u", "ul", "ule"] {
+                    let raw = "PROMPT" + separator + prefix + suffix
+                    XCTAssertEqual(SuggestionTextNormalizer.normalize(raw, for: request), suffix,
+                                   "prefix=\(prefix.debugDescription), separator=\(separator.debugDescription)")
+                }
+            }
+        }
     }
 
     /// Control characters are trimmed at the edges (a leading tab is formatting), but an interior
@@ -228,7 +341,7 @@ final class SuggestionTextNormalizerTests: XCTestCase {
             Case(name: "complete block", precedingText: "Hello",
                  raw: "<think>the user is mid-sentence</think>next words", expected: "next words"),
             Case(name: "multi-line block", precedingText: "Hello",
-                 raw: "<think>line one\nline two</think>\nnext words", expected: "next words"),
+                 raw: "<think>line one\nline two</think>\nnext words", expected: " next words"),
             Case(name: "complete then dangling", precedingText: "Hello",
                  raw: "<think>first</think>real<think>second never closes", expected: "real")
         ])

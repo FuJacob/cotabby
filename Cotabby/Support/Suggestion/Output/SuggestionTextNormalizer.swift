@@ -73,8 +73,10 @@ enum SuggestionTextNormalizer {
         // the reasoning text never reaches the continuation logic below.
         normalized = stripThinkBlocks(normalized)
 
-        normalized = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
+        let promptCleanup = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
+        normalized = promptCleanup.text
 
+        var removedLeadingNewline = promptCleanup.removedLeadingNewline || leadingWhitespaceContainsNewline(normalized)
         normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
 
         // Small instruction-tuned models often emit one or more leading newlines before the actual
@@ -95,7 +97,10 @@ enum SuggestionTextNormalizer {
         // surfaces the real continuation instead of collapsing to the first label line. This is a
         // best-effort catch, not the fix: the durable fix is feeding instruct models their own chat
         // template so instructions never read as content in the first place.
-        normalized = stripLeadingScaffoldingLabels(normalized)
+        let scaffoldingCleanup = stripLeadingScaffoldingLabels(normalized)
+        normalized = scaffoldingCleanup.text
+        removedLeadingNewline = removedLeadingNewline || scaffoldingCleanup.removedLeadingNewline
+            || leadingWhitespaceContainsNewline(normalized)
         normalized = normalized.trimmingCharacters(in: .newlines)
 
         if request.isMultiLineEnabled {
@@ -112,8 +117,10 @@ enum SuggestionTextNormalizer {
                 normalized.unicodeScalars.removeLast()
             }
         } else {
-            // Single-line mode: only surface the immediate continuation line.
-            if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
+            // Skip whitespace-only leading lines, but retain ordinary leading spaces when no
+            // newline was removed. Multiline output above keeps its existing formatting.
+            let content = normalized.drop(while: { removedLeadingNewline && $0.isWhitespace })
+            if let firstLine = content.split(separator: "\n", maxSplits: 1).first {
                 normalized = String(firstLine)
             }
         }
@@ -136,6 +143,20 @@ enum SuggestionTextNormalizer {
         let beforeEchoStrip = normalized
         normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
         let collapsedByEcho = !beforeEchoStrip.isEmpty && normalized.isEmpty
+
+        // Flattening a leading line break must not glue two words together. Decide at the
+        // surviving seam so echo cleanup, punctuation, existing whitespace and spaceless scripts
+        // cannot turn the removed delimiter into an unwanted space. Multiline behavior stays intact.
+        if removedLeadingNewline, !request.isMultiLineEnabled,
+           let first = normalized.first, let last = request.context.precedingText.last,
+           first.isLetter || first.isNumber,
+           !first.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
+           !last.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
+           GhostSpaceBoundary.needsLeadingSpace(
+               normalized, precedingText: request.context.precedingText, boundary: .newWord
+           ) {
+            normalized = " " + normalized
+        }
 
         // Deterministic space management runs AFTER echo suppression because stripping echoed
         // words can expose a leading space (e.g. "world is" → " is"). If the preceding text
@@ -186,19 +207,51 @@ enum SuggestionTextNormalizer {
     }
 
     /// Removes an echoed prompt (or, for Apple Intelligence's short task prompt, the echoed visible
-    /// prefix) from the front of the output.
-    private static func strippingPromptEcho(_ text: String, request: SuggestionRequest, promptEchoCandidates: [String]) -> String {
+    /// prefix) from the front of the output, retaining boundary evidence only for the surviving seam.
+    private static func strippingPromptEcho(
+        _ text: String, request: SuggestionRequest, promptEchoCandidates: [String]
+    ) -> (text: String, removedLeadingNewline: Bool) {
         var normalized = text
+        var removedLeadingNewline = false
         for prompt in [request.prompt] + promptEchoCandidates {
             if !prompt.isEmpty, normalized.hasPrefix(prompt) {
                 normalized.removeFirst(prompt.count)
-                normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
+                // A later echoed prompt replaces the seam; only its trailing delimiter matters.
+                removedLeadingNewline = leadingWhitespaceContainsNewline(normalized)
+                if removedLeadingNewline, !request.isMultiLineEnabled {
+                    normalized = strippingLeadingFormatting(normalized, preserving: request.prefixText)
+                } else {
+                    normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
+                }
             }
         }
         if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
             normalized.removeFirst(request.prefixText.count)
+            // The newline preceded the echoed prefix, not its suffix (`sched` + `ule`). Any
+            // newline exposed by this removal is detected by the caller at the new seam.
+            removedLeadingNewline = false
         }
-        return normalized
+        return (normalized, removedLeadingNewline)
+    }
+
+    /// Tests each possible start before dropping formatting, so whitespace owned by an echoed
+    /// prefix survives (`PROMPT\n schedule` with prefix ` sched` must leave only `ule`).
+    private static func strippingLeadingFormatting(_ text: String, preserving prefix: String) -> String {
+        var remaining = text[...]
+        let formatting = CharacterSet.controlCharacters.union(.whitespacesAndNewlines)
+        while let first = remaining.first,
+              first.unicodeScalars.allSatisfy({ formatting.contains($0) }),
+              prefix.isEmpty || !remaining.hasPrefix(prefix) {
+            remaining.removeFirst()
+        }
+        return String(remaining)
+    }
+
+    /// Finds newline evidence even when spaces or tabs precede it in the leading formatting run.
+    private static func leadingWhitespaceContainsNewline(_ text: String) -> Bool {
+        let trimmedCharacters = CharacterSet.controlCharacters.union(.whitespacesAndNewlines)
+        return text.unicodeScalars.prefix(while: { trimmedCharacters.contains($0) })
+            .contains(where: { CharacterSet.newlines.contains($0) })
     }
 
     /// Names the most specific cause of an empty normalization outcome at the safety gate. The gate
@@ -322,8 +375,9 @@ enum SuggestionTextNormalizer {
     /// each sits on its own line or inline before the continuation. Only labels at the very start
     /// are stripped; a label appearing later in the text is left alone because by then it is far
     /// more likely to be real user content than echoed scaffolding.
-    private static func stripLeadingScaffoldingLabels(_ text: String) -> String {
+    private static func stripLeadingScaffoldingLabels(_ text: String) -> (text: String, removedLeadingNewline: Bool) {
         var working = text
+        var removedLeadingNewline = false
 
         while true {
             // Look past leading whitespace/newlines to find the first real token. We only commit to
@@ -333,8 +387,9 @@ enum SuggestionTextNormalizer {
             guard let label = labelsByLengthDescending.first(where: {
                 leading.range(of: $0, options: [.caseInsensitive, .anchored]) != nil
             }) else {
-                return working
+                return (working, removedLeadingNewline)
             }
+            removedLeadingNewline = removedLeadingNewline || leadingWhitespaceContainsNewline(working)
             working = String(leading.dropFirst(label.count))
         }
     }
