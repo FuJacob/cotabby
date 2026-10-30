@@ -129,6 +129,107 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         XCTAssertEqual(extractor.extractionCount, 6, "Recent crops stay cached")
     }
 
+    // MARK: - Focused field exclusion
+
+    /// A composer across the bottom quarter of the middle half of a 40x20 capture: pixel columns
+    /// 10..<30 and rows 15..<20 counted from the top, or y 0...5 in the bitmap context's coordinates.
+    private static let composer = FocusedFieldScreenRegion(bounds: CGRect(x: 0.25, y: 0, width: 0.5, height: 0.25))!
+    private static let conversationLine =
+        OCRTextHygiene.OCRLine(text: meaningfulLine, confidence: 0.9, boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.8, height: 0.05))
+
+    /// The composer's own text as Vision reads it, centered inside `composer`.
+    private static func typedLine(_ text: String) -> OCRTextHygiene.OCRLine {
+        OCRTextHygiene.OCRLine(text: text, confidence: 0.9, boundingBox: CGRect(x: 0.3, y: 0.1, width: 0.3, height: 0.05))
+    }
+
+    func test_generateContext_dropsTheFieldsOwnLineThatTheEchoStripMisses() async throws {
+        // The screenshot lands a keystroke after the snapshot ("Screen Recording"), so the typed
+        // line is not a substring of the field text. Only its position identifies it, in both the
+        // local (selector) and endpoint (hygiene) profiles; without a region it leaks through.
+        let lines = [Self.conversationLine, Self.typedLine("Screen Recording permission")]
+        for configuration in [VisualContextConfiguration.local, .default] {
+            for region in [Self.composer, nil] {
+                let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
+                capture.fieldRegion = region
+                let generator = ScreenshotContextGenerator(
+                    screenshotService: capture,
+                    textExtractor: StubTextExtractor(result: .success(extracted(lines)))
+                )
+
+                let excerpt = try await generator.generateContext(for: makeSnapshot(), configuration: configuration)
+
+                XCTAssertTrue(excerpt.text.contains("GeneralPaneView"))
+                XCTAssertEqual(excerpt.text.contains("permission"), region == nil, "\(configuration) region=\(String(describing: region))")
+            }
+        }
+    }
+
+    func test_generateContext_typingInsideTheFieldReusesOCRAndKeepsTheExcerptIdentical() async throws {
+        // Vision would read the new keystrokes, but the recapture differs only inside the field,
+        // so it must not reach Vision at all: the excerpt stays byte-identical and the suggestion
+        // coordinator sees no change to treat as navigation.
+        let extractor = SequencedTextExtractor([
+            extracted([Self.conversationLine, Self.typedLine("Screen Recording permission")]),
+            extracted([Self.conversationLine, Self.typedLine("Screen Recording permission is required")])
+        ])
+        let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
+        capture.fieldRegion = Self.composer
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+
+        let first = try await generator.generateContext(for: makeSnapshot())
+        capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 12, y: 1, width: 10, height: 3))
+        let second = try await generator.generateContext(for: makeSnapshot(precedingText: "Screen Recording permission"))
+
+        XCTAssertEqual(extractor.extractionCount, 1, "A typing-only recapture must reuse the previous OCR")
+        XCTAssertEqual(first.text, second.text)
+
+        // Control: the same keystroke pixels are a real change when no field region is known.
+        capture.fieldRegion = nil
+        capture.image = makeImage(width: 40, height: 20)
+        _ = try await generator.generateContext(for: makeSnapshot())
+        capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 12, y: 1, width: 10, height: 3))
+        _ = try await generator.generateContext(for: makeSnapshot())
+        XCTAssertEqual(extractor.extractionCount, 3)
+    }
+
+    func test_generateContext_aChangeOutsideTheFieldStillReachesTheExcerpt() async throws {
+        // Navigation intent: a different conversation above the composer must re-run OCR and
+        // change the excerpt even while the field is excluded.
+        let newMessage = "Please review the attached budget spreadsheet before the meeting"
+        let extractor = SequencedTextExtractor([
+            extracted([Self.conversationLine, Self.typedLine("Screen Recording permission")]),
+            extracted([
+                OCRTextHygiene.OCRLine(text: newMessage, confidence: 0.9, boundingBox: Self.conversationLine.boundingBox),
+                Self.typedLine("Screen Recording permission")
+            ])
+        ])
+        let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
+        capture.fieldRegion = Self.composer
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+
+        _ = try await generator.generateContext(for: makeSnapshot())
+        capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 2, y: 10, width: 10, height: 6))
+        let second = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertEqual(extractor.extractionCount, 2)
+        XCTAssertEqual(second.text, newMessage)
+    }
+
+    func test_generateContext_aMovedFieldMissesTheCache() async throws {
+        // Cached lines are only ever judged against the field geometry they were recognized with:
+        // a composer that grew by a line re-runs OCR even if nothing outside it changed.
+        let extractor = CountingTextExtractor(extracted: extracted([Self.conversationLine]))
+        let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
+        capture.fieldRegion = Self.composer
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+
+        _ = try await generator.generateContext(for: makeSnapshot())
+        capture.fieldRegion = FocusedFieldScreenRegion(bounds: CGRect(x: 0.25, y: 0, width: 0.5, height: 0.35))
+        _ = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertEqual(extractor.extractionCount, 2)
+    }
+
     // MARK: - OCR-empty fallback to the window title
 
     func test_generateContext_noRecognizedTextFallsBackToTheWindowTitle() async throws {
@@ -269,7 +370,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         }
     }
 
-    private func makeSnapshot() -> FocusedInputSnapshot {
+    private func makeSnapshot(precedingText: String = "Screen Recording") -> FocusedInputSnapshot {
         CotabbyTestFixtures.focusedInputSnapshot(
             applicationName: "Xcode",
             bundleIdentifier: "com.apple.dt.Xcode",
@@ -277,22 +378,28 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
             role: "AXTextArea",
             caretRect: CGRect(x: 140, y: 420, width: 2, height: 18),
             inputFrameRect: CGRect(x: 100, y: 380, width: 600, height: 120),
-            precedingText: "Screen Recording"
+            precedingText: precedingText
         )
     }
 
-    private func makeImage(width: Int = 1) -> CGImage {
+    /// A white image, optionally with one black rectangle in bitmap-context coordinates (origin at
+    /// the bottom-left, the same orientation as Vision's normalized boxes).
+    private func makeImage(width: Int = 1, height: Int = 1, painting blackRect: CGRect? = nil) -> CGImage {
         let context = CGContext(
             data: nil,
             width: width,
-            height: 1,
+            height: height,
             bitsPerComponent: 8,
             bytesPerRow: width * 4,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         context.setFillColor(CGColor(gray: 1, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: width, height: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        if let blackRect {
+            context.setFillColor(CGColor(gray: 0, alpha: 1))
+            context.fill(blackRect)
+        }
         return context.makeImage()!
     }
 }
@@ -302,6 +409,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
 private final class RecordingScreenshotCapture: WindowScreenshotCapturing {
     var image: CGImage
     let windowTitle: String?
+    var fieldRegion: FocusedFieldScreenRegion?
     var error: Error?
     private(set) var fullWindowRequests: [Bool] = []
 
@@ -319,7 +427,24 @@ private final class RecordingScreenshotCapture: WindowScreenshotCapturing {
         if let error {
             throw error
         }
-        return CapturedWindowScreenshot(image: image, windowTitle: windowTitle)
+        return CapturedWindowScreenshot(image: image, windowTitle: windowTitle, fieldRegion: fieldRegion)
+    }
+}
+
+/// Returns its extractions in order (repeating the last), the way Vision would re-read a changed
+/// field, and counts passes so a cache hit is visible as a skipped result.
+@MainActor
+private final class SequencedTextExtractor: ScreenTextExtracting {
+    private let results: [ExtractedScreenText]
+    private(set) var extractionCount = 0
+
+    init(_ results: [ExtractedScreenText]) {
+        self.results = results
+    }
+
+    func extractText(from image: CGImage) async throws -> ExtractedScreenText {
+        defer { extractionCount += 1 }
+        return results[min(extractionCount, results.count - 1)]
     }
 }
 

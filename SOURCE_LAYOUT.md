@@ -228,3 +228,8 @@ that owns too many responsibilities and should be split by behavior rather than 
 - `VisualContextCoordinator` refreshes both backend profiles using their existing capture limits.
   Excerpts expire six seconds after capture starts, even while OCR is pending. Navigation clears
   the published excerpt immediately, and invalidation retires predictions conditioned on it.
+- `Support/Context/FocusedFieldScreenRegion.swift` keeps the focused field out of that signal: its
+  OCR lines never enter the excerpt and its pixels never miss the OCR cache, so typing is not
+  mistaken for a changed screen while a different conversation still is.
+  `Support/Context/VisualContextExcerptStability.swift` does the same for OCR jitter on unchanged
+  pixels: a near-identical refresh keeps the excerpt in use byte-identical.

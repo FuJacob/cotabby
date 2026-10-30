@@ -23,6 +23,33 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
+    func test_ocrJitterKeepsTheCurrentExcerptByteIdenticalWithoutNotifying() async throws {
+        let generator = StubVisualContextGenerator()
+        let original = "Investigate screen context sessi\nThe newest message asks about the deadline"
+        generator.text = original
+        let coordinator = makeCoordinator(generator)
+        let live = CotabbyTestFixtures.focusedInputSnapshot()
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+
+        // The same screen read again with a truncated title flickering: the prompt keeps the
+        // exact text it already had, so neither the suggestion nor the KV prefix is reset.
+        generator.text = "Investigate screen context sessic\nThe newest message asks about the deadline"
+        let reads = generator.completedCount
+        try await waitUntil { generator.completedCount >= reads + 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, original)
+        XCTAssertEqual(coordinator.excerpt(for: FocusedInputContext(snapshot: live, generation: 1)), original)
+        XCTAssertEqual(notifications, 1)
+
+        generator.text = original + "\nCan you send the final numbers by Friday"
+        try await waitUntil { notifications == 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, generator.text)
+    }
+
     func test_permissionRevocationStopsRefreshAndClearsExcerpt() async throws {
         let generator = StubVisualContextGenerator()
         var allowed = true

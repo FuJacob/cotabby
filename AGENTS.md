@@ -157,6 +157,13 @@ Visual context currently flows through:
 - `ScreenTextExtractor`: Vision OCR extraction, carrying per-line recognition confidence.
 - `OCRTextHygiene`: pure cleanup of raw OCR (drops low-confidence lines and chrome noise). There is
   no model summarization step; a base model conditions fine on cleaned raw context.
+- `FocusedFieldScreenRegion`: the focused field's own frame inside the capture. OCR lines inside it
+  are dropped (the field's text is already the caret prefix) and its pixels are left out of the OCR
+  cache's pixel hash, so a refresh whose only change is the user's typing reuses the previous OCR
+  and yields an identical excerpt instead of a "screen context changed" reset.
+- `VisualContextExcerptStability`: OCR reads an unchanged screen differently on every refresh
+  (truncation flicker, spinner digits, split lines, timers). A refresh that differs only that much
+  keeps the excerpt in use byte-identical; a new message or another conversation still replaces it.
 - `VisualContextModels`: configuration, status, and excerpt values.
 
 Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly into prompts.
