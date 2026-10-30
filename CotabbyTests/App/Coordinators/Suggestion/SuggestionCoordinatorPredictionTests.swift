@@ -310,6 +310,24 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         )
     }
 
+    /// Key, scheduling, and reconcile paths disable through `disablePredictions`. For the field's own
+    /// transient state (⌘A selects the composer's text) they must keep its screen context like the
+    /// focus-change path does; the next keystroke used to start a fresh screenshot and OCR.
+    func test_disablePredictions_forTheFieldsOwnSelectionKeepsTheOCRSession() {
+        let rig = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
+
+        rig.coordinator.schedulePrediction()
+
+        XCTAssertEqual(rig.coordinator.state, .disabled("Text is currently selected."))
+        XCTAssertTrue(rig.visualContext.cancelCalls.isEmpty)
+
+        // Without Screen Recording the session has nothing to keep, so the teardown still ends it.
+        let withoutScreenRecording = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
+        withoutScreenRecording.permissionProvider.screenRecordingGranted = false
+        withoutScreenRecording.coordinator.schedulePrediction()
+        XCTAssertEqual(withoutScreenRecording.visualContext.cancelCalls, [true])
+    }
+
     // MARK: - Session reconciliation
 
     func test_reconcileActiveSession_hidesAStaleOverlayWhenNoSessionExists() {
