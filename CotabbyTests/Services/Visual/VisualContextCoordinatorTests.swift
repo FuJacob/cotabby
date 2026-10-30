@@ -195,6 +195,28 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(generator.contexts.count, 1)
     }
 
+    /// The Claude desktop composer drops its placeholder a keystroke or two into typing. The same
+    /// field and focus session must keep its ready excerpt instead of re-capturing and re-running
+    /// OCR, which also changed the prompt head and forced a full llama re-prefill.
+    func test_placeholderHiddenByTypingKeepsTheReadySession() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let empty = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Type / for commands.")
+        let typed = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "df", fieldPlaceholder: nil)
+        defer { coordinator.cancel(resetState: true) }
+        coordinator.startSessionIfNeeded(for: empty, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        coordinator.startSessionIfNeeded(for: typed, configuration: .local)
+        XCTAssertEqual(coordinator.status, .ready)
+        XCTAssertEqual(
+            coordinator.excerpt(for: FocusedInputContext(snapshot: typed, generation: 2)), "Project agenda and deadline"
+        )
+        // Outlast the 250 ms settle delay: a restart would have captured a second time by now.
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(generator.contexts.count, 1)
+    }
+
     func test_churningFocusOnlyCapturesTheSettledField() async throws {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
