@@ -372,6 +372,7 @@ Visual context is one field-scoped session:
 VisualContextCoordinator
   -> WindowScreenshotService (local: focused window; endpoint: original field crop)
   -> ScreenTextExtractor (Vision OCR + line confidence)
+  -> FocusedFieldScreenRegion (drop the field's own lines; field pixels never miss the OCR cache)
   -> OCRTextHygiene
   -> VisualContextExcerptSelector (local: proximity, deduplication, reading order)
   -> bounded sanitized excerpt
@@ -383,8 +384,10 @@ artifacts exist only under the explicit debug launch mode.
 
 Local engines refresh context three seconds after the previous capture finishes, while generation
 continues using the last ready excerpt. Every refresh rechecks focus, permissions and eligibility;
-unchanged pixels reuse OCR and unchanged excerpts do not trigger generation. Local selection admits
-up to 4,000 characters, additionally constrained by estimated-token budgets and caret-prefix priority.
+unchanged pixels reuse OCR and unchanged excerpts do not trigger generation. The focused field's own
+pixels and OCR lines do not count, so typing alone keeps the excerpt and the llama prompt head
+unchanged. Local selection admits up to 4,000 characters, additionally constrained by estimated-token
+budgets and caret-prefix priority.
 The endpoint retains its original crop, focus-only lifecycle, 1,500-character excerpt and 500-character
 prompt section. Increasing local context does not opt users into broader network transmission.
 Local excerpts use confidence/line hygiene without the legacy English token whitelist, preserving

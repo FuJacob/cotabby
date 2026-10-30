@@ -44,8 +44,9 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     private let textExtractor: (any ScreenTextExtracting)?
     private let configuration: VisualContextConfiguration
 
-    /// Recent OCR extractions keyed by a pixel hash of the captured crop, so refocusing a window
-    /// whose content has not changed skips the Vision pass (the dominant cost of this pipeline).
+    /// Recent OCR extractions keyed by a pixel hash of the captured crop outside the focused field,
+    /// so refocusing a window whose content has not changed, or typing into a field while the rest
+    /// of the window stays put, skips the Vision pass (the dominant cost of this pipeline).
     /// Only the raw extraction is cached: hygiene and bounding still rerun against the live field
     /// text below, so a cache hit stays byte-identical to re-OCRing identical pixels. Bounded to a
     /// few entries so alt-tabbing between two or three windows keeps hitting.
@@ -84,10 +85,15 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
 
         onStatusChange?(.extractingText)
 
-        let pixelHash = await Task.detached(priority: .utility) { Self.pixelHash(of: screenshot.image) }.value
+        let fieldPixels = screenshot.fieldRegion?.pixelRect(width: screenshot.image.width, height: screenshot.image.height)
+        let pixelHash = await Task.detached(priority: .utility) {
+            Self.pixelHash(of: screenshot.image, excluding: fieldPixels)
+        }.value
         try Task.checkCancellation()
         if let pixelHash, let cached = cachedExtraction(for: pixelHash, configuration: configuration) {
-            return try await finishedExcerpt(from: cached, context: context, screenshot: screenshot, configuration: configuration)
+            return try await finishedExcerpt(
+                from: cached, context: context, screenshot: screenshot, configuration: configuration, reusedExtraction: true
+            )
         }
 
         let extracted: ExtractedScreenText
@@ -127,7 +133,9 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         }
 
         storeExtraction(extracted, for: pixelHash, configuration: configuration)
-        return try await finishedExcerpt(from: extracted, context: context, screenshot: screenshot, configuration: configuration)
+        return try await finishedExcerpt(
+            from: extracted, context: context, screenshot: screenshot, configuration: configuration, reusedExtraction: false
+        )
     }
 
     /// Hygiene, normalization, bounding, and the meaningful-signal gate, shared by the fresh and
@@ -138,20 +146,27 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         from extracted: ExtractedScreenText,
         context: FocusedInputSnapshot,
         screenshot: CapturedWindowScreenshot,
-        configuration: VisualContextConfiguration
+        configuration: VisualContextConfiguration,
+        reusedExtraction: Bool
     ) async throws -> VisualContextExcerpt {
+        // The focused field's own lines go first, by position: its text is already the caret prefix,
+        // and the screenshot usually shows a keystroke or two more than the snapshot it is compared
+        // with, so the text-based echo strip below misses exactly the line being typed. On a cache
+        // hit the stale typed text sits inside the same region and is dropped the same way.
+        let lines = screenshot.fieldRegion?.excluding(extracted.lines) ?? extracted.lines
+        let droppedFieldLineCount = extracted.lines.count - lines.count
         // Filter OCR corruption (garbled / symbol-noise / digit-substituted lines) and strip any
         // line that merely echoes the user's own field text, then sanitize for prompt-injection
         // safety. No model summarization: a base model conditions fine on cleaned raw context, and
         // the old summary step cost an extra generation per refresh and could hallucinate.
         let normalizedText = await Task.detached(priority: .utility) {
             let cleanedOCR = configuration.capturesEntireWindow ? VisualContextExcerptSelector.select(
-                lines: extracted.lines,
+                lines: lines,
                 fieldText: context.precedingText + " " + context.trailingText,
                 focusBounds: screenshot.focusBounds,
                 maxCharacters: configuration.maxSummaryCharacters
             ) : OCRTextHygiene.clean(
-                lines: extracted.lines,
+                lines: lines,
                 fieldText: context.precedingText + " " + context.trailingText,
                 maxChars: configuration.maxRecognizedCharacters
             )
@@ -177,7 +192,11 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         }
 
         CotabbyLogger.app.debug(
-            "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalContextText.count)"
+            "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalContextText.count)",
+            metadata: [
+                "ocr": .string(reusedExtraction ? "cached" : "fresh"),
+                "field_lines_dropped": .stringConvertible(droppedFieldLineCount)
+            ]
         )
 
         return VisualContextExcerpt(text: finalContextText)
@@ -190,13 +209,23 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     /// any real content change moves enough antialiased pixels that a stride collision is
     /// vanishingly unlikely, and the worst case of one is reusing OCR text for a window whose
     /// pixels barely changed. `nil` (no readable backing data) simply disables caching.
-    nonisolated private static func pixelHash(of image: CGImage) -> UInt64? {
+    ///
+    /// `excluded` is the focused field (see `FocusedFieldScreenRegion`): its pixels change with
+    /// every keystroke while its text never reaches the excerpt, so skipping them lets a recapture
+    /// whose only change is the user's typing hit the cache. The rectangle itself is mixed in, so
+    /// the cached lines are always judged against the same field geometry they were recognized with.
+    nonisolated private static func pixelHash(
+        of image: CGImage,
+        excluding excluded: FocusedFieldScreenRegion.PixelRect?
+    ) -> UInt64? {
         guard let data = image.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else {
             return nil
         }
 
         let length = CFDataGetLength(data)
+        let bytesPerRow = image.bytesPerRow
+        let bytesPerPixel = max(image.bitsPerPixel / 8, 1)
         let prime: UInt64 = 0x0000_0100_0000_01B3
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
         var index = 0
@@ -204,11 +233,23 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         // forever, so a chroma-only change (e.g. a theme toggle with unchanged luminance) could
         // hash identically. A stride coprime with the pixel size cycles through all four channels.
         while index < length {
+            if let excluded, bytesPerRow > 0,
+               excluded.rows.contains(index / bytesPerRow),
+               excluded.columns.contains((index % bytesPerRow) / bytesPerPixel) {
+                index += 17
+                continue
+            }
             hash = (hash ^ UInt64(bytes[index])) &* prime
             index += 17
         }
         hash = (hash ^ UInt64(image.width)) &* prime
         hash = (hash ^ UInt64(image.height)) &* prime
+        if let excluded {
+            for edge in [excluded.rows.lowerBound, excluded.rows.upperBound,
+                         excluded.columns.lowerBound, excluded.columns.upperBound] {
+                hash = (hash ^ UInt64(edge)) &* prime
+            }
+        }
         return hash
     }
 
