@@ -43,6 +43,33 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         XCTAssertEqual(standIn.font.pointSize, 15.45, accuracy: 0.01, "a stand-in three percent off the ladder keeps its sample's size")
     }
 
+    /// Claude's composer at a 60% ghost size (2026-10-29): the system face scaled to the host's
+    /// 15.7 width rendered and was remembered at 15.7, not 9.4, and every later launch started there.
+    /// The width sample sizes the host's face; the user's multiplier sizes the ghost.
+    func testAScaledSystemFaceKeepsTheUsersSizeMultiplier() {
+        let text = "I was thinking that"
+        var evidence = TypefaceEvidence()
+        evidence.record(.init(text: text, width: GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 15.7))), resolverFamily: nil)
+        let ghost = OverlayController.scaledSystemFace(size: 15, evidence: evidence, sizeMultiplier: 0.6)
+        XCTAssertEqual(ghost.font.pointSize, 15.7 * 0.6, accuracy: 0.02)
+        XCTAssertEqual(ghost.provenance, .hostSizeScaledSystem)
+
+        let snapped = OverlayController.scaledSystemFace(
+            size: 15, evidence: evidence, reportedSize: 15, zoomKind: .chromeBrowser, sizeMultiplier: 0.6
+        )
+        XCTAssertLessThan(snapped.font.pointSize, 10, "a zoom-step snap is the host's size, still scaled for the ghost")
+
+        let undecided = OverlayController.settledResolution(
+            for: .undecidable,
+            replacing: resolution(NSFont.systemFont(ofSize: 9), .hostSizeSystem),
+            systemFamily: NSFont.systemFont(ofSize: 15).familyName ?? "",
+            size: 15,
+            evidence: evidence,
+            sizeMultiplier: 0.6
+        )
+        XCTAssertEqual(undecided.font.pointSize, 15.7 * 0.6, accuracy: 0.02)
+    }
+
     func testAMatchWhoseAdvanceDisagreesWithTheHostsSampleIsRefused() {
         // Claude's composer: the caret travelled the width of Georgia 15.4 over this text; the
         // system face at 16.15 scored well on the shapes but is five percent wider than that.

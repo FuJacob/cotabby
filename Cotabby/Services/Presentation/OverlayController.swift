@@ -827,7 +827,10 @@ final class OverlayController: SuggestionOverlayControlling {
         default:
             return resolution
         }
-        let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize
+        // `size` is the host's (the families are judged against the host's own widths); every
+        // resolution built from it below takes the user's multiplier, which `resolution` already has.
+        let multiplier = CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+        let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize / max(multiplier, 0.01)
         markUnavailableNamedFace(resolution, for: geometry)
         var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
         let sample = Self.widthSample(of: geometry)
@@ -837,7 +840,7 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         if unavailableNamedFaceFields.contains(identity) {
             typefaceEvidence[identity] = evidence
-            return Self.scaledSystemFace(size: size, evidence: evidence)
+            return Self.scaledSystemFace(size: size, evidence: evidence, sizeMultiplier: multiplier)
         }
         // A system face scaled to a width sample is scaled ONCE per field, to the first sample long
         // enough (`TypefaceEvidence.scalingAdoptionLength`): a sample that grows poll by poll (the
@@ -851,7 +854,11 @@ final class OverlayController: SuggestionOverlayControlling {
            evidence.scalingSample != nil {
             typefaceEvidence[identity] = evidence
             return Self.scaledSystemFace(
-                size: size, evidence: evidence, reportedSize: zoomStep(for: geometry).reportedSize, zoomKind: zoomStep(for: geometry).kind
+                size: size,
+                evidence: evidence,
+                reportedSize: zoomStep(for: geometry).reportedSize,
+                zoomKind: zoomStep(for: geometry).kind,
+                sizeMultiplier: multiplier
             )
         }
         guard let sample else {
@@ -879,7 +886,9 @@ final class OverlayController: SuggestionOverlayControlling {
             "verdict": .string("\(verdict)")
         ]
         CotabbyLogger.suggestion.debug("Typeface evidence", metadata: evidenceMetadata)
-        return Self.settledResolution(for: verdict, replacing: resolution, systemFamily: systemFamily, size: size, evidence: evidence)
+        return Self.settledResolution(
+            for: verdict, replacing: resolution, systemFamily: systemFamily, size: size, evidence: evidence, sizeMultiplier: multiplier
+        )
     }
 
     /// Marks a field whose face the ghost cannot load, which from then on takes the system face
@@ -919,28 +928,33 @@ final class OverlayController: SuggestionOverlayControlling {
     /// The face a typeface verdict settles on, or `resolution` when it settles nothing new: the
     /// system face or a matched family replaces it, and an undecidable field takes the system face
     /// scaled to its own width.
-    private static func settledResolution(
+    static func settledResolution(
         for verdict: TypefaceEvidence.Verdict,
         replacing resolution: GhostFontResolver.Resolution,
         systemFamily: String,
         size: CGFloat,
-        evidence: TypefaceEvidence
+        evidence: TypefaceEvidence,
+        sizeMultiplier: CGFloat = 1
     ) -> GhostFontResolver.Resolution {
         switch verdict {
         case .singleSample:
             return resolution
         case .family(let family) where family == systemFamily:
             guard resolution.font.familyName != systemFamily else { return resolution }
-            return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
+            return userScaled(
+                GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1),
+                by: sizeMultiplier
+            )
         case .family(let family):
             guard resolution.font.familyName != family, let font = GhostFontResolver.familyFont(family, size: size) else {
                 return resolution
             }
-            return GhostFontResolver.Resolution(
-                font: font, provenance: .hostSizeMatchedFamily, widthAgreement: resolution.widthAgreement
+            return userScaled(
+                GhostFontResolver.Resolution(font: font, provenance: .hostSizeMatchedFamily, widthAgreement: resolution.widthAgreement),
+                by: sizeMultiplier
             )
         case .undecidable:
-            return scaledSystemFace(size: size, evidence: evidence)
+            return scaledSystemFace(size: size, evidence: evidence, sizeMultiplier: sizeMultiplier)
         }
     }
 
@@ -985,23 +999,49 @@ final class OverlayController: SuggestionOverlayControlling {
     /// (three presentations, 2026-09-11). As a stand-in for another face (one the host names but
     /// this Mac lacks, or one no family fits) the scaled size is that face's advance, not a size the
     /// host set, and it is kept as the sample gives it.
+    ///
+    /// Every size here is the host's, measured from the host's own text, so the user's ghost size
+    /// multiplier is applied last, as `GhostFontResolver.resolve` applies it to the resolution this
+    /// replaces. Without it a field at a 60% multiplier rendered and remembered its ghost at the
+    /// host's full size (15.7 where 9.4 was asked for in Claude's composer, 2026-10-29).
     static func scaledSystemFace(
-        size: CGFloat, evidence: TypefaceEvidence, reportedSize: CGFloat? = nil, zoomKind: HostZoomLadder.Kind? = nil
+        size: CGFloat,
+        evidence: TypefaceEvidence,
+        reportedSize: CGFloat? = nil,
+        zoomKind: HostZoomLadder.Kind? = nil,
+        sizeMultiplier: CGFloat = 1
     ) -> GhostFontResolver.Resolution {
         guard let sample = evidence.scalingSample else {
-            return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
+            return userScaled(
+                GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1),
+                by: sizeMultiplier
+            )
         }
         let scaled = GhostFontResolver.scaledSystemResolution(size: size, sample: sample.text, width: sample.width)
         guard let reportedSize, let zoomKind,
               let snapped = HostZoomLadder.snappedSize(measured: scaled.font.pointSize, reported: reportedSize, kind: zoomKind),
               snapped != scaled.font.pointSize
         else {
-            return scaled
+            return userScaled(scaled, by: sizeMultiplier)
         }
         let font = GhostFontResolver.resized(scaled.font, to: snapped)
         let measured = GhostFontResolver.width(of: sample.text, font: font)
+        return userScaled(
+            GhostFontResolver.Resolution(
+                font: font, provenance: .hostSizeScaledSystem, widthAgreement: measured > 0 ? sample.width / measured : 1
+            ),
+            by: sizeMultiplier
+        )
+    }
+
+    /// A resolution at the host's size, resized by the user's ghost size multiplier. The width
+    /// agreement is the host-size face's, as in `GhostFontResolver.resolve`.
+    static func userScaled(_ resolution: GhostFontResolver.Resolution, by sizeMultiplier: CGFloat) -> GhostFontResolver.Resolution {
+        guard sizeMultiplier > 0, abs(sizeMultiplier - 1) > 0.001 else { return resolution }
         return GhostFontResolver.Resolution(
-            font: font, provenance: .hostSizeScaledSystem, widthAgreement: measured > 0 ? sample.width / measured : 1
+            font: GhostFontResolver.resized(resolution.font, to: resolution.font.pointSize * sizeMultiplier),
+            provenance: resolution.provenance,
+            widthAgreement: resolution.widthAgreement
         )
     }
 
