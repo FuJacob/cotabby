@@ -54,10 +54,14 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         XCTAssertEqual(ghost.font.pointSize, 15.7 * 0.6, accuracy: 0.02)
         XCTAssertEqual(ghost.provenance, .hostSizeScaledSystem)
 
+        // A sample within the ladder's tolerance of the reported 15 snaps to it, and the snapped
+        // size is scaled too.
+        var nearStep = TypefaceEvidence()
+        nearStep.record(.init(text: text, width: GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 15.0621))), resolverFamily: nil)
         let snapped = OverlayController.scaledSystemFace(
-            size: 15, evidence: evidence, reportedSize: 15, zoomKind: .chromeBrowser, sizeMultiplier: 0.6
+            size: 15, evidence: nearStep, reportedSize: 15, zoomKind: .chromeBrowser, sizeMultiplier: 0.6
         )
-        XCTAssertLessThan(snapped.font.pointSize, 10, "a zoom-step snap is the host's size, still scaled for the ghost")
+        XCTAssertEqual(snapped.font.pointSize, 15 * 0.6, accuracy: 0.001, "a zoom-step snap is the host's size, still scaled for the ghost")
 
         let undecided = OverlayController.settledResolution(
             for: .undecidable,
