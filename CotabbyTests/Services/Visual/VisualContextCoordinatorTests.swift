@@ -23,6 +23,33 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
+    func test_ocrJitterKeepsTheCurrentExcerptByteIdenticalWithoutNotifying() async throws {
+        let generator = StubVisualContextGenerator()
+        let original = "Investigate screen context sessi\nThe newest message asks about the deadline"
+        generator.text = original
+        let coordinator = makeCoordinator(generator)
+        let live = CotabbyTestFixtures.focusedInputSnapshot()
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+
+        // The same screen read again with a truncated title flickering: the prompt keeps the
+        // exact text it already had, so neither the suggestion nor the KV prefix is reset.
+        generator.text = "Investigate screen context sessic\nThe newest message asks about the deadline"
+        let reads = generator.completedCount
+        try await waitUntil { generator.completedCount >= reads + 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, original)
+        XCTAssertEqual(coordinator.excerpt(for: FocusedInputContext(snapshot: live, generation: 1)), original)
+        XCTAssertEqual(notifications, 1)
+
+        generator.text = original + "\nCan you send the final numbers by Friday"
+        try await waitUntil { notifications == 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, generator.text)
+    }
+
     func test_permissionRevocationStopsRefreshAndClearsExcerpt() async throws {
         let generator = StubVisualContextGenerator()
         var allowed = true
@@ -192,6 +219,28 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.status, .ready)
         XCTAssertEqual(coordinator.latestExcerpt, "Project agenda and deadline")
         // Without a refresh provider there is no periodic recapture, so one start means one capture.
+        XCTAssertEqual(generator.contexts.count, 1)
+    }
+
+    /// The Claude desktop composer drops its placeholder a keystroke or two into typing. The same
+    /// field and focus session must keep its ready excerpt instead of re-capturing and re-running
+    /// OCR, which also changed the prompt head and forced a full llama re-prefill.
+    func test_placeholderHiddenByTypingKeepsTheReadySession() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let empty = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Type / for commands.")
+        let typed = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "df", fieldPlaceholder: nil)
+        defer { coordinator.cancel(resetState: true) }
+        coordinator.startSessionIfNeeded(for: empty, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        coordinator.startSessionIfNeeded(for: typed, configuration: .local)
+        XCTAssertEqual(coordinator.status, .ready)
+        XCTAssertEqual(
+            coordinator.excerpt(for: FocusedInputContext(snapshot: typed, generation: 2)), "Project agenda and deadline"
+        )
+        // Outlast the 250 ms settle delay: a restart would have captured a second time by now.
+        try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertEqual(generator.contexts.count, 1)
     }
 

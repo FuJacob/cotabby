@@ -19,13 +19,16 @@ nonisolated struct FocusedInputIdentity: Equatable, Sendable {
 /// advances the sequence when it observes navigation; the surface facts also protect consumers
 /// during a direct snapshot refresh. Requests and caches carry this immutable value only in
 /// memory. The full URL distinguishes conversations on one host and is never a prompt field.
+///
+/// The field placeholder is deliberately absent. Hosts show it only while the field is empty, so
+/// its live value flips with the text inside one session; FocusTracker's polling signature
+/// already folds a genuinely different placeholder into a new `focusChangeSequence`.
 nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let processIdentifier: Int32
     let bundleIdentifier: String
     let focusChangeSequence: UInt64
     let focusedURLString: String?
     let windowTitle: String?
-    let fieldPlaceholder: String?
 }
 
 /// Describes how trustworthy the resolved caret rect is.
@@ -492,7 +495,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         FocusedInputSessionIdentity(
             processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
             focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
-            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            windowTitle: windowTitle
         )
     }
 

@@ -372,13 +372,23 @@ final class FocusTracker {
         }
 
         let nextSignature = FocusedInputPollingSignature(context: context)
-        if let lastFocusedInputSignature, nextSignature.continuesField(of: lastFocusedInputSignature) {
-            // Same field, possibly resized in place. Track its latest frame so later growth is
-            // compared with the current edges, without opening a new writing session.
-            self.lastFocusedInputSignature = nextSignature
+        if let lastFocusedInputSignature,
+           let continued = nextSignature.continuation(of: lastFocusedInputSignature) {
+            // Same field, possibly resized in place. Remember its latest frame so later growth is
+            // compared with the current edges, plus the placeholder it last showed (hidden while
+            // the field has text), without opening a new writing session.
+            self.lastFocusedInputSignature = continued
             return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
         }
 
+        if let lastFocusedInputSignature {
+            // Every consumer keyed on the focus session (visual context, prediction memory, the
+            // KV-cache prefix) restarts here, so name the fact that broke continuity.
+            let facts = nextSignature.changedFacts(since: lastFocusedInputSignature)
+            CotabbyLogger.focus.debug(
+                "New focus session: app=\(application.localizedName ?? "?") changed=\(facts.joined(separator: ","))"
+            )
+        }
         lastFocusedInputSignature = nextSignature
         focusChangeSequence += 1
 

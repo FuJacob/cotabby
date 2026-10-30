@@ -64,6 +64,68 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         }
     }
 
+    /// Replays the Claude desktop composer as logged: it reports "Type / for commands." while empty,
+    /// keeps it for a poll after the first character (AX lags the DOM), drops it once text exists,
+    /// and restores it after the field is cleared. None of that is navigation.
+    func test_placeholderShownOnlyWhileEmptyKeepsOneSessionAcrossTypingAndClearing() {
+        let shown = "Type / for commands."
+        let polls: [(text: String, placeholder: String?)] = [
+            ("", shown), ("d", shown), ("df", nil), ("dfasdf", nil), ("", nil), ("", shown), ("h", nil)
+        ]
+        let boundaries = sessionBoundaries(polls.map { poll in
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: poll.text, fieldPlaceholder: poll.placeholder)
+        })
+        XCTAssertEqual(boundaries, [0], "Only the first poll opens a focus session")
+    }
+
+    func test_continuationRemembersTheLastShownPlaceholderWhileTheHostHidesIt() {
+        let empty = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "", fieldPlaceholder: "Message #general"
+        ))
+        let typed = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello", fieldPlaceholder: nil
+        ))
+        XCTAssertEqual(typed.continuation(of: empty)?.fieldPlaceholder, "Message #general")
+    }
+
+    /// A reused composer whose placeholder names another channel or chat is still a new field, even
+    /// when the user had typed in the first one (so its placeholder was hidden at the time).
+    func test_differentPlaceholderIsNavigationEvenAfterTypingHidThePreviousOne() {
+        let polls: [FocusedInputSnapshot] = [
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Message #general"),
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Draft", fieldPlaceholder: nil),
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Message #random")
+        ]
+        XCTAssertEqual(sessionBoundaries(polls), [0, 2])
+    }
+
+    /// With no placeholder seen yet, one appearing is treated as a possible different field. This
+    /// keeps detecting navigation from a drafted field to an empty one that reuses the geometry, at
+    /// the cost of one new session when a field first observed with text is cleared.
+    func test_placeholderAppearingWhereNoneWasShownIsNavigation() {
+        let drafted = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Draft", fieldPlaceholder: nil
+        ))
+        let cleared = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "", fieldPlaceholder: "Reply"
+        ))
+        XCTAssertNil(cleared.continuation(of: drafted))
+        XCTAssertEqual(cleared.changedFacts(since: drafted), ["placeholder"])
+    }
+
+    func test_changedFactsNamesOnlyTheFactsThatBrokeContinuity() {
+        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            fieldPlaceholder: "Reply"
+        ))
+        let hidden = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        XCTAssertEqual(hidden.changedFacts(since: original), [], "A hidden placeholder is not a changed fact")
+        let moved = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            inputFrameRect: CGRect(x: 40, y: 0, width: 240, height: 32),
+            windowTitle: "Another conversation"
+        ))
+        XCTAssertEqual(moved.changedFacts(since: original), ["title", "frame"])
+    }
+
     func test_subPointFrameJitterRoundsToTheSameSignature() {
         // AX frames arrive as floating-point points; rounding keeps half-point jitter from reading as
         // a different field.
@@ -93,5 +155,22 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
 
     private func signature(frame: CGRect) -> FocusedInputPollingSignature {
         FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(inputFrameRect: frame))
+    }
+
+    /// Folds polls the way `FocusTracker.captureSnapshot` does and returns the indices of the polls
+    /// that opened a new focus session (and so would advance `focusChangeSequence`).
+    private func sessionBoundaries(_ polls: [FocusedInputSnapshot]) -> [Int] {
+        var remembered: FocusedInputPollingSignature?
+        var boundaries: [Int] = []
+        for (index, poll) in polls.enumerated() {
+            let next = FocusedInputPollingSignature(context: poll)
+            if let previous = remembered, let continued = next.continuation(of: previous) {
+                remembered = continued
+            } else {
+                boundaries.append(index)
+                remembered = next
+            }
+        }
+        return boundaries
     }
 }
