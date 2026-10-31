@@ -51,6 +51,21 @@ final class FocusedInputContextTests: XCTestCase {
         XCTAssertEqual(chatA.suggestionSessionIdentityKey, chatAAfterTyping.suggestionSessionIdentityKey)
     }
 
+    /// Hosts show a placeholder only while the field is empty. Its disappearance on the first typed
+    /// characters must not read as a new writing session (FocusTracker's sequence carries a real
+    /// placeholder change), or prediction memory and screen context reset on every first keystroke.
+    func test_sessionIdentity_survivesThePlaceholderHidingOnceTextIsTyped() {
+        let empty = CotabbyTestFixtures.focusedInputContext(
+            elementIdentifier: "composer", precedingText: "", fieldPlaceholder: "Type / for commands."
+        )
+        let typed = CotabbyTestFixtures.focusedInputContext(
+            elementIdentifier: "composer", precedingText: "df", fieldPlaceholder: nil
+        )
+
+        XCTAssertEqual(empty.sessionIdentity, typed.sessionIdentity)
+        XCTAssertEqual(empty.suggestionSessionIdentityKey, typed.suggestionSessionIdentityKey)
+    }
+
     func test_sessionIdentity_matchesTheSnapshotItWasBuiltFrom() {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(
             focusChangeSequence: 5,

@@ -350,14 +350,28 @@ final class VisualContextCoordinator {
             return
         }
 
-        let changed = activeAugmentationSession?.excerpt?.text != excerpt.text
+        // OCR reads an unchanged screen a little differently on every refresh. When the new reading
+        // is the same screen as far as `VisualContextExcerptStability` can tell, keep the excerpt in
+        // use byte-identical: no navigation signal, and the llama prompt head (and its KV prefix)
+        // stays put. The kept text takes the new capture's age, since it still describes the screen.
+        let current = activeAugmentationSession?.excerpt
+        let adopted: VisualContextExcerpt
+        if let current, !VisualContextExcerptStability.isMaterialChange(from: current.text, to: excerpt.text) {
+            adopted = current
+            if current.text != excerpt.text {
+                CotabbyLogger.app.debug("Visual context refresh kept the current excerpt; only OCR jitter changed")
+            }
+        } else {
+            adopted = excerpt
+        }
+        let changed = current?.text != adopted.text
         activeAugmentationSession?.status = .ready
-        activeAugmentationSession?.excerpt = excerpt
+        activeAugmentationSession?.excerpt = adopted
         status = .ready
-        latestExcerpt = excerpt.text
+        latestExcerpt = adopted.text
         excerptCapturedAt = capturedAt
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
-        CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
+        CotabbyLogger.app.debug("Visual context ready: \(adopted.text.count) chars")
         publishState()
         if changed { onInjectedContextReady?(identity) }
     }

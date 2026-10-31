@@ -1288,7 +1288,28 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Whether disabling predictions for `reason` should keep `focusSnapshot`'s visual-context
+    /// session; see `SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled`.
+    func shouldKeepVisualContextWhileDisabled(reason: String, focusSnapshot: FocusSnapshot) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
+            disabledReason: reason,
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+        )
+    }
+
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
+    /// The field's visual-context session survives a transient state of a field still in focus
+    /// (see `shouldKeepVisualContextWhileDisabled`); every other disable ends it.
     func disablePredictions(reason: String) {
         suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
@@ -1302,7 +1323,12 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
-        visualContextCoordinator.cancel(resetState: true)
+        // Key, scheduling, and reconcile paths reach here for the same transient field states the
+        // focus-change path handles with `disablePredictionsPreservingVisualContext`; decide by the
+        // current snapshot so both paths agree on when the field's screen context survives.
+        if !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
+            visualContextCoordinator.cancel(resetState: true)
+        }
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
