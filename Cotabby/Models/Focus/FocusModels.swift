@@ -508,6 +508,11 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         precedingText.utf16.count >= Self.textWindowUTF16
     }
 
+    /// True when capture may have cut the end of `trailingText` to fit that window.
+    nonisolated var trailingTextMayBeTruncated: Bool {
+        trailingText.utf16.count >= Self.textWindowUTF16
+    }
+
     /// The signature lets later pipeline stages detect whether a completion result is stale.
     /// This is the same idea you would use in a React app with a derived cache key.
     /// Content-only fingerprint for staleness detection. Deliberately excludes `elementIdentifier`

@@ -101,6 +101,10 @@ final class FocusModelsTests: XCTestCase {
         // The window is measured in UTF-16 units, so a surrogate-pair emoji counts twice.
         let emojiAtWindow = String(repeating: "\u{1F600}", count: window / 2)
         XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(precedingText: emojiAtWindow).precedingTextMayBeTruncated)
+
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingText: underWindow).trailingTextMayBeTruncated)
+        XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingText: atWindow).trailingTextMayBeTruncated)
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(precedingText: atWindow).trailingTextMayBeTruncated)
     }
 
     func test_focusPollingEvent_changeSummaryLabelsReflectFocusChange() {

@@ -152,7 +152,8 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         // The focused field's own lines go first, by position: its text is already the caret prefix,
         // and the screenshot usually shows a keystroke or two more than the snapshot it is compared
         // with, so the text-based echo strip below misses exactly the line being typed. On a cache
-        // hit the stale typed text sits inside the same region and is dropped the same way.
+        // hit the stale typed text sits inside the same region and is dropped the same way. In a
+        // long document the region is only the caret's line (see `FocusedFieldScreenRegion`).
         let lines = screenshot.fieldRegion?.excluding(extracted.lines) ?? extracted.lines
         let droppedFieldLineCount = extracted.lines.count - lines.count
         // Filter OCR corruption (garbled / symbol-noise / digit-substituted lines) and strip any

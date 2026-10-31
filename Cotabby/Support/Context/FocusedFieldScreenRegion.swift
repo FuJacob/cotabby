@@ -13,7 +13,9 @@ import Foundation
 /// retires the suggestion, and the new prompt head forces a full llama re-prefill), so typing in a
 /// chat composer used to reset completions every three seconds. With the field excluded, a refresh
 /// whose only change is the user's typing reuses the cached OCR and yields a byte-identical excerpt,
-/// while any change outside the field (another conversation, a new message) still changes it.
+/// while any change outside the field (another conversation, a new message) still changes it. In a
+/// long document, whose text Accessibility delivers only as a window around the caret, the region
+/// shrinks to the caret's line, so the rest of the visible document still reaches screen context.
 ///
 /// `WindowScreenshotService` builds this value from the snapshot's unwidened `elementFrameRect` (the
 /// widened `inputFrameRect` can cover a neighbouring label or button); `ScreenshotContextGenerator`
@@ -52,6 +54,23 @@ nonisolated struct FocusedFieldScreenRegion: Equatable, Sendable {
             height: fieldFrame.height / captureRect.height
         )
         self.init(bounds: normalized)
+    }
+
+    /// The region for a field whose text Accessibility may have delivered only in part. Focus
+    /// capture keeps `FocusedInputSnapshot.textWindowUTF16` units on each side of the caret, so in a
+    /// long document the visible lines farther away are text the prompt never received: screen
+    /// context like any other. Only the caret's own line band is excluded then. That is the line
+    /// being typed, certainly inside the window, and the one the text-based echo strip misses because
+    /// the screenshot runs a keystroke or two ahead of the snapshot; the field's other lines go
+    /// through that echo strip as before. `caretFrame` is in the same Core Graphics space as
+    /// `fieldFrame`. A caret without height leaves no region at all.
+    init?(fieldFrame: CGRect, caretFrame: CGRect, captureRect: CGRect, fieldTextIsComplete: Bool) {
+        if fieldTextIsComplete {
+            self.init(fieldFrame: fieldFrame, captureRect: captureRect)
+        } else {
+            let caretLine = CGRect(x: fieldFrame.minX, y: caretFrame.minY, width: fieldFrame.width, height: caretFrame.height)
+            self.init(fieldFrame: caretLine.intersection(fieldFrame), captureRect: captureRect)
+        }
     }
 
     /// Wraps bounds that are already in Vision's normalized space, clipping them to the image.

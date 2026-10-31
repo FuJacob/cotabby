@@ -68,6 +68,50 @@ final class FocusedFieldScreenRegionTests: XCTestCase {
         ])
     }
 
+    // MARK: - Fields whose text arrived only in part
+
+    func test_aFieldWhoseWholeTextArrivedIsExcludedWhole() throws {
+        let field = CGRect(x: 100, y: 100, width: 800, height: 800)
+        let capture = CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        let region = try XCTUnwrap(FocusedFieldScreenRegion(
+            fieldFrame: field, caretFrame: CGRect(x: 300, y: 500, width: 2, height: 20),
+            captureRect: capture, fieldTextIsComplete: true
+        ))
+
+        XCTAssertEqual(region, FocusedFieldScreenRegion(fieldFrame: field, captureRect: capture))
+    }
+
+    func test_aLongDocumentExcludesOnlyTheCaretLine() throws {
+        // Accessibility delivered a window of text around the caret, so the editor's other visible
+        // lines may be text the prompt never received.
+        let region = try XCTUnwrap(FocusedFieldScreenRegion(
+            fieldFrame: CGRect(x: 100, y: 100, width: 800, height: 800),
+            caretFrame: CGRect(x: 300, y: 500, width: 2, height: 20),
+            captureRect: CGRect(x: 0, y: 0, width: 1000, height: 1000),
+            fieldTextIsComplete: false
+        ))
+
+        // The field's full width at the caret's height: display y 500...520 is Vision y 0.48...0.5.
+        assertEqual(region.bounds, CGRect(x: 0.1, y: 0.48, width: 0.8, height: 0.02))
+        XCTAssertTrue(region.contains(line("the sentence being typed", x: 0.12, y: 0.475, width: 0.5)))
+        XCTAssertFalse(region.contains(line("the next line of the paragraph", x: 0.12, y: 0.45, width: 0.5)))
+        XCTAssertFalse(region.contains(line("a heading far above the caret", x: 0.12, y: 0.8, width: 0.5)))
+    }
+
+    func test_aLongDocumentWithoutAUsableCaretHasNoRegion() {
+        let field = CGRect(x: 100, y: 100, width: 800, height: 800)
+        let capture = CGRect(x: 0, y: 0, width: 1000, height: 1000)
+
+        XCTAssertNil(FocusedFieldScreenRegion(
+            fieldFrame: field, caretFrame: CGRect(x: 300, y: 950, width: 2, height: 20),
+            captureRect: capture, fieldTextIsComplete: false
+        ))
+        XCTAssertNil(FocusedFieldScreenRegion(
+            fieldFrame: field, caretFrame: CGRect(x: 300, y: 500, width: 2, height: 0),
+            captureRect: capture, fieldTextIsComplete: false
+        ))
+    }
+
     // MARK: - Pixel rectangle for the extraction cache
 
     func test_pixelRectPutsTheTopRowFirst() throws {

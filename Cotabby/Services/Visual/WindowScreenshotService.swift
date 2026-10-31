@@ -141,7 +141,10 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         // The element's own frame, not the widened `inputFrameRect`: widening reaches neighbouring
         // labels and buttons that are screen context, not the user's text.
         let fieldRegion = context.elementFrameRect.flatMap {
-            FocusedFieldScreenRegion(fieldFrame: convertBetweenAppKitAndCG(rect: $0), captureRect: sourceRect)
+            FocusedFieldScreenRegion(
+                fieldFrame: convertBetweenAppKitAndCG(rect: $0), caretFrame: caret, captureRect: sourceRect,
+                fieldTextIsComplete: !context.precedingTextMayBeTruncated && !context.trailingTextMayBeTruncated
+            )
         }
         return CapturedWindowScreenshot(
             image: image,
