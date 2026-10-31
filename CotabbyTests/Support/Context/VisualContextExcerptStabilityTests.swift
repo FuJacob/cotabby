@@ -95,6 +95,17 @@ final class VisualContextExcerptStabilityTests: XCTestCase {
             + "\n" + current.components(separatedBy: "\n").dropFirst().joined(separator: "\n")))
     }
 
+    // MARK: - Bounded work
+
+    func test_runningOutOfComparisonBudgetCountsAsMaterial() {
+        let reread = Self.screen
+            .replacingOccurrences(of: "sessi\n", with: "sessic\n")
+            .replacingOccurrences(of: "OpenAI t 1 Chromium", with: "OpenAI tEN Chromium")
+        XCTAssertFalse(isMaterial(Self.screen, reread))
+        // Without enough budget to pair the reread lines, the refresh falls back to resetting.
+        XCTAssertTrue(VisualContextExcerptStability.isMaterialChange(from: Self.screen, to: reread, comparisonBudget: 1))
+    }
+
     // MARK: - Helpers
 
     private func isMaterial(_ current: String, _ candidate: String) -> Bool {

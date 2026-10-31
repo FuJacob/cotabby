@@ -26,25 +26,43 @@ import Foundation
 /// words is absorbed until something larger changes.
 nonisolated enum VisualContextExcerptStability {
     /// Beyond this many unmatched lines on either side the excerpt is treated as new without
-    /// pairing, which also bounds the quadratic pairing work done on the main actor.
+    /// pairing.
     private static let maximumUnmatchedLines = 40
 
+    /// Edit-table cells one call may fill in total. The rule runs on the main actor at every
+    /// refresh. Real refreshes stay far below this: no pair of excerpts from a dev-log run of a busy
+    /// Claude window needed more than about 2,000 cells. A screen of many similar lines (repeated
+    /// code, a table) makes every pairing attempt fill most of its band instead; this caps such a
+    /// refresh at a few milliseconds. Past the budget the change counts as material, so that refresh
+    /// resets the suggestion, as every refresh did before this rule existed.
+    static let defaultComparisonBudget = 200_000
+
+    /// One excerpt line, prepared once per call: its key words, and those words joined into the
+    /// Unicode scalars that character distances are counted in. Scalars compare as integers, where
+    /// `Character` equality goes through grapheme comparison on every table cell.
+    private struct Line {
+        let words: [String]
+        let scalars: [Unicode.Scalar]
+    }
+
     /// True when `candidate` should replace `current` (and count as navigation); false when it is
-    /// the same screen as far as OCR can tell.
-    static func isMaterialChange(from current: String, to candidate: String) -> Bool {
+    /// the same screen as far as OCR can tell. `comparisonBudget` exists for tests.
+    static func isMaterialChange(
+        from current: String, to candidate: String, comparisonBudget: Int = defaultComparisonBudget
+    ) -> Bool {
         guard current != candidate else {
             return false
         }
-        let currentLines = lineKeys(current)
+        let currentLines = lines(current)
         guard !currentLines.isEmpty else {
-            return !lineKeys(candidate).isEmpty
+            return !lines(candidate).isEmpty
         }
 
         // Exact key matches cancel out as a multiset, so reordered lines cost nothing.
         var unmatchedCurrent = currentLines
-        var unmatchedCandidate: [[String]] = []
-        for line in lineKeys(candidate) {
-            if let index = unmatchedCurrent.firstIndex(of: line) {
+        var unmatchedCandidate: [Line] = []
+        for line in lines(candidate) {
+            if let index = unmatchedCurrent.firstIndex(where: { $0.words == line.words }) {
                 unmatchedCurrent.remove(at: index)
             } else {
                 unmatchedCandidate.append(line)
@@ -54,38 +72,48 @@ nonisolated enum VisualContextExcerptStability {
             return true
         }
 
+        var budget = comparisonBudget
         var difference = 0
-        var leftover: [[String]] = []
+        var leftover: [Line] = []
         for line in unmatchedCandidate {
-            let best = unmatchedCurrent.indices
-                .compactMap { index in rereadCost(line, unmatchedCurrent[index]).map { (index, $0) } }
-                .min { $0.1 < $1.1 }
-            if let (index, cost) = best {
-                unmatchedCurrent.remove(at: index)
-                difference += cost
+            // The cheapest pairing wins, the earliest on a tie. Each comparison only needs to beat
+            // the best found so far, which lets the edit tables stop sooner.
+            var best: (index: Int, cost: Int)?
+            for index in unmatchedCurrent.indices {
+                let ceiling = best?.cost ?? Int.max
+                if let cost = rereadCost(line, unmatchedCurrent[index], below: ceiling, budget: &budget) {
+                    best = (index, cost)
+                }
+                if budget < 0 {
+                    return true
+                }
+            }
+            if let best {
+                unmatchedCurrent.remove(at: best.index)
+                difference += best.cost
             } else {
                 leftover.append(line)
             }
         }
         leftover += unmatchedCurrent
 
-        if leftover.contains(where: isRealLine) {
+        if leftover.contains(where: { isRealLine($0.words) }) {
             return true
         }
-        difference += leftover.reduce(0) { $0 + joined($1).count }
+        difference += leftover.reduce(0) { $0 + $1.scalars.count }
         return difference > max(40, current.count / 20)
     }
 
     /// One key per line: lowercased words with digits removed, keeping only words that still have
     /// at least two letters. Lines with no such word (digit runs, icons, single letters) vanish.
     /// Only decimal digits go: `Character.isNumber` would also strip CJK numerals such as 一 and 十.
-    private static func lineKeys(_ text: String) -> [[String]] {
+    private static func lines(_ text: String) -> [Line] {
         text.split(whereSeparator: \.isNewline).compactMap { line in
             let words = line.lowercased()
                 .split(whereSeparator: \.isWhitespace)
                 .map { String($0.filter { $0.unicodeScalars.first?.properties.numericType != .decimal }) }
                 .filter { $0.filter(\.isLetter).count >= 2 }
-            return words.isEmpty ? nil : words
+            return words.isEmpty ? nil : Line(words: words, scalars: Array(words.joined(separator: " ").unicodeScalars))
         }
     }
 
@@ -112,49 +140,67 @@ nonisolated enum VisualContextExcerptStability {
         return scalar.properties.isIdeographic || (0x3040...0x30FF).contains(scalar.value)
     }
 
-    /// The character difference between two lines when they are the same line read twice, or nil.
-    private static func rereadCost(_ lhs: [String], _ rhs: [String]) -> Int? {
-        let left = Array(joined(lhs)), right = Array(joined(rhs))
+    /// The character difference between two lines when they are the same line read twice and it is
+    /// below `ceiling`, or nil.
+    private static func rereadCost(_ lhs: Line, _ rhs: Line, below ceiling: Int, budget: inout Int) -> Int? {
+        let left = lhs.scalars, right = rhs.scalars
         let longer = max(left.count, right.count), shorter = min(left.count, right.count)
         // A truncated title whose cut point moves by a few characters.
         if left.starts(with: right) || right.starts(with: left), longer - shorter <= max(3, shorter / 4) {
-            return longer - shorter
+            return longer - shorter < ceiling ? longer - shorter : nil
         }
-        let characterLimit = max(2, longer / 5)
-        if let distance = editDistance(left, right, limit: characterLimit) {
+        let characterLimit = min(max(2, longer / 5), ceiling - 1)
+        if let distance = editDistance(left, right, limit: characterLimit, budget: &budget) {
             return distance
         }
-        // One misread, inserted or dropped word ("OpenAI tEN Chromium" / "OpenAI Chromium").
-        if min(lhs.count, rhs.count) >= 2, editDistance(lhs, rhs, limit: 1) != nil {
-            return editDistance(left, right, limit: longer)
+        // One misread, inserted or dropped word ("OpenAI tEN Chromium" / "OpenAI Chromium"). The
+        // cost is still the character distance; when the ceiling is already below the limit above,
+        // that distance was just found to be too large.
+        let wordLimit = min(longer, ceiling - 1)
+        if wordLimit > characterLimit, min(lhs.words.count, rhs.words.count) >= 2,
+           editDistance(lhs.words, rhs.words, limit: 1, budget: &budget) != nil {
+            return editDistance(left, right, limit: wordLimit, budget: &budget)
         }
         return nil
     }
 
-    private static func joined(_ words: [String]) -> String {
-        words.joined(separator: " ")
-    }
-
-    /// Levenshtein distance, or nil once it must exceed `limit` (checked per row, so unrelated
-    /// lines are rejected after a few rows instead of filling the whole table).
-    private static func editDistance<Element: Equatable>(_ lhs: [Element], _ rhs: [Element], limit: Int) -> Int? {
-        guard abs(lhs.count - rhs.count) <= limit else {
+    /// Levenshtein distance, or nil when it exceeds `limit`. Only cells within `limit` of the
+    /// diagonal can lie on a path that cheap (Ukkonen's cutoff), so a row fills at most
+    /// 2 * limit + 1 cells, and a row whose minimum already exceeds the limit ends the comparison.
+    /// Cells outside the band hold `limit + 1`, which is as good as infinite here. Every filled cell
+    /// is charged to `budget`; the caller checks it.
+    private static func editDistance<Element: Equatable>(
+        _ lhs: [Element], _ rhs: [Element], limit: Int, budget: inout Int
+    ) -> Int? {
+        guard limit >= 0, abs(lhs.count - rhs.count) <= limit else {
             return nil
         }
-        var previous = Array(0...rhs.count)
-        var current = previous
+        let unreachable = limit + 1
+        var previous = (0...rhs.count).map { min($0, unreachable) }
+        var current = Array(repeating: unreachable, count: rhs.count + 1)
         for (row, left) in lhs.enumerated() {
-            current[0] = row + 1
-            var rowMinimum = current[0]
-            for (column, right) in rhs.enumerated() {
-                current[column + 1] = min(
-                    previous[column + 1] + 1,
-                    current[column] + 1,
-                    previous[column] + (left == right ? 0 : 1)
-                )
-                rowMinimum = min(rowMinimum, current[column + 1])
+            let tableRow = row + 1
+            let first = max(1, tableRow - limit), last = min(rhs.count, tableRow + limit)
+            current[first - 1] = first == 1 ? min(tableRow, unreachable) : unreachable
+            var rowMinimum = current[first - 1]
+            if first <= last {
+                budget -= last - first + 1
+                for column in first...last {
+                    let cell = min(
+                        previous[column - 1] + (left == rhs[column - 1] ? 0 : 1),
+                        previous[column] + 1,
+                        current[column - 1] + 1,
+                        unreachable
+                    )
+                    current[column] = cell
+                    rowMinimum = min(rowMinimum, cell)
+                }
             }
-            guard rowMinimum <= limit else {
+            // The next row reads one cell past this row's band; it must not see a stale value.
+            if last < rhs.count {
+                current[last + 1] = unreachable
+            }
+            guard rowMinimum <= limit, budget >= 0 else {
                 return nil
             }
             swap(&previous, &current)
