@@ -78,6 +78,20 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         XCTAssertEqual(boundaries, [0], "Only the first poll opens a focus session")
     }
 
+    /// The same composer, but its host answers "" (or whitespace) instead of dropping the attribute.
+    func test_anEmptyPlaceholderIsAHiddenOneNotANewField() {
+        let shown = "Type / for commands."
+        let polls: [(text: String, placeholder: String?)] = [
+            ("", shown), ("d", ""), ("df", " "), ("", shown)
+        ]
+        let boundaries = sessionBoundaries(polls.map { poll in
+            CotabbyTestFixtures.focusedInputSnapshot(precedingText: poll.text, fieldPlaceholder: poll.placeholder)
+        })
+        XCTAssertEqual(boundaries, [0])
+        let empty = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: ""))
+        XCTAssertNil(empty.fieldPlaceholder)
+    }
+
     func test_continuationRemembersTheLastShownPlaceholderWhileTheHostHidesIt() {
         let empty = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "", fieldPlaceholder: "Message #general"

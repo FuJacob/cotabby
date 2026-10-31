@@ -29,7 +29,12 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
         subrole = context.subrole
         windowTitle = context.windowTitle
         focusedURLString = context.focusedURLString
-        fieldPlaceholder = context.fieldPlaceholder
+        // A host may answer `AXPlaceholderValue` with "" instead of dropping the attribute once text
+        // hides it. An empty placeholder is no placeholder (the prompt side reads it the same way);
+        // kept as "", it would differ from the one this session showed and look like navigation.
+        fieldPlaceholder = context.fieldPlaceholder.flatMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+        }
         fieldAnchor = FieldAnchor(
             inputFrame: context.inputFrameRect,
             fallbackElementIdentifier: context.elementIdentifier
