@@ -74,6 +74,8 @@ nonisolated enum VisualContextExcerptStability {
             return true
         }
 
+        // The old lines this refresh changed, before pairing consumes any of them.
+        let changedCurrent = unmatchedCurrent
         var budget = comparisonBudget
         var difference = 0
         var leftover: [Line] = []
@@ -91,7 +93,7 @@ nonisolated enum VisualContextExcerptStability {
                 }
             }
             if let best {
-                if grewIntoRealLine(line, from: unmatchedCurrent[best.index], leftovers: unmatchedCurrent) {
+                if grewIntoRealLine(line, from: unmatchedCurrent[best.index], changedLines: changedCurrent) {
                     return true
                 }
                 unmatchedCurrent.remove(at: best.index)
@@ -141,16 +143,18 @@ nonisolated enum VisualContextExcerptStability {
     /// it a real line ("Error saving" -> "Error saving draft"). The pair still reads as the same
     /// line, but the leftover check never sees the new line, so text being written there would be
     /// absorbed. Misreads change words inside a line ("OpenAI t 1 Chromium" / "OpenAI tEN
-    /// Chromium"), so only growth at the end counts. The exception is a line OCR had split and
-    /// now reads whole again ("Opus Extra" and "Auto" -> "Opus Extra Auto"): the added word was
-    /// already on screen as a line of its own, still among `leftovers`.
-    private static func grewIntoRealLine(_ candidate: Line, from current: Line, leftovers: [Line]) -> Bool {
+    /// Chromium"), so only growth at the end counts. The exception is a word that only moved across
+    /// a split OCR made inside one visual line: it rejoined ("Opus Extra" and "Auto" -> "Opus Extra
+    /// Auto") or split at the next word instead ("Error saving" and "Draft note" -> "Error saving
+    /// draft" and "note"). Either way the added word began one of `changedLines`, the old lines this
+    /// refresh did not reproduce exactly.
+    private static func grewIntoRealLine(_ candidate: Line, from current: Line, changedLines: [Line]) -> Bool {
         guard candidate.words.count == current.words.count + 1, candidate.words.starts(with: current.words),
               isRealLine(candidate.words), !isRealLine(current.words), let added = candidate.words.last
         else {
             return false
         }
-        return !leftovers.contains { $0.words == [added] }
+        return !changedLines.contains { $0.words.first == added }
     }
 
     private static func isSpacelessScript(_ character: Character) -> Bool {

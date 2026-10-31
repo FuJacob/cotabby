@@ -49,6 +49,8 @@ final class VisualContextExcerptStabilityTests: XCTestCase {
         // a real line made by adding a word, but that word was on screen as its own line.
         let split = Self.screen.replacingOccurrences(of: "Opus 5.5 Extra Auto", with: "Opus 5.5 Extra\nAuto")
         XCTAssertFalse(isMaterial(split, Self.screen))
+        // The split moving by a word within the visual line is the same reread.
+        XCTAssertFalse(isMaterial(Self.screen + "\nError saving\nDraft note", Self.screen + "\nError saving draft\nnote"))
     }
 
     func test_reorderedLinesAreNotMaterial() {
