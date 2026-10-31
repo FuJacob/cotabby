@@ -16,14 +16,16 @@ import Foundation
 /// fragments with fewer than two letters. Lines whose keys match exactly cancel out; each remaining
 /// new line may pair with one remaining old line when they are evidently the same line read twice
 /// (one truncates the other, a few characters differ, or one word differs). A change is material
-/// when any unpaired line is a real line of text (three words or more), or when the paired and
-/// leftover differences add up to more than a small share of the excerpt. A new message, a
+/// when any unpaired line is a real line of text (three words or more), when a pairing is a short
+/// line that became a real one by gaining a word at its end, or when the paired and leftover
+/// differences add up to more than a small share of the excerpt. A new message, a
 /// different conversation, or text streaming into view therefore still counts, while flicker does
 /// not. Comparing against the excerpt in use, not the previous capture, keeps slow drift from
 /// accumulating unnoticed.
 ///
-/// Known cost: a change confined to digits (a counter, an amount) or to a new line of one or two
-/// words is absorbed until something larger changes.
+/// Known cost: a change confined to digits (a counter, an amount), to a new line of one or two
+/// words, or to one word added to a line that already was a real line is absorbed until something
+/// larger changes.
 nonisolated enum VisualContextExcerptStability {
     /// Beyond this many unmatched lines on either side the excerpt is treated as new without
     /// pairing.
@@ -89,6 +91,9 @@ nonisolated enum VisualContextExcerptStability {
                 }
             }
             if let best {
+                if grewIntoRealLine(line, from: unmatchedCurrent[best.index], leftovers: unmatchedCurrent) {
+                    return true
+                }
                 unmatchedCurrent.remove(at: best.index)
                 difference += best.cost
             } else {
@@ -130,6 +135,22 @@ nonisolated enum VisualContextExcerptStability {
             width += word.count + spaceless
         }
         return wordCount >= 3 && width >= 12
+    }
+
+    /// True when `candidate` is `current` with one more word at its end and that word is what made
+    /// it a real line ("Error saving" -> "Error saving draft"). The pair still reads as the same
+    /// line, but the leftover check never sees the new line, so text being written there would be
+    /// absorbed. Misreads change words inside a line ("OpenAI t 1 Chromium" / "OpenAI tEN
+    /// Chromium"), so only growth at the end counts. The exception is a line OCR had split and
+    /// now reads whole again ("Opus Extra" and "Auto" -> "Opus Extra Auto"): the added word was
+    /// already on screen as a line of its own, still among `leftovers`.
+    private static func grewIntoRealLine(_ candidate: Line, from current: Line, leftovers: [Line]) -> Bool {
+        guard candidate.words.count == current.words.count + 1, candidate.words.starts(with: current.words),
+              isRealLine(candidate.words), !isRealLine(current.words), let added = candidate.words.last
+        else {
+            return false
+        }
+        return !leftovers.contains { $0.words == [added] }
     }
 
     private static func isSpacelessScript(_ character: Character) -> Bool {

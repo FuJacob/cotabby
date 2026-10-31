@@ -44,6 +44,13 @@ final class VisualContextExcerptStabilityTests: XCTestCase {
         XCTAssertFalse(isMaterial(Self.screen, reread))
     }
 
+    func test_aSplitLineReadWholeAgainIsNotMaterial() {
+        // The reverse of the split above, as it flickered back in the same run: the joined line is
+        // a real line made by adding a word, but that word was on screen as its own line.
+        let split = Self.screen.replacingOccurrences(of: "Opus 5.5 Extra Auto", with: "Opus 5.5 Extra\nAuto")
+        XCTAssertFalse(isMaterial(split, Self.screen))
+    }
+
     func test_reorderedLinesAreNotMaterial() {
         let lines = Self.screen.components(separatedBy: "\n")
         XCTAssertFalse(isMaterial(Self.screen, lines.reversed().joined(separator: "\n")))
@@ -65,6 +72,17 @@ final class VisualContextExcerptStabilityTests: XCTestCase {
         XCTAssertTrue(isMaterial(Self.screen, Self.screen + "\n请把最终预算发给我"))
         // A two-character label appearing is still a fragment.
         XCTAssertFalse(isMaterial(Self.screen, Self.screen + "\n设置"))
+    }
+
+    func test_aShortLineGrowingIntoARealLineIsMaterial() {
+        let current = Self.screen + "\nError saving"
+        XCTAssertTrue(isMaterial(current, Self.screen + "\nError saving draft"))
+        // A word misread inside the line, or one more word on a line that was already real, is
+        // still the same line.
+        XCTAssertFalse(isMaterial(current, Self.screen + "\nError savng"))
+        XCTAssertFalse(isMaterial(Self.screen, Self.screen.replacingOccurrences(
+            of: "Stop screen refreshes resetting", with: "Stop screen refreshes resetting it"
+        )))
     }
 
     func test_aDifferentConversationIsMaterial() {
