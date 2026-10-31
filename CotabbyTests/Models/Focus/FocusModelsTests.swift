@@ -105,6 +105,9 @@ final class FocusModelsTests: XCTestCase {
         XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingText: underWindow).trailingTextMayBeTruncated)
         XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingText: atWindow).trailingTextMayBeTruncated)
         XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(precedingText: atWindow).trailingTextMayBeTruncated)
+        // An empty trailing text the host never delivered is unknown, not the end of the field.
+        XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).trailingTextMayBeTruncated)
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).precedingTextMayBeTruncated)
     }
 
     func test_focusPollingEvent_changeSummaryLabelsReflectFocusChange() {

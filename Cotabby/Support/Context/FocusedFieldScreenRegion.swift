@@ -59,9 +59,11 @@ nonisolated struct FocusedFieldScreenRegion: Equatable, Sendable {
     /// The region for a field whose text Accessibility may have delivered only in part. Focus
     /// capture keeps `FocusedInputSnapshot.textWindowUTF16` units on each side of the caret, so in a
     /// long document the visible lines farther away are text the prompt never received: screen
-    /// context like any other. Only the caret's own line band is excluded then. That is the line
-    /// being typed, certainly inside the window, and the one the text-based echo strip misses because
-    /// the screenshot runs a keystroke or two ahead of the snapshot; the field's other lines go
+    /// context like any other. So are the lines after the caret when the host answered nothing for
+    /// them (`FocusedInputSnapshot.trailingTextUnavailable`). Only the caret's own line band is
+    /// excluded then. That is the line being typed, certainly inside the window, and the one the
+    /// text-based echo strip misses because the screenshot runs a keystroke or two ahead of the
+    /// snapshot; the field's other lines go
     /// through that echo strip as before. `caretFrame` is in the same Core Graphics space as
     /// `fieldFrame`. A caret without height leaves no region at all.
     init?(fieldFrame: CGRect, caretFrame: CGRect, captureRect: CGRect, fieldTextIsComplete: Bool) {

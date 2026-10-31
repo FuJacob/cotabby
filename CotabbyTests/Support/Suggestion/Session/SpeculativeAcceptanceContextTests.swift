@@ -18,6 +18,12 @@ final class SpeculativeAcceptanceContextTests: XCTestCase {
         XCTAssertEqual(optimistic.focusChangeSequence, base.focusChangeSequence)
     }
 
+    func testTrailingTextTheHostNeverDeliveredStaysUnknown() {
+        let base = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello", trailingTextUnavailable: true)
+        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(after: base, inserting: " world")
+        XCTAssertTrue(optimistic.trailingTextUnavailable)
+    }
+
     func testUTF16AdvanceCountsSurrogatePairs() {
         let base = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Nice ")
         let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(after: base, inserting: "🎉🎉")
