@@ -32,4 +32,28 @@ final class SuggestionLengthPolicyTests: XCTestCase {
     func testLeadingWhitespaceSurvives() {
         XCTAssertEqual(SuggestionLengthPolicy.trimmed(" a b c d e f g h", minimum: 2, maximum: 4), " a b c d")
     }
+
+    // MARK: - Current word only
+
+    func testCurrentWordOnlyFinishesTheWordAndStopsThere() {
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("lo world, again", precedingText: "Say hel"), "lo")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("t's fine", precedingText: "it isn"), "t's")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("ing.", precedingText: "We are meet"), "ing")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("' t", precedingText: "don"), "", "a dangling connector is not a word ending")
+    }
+
+    func testCurrentWordOnlyNeverStartsTheNextWord() {
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly(" world", precedingText: "hello"), "")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("world", precedingText: "hello "), "", "after a space")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("and", precedingText: "yes,"), "", "after punctuation")
+        XCTAssertEqual(SuggestionLengthPolicy.currentWordOnly("bar()", precedingText: "foo.ba"), "", "code-like tokens")
+    }
+
+    func testNormalizerAppliesCurrentWordOnly() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "We are meet",
+            wordRange: SuggestionWordCountPreset.currentWord.range
+        )
+        XCTAssertEqual(SuggestionTextNormalizer.normalizeDetailed("ing tomorrow at noon", for: request).text, "ing")
+    }
 }

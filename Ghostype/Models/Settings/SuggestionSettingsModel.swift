@@ -130,6 +130,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
+    @Published private(set) var includeTrailingPunctuationOnFullAccept: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
     /// The store owns durability; snapshots carry this live choice to the coordinator.
@@ -278,6 +279,7 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
+        includeTrailingPunctuationOnFullAccept = data.includeTrailingPunctuationOnFullAccept
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
@@ -371,6 +373,7 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
+        includeTrailingPunctuationOnFullAccept = data.includeTrailingPunctuationOnFullAccept
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
@@ -447,6 +450,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 suggestWithinWords: suggestWithinWords,
                 showFollowingWords: showFollowingWords,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
+                includeTrailingPunctuationOnFullAccept: includeTrailingPunctuationOnFullAccept,
                 addSpaceAfterAccept: addSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: predictAheadWhileTyping,
@@ -565,7 +569,8 @@ final class SuggestionSettingsModel: ObservableObject {
             doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
             fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
                 in: settings.shortcuts.perAppOverrides
-            )
+            ),
+            includeTrailingPunctuationOnFullAccept: settings.completion.includeTrailingPunctuationOnFullAccept
         )
     }
 
@@ -1051,6 +1056,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         autoAcceptTrailingPunctuation = enabled
         store.saveAutoAcceptTrailingPunctuation(enabled)
+    }
+
+    func setIncludeTrailingPunctuationOnFullAccept(_ enabled: Bool) {
+        guard includeTrailingPunctuationOnFullAccept != enabled else {
+            return
+        }
+        includeTrailingPunctuationOnFullAccept = enabled
+        store.saveIncludeTrailingPunctuationOnFullAccept(enabled)
     }
 
     func setAddSpaceAfterAccept(_ enabled: Bool) {
@@ -1805,10 +1818,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
         // What a press of an accept key does: how much one press takes, whether a double tap takes
         // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
-        let acceptance = Publishers.CombineLatest3(
+        let acceptance = Publishers.CombineLatest4(
             $acceptanceGranularity,
             $doubleTapAcceptsEntireSuggestion,
-            $perAppShortcutOverrides
+            $perAppShortcutOverrides,
+            $includeTrailingPunctuationOnFullAccept
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1833,7 +1847,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
-                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides) = acceptanceTuple
+                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides, includeFullAcceptPunctuation) =
+                    acceptanceTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1870,7 +1885,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     automaticallyFixTypos: automaticallyFixTypos,
                     doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
                     fullAcceptanceOverrideBundleIdentifiers:
-                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides)
+                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides),
+                    includeTrailingPunctuationOnFullAccept: includeFullAcceptPunctuation
                 )
             }
             .removeDuplicates()

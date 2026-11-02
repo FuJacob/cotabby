@@ -173,6 +173,7 @@ struct SuggestionSettingsStore {
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
+    private static let fullAcceptPunctuationDefaultsKey = "cotabbyIncludeTrailingPunctuationOnFullAccept"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
@@ -257,6 +258,7 @@ struct SuggestionSettingsStore {
         preferredEmojiSkinToneDefaultsKey,
         preferredEmojiGenderDefaultsKey,
         autoAcceptTrailingPunctuationDefaultsKey,
+        fullAcceptPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
         predictAheadWhileTypingDefaultsKey,
@@ -482,6 +484,8 @@ struct SuggestionSettingsStore {
             .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
         let resolvedAutoAcceptTrailingPunctuation =
             userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
+        // Defaults to true: full acceptance has always inserted the suggestion verbatim.
+        let resolvedFullAcceptPunctuation = userDefaults.object(forKey: Self.fullAcceptPunctuationDefaultsKey) as? Bool ?? true
         // Defaults to false so the WYSIWYG accept behavior is unchanged for existing installs; the
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
@@ -612,6 +616,7 @@ struct SuggestionSettingsStore {
                 suggestWithinWords: resolvedSuggestWithinWords,
                 showFollowingWords: resolvedShowFollowingWords,
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
+                includeTrailingPunctuationOnFullAccept: resolvedFullAcceptPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: resolvedPredictAheadWhileTyping,
@@ -721,6 +726,7 @@ struct SuggestionSettingsStore {
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
+        saveIncludeTrailingPunctuationOnFullAccept(data.includeTrailingPunctuationOnFullAccept)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         savePredictAheadWhileTyping(data.predictAheadWhileTyping)
@@ -1037,6 +1043,10 @@ struct SuggestionSettingsStore {
 
     func saveAutoAcceptTrailingPunctuation(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
+    }
+
+    func saveIncludeTrailingPunctuationOnFullAccept(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.fullAcceptPunctuationDefaultsKey)
     }
 
     func saveAddSpaceAfterAccept(_ enabled: Bool) {

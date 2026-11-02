@@ -195,6 +195,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// double tap lives in the global Accept Entire Suggestion slot, and an app's own binding
     /// replaces that slot there, so these apps never treat a double tap as accept-all.
     let fullAcceptanceOverrideBundleIdentifiers: Set<String>
+    /// When false, accepting the entire suggestion leaves its final punctuation behind (see
+    /// `SuggestionSessionReconciler.fullAcceptanceChunk`). Defaulted so fixtures keep today's behavior.
+    var includeTrailingPunctuationOnFullAccept = true
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

@@ -60,6 +60,16 @@ struct WritingPaneView: View {
                 }
                 .settingsItem(.acceptPunctuation)
 
+                Toggle(isOn: fullAcceptPunctuationBinding) {
+                    SettingsRowLabel(
+                        title: "Include Trailing Punctuation",
+                        description: "When you accept the entire suggestion, also insert its final punctuation " +
+                            "(. , ; : ! ?). Turn off to end where the words end.",
+                        systemImage: "text.append"
+                    )
+                }
+                .settingsItem(.fullAcceptPunctuation)
+
                 Toggle(isOn: addSpaceAfterAcceptBinding) {
                     SettingsRowLabel(
                         title: "Add Space After Accepting",
@@ -151,6 +161,13 @@ struct WritingPaneView: View {
                 }
             }
         }
+    }
+
+    private var fullAcceptPunctuationBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.includeTrailingPunctuationOnFullAccept },
+            set: { suggestionSettings.setIncludeTrailingPunctuationOnFullAccept($0) }
+        )
     }
 
     private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {

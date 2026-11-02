@@ -67,6 +67,22 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because the emoji picker is active.")
     }
 
+    func test_disabledAppNeverReachesTheInlineCommandObserver() {
+        let rig = retained(makeCoordinatorRig(
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(disabledAppBundleIdentifiers: ["com.example.TestApp"])
+        ))
+        var observed = 0
+        rig.coordinator.emojiInputObserver = { _ in
+            observed += 1
+            return true
+        }
+
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: ":"))
+
+        XCTAssertEqual(observed, 0, "Emoji and macro previews must not open in an app the user turned off")
+        XCTAssertEqual(rig.coordinator.state, .disabled("Ghostype is disabled in TestApp."))
+    }
+
     // MARK: - Typing against a live session
 
     func test_typingTheExpectedCharactersAdvancesTheSession() {

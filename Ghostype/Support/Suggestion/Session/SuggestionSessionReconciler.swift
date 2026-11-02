@@ -248,6 +248,15 @@ enum SuggestionSessionReconciler {
         return .invalid("Overlay hidden because typed text diverged from the active suggestion.")
     }
 
+    /// What the full-accept key takes. With trailing punctuation excluded, the final `.,;:!?` run
+    /// stays behind as the session's remaining ghost, so the user can still take it or type over it.
+    /// A tail that is nothing but punctuation is accepted whole: the user pressed accept on it.
+    static func fullAcceptanceChunk(from remainingText: String, includeTrailingPunctuation: Bool) -> String {
+        guard !includeTrailingPunctuation else { return remainingText }
+        let trimmed = String(remainingText.reversed().drop(while: { ".,;:!?".contains($0) }).reversed())
+        return trimmed.trimmingCharacters(in: .whitespaces).isEmpty ? remainingText : trimmed
+    }
+
     /// Accepts optional leading whitespace plus the next visible token.
     ///
     /// When `autoAcceptTrailingPunctuation` is false, punctuation that trails a word is treated as

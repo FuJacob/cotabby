@@ -339,7 +339,13 @@ func makeCoordinatorRig(
         dailyCompletionStats: DailyCompletionStats(
             userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.dailystats.\(UUID().uuidString)") ?? .standard
         ),
-        userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.\(UUID().uuidString)") ?? .standard
+        userDefaults: {
+            let defaults = UserDefaults(suiteName: "CotabbyTests.rig.\(UUID().uuidString)") ?? .standard
+            // A suite also reads the global domain, so pin smart quotes off: the developer's own
+            // System Settings choice must not change what these tests insert.
+            defaults.set(false, forKey: SmartQuoteSubstitution.defaultsKey)
+            return defaults
+        }()
     )
     let rig = CoordinatorRig(
         coordinator: coordinator,

@@ -160,4 +160,28 @@ final class SuggestionWordAcceptanceTests: XCTestCase {
         XCTAssertTrue("你好世界".hasPrefix(afterSpace))
         XCTAssertLessThan(afterSpace.count, 4, "only the first segment is accepted, not the whole run")
     }
+
+    // MARK: - Full acceptance punctuation
+
+    func test_fullAcceptanceChunk_keepsEverythingByDefault() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.fullAcceptanceChunk(from: " see you soon.", includeTrailingPunctuation: true),
+            " see you soon."
+        )
+    }
+
+    func test_fullAcceptanceChunk_dropsOnlyTheFinalPunctuationRun() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.fullAcceptanceChunk(from: " well, see you soon?!", includeTrailingPunctuation: false),
+            " well, see you soon"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.fullAcceptanceChunk(from: " no punctuation", includeTrailingPunctuation: false),
+            " no punctuation"
+        )
+    }
+
+    func test_fullAcceptanceChunk_acceptsAPunctuationOnlyTailWhole() {
+        XCTAssertEqual(SuggestionSessionReconciler.fullAcceptanceChunk(from: ".", includeTrailingPunctuation: false), ".")
+    }
 }

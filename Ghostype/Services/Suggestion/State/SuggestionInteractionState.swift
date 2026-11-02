@@ -178,7 +178,8 @@ final class SuggestionInteractionState {
     func prepareFullAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
-        heldPresentationText: String? = nil
+        heldPresentationText: String? = nil,
+        includeTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
         let validated = validateSessionForAcceptance(
             from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
@@ -187,7 +188,9 @@ final class SuggestionInteractionState {
             return .invalid(validated.failureReason ?? "Key passed through.")
         }
 
-        let chunk = session.remainingText
+        let chunk = SuggestionSessionReconciler.fullAcceptanceChunk(
+            from: session.remainingText, includeTrailingPunctuation: includeTrailingPunctuation
+        )
         guard !chunk.isEmpty else {
             return .invalid("Key passed through because no remaining suggestion text was available.")
         }

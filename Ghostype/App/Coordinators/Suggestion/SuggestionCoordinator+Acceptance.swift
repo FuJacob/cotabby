@@ -137,7 +137,8 @@ extension SuggestionCoordinator {
             preparation = interactionState.prepareFullAcceptance(
                 from: rawContext,
                 overlayState: overlayState,
-                heldPresentationText: heldPresentationText
+                heldPresentationText: heldPresentationText,
+                includeTrailingPunctuation: settingsSnapshot.includeTrailingPunctuationOnFullAccept
             )
         } else {
             preparation = interactionState.prepareAcceptance(

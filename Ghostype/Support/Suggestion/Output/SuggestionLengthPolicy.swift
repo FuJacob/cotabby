@@ -32,6 +32,20 @@ enum SuggestionLengthPolicy {
         return String(text[..<words[maximum - 1].upperBound])
     }
 
+    /// "Current word only": the letters that finish the word the caret is inside, and nothing else.
+    /// Empty when the caret is not mid-word (after a space, punctuation, or inside code) or when the
+    /// completion starts a new word (`hello` + ` world`). Uses `CaretWordContext`'s word shape so
+    /// this agrees with the generation gate; trailing connectors (`don` + `'`) are dropped because
+    /// they only make sense with the next letters.
+    static func currentWordOnly(_ text: String, precedingText: String) -> String {
+        guard CaretWordContext.unfinishedWord(in: precedingText) != nil else { return "" }
+        var word = String(text.prefix { $0.isLetter || CaretWordContext.isConnector($0) })
+        while let last = word.last, CaretWordContext.isConnector(last) {
+            word.removeLast()
+        }
+        return word
+    }
+
     /// Ranges of the whitespace-separated words in `text`, in order.
     private static func wordRanges(in text: String) -> [Range<String.Index>] {
         var ranges: [Range<String.Index>] = []

@@ -295,7 +295,12 @@ extension SuggestionCoordinator {
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
-        if emojiInputObserver?(event) == true {
+        // An app the user turned off gets no inline previews either: the `:` emoji and `/` macro
+        // panels are suggestions too. Only the per-app list gates them here, because the broader
+        // `currentDisabledReason` also rejects fields those features handle on their own.
+        let isAppDisabled = focusModel.snapshot.bundleIdentifier
+            .map(settingsSnapshot.disabledAppBundleIdentifiers.contains) ?? false
+        if !isAppDisabled, emojiInputObserver?(event) == true {
             suggestionPresentationTiming.clear()
             if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil || typingPrediction != nil {
                 cancelPredictionWork()

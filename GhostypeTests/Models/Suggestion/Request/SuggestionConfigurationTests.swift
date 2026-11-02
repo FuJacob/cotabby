@@ -10,14 +10,18 @@ final class SuggestionConfigurationTests: XCTestCase {
     func test_wordCountPresets_rawValuesArePersistedIdentifiersInMenuOrder() {
         // Raw values are stored under `cotabbySelectedWordCountPreset`; renaming one would silently
         // reset every user who picked it back to the default preset.
-        XCTAssertEqual(SuggestionWordCountPreset.allCases.map(\.rawValue), ["2-4", "4-7", "7-12", "12-20"])
+        XCTAssertEqual(SuggestionWordCountPreset.allCases.map(\.rawValue), ["word", "2-4", "4-7", "7-12", "12-20"])
         XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.displayLabel, "12-20 words")
+        XCTAssertEqual(SuggestionWordCountPreset.currentWord.displayLabel, "Current word only")
+        XCTAssertEqual(SuggestionWordCountPreset.currentWord.range.promptInstruction,
+                       "Return only the rest of the word being typed.")
     }
 
     func test_wordCountPresets_exposeMatchingRanges() {
         XCTAssertEqual(
             SuggestionWordCountPreset.allCases.map(\.range),
             [
+                SuggestionWordRange(lowWords: 1, highWords: 1, isCurrentWordOnly: true),
                 SuggestionWordRange(lowWords: 2, highWords: 4),
                 SuggestionWordRange(lowWords: 4, highWords: 7),
                 SuggestionWordRange(lowWords: 7, highWords: 12),

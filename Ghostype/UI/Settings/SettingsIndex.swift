@@ -57,6 +57,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Writing
     case length
     case acceptPunctuation
+    case fullAcceptPunctuation
     case addSpaceAfterAccept
     case name
     case languages
@@ -135,6 +136,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestWithinWords: return "Suggest while typing a word"
         case .showFollowingWords: return "Show following words"
         case .acceptPunctuation: return "Accept Punctuation With Word"
+        case .fullAcceptPunctuation: return "Include Trailing Punctuation"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
@@ -230,6 +232,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestWithinWords: return "text.cursor"
         case .showFollowingWords: return "text.word.spacing"
         case .acceptPunctuation: return "textformat.abc"
+        case .fullAcceptPunctuation: return "text.append"
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
@@ -325,7 +328,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
-        case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
+        case .length, .acceptPunctuation, .fullAcceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .offerTypoCorrections, .spellingDictionaries, .personalDictionary:
             return .writing
         case .extendedContext, .contextLivePreview, .typingHistory, .suggestionMemory:
@@ -371,6 +374,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestWithinWords: return "Show new suggestions inside a word, or wait for a space or punctuation."
         case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
+        case .fullAcceptPunctuation: return "Keep the final punctuation when accepting the entire suggestion."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
@@ -479,6 +483,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptPunctuation:
             return ["punctuation", "comma", "period", "accept", "trailing", "auto accept",
                     "auto-accept", "space"]
+        case .fullAcceptPunctuation:
+            return ["punctuation", "period", "full", "entire", "whole", "accept all", "trailing", "final"]
         case .reuseContextBetweenKeystrokes:
             return ["speed", "fast", "faster", "cache", "kv", "reuse", "latency", "prefill", "context"]
         case .adaptSpeedToMac:

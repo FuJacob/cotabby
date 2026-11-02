@@ -49,6 +49,8 @@ struct SuggestionCompletionSettings: Equatable {
     /// Limits the visible preview, while the session retains following words for subsequent typing.
     var showFollowingWords: Bool
     var autoAcceptTrailingPunctuation: Bool
+    /// When false, accepting the entire suggestion leaves its final punctuation (`.,;:!?`) behind.
+    var includeTrailingPunctuationOnFullAccept: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
     /// Keeps an on-device request alive through matching typing, independently of partial display.
@@ -283,6 +285,11 @@ extension SuggestionSettingsData {
     var autoAcceptTrailingPunctuation: Bool {
         get { completion.autoAcceptTrailingPunctuation }
         set { completion.autoAcceptTrailingPunctuation = newValue }
+    }
+
+    var includeTrailingPunctuationOnFullAccept: Bool {
+        get { completion.includeTrailingPunctuationOnFullAccept }
+        set { completion.includeTrailingPunctuationOnFullAccept = newValue }
     }
 
     var addSpaceAfterAccept: Bool {

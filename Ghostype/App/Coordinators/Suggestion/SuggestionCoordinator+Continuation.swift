@@ -75,7 +75,9 @@ extension SuggestionCoordinator {
                     self.finishUnavailableContinuation()
                     return
                 }
-                self.preparedContinuation?.text = plan.continuation(from: result.text)
+                self.preparedContinuation?.text = self.smartQuoted(
+                    plan.continuation(from: result.text), precedingText: context.precedingText
+                )
                 self.preparedContinuation?.latency = result.latency
                 self.attachPreparedContinuationOrAwaitPublication()
             } catch {

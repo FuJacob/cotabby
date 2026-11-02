@@ -754,6 +754,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePreferredEmojiSkinTone(.mediumDark)
         store.savePreferredEmojiGender(.female)
         store.saveAutoAcceptTrailingPunctuation(false)
+        store.saveIncludeTrailingPunctuationOnFullAccept(false)
         store.saveAddSpaceAfterAccept(true)
         store.saveStreamSuggestionsWhileGenerating(true)
         store.savePredictAheadWhileTyping(false)

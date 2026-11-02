@@ -9,6 +9,9 @@ import Foundation
 struct SuggestionWordRange: Equatable, Hashable, Sendable {
     let lowWords: Int
     let highWords: Int
+    /// "Current word only": finish the word at the caret and never start the next one. The 1-word
+    /// bounds keep the token budget minimal; `SuggestionLengthPolicy.currentWordOnly` does the cut.
+    var isCurrentWordOnly = false
 
     /// Hard bounds for any range that ends up driving generation. The floor of 1 keeps the model
     /// from being asked for zero words; the ceiling caps how much we'll plan for so a typo'd "9999"
@@ -25,12 +28,17 @@ struct SuggestionWordRange: Equatable, Hashable, Sendable {
     }
 
     var compactLabel: String { "\(lowWords)-\(highWords) w" }
-    var promptInstruction: String { "Return only the next \(lowWords) to \(highWords) words." }
+    var promptInstruction: String {
+        isCurrentWordOnly
+            ? "Return only the rest of the word being typed."
+            : "Return only the next \(lowWords) to \(highWords) words."
+    }
 }
 
 /// User-facing presets that bound how long one inline suggestion may be.
 /// Treating this as an enum keeps the UI and prompt policy in one source of truth.
 enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
+    case currentWord = "word"
     case twoToFour = "2-4"
     case fourToSeven = "4-7"
     case sevenToTwelve = "7-12"
@@ -39,13 +47,15 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     var id: String { rawValue }
 
     var displayLabel: String {
-        "\(rawValue) words"
+        self == .currentWord ? "Current word only" : "\(rawValue) words"
     }
 
     /// The shared `SuggestionWordRange` shape so the prompt builder and token-budget math can
     /// consume presets and custom ranges identically.
     var range: SuggestionWordRange {
         switch self {
+        case .currentWord:
+            return SuggestionWordRange(lowWords: 1, highWords: 1, isCurrentWordOnly: true)
         case .twoToFour:
             return SuggestionWordRange(lowWords: 2, highWords: 4)
         case .fourToSeven:
