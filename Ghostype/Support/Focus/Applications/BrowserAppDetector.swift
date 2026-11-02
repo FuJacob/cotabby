@@ -24,7 +24,15 @@ nonisolated enum BrowserAppDetector {
         "org.mozilla.firefox",
         "company.thebrowser.browser",  // Arc
         "com.brave.browser",
-        "com.microsoft.edgemac"
+        "com.microsoft.edgemac",
+        // Other Chromium builds: same lazy web-AX tree, so without these they got none of Chrome's
+        // recovery paths. Prefixes cover channels (OperaGX, Thorium ships as org.chromium.Thorium).
+        "com.vivaldi.vivaldi",
+        "com.operasoftware.opera",
+        "org.chromium.",
+        "company.thebrowser.dia",
+        "ai.perplexity.comet",
+        "ru.yandex.desktop.yandex-browser"
     ]
 
     /// Chromium-family browsers whose web content uses the lazy web-AX tree and opaque text-marker
@@ -33,7 +41,15 @@ nonisolated enum BrowserAppDetector {
         "com.google.chrome",
         "company.thebrowser.browser",  // Arc
         "com.brave.browser",
-        "com.microsoft.edgemac"
+        "com.microsoft.edgemac",
+        // Other Chromium builds: same lazy web-AX tree, so without these they got none of Chrome's
+        // recovery paths. Prefixes cover channels (OperaGX, Thorium ships as org.chromium.Thorium).
+        "com.vivaldi.vivaldi",
+        "com.operasoftware.opera",
+        "org.chromium.",
+        "company.thebrowser.dia",
+        "ai.perplexity.comet",
+        "ru.yandex.desktop.yandex-browser"
     ]
 
     /// Electron apps (Chromium under the hood) that ship editors worth covering. This is an
@@ -78,6 +94,12 @@ nonisolated enum BrowserAppDetector {
         // Desktop above, so the generic Electron recovery paths apply with no host-specific
         // detector.
         "com.meta.endo",
+        // Chat and notes apps whose composers stay dormant until primed, like Claude Desktop above:
+        // Slack and Discord ids verified from their bundles; Notion and Granola from their docs.
+        "com.tinyspeck.slackmacgap",
+        "com.hnc.discord",
+        "notion.id",
+        "com.granola.app",
         "com.microsoft.vscode",          // Visual Studio Code
         "com.microsoft.vscodeinsiders",  // VS Code - Insiders
         "com.vscodium",                  // VSCodium (FOSS VS Code build)

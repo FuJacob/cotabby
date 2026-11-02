@@ -49,7 +49,7 @@ final class BrowserAppDetectorTests: XCTestCase {
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.meta.endo"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "COM.META.ENDO"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
-        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
+        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.logi.optionsplus"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
     }
 
@@ -100,5 +100,20 @@ final class BrowserAppDetectorTests: XCTestCase {
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "org.mozilla.firefox"))
         XCTAssertFalse(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: nil))
+    }
+
+    /// Every Chromium build gets the browser recovery paths, and the named chat/notes Electron apps
+    /// get priming; real bundle ids, mixed case as they ship.
+    func testOtherChromiumBrowsersAndChatAppsArePrimed() {
+        for id in ["com.vivaldi.Vivaldi", "com.operasoftware.Opera", "com.operasoftware.OperaGX",
+                   "org.chromium.Chromium", "org.chromium.Thorium", "company.thebrowser.dia",
+                   "ai.perplexity.comet", "ru.yandex.desktop.yandex-browser"] {
+            XCTAssertTrue(BrowserAppDetector.isChromiumBrowser(bundleIdentifier: id), id)
+            XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: id), id)
+        }
+        for id in ["com.tinyspeck.slackmacgap", "com.hnc.Discord", "notion.id", "com.granola.app"] {
+            XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: id), id)
+            XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: id), id)
+        }
     }
 }
