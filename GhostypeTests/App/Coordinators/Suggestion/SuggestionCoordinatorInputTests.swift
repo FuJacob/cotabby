@@ -83,6 +83,33 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertEqual(rig.coordinator.state, .disabled("Ghostype is disabled in TestApp."))
     }
 
+    func test_synonymGateFollowsTheSettingAndTheSuggestionAvailabilityRules() {
+        let selection = FocusSnapshot(
+            applicationName: "TestApp",
+            bundleIdentifier: "com.example.TestApp",
+            capability: .blocked(FocusCapability.textSelectedReason),
+            context: CotabbyTestFixtures.focusedInputSnapshot()
+        )
+        var enabled = CotabbyTestFixtures.settingsSnapshot()
+        enabled.synonymsForSelectedWord = true
+        var disabledApp = CotabbyTestFixtures.settingsSnapshot(disabledAppBundleIdentifiers: ["com.example.TestApp"])
+        disabledApp.synonymsForSelectedWord = true
+
+        let off = retained(makeCoordinatorRig())
+        let on = retained(makeCoordinatorRig(settingsSnapshot: enabled))
+        let blockedApp = retained(makeCoordinatorRig(settingsSnapshot: disabledApp))
+
+        XCTAssertNotNil(off.coordinator.synonymDisabledReason(focusSnapshot: selection), "Off by default")
+        XCTAssertNil(
+            on.coordinator.synonymDisabledReason(focusSnapshot: selection),
+            "A selection blocks suggestions but must not block synonyms"
+        )
+        XCTAssertEqual(
+            blockedApp.coordinator.synonymDisabledReason(focusSnapshot: selection),
+            "Ghostype is disabled in TestApp."
+        )
+    }
+
     // MARK: - Typing against a live session
 
     func test_typingTheExpectedCharactersAdvancesTheSession() {

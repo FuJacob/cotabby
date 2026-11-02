@@ -388,6 +388,11 @@ struct FocusSnapshotResolver {
             precedingText: fieldText.precedingText,
             trailingText: fieldText.trailingText,
             selection: fieldText.selection,
+            // The selection's own text, from the same bounded window the preceding/trailing text
+            // came from. Only the selected-word synonym feature reads it.
+            selectedText: nsValue.substring(
+                with: NSRange(location: safeSelectionLocation, length: max(trailingStart - safeSelectionLocation, 0))
+            ),
             isSecure: resolvedCandidate.isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
             isCodingAgentPrompt: fieldText.isCodingAgentPrompt,
@@ -568,7 +573,7 @@ struct FocusSnapshotResolver {
                 ]
             )
         }
-        return "Text is currently selected."
+        return FocusCapability.textSelectedReason
     }
 
     /// Reads the host's font/color at the caret through the style cache: one attributed-string read

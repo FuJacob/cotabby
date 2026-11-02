@@ -125,7 +125,14 @@ final class InlineCommandCoordinatorTests: XCTestCase {
                 acceptKeyLabel: { nil },
                 isWordAcceptKey: { $0.keyCode == InlineFeatureKeys.tab }
             )
-            coordinator = InlineCommandCoordinator(emoji: emoji, macro: macro, inputMonitor: monitor)
+            let synonyms = SynonymController(
+                panel: InlineFeaturePreviewPanelStub(),
+                focusModel: focus,
+                inserter: inserter,
+                engine: RigSuggestionEngine(),
+                disabledReason: { _ in nil }
+            )
+            coordinator = InlineCommandCoordinator(emoji: emoji, macro: macro, synonyms: synonyms, inputMonitor: monitor)
         }
 
         /// Feeds each character through the coordinator; true if any keystroke involved a feature.

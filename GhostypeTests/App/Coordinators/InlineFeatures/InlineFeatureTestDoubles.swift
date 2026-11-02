@@ -57,6 +57,12 @@ final class InlineFeatureFocusStub: SuggestionFocusProviding {
         subject.send(snapshot)
     }
 
+    /// Publishes an arbitrary snapshot, for features driven by selection rather than typed text.
+    func publish(_ snapshot: FocusSnapshot) {
+        self.snapshot = snapshot
+        subject.send(snapshot)
+    }
+
     private static func make(
         precedingText: String,
         isSecure: Bool,

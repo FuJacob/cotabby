@@ -27,7 +27,7 @@ Ghostype/
 ├── App/
 │   ├── Core/                         process entry, composition root, lifecycle
 │   └── Coordinators/
-│       ├── InlineFeatures/           emoji/macro capture arbitration
+│       ├── InlineFeatures/           emoji/macro/synonym capture arbitration
 │       ├── Suggestion/               autocomplete interaction state machine
 │       ├── SettingsCoordinator.swift
 │       └── WelcomeCoordinator.swift
@@ -99,7 +99,7 @@ Ghostype/
 │   │   ├── TokenHealingPlan.swift    bounded word-fragment retokenization at the caret
 │   │   └── TokenHealingBuffer.swift  exact byte replay and lossless streamed UTF-8
 │   ├── Settings/                     persistence and settings policies
-│   ├── Spelling/                     extraction, language, SymSpell, and typo rules
+│   ├── Spelling/                     extraction, language, SymSpell, typo, and synonym rules
 │   ├── Suggestion/
 │   │   ├── Acceptance/               insertion safety and strategy
 │   │   ├── Output/                   normalization, confidence, and seam cleanup

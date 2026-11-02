@@ -133,6 +133,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the inline `/macro` preview is active. Read live by `MacroController` at event time,
     /// so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isMacroExpansionEnabled: Bool
+    /// Whether selecting a single word offers numbered synonyms. Travels in the snapshot, so the
+    /// synonym gate reads it through the coordinator's settings like every other availability rule.
+    @Published private(set) var synonymsForSelectedWord: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
@@ -285,6 +288,7 @@ final class SuggestionSettingsModel: ObservableObject {
         showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
+        synonymsForSelectedWord = data.synonymsForSelectedWord
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
@@ -381,6 +385,7 @@ final class SuggestionSettingsModel: ObservableObject {
         showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
+        synonymsForSelectedWord = data.synonymsForSelectedWord
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
@@ -502,6 +507,7 @@ final class SuggestionSettingsModel: ObservableObject {
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: isEmojiPickerEnabled,
                 isMacroExpansionEnabled: isMacroExpansionEnabled,
+                synonymsForSelectedWord: synonymsForSelectedWord,
                 preferredEmojiSkinTone: preferredEmojiSkinTone,
                 preferredEmojiGender: preferredEmojiGender
             ),
@@ -585,7 +591,8 @@ final class SuggestionSettingsModel: ObservableObject {
             fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
                 in: settings.shortcuts.perAppOverrides
             ),
-            includeTrailingPunctuationOnFullAccept: settings.completion.includeTrailingPunctuationOnFullAccept
+            includeTrailingPunctuationOnFullAccept: settings.completion.includeTrailingPunctuationOnFullAccept,
+            synonymsForSelectedWord: settings.inlineFeatures.synonymsForSelectedWord
         )
     }
 
@@ -989,6 +996,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         isMacroExpansionEnabled = enabled
         store.saveMacroExpansionEnabled(enabled)
+    }
+
+    func setSynonymsForSelectedWord(_ enabled: Bool) {
+        guard synonymsForSelectedWord != enabled else {
+            return
+        }
+        synonymsForSelectedWord = enabled
+        store.saveSynonymsForSelectedWord(enabled)
     }
 
     func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {
@@ -1873,11 +1888,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $perAppShortcutOverrides,
             $includeTrailingPunctuationOnFullAccept
         )
-        // Terminal-agent and code-editor placement rules travel with `customRange` in its slot.
-        let rangeAndPlacement = Publishers.CombineLatest3(
+        // Terminal-agent and code-editor placement rules, and the selected-word synonym switch,
+        // travel with `customRange` in its slot.
+        let rangeAndPlacement = Publishers.CombineLatest4(
             customRange,
             $completeInCodingAgents,
-            $codeEditorDisabledAppRules
+            $codeEditorDisabledAppRules,
+            $synonymsForSelectedWord
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1892,7 +1909,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             rangeAndPlacement
         )
             .map { primaryTuple, acceptanceTuple, extendedContextTuple, rangeAndPlacementTuple in
-                let (customRangeTuple, completeInCodingAgents, codeEditorDisabledAppRules) = rangeAndPlacementTuple
+                let (customRangeTuple, completeInCodingAgents, codeEditorDisabledAppRules, synonymsForSelectedWord) =
+                    rangeAndPlacementTuple
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1944,7 +1962,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
                     fullAcceptanceOverrideBundleIdentifiers:
                         PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides),
-                    includeTrailingPunctuationOnFullAccept: includeFullAcceptPunctuation
+                    includeTrailingPunctuationOnFullAccept: includeFullAcceptPunctuation,
+                    synonymsForSelectedWord: synonymsForSelectedWord
                 )
             }
             .removeDuplicates()

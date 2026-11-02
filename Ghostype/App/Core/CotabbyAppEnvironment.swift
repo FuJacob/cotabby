@@ -383,12 +383,29 @@ final class CotabbyAppEnvironment {
             },
             isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
         )
-        // One coordinator fans every keystroke out to both inline-command controllers and owns the
-        // input monitor's single capture decider and interception flag, which the `:` and `/` features
-        // share. It is given first look at every keystroke the suggestion coordinator receives.
+        // Selected-word synonyms reuse the macro's single-row preview panel (a second instance, so
+        // the two never fight over one window) and the same inserter. They ask `routedEngine`, the
+        // engine the user selected, rather than `suggestionEngine`: the typing-history and debug
+        // wrappers exist for continuations and would answer a synonym prompt with phrase guesses.
+        // The gate is the suggestion coordinator's own availability check, so synonyms are off
+        // wherever suggestions are off.
+        let synonymController = SynonymController(
+            panel: InlinePreviewPanelController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            engine: routedEngine,
+            disabledReason: { [weak suggestionCoordinator] snapshot in
+                suggestionCoordinator?.synonymDisabledReason(focusSnapshot: snapshot) ?? "Ghostype is not running."
+            }
+        )
+        // One coordinator fans every keystroke out to the inline-command controllers and owns the
+        // input monitor's single capture decider and interception flag, which the `:`, `/` and
+        // synonym features share. It is given first look at every keystroke the suggestion
+        // coordinator receives.
         let inlineCommandCoordinator = InlineCommandCoordinator(
             emoji: emojiPickerController,
             macro: macroController,
+            synonyms: synonymController,
             inputMonitor: inputMonitor
         )
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in

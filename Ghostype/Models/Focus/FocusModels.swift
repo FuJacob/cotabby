@@ -95,6 +95,11 @@ enum FocusCapability: Equatable {
     case blocked(String)
     case unsupported(String)
 
+    /// The block reason for a field whose only problem is a non-empty selection. Shared so features
+    /// that act on a selection (selected-word synonyms) can tell "text is selected" apart from the
+    /// blocks that must stay absolute, such as secure, credential, and Mail header fields.
+    static let textSelectedReason = "Text is currently selected."
+
     /// Short labels are better for menu bar UI than long diagnostic sentences.
     var shortLabel: String {
         switch self {
@@ -359,6 +364,11 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let precedingText: String
     let trailingText: String
     let selection: NSRange
+    /// The text inside `selection`, which `precedingText` and `trailingText` both exclude. Empty for
+    /// a bare caret. Read by the selected-word synonym feature (`SelectedWordSynonyms`); the
+    /// suggestion pipeline never generates against a selection, so it does not consult this. The
+    /// initializer default keeps existing call sites compiling unchanged.
+    let selectedText: String
     let isSecure: Bool
 
     /// Content-only fingerprint for staleness detection, computed once in `init` instead of on
@@ -453,6 +463,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         precedingText: String,
         trailingText: String,
         selection: NSRange,
+        selectedText: String = "",
         isSecure: Bool,
         isIntegratedTerminal: Bool = false,
         isCodingAgentPrompt: Bool = false,
@@ -482,6 +493,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.precedingText = precedingText
         self.trailingText = trailingText
         self.selection = selection
+        self.selectedText = selectedText
         self.isSecure = isSecure
         self.isIntegratedTerminal = isIntegratedTerminal
         self.isCodingAgentPrompt = isCodingAgentPrompt

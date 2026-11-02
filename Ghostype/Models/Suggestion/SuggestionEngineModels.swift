@@ -204,6 +204,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When false, accepting the entire suggestion leaves its final punctuation behind (see
     /// `SuggestionSessionReconciler.fullAcceptanceChunk`). Defaulted so fixtures keep today's behavior.
     var includeTrailingPunctuationOnFullAccept = true
+    /// Opt-in selected-word synonyms (see `SynonymController`). Defaulted off so fixtures and
+    /// existing installs keep today's behavior.
+    var synonymsForSelectedWord = false
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

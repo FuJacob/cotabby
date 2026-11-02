@@ -172,6 +172,7 @@ struct SuggestionSettingsStore {
     private static let showFollowingWordsDefaultsKey = "cotabbyShowFollowingWords"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let macroExpansionEnabledDefaultsKey = "cotabbyMacroExpansionEnabled"
+    private static let synonymsForSelectedWordDefaultsKey = "cotabbySynonymsForSelectedWord"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
@@ -259,6 +260,7 @@ struct SuggestionSettingsStore {
         showFollowingWordsDefaultsKey,
         emojiPickerEnabledDefaultsKey,
         macroExpansionEnabledDefaultsKey,
+        synonymsForSelectedWordDefaultsKey,
         preferredEmojiSkinToneDefaultsKey,
         preferredEmojiGenderDefaultsKey,
         autoAcceptTrailingPunctuationDefaultsKey,
@@ -487,6 +489,10 @@ struct SuggestionSettingsStore {
         let resolvedShowFollowingWords = userDefaults.object(forKey: Self.showFollowingWordsDefaultsKey) as? Bool ?? true
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
+        // Defaults to false: synonyms ask the selected engine for a short generation on every word
+        // selection, which an existing install never opted into.
+        let resolvedSynonymsForSelectedWord =
+            userDefaults.object(forKey: Self.synonymsForSelectedWordDefaultsKey) as? Bool ?? false
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
             .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
         let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
@@ -666,6 +672,7 @@ struct SuggestionSettingsStore {
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
                 isMacroExpansionEnabled: resolvedMacroExpansionEnabled,
+                synonymsForSelectedWord: resolvedSynonymsForSelectedWord,
                 preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
                 preferredEmojiGender: resolvedPreferredEmojiGender
             ),
@@ -736,6 +743,7 @@ struct SuggestionSettingsStore {
         saveShowFollowingWords(data.showFollowingWords)
         saveEmojiPickerEnabled(data.isEmojiPickerEnabled)
         saveMacroExpansionEnabled(data.isMacroExpansionEnabled)
+        saveSynonymsForSelectedWord(data.synonymsForSelectedWord)
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
@@ -1057,6 +1065,10 @@ struct SuggestionSettingsStore {
 
     func saveMacroExpansionEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.macroExpansionEnabledDefaultsKey)
+    }
+
+    func saveSynonymsForSelectedWord(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.synonymsForSelectedWordDefaultsKey)
     }
 
     func savePreferredEmojiSkinTone(_ tone: EmojiSkinTone) {

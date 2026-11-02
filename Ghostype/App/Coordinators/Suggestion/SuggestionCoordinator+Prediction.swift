@@ -1266,6 +1266,32 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// The gate for selected-word synonyms (`SynonymController`): the setting, then every rule that
+    /// turns suggestions off (pause, Low Power Mode, per-app and per-domain lists, terminals, code
+    /// editors, Input Monitoring), reusing `SuggestionAvailabilityEvaluator` so the two features can
+    /// never disagree about where Ghostype is allowed. The field-capability verdict is skipped because
+    /// a selection always blocks suggestions; `SelectedWordSynonyms.selectedWord(in:)` applies the
+    /// remaining capability rules (secure, credential and unsupported fields still refuse).
+    func synonymDisabledReason(focusSnapshot: FocusSnapshot) -> String? {
+        guard settingsSnapshot.synonymsForSelectedWord else {
+            return "Synonyms for selected word are turned off."
+        }
+        return SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            focusSnapshot: focusSnapshot,
+            checkCapability: false
+        )
+    }
+
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
         suggestionPresentationTiming.clear()
