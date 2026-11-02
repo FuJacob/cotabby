@@ -125,7 +125,12 @@ final class CotabbyAppEnvironment {
             ) {
                 return false
             }
-            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
+            // Terminals stay unobserved unless the caret is at a coding agent's prompt and the user
+            // opted in; the agent's empty prompt is detected before its first keystroke arrives.
+            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier),
+               !(suggestionSettings.completeInCodingAgents && snapshot.context?.isCodingAgentPrompt == true) {
+                return false
+            }
             if let bundleID = snapshot.bundleIdentifier,
                suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
                 return false
@@ -441,6 +446,8 @@ final class CotabbyAppEnvironment {
                         disabledAppBundleIdentifiers: settings.disabledAppBundleIdentifiers,
                         disabledDomains: PerDomainDisableSettings.disabledDomains(),
                         suggestInIntegratedTerminals: settings.suggestInIntegratedTerminals,
+                        completeInCodingAgents: settings.completeInCodingAgents,
+                        codeEditorDisabledBundleIdentifiers: settings.codeEditorDisabledBundleIdentifiers,
                         inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                         focusSnapshot: snapshot,
                         checkCapability: false

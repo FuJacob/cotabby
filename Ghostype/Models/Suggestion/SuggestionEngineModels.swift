@@ -110,6 +110,12 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability
     /// gate sees the live value alongside the other "where Ghostype runs" rules.
     let suggestInIntegratedTerminals: Bool
+    /// When true (default false), terminals and integrated terminals get suggestions while the caret
+    /// is in a coding agent's input box (`FocusedInputSnapshot.isCodingAgentPrompt`).
+    let completeInCodingAgents: Bool
+    /// Apps whose code editor surface (not their chat or other fields) gets no suggestions: the
+    /// per-app "Complete in code editors" switch turned off.
+    let codeEditorDisabledBundleIdentifiers: Set<String>
     /// Whether the availability gate pauses suggestions during Low Power Mode.
     let isLowPowerModeAutoDisableEnabled: Bool
     let selectedEngine: SuggestionEngineKind

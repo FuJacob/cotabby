@@ -44,7 +44,9 @@ struct FocusSnapshotResolver {
     /// focus-change sequence rather than raw element identity, which CFHash can recycle across
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
-    private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// What the focused element's DOM classes say about the surface inside a VS Code-style window:
+    /// the integrated terminal, the code editor (which needs a bounded ancestor walk), or neither.
+    private let domSurfaceCache = FocusSessionScopedCache<(isIntegratedTerminal: Bool, isCodeEditor: Bool)>()
     /// The label and DOM-id reads behind `CredentialFieldDetector`: up to four AX round trips that
     /// would otherwise repeat on every poll of every single-line field, for values that rarely
     /// change while focus stays in one field. A navigation that reuses the element changes the URL,
@@ -345,15 +347,31 @@ struct FocusSnapshotResolver {
         // extra AXDOMClassList round-trip; native apps don't vend the attribute anyway. Cached per
         // focus session because the class list on one focused element cannot change without a field
         // switch bumping the sequence, which previously cost one round-trip on every poll tick.
-        let isIntegratedTerminal = terminalDetectionCache.value(
+        //
+        // The same class list also says whether the caret is in Monaco's input; only then are the
+        // ancestors walked to tell the code editor from a chat or commit box (see
+        // `CodeEditorSurfaceDetector`), so ordinary fields never pay for the walk.
+        let domSurface = domSurfaceCache.value(
             forKey: focusedElementIdentifier,
             focusChangeSequence: focusChangeSequence
         ) {
-            TerminalAppDetector.isIntegratedTerminal(
-                domClassList: AXHelper.stringArrayValue(
-                    for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
+            let classList = AXHelper.stringArrayValue(for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
+            return (
+                isIntegratedTerminal: TerminalAppDetector.isIntegratedTerminal(domClassList: classList),
+                isCodeEditor: CodeEditorSurfaceDetector.isMonacoInput(domClassList: classList)
+                    && CodeEditorSurfaceDetector.isInsideEditorPane(
+                        ancestorClassLists: Self.ancestorDOMClassLists(of: focusedElement)
+                    )
             )
         }
+        let isIntegratedTerminal = domSurface.isIntegratedTerminal
+        let fieldText = Self.terminalAwareFieldText(
+            precedingText: nsValue.substring(to: safeSelectionLocation),
+            trailingText: nsValue.substring(from: trailingStart),
+            selection: contextWindow.selection,
+            isTerminal: isIntegratedTerminal || TerminalAppDetector.isTerminal(bundleIdentifier: bundleIdentifier),
+            windowTitle: windowTitle
+        )
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -367,11 +385,13 @@ struct FocusSnapshotResolver {
             caretQuality: caretQuality,
             observedCharWidth: observedCharWidth,
             observedContentEdges: observedContentEdges,
-            precedingText: nsValue.substring(to: safeSelectionLocation),
-            trailingText: nsValue.substring(from: trailingStart),
-            selection: contextWindow.selection,
+            precedingText: fieldText.precedingText,
+            trailingText: fieldText.trailingText,
+            selection: fieldText.selection,
             isSecure: resolvedCandidate.isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
+            isCodingAgentPrompt: fieldText.isCodingAgentPrompt,
+            isCodeEditorSurface: domSurface.isCodeEditor,
             isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
@@ -404,6 +424,48 @@ struct FocusSnapshotResolver {
             capability: .supported,
             context: context
         )
+    }
+
+    /// A terminal exposes its whole scrollback as the field. When the caret sits in a coding agent's
+    /// input box, the pipeline gets only the typed request, with the selection moved into its
+    /// coordinates; otherwise the text passes through unchanged (the availability gate blocks a
+    /// terminal that is not at an agent prompt, so the scrollback never reaches a prompt).
+    private static func terminalAwareFieldText(
+        precedingText: String,
+        trailingText: String,
+        selection: NSRange,
+        isTerminal: Bool,
+        windowTitle: String?
+    ) -> TerminalAwareFieldText {
+        guard isTerminal,
+              let agentInput = CodingAgentPromptDetector.agentInput(
+                  precedingText: precedingText, trailingText: trailingText, windowTitle: windowTitle
+              )
+        else {
+            return TerminalAwareFieldText(
+                precedingText: precedingText, trailingText: trailingText, selection: selection, isCodingAgentPrompt: false
+            )
+        }
+        let caret = (agentInput.precedingText as NSString).length
+        return TerminalAwareFieldText(
+            precedingText: agentInput.precedingText,
+            trailingText: agentInput.trailingText,
+            selection: NSRange(location: caret, length: selection.length),
+            isCodingAgentPrompt: true
+        )
+    }
+
+    /// The `AXDOMClassList` of up to `CodeEditorSurfaceDetector.maximumAncestorDepth` ancestors,
+    /// nearest first. Run once per focus session and only for a Monaco input (see the caller).
+    private static func ancestorDOMClassLists(of element: AXUIElement) -> [[String]] {
+        var lists: [[String]] = []
+        var current = element
+        for _ in 0..<CodeEditorSurfaceDetector.maximumAncestorDepth {
+            guard let parent = AXHelper.parentElement(of: current) else { break }
+            lists.append(AXHelper.stringArrayValue(for: "AXDOMClassList" as CFString, on: parent) ?? [])
+            current = parent
+        }
+        return lists
     }
 
     /// Page-URL lookup with a memoized climb depth. Browsers expose AXURL on an ancestor of
@@ -1839,4 +1901,13 @@ private struct AXFocusCandidate {
     let documentCaretLocation: Int?
     let supportedParameterizedAttributes: Set<String>
     let resolverCandidate: FocusCapabilityCandidate
+}
+
+/// The caret-split field text `FocusSnapshotResolver` publishes, after a terminal's scrollback has
+/// been narrowed to a coding agent's typed request (or passed through untouched).
+private struct TerminalAwareFieldText {
+    let precedingText: String
+    let trailingText: String
+    let selection: NSRange
+    let isCodingAgentPrompt: Bool
 }

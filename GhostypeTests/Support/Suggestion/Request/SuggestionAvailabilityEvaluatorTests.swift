@@ -66,6 +66,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
+        completeInCodingAgents: Bool = false,
+        codeEditorDisabledBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool = true,
         focusSnapshot: FocusSnapshot,
         file: StaticString = #filePath,
@@ -79,6 +81,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            completeInCodingAgents: completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
@@ -90,6 +94,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            completeInCodingAgents: completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
@@ -183,6 +189,64 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     func test_integratedTerminal_isBlockedUntilOptedIn() {
         assertGate(Self.integratedTerminal, focusSnapshot: makeIntegratedTerminalSnapshot())
         assertGate(nil, suggestInIntegratedTerminals: true, focusSnapshot: makeIntegratedTerminalSnapshot())
+    }
+
+    /// A terminal at a coding agent's prompt completes only with the opt-in on; a shell prompt in the
+    /// same terminal stays blocked even then.
+    func test_terminalApp_allowsOnlyAnOptedInCodingAgentPrompt() {
+        func terminal(atAgentPrompt: Bool) -> FocusSnapshot {
+            makeSnapshot(
+                applicationName: "Terminal",
+                bundleIdentifier: "com.apple.Terminal",
+                context: CotabbyTestFixtures.focusedInputSnapshot(
+                    applicationName: "Terminal",
+                    bundleIdentifier: "com.apple.Terminal",
+                    isCodingAgentPrompt: atAgentPrompt
+                )
+            )
+        }
+
+        assertGate(Self.terminalApp, focusSnapshot: terminal(atAgentPrompt: true))
+        assertGate(nil, completeInCodingAgents: true, focusSnapshot: terminal(atAgentPrompt: true))
+        assertGate(Self.terminalApp, completeInCodingAgents: true, focusSnapshot: terminal(atAgentPrompt: false))
+    }
+
+    func test_integratedTerminal_agentPromptOptInDoesNotOpenTheShell() {
+        let agent = makeSnapshot(
+            applicationName: "Code",
+            bundleIdentifier: "com.microsoft.VSCode",
+            context: CotabbyTestFixtures.focusedInputSnapshot(
+                applicationName: "Code",
+                bundleIdentifier: "com.microsoft.VSCode",
+                isIntegratedTerminal: true,
+                isCodingAgentPrompt: true
+            )
+        )
+
+        assertGate(nil, completeInCodingAgents: true, focusSnapshot: agent)
+        assertGate(Self.integratedTerminal, completeInCodingAgents: true, focusSnapshot: makeIntegratedTerminalSnapshot())
+    }
+
+    /// The per-app code-editor switch blocks only the editor surface of the listed app.
+    func test_codeEditorSwitch_blocksOnlyTheListedAppsEditor() {
+        func code(isEditor: Bool, bundle: String = "com.microsoft.VSCode") -> FocusSnapshot {
+            makeSnapshot(
+                applicationName: "Code",
+                bundleIdentifier: bundle,
+                context: CotabbyTestFixtures.focusedInputSnapshot(
+                    applicationName: "Code",
+                    bundleIdentifier: bundle,
+                    isCodeEditorSurface: isEditor
+                )
+            )
+        }
+        let off: Set<String> = ["com.microsoft.VSCode"]
+
+        assertGate("Ghostype is off in Code's code editor.", codeEditorDisabledBundleIdentifiers: off,
+                   focusSnapshot: code(isEditor: true))
+        assertGate(nil, codeEditorDisabledBundleIdentifiers: off, focusSnapshot: code(isEditor: false))
+        assertGate(nil, focusSnapshot: code(isEditor: true))
+        assertGate(nil, codeEditorDisabledBundleIdentifiers: off, focusSnapshot: code(isEditor: true, bundle: "com.other"))
     }
 
     func test_inputMonitoringDenied_pointsAtThePermission() {

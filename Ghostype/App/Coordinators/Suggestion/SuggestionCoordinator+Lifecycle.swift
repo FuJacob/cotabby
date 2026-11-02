@@ -71,6 +71,8 @@ extension SuggestionCoordinator {
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+               completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
+               codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
                focusSnapshot: focusModel.snapshot,
@@ -89,6 +91,8 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusModel.snapshot
         ) {
@@ -112,6 +116,8 @@ extension SuggestionCoordinator {
                 disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                 disabledDomains: PerDomainDisableSettings.disabledDomains(),
                 suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+                completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
+                codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
                 inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                 screenRecordingGranted: permissionManager.screenRecordingGranted,
                 focusSnapshot: snapshot,

@@ -77,7 +77,7 @@ Ghostype/
 │   │   ├── Interaction/              query, trigger, picker, and variant rules
 │   │   └── Ranking/                  recency and popularity rules
 │   ├── Focus/
-│   │   ├── Applications/             app, browser, domain, and terminal classification
+│   │   ├── Applications/             app, browser, domain, terminal, coding-agent prompt, and code-editor surface classification
 │   │   └── Capability/               supported-field capability resolution
 │   ├── History/                      history retrieval, phrase prediction, scrubbing, import
 │   ├── Input/                        composition, key-label, and selection helpers

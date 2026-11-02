@@ -375,6 +375,17 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// call sites compiling unchanged.
     let isIntegratedTerminal: Bool
 
+    /// True when the caret sits in a coding agent's input box inside a terminal (see
+    /// `CodingAgentPromptDetector`). The resolver has then already narrowed `precedingText` and
+    /// `trailingText` to the typed request; the availability gate allows such a terminal field
+    /// only while "Complete in coding agents" is on.
+    let isCodingAgentPrompt: Bool
+
+    /// True when the field is the code editor of a VS Code-family app rather than its chat, commit
+    /// or terminal input (see `CodeEditorSurfaceDetector`). Lets the per-app "Complete in code
+    /// editors" switch turn the editor off while the rest of the window keeps suggesting.
+    let isCodeEditorSurface: Bool
+
     /// True when the resolved field's text is rendered by a web engine rather than a native text
     /// view (see `WebContentFieldDetector`). The caret layout repair keys its trust policy on
     /// this: web-engine caret bounds have known wrong-line pathologies the hidden-layout estimate
@@ -444,6 +455,8 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         selection: NSRange,
         isSecure: Bool,
         isIntegratedTerminal: Bool = false,
+        isCodingAgentPrompt: Bool = false,
+        isCodeEditorSurface: Bool = false,
         isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 0,
         focusedURLString: String? = nil,
@@ -471,6 +484,8 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.selection = selection
         self.isSecure = isSecure
         self.isIntegratedTerminal = isIntegratedTerminal
+        self.isCodingAgentPrompt = isCodingAgentPrompt
+        self.isCodeEditorSurface = isCodeEditorSurface
         self.isWebContentField = isWebContentField
         self.focusChangeSequence = focusChangeSequence
         self.focusedURLString = focusedURLString

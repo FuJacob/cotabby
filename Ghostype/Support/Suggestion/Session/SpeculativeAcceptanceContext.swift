@@ -82,6 +82,8 @@ nonisolated enum SpeculativeAcceptanceContext {
             ),
             isSecure: snapshot.isSecure,
             isIntegratedTerminal: snapshot.isIntegratedTerminal,
+            isCodingAgentPrompt: snapshot.isCodingAgentPrompt,
+            isCodeEditorSurface: snapshot.isCodeEditorSurface,
             isWebContentField: snapshot.isWebContentField,
             focusChangeSequence: snapshot.focusChangeSequence,
             focusedURLString: snapshot.focusedURLString,

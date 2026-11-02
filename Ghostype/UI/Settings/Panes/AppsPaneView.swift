@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// App-specific settings for shortcut overrides, exclusions, and integrated terminals.
+/// App-specific settings for shortcut overrides, exclusions, code editors, terminals, and coding agents.
 struct AppsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -49,7 +49,9 @@ struct AppsPaneView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(suggestionSettings.disabledAppRules) { rule in
-                        disabledAppRuleRow(rule)
+                        appRuleRow(rule) {
+                            suggestionSettings.removeDisabledApplication(bundleIdentifier: rule.bundleIdentifier)
+                        }
                     }
                 }
 
@@ -58,7 +60,55 @@ struct AppsPaneView: View {
                 }
             }
 
-            Section("Integrated Terminals") {
+            Section("Code Editors") {
+                Text("Ghostype won't complete in the code editor of these apps (VS Code, Cursor, Windsurf). "
+                    + "Their chat, commit message, and other fields keep suggesting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .settingsItem(.completeInCodeEditors)
+
+                if suggestionSettings.codeEditorDisabledAppRules.isEmpty {
+                    Text("Every app completes in its code editor.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(suggestionSettings.codeEditorDisabledAppRules) { rule in
+                        appRuleRow(rule) {
+                            suggestionSettings.setCodeEditorCompletionEnabled(
+                                bundleIdentifier: rule.bundleIdentifier,
+                                displayName: rule.displayName,
+                                enabled: true
+                            )
+                        }
+                    }
+                }
+
+                Button("Add App…") {
+                    presentAppPicker(
+                        prompt: "Add",
+                        message: "Choose apps that should not complete in their code editor."
+                    ) { metadata in
+                        suggestionSettings.setCodeEditorCompletionEnabled(
+                            bundleIdentifier: metadata.bundleIdentifier,
+                            displayName: metadata.displayName,
+                            enabled: false
+                        )
+                    }
+                }
+            }
+
+            Section("Terminals") {
+                Toggle(isOn: completeInCodingAgentsBinding) {
+                    SettingsRowLabel(
+                        title: "Complete in Coding Agents",
+                        description: "Show ghost text while you write to Claude Code, Codex, or Copilot CLI in "
+                            + "Terminal, iTerm2, or another terminal, tmux included. Only the agent's input box "
+                            + "is completed; a shell prompt never is.",
+                        systemImage: "apple.terminal"
+                    )
+                }
+                .settingsItem(.completeInCodingAgents)
+
                 Toggle(isOn: suggestInIntegratedTerminalsBinding) {
                     SettingsRowLabel(
                         title: "Suggest in Integrated Terminals",
@@ -88,6 +138,13 @@ struct AppsPaneView: View {
         .onAppear {
             runningAppSuggestions = RunningAppSuggestion.collect()
         }
+    }
+
+    private var completeInCodingAgentsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.completeInCodingAgents },
+            set: { suggestionSettings.setCompleteInCodingAgents($0) }
+        )
     }
 
     private var suggestInIntegratedTerminalsBinding: Binding<Bool> {
@@ -401,7 +458,7 @@ struct AppsPaneView: View {
     }
 
     @ViewBuilder
-    private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
+    private func appRuleRow(_ rule: DisabledApplicationRule, onRemove: @escaping () -> Void) -> some View {
         HStack(spacing: 12) {
             Image(nsImage: icon(for: rule))
                 .resizable()
@@ -419,11 +476,7 @@ struct AppsPaneView: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                suggestionSettings.removeDisabledApplication(
-                    bundleIdentifier: rule.bundleIdentifier
-                )
-            } label: {
+            Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.secondary)
             }
@@ -447,14 +500,28 @@ struct AppsPaneView: View {
     /// Spotlight (which dismisses itself the instant the menu bar is clicked) can never be turned
     /// off that way. An open panel names any installed app whether or not it is running.
     private func presentDisabledAppPicker() {
+        presentAppPicker(prompt: "Disable", message: "Choose apps where Ghostype should not autocomplete.") { metadata in
+            suggestionSettings.disableApplication(
+                bundleIdentifier: metadata.bundleIdentifier,
+                displayName: metadata.displayName
+            )
+        }
+    }
+
+    /// Shared app chooser for the per-app lists: hands each chosen app's bundle metadata to `add`.
+    private func presentAppPicker(
+        prompt: String,
+        message: String,
+        add: (ApplicationBundleMetadata) -> Void
+    ) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.application]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Disable"
-        panel.message = "Choose apps where Ghostype should not autocomplete."
+        panel.prompt = prompt
+        panel.message = message
 
         guard panel.runModal() == .OK else {
             return
@@ -464,10 +531,7 @@ struct AppsPaneView: View {
             guard let metadata = ApplicationBundleMetadata(appURL: url) else {
                 continue
             }
-            suggestionSettings.disableApplication(
-                bundleIdentifier: metadata.bundleIdentifier,
-                displayName: metadata.displayName
-            )
+            add(metadata)
         }
     }
 }

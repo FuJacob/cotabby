@@ -15,6 +15,8 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
+        completeInCodingAgents: Bool = false,
+        codeEditorDisabledBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot,
         checkCapability: Bool = true
@@ -34,7 +36,11 @@ enum SuggestionAvailabilityEvaluator {
         if let reason = locationDisabledReason(
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
+            focusSnapshot: focusSnapshot
+        ) ?? surfaceDisabledReason(
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            completeInCodingAgents: completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             focusSnapshot: focusSnapshot
         ) {
             return reason
@@ -64,6 +70,8 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
+        completeInCodingAgents: Bool = false,
+        codeEditorDisabledBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
@@ -75,6 +83,8 @@ enum SuggestionAvailabilityEvaluator {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            completeInCodingAgents: completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         ) == nil
@@ -100,6 +110,8 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
+        completeInCodingAgents: Bool = false,
+        codeEditorDisabledBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
@@ -121,6 +133,8 @@ enum SuggestionAvailabilityEvaluator {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            completeInCodingAgents: completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot,
             checkCapability: false
@@ -143,11 +157,10 @@ enum SuggestionAvailabilityEvaluator {
         )
     }
 
-    /// Returns the first app, domain, or terminal rule that disables the focused field.
+    /// Returns the first app or domain rule that disables the focused field.
     private static func locationDisabledReason(
         disabledAppBundleIdentifiers: Set<String>,
         disabledDomains: Set<String>,
-        suggestInIntegratedTerminals: Bool,
         focusSnapshot: FocusSnapshot
     ) -> String? {
         if let bundleIdentifier = focusSnapshot.bundleIdentifier,
@@ -162,13 +175,33 @@ enum SuggestionAvailabilityEvaluator {
             return "Ghostype is disabled on \(host)."
         }
 
-        if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
+        return nil
+    }
+
+    /// Returns the terminal or code-editor rule that disables the focused surface, if any.
+    private static func surfaceDisabledReason(
+        suggestInIntegratedTerminals: Bool,
+        completeInCodingAgents: Bool,
+        codeEditorDisabledBundleIdentifiers: Set<String>,
+        focusSnapshot: FocusSnapshot
+    ) -> String? {
+        // A terminal is allowed only at a coding agent's prompt, and only when the user opted in:
+        // the resolver has then narrowed the field to the typed request. A shell prompt never is.
+        let isAtAllowedAgentPrompt = completeInCodingAgents && focusSnapshot.context?.isCodingAgentPrompt == true
+
+        if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier), !isAtAllowedAgentPrompt {
             return "Ghostype is not available in terminal apps."
         }
 
         // Integrated terminals share the editor's bundle ID, so check their AX-derived flag.
-        if !suggestInIntegratedTerminals, focusSnapshot.context?.isIntegratedTerminal == true {
+        if !suggestInIntegratedTerminals, !isAtAllowedAgentPrompt, focusSnapshot.context?.isIntegratedTerminal == true {
             return "Ghostype is not available in the integrated terminal."
+        }
+
+        if focusSnapshot.context?.isCodeEditorSurface == true,
+           let bundleIdentifier = focusSnapshot.bundleIdentifier,
+           codeEditorDisabledBundleIdentifiers.contains(bundleIdentifier) {
+            return "Ghostype is off in \(focusSnapshot.applicationName)'s code editor."
         }
 
         return nil

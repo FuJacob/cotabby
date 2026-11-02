@@ -48,6 +48,13 @@ final class SuggestionSettingsModel: ObservableObject {
     /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
     /// overlaps command output. Power users who want it can opt back in from the Apps settings pane.
     @Published private(set) var suggestInIntegratedTerminals: Bool
+    /// Whether terminals (and integrated terminals) get suggestions while the caret is in an AI
+    /// coding agent's input box. Off by default; the agent-prompt rule is
+    /// `CodingAgentPromptDetector`, and a plain shell prompt never qualifies.
+    @Published private(set) var completeInCodingAgents: Bool
+    /// Apps whose code editor gets no suggestions (the per-app "Complete in code editors" switch
+    /// turned off). Their chat and other fields keep suggesting.
+    @Published private(set) var codeEditorDisabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
     /// Multiplier the overlay applies on top of the caret-approximated ghost-text size. Read live by
@@ -240,6 +247,8 @@ final class SuggestionSettingsModel: ObservableObject {
         showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
+        completeInCodingAgents = data.completeInCodingAgents
+        codeEditorDisabledAppRules = data.codeEditorDisabledAppRules
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
@@ -334,6 +343,8 @@ final class SuggestionSettingsModel: ObservableObject {
         showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
+        completeInCodingAgents = data.completeInCodingAgents
+        codeEditorDisabledAppRules = data.codeEditorDisabledAppRules
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
@@ -421,6 +432,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 pauseState: pauseState,
                 disabledAppRules: disabledAppRules,
                 suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+                completeInCodingAgents: completeInCodingAgents,
+                codeEditorDisabledAppRules: codeEditorDisabledAppRules,
                 isPerformanceTrackingEnabled: isPerformanceTrackingEnabled,
                 isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled
             ),
@@ -536,6 +549,8 @@ final class SuggestionSettingsModel: ObservableObject {
             isTemporarilyPaused: settings.general.pauseState?.isActive() == true,
             disabledAppBundleIdentifiers: Set(settings.general.disabledAppRules.map(\.bundleIdentifier)),
             suggestInIntegratedTerminals: settings.general.suggestInIntegratedTerminals,
+            completeInCodingAgents: settings.general.completeInCodingAgents,
+            codeEditorDisabledBundleIdentifiers: Set(settings.general.codeEditorDisabledAppRules.map(\.bundleIdentifier)),
             isLowPowerModeAutoDisableEnabled: settings.general.isLowPowerModeAutoDisableEnabled,
             selectedEngine: settings.engine.selectedEngine,
             selectedWordCountPreset: settings.completion.selectedWordCountPreset,
@@ -1188,6 +1203,40 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveSuggestInIntegratedTerminals(enabled)
     }
 
+    func setCompleteInCodingAgents(_ enabled: Bool) {
+        guard completeInCodingAgents != enabled else {
+            return
+        }
+
+        completeInCodingAgents = enabled
+        store.saveCompleteInCodingAgents(enabled)
+    }
+
+    /// The per-app "Complete in code editors" switch. On (the default) removes the app from the
+    /// list; off records it, with its display name for the Apps pane.
+    func setCodeEditorCompletionEnabled(bundleIdentifier: String?, displayName: String, enabled: Bool) {
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
+            return
+        }
+
+        var rulesByBundleIdentifier = Dictionary(
+            uniqueKeysWithValues: codeEditorDisabledAppRules.map { ($0.bundleIdentifier, $0) }
+        )
+        rulesByBundleIdentifier[normalizedBundleIdentifier] = enabled ? nil : DisabledApplicationRule(
+            bundleIdentifier: normalizedBundleIdentifier,
+            displayName: SuggestionSettingsStore.normalizedDisplayName(
+                displayName, fallbackBundleIdentifier: normalizedBundleIdentifier
+            )
+        )
+        let updatedRules = SuggestionSettingsStore.sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
+        guard codeEditorDisabledAppRules != updatedRules else {
+            return
+        }
+
+        codeEditorDisabledAppRules = updatedRules
+        store.saveCodeEditorDisabledAppRules(updatedRules)
+    }
+
     func setApplicationDisabled(
         bundleIdentifier: String?,
         displayName: String,
@@ -1824,6 +1873,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $perAppShortcutOverrides,
             $includeTrailingPunctuationOnFullAccept
         )
+        // Terminal-agent and code-editor placement rules travel with `customRange` in its slot.
+        let rangeAndPlacement = Publishers.CombineLatest3(
+            customRange,
+            $completeInCodingAgents,
+            $codeEditorDisabledAppRules
+        )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
             primary,
@@ -1834,9 +1889,10 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $isSurfaceContextEnabled,
                 $isLowPowerModeAutoDisableEnabled
             ),
-            customRange
+            rangeAndPlacement
         )
-            .map { primaryTuple, acceptanceTuple, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, acceptanceTuple, extendedContextTuple, rangeAndPlacementTuple in
+                let (customRangeTuple, completeInCodingAgents, codeEditorDisabledAppRules) = rangeAndPlacementTuple
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1856,6 +1912,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isTemporarilyPaused: pauseState?.isActive() == true,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+                    completeInCodingAgents: completeInCodingAgents,
+                    codeEditorDisabledBundleIdentifiers: Set(codeEditorDisabledAppRules.map(\.bundleIdentifier)),
                     isLowPowerModeAutoDisableEnabled: lowPowerModeAutoDisableEnabled,
                     selectedEngine: engine,
                     selectedWordCountPreset: wordCountPreset,

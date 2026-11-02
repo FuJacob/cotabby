@@ -118,6 +118,8 @@ struct SuggestionSettingsStore {
     private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
     private static let doubleTapFullAcceptanceDefaultsKey = "cotabbyDoubleTapAcceptsEntireSuggestion"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
+    private static let completeInCodingAgentsDefaultsKey = "cotabbyCompleteInCodingAgents"
+    private static let codeEditorDisabledAppRulesDefaultsKey = "cotabbyCodeEditorDisabledAppRules"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showDevelopmentDebugOverlaysDefaultsKey = "cotabbyShowDevelopmentDebugOverlays"
@@ -215,6 +217,8 @@ struct SuggestionSettingsStore {
         perAppShortcutOverridesDefaultsKey,
         doubleTapFullAcceptanceDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
+        completeInCodingAgentsDefaultsKey,
+        codeEditorDisabledAppRulesDefaultsKey,
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
         showAcceptanceHintDefaultsKey,
@@ -300,7 +304,9 @@ struct SuggestionSettingsStore {
         let persistedPauseState = userDefaults.data(forKey: Self.pauseStateDefaultsKey)
             .flatMap { try? JSONDecoder().decode(SuggestionPauseState.self, from: $0) }
         let resolvedPauseState = persistedPauseState?.activeState()
-        let resolvedDisabledAppRules = loadDisabledAppRules()
+        let resolvedDisabledAppRules = loadAppRules(forKey: Self.disabledAppRulesDefaultsKey)
+        // Empty by default: every app's code editor keeps completing, as before the switch existed.
+        let resolvedCodeEditorDisabledAppRules = loadAppRules(forKey: Self.codeEditorDisabledAppRulesDefaultsKey)
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
         // Off by default: a fast second Tab has always accepted one more word, and turning it into a
         // whole-suggestion accept is an opt-in change to that muscle memory.
@@ -318,6 +324,9 @@ struct SuggestionSettingsStore {
         // standalone terminal apps are already skipped. Existing installs (no key) get the same.
         let resolvedSuggestInIntegratedTerminals =
             userDefaults.object(forKey: Self.suggestInIntegratedTerminalsDefaultsKey) as? Bool ?? false
+        // Opt-in like integrated terminals: an install that never saw the switch keeps terminals off.
+        let resolvedCompleteInCodingAgents =
+            userDefaults.object(forKey: Self.completeInCodingAgentsDefaultsKey) as? Bool ?? false
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
@@ -587,6 +596,8 @@ struct SuggestionSettingsStore {
                 pauseState: resolvedPauseState,
                 disabledAppRules: resolvedDisabledAppRules,
                 suggestInIntegratedTerminals: resolvedSuggestInIntegratedTerminals,
+                completeInCodingAgents: resolvedCompleteInCodingAgents,
+                codeEditorDisabledAppRules: resolvedCodeEditorDisabledAppRules,
                 isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
                 isLowPowerModeAutoDisableEnabled: resolvedLowPowerModeAutoDisableEnabled
             ),
@@ -685,6 +696,8 @@ struct SuggestionSettingsStore {
         savePauseState(data.pauseState)
         saveDisabledAppRules(data.disabledAppRules)
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
+        saveCompleteInCodingAgents(data.completeInCodingAgents)
+        saveCodeEditorDisabledAppRules(data.codeEditorDisabledAppRules)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
         saveShowDevelopmentDebugOverlays(data.presentation.showDevelopmentDebugOverlays)
@@ -803,14 +816,27 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.suggestInIntegratedTerminalsDefaultsKey)
     }
 
+    func saveCompleteInCodingAgents(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.completeInCodingAgentsDefaultsKey)
+    }
+
     func saveDisabledAppRules(_ rules: [DisabledApplicationRule]) {
+        saveAppRules(rules, forKey: Self.disabledAppRulesDefaultsKey)
+    }
+
+    func saveCodeEditorDisabledAppRules(_ rules: [DisabledApplicationRule]) {
+        saveAppRules(rules, forKey: Self.codeEditorDisabledAppRulesDefaultsKey)
+    }
+
+    /// Both per-app lists (disabled apps, apps with code-editor completion off) share one encoding.
+    private func saveAppRules(_ rules: [DisabledApplicationRule], forKey key: String) {
         guard !rules.isEmpty else {
-            userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
+            userDefaults.removeObject(forKey: key)
             return
         }
 
         if let data = try? JSONEncoder().encode(rules) {
-            userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
+            userDefaults.set(data, forKey: key)
         }
     }
 
@@ -1101,8 +1127,8 @@ struct SuggestionSettingsStore {
 
     // MARK: - Disabled-app rule decoding
 
-    private func loadDisabledAppRules() -> [DisabledApplicationRule] {
-        guard let data = userDefaults.data(forKey: Self.disabledAppRulesDefaultsKey),
+    private func loadAppRules(forKey key: String) -> [DisabledApplicationRule] {
+        guard let data = userDefaults.data(forKey: key),
               let decodedRules = try? JSONDecoder().decode([DisabledApplicationRule].self, from: data)
         else {
             return []

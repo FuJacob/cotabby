@@ -10,6 +10,10 @@ struct SuggestionGeneralSettings: Equatable {
     var pauseState: SuggestionPauseState?
     var disabledAppRules: [DisabledApplicationRule]
     var suggestInIntegratedTerminals: Bool
+    /// Opt-in: suggest inside AI coding agents (Claude Code, Codex, …) running in terminals.
+    var completeInCodingAgents: Bool
+    /// Apps where the per-app "Complete in code editors" switch is off.
+    var codeEditorDisabledAppRules: [DisabledApplicationRule]
     var isPerformanceTrackingEnabled: Bool
     /// Whether suggestions pause while Low Power Mode is active.
     var isLowPowerModeAutoDisableEnabled: Bool
@@ -160,6 +164,16 @@ extension SuggestionSettingsData {
     var suggestInIntegratedTerminals: Bool {
         get { general.suggestInIntegratedTerminals }
         set { general.suggestInIntegratedTerminals = newValue }
+    }
+
+    var completeInCodingAgents: Bool {
+        get { general.completeInCodingAgents }
+        set { general.completeInCodingAgents = newValue }
+    }
+
+    var codeEditorDisabledAppRules: [DisabledApplicationRule] {
+        get { general.codeEditorDisabledAppRules }
+        set { general.codeEditorDisabledAppRules = newValue }
     }
 
     var isPerformanceTrackingEnabled: Bool {

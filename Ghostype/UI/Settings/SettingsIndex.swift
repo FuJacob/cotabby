@@ -99,6 +99,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Apps
     case disabledApps
     case suggestInIntegratedTerminals
+    case completeInCodingAgents
+    case completeInCodeEditors
     // Permissions
     case accessibility
     case inputMonitoring
@@ -198,6 +200,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .toggleTabby: return "Toggle Ghostype"
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
+        case .completeInCodingAgents: return "Complete in Coding Agents"
+        case .completeInCodeEditors: return "Complete in Code Editors"
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
@@ -294,6 +298,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .toggleTabby: return "power.circle"
         case .disabledApps: return "nosign"
         case .suggestInIntegratedTerminals: return "terminal"
+        case .completeInCodingAgents: return "apple.terminal"
+        case .completeInCodeEditors: return "chevron.left.forwardslash.chevron.right"
         case .accessibility: return "accessibility"
         case .inputMonitoring: return "keyboard"
         case .screenRecording: return "camera.viewfinder"
@@ -341,7 +347,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .engineAndModel
         case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
             return .shortcuts
-        case .disabledApps, .suggestInIntegratedTerminals:
+        case .disabledApps, .suggestInIntegratedTerminals, .completeInCodingAgents, .completeInCodeEditors:
             return .apps
         case .accessibility, .inputMonitoring, .screenRecording:
             return .permissions
@@ -438,6 +444,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .toggleTabby: return "A global hotkey that turns Ghostype on or off."
         case .disabledApps: return "Apps where Ghostype never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
+        case .completeInCodingAgents: return "Ghost text in Claude Code, Codex, and Copilot CLI prompts."
+        case .completeInCodeEditors: return "Turn off ghost text in an app's code editor, keeping its chat."
         case .accessibility: return "Required to read the focused field and caret."
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
         case .screenRecording: return "Optional visual context from the focused window."
@@ -681,6 +689,12 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["terminal", "terminals", "integrated terminal", "vscode", "vs code",
                     "cursor", "shell", "xterm", "command line", "cli", "console",
                     "ghost text in terminal"]
+        case .completeInCodingAgents:
+            return ["coding agent", "agent", "claude code", "codex", "copilot cli", "tmux", "zellij",
+                    "iterm", "terminal", "prompt", "ai agent"]
+        case .completeInCodeEditors:
+            return ["code editor", "editor", "vscode", "vs code", "cursor", "windsurf", "monaco",
+                    "code", "per app", "copilot chat"]
         case .accessibility:
             return ["accessibility", "ax", "permission", "access", "system settings",
                     "privacy", "grant", "allow"]
