@@ -38,6 +38,8 @@ protocol ScreenTextExtracting {
 enum ScreenTextExtractionError: LocalizedError {
     case noRecognizedText
     case ocrFailed(String)
+    /// OCR is still busy with an earlier pass that overran its time, or this pass ran out of time.
+    case ocrUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -45,29 +47,136 @@ enum ScreenTextExtractionError: LocalizedError {
             return "No usable visible text was recognized in the screenshot."
         case let .ocrFailed(message):
             return "Screenshot OCR failed: \(message)"
+        case .ocrUnavailable:
+            return "Screenshot OCR is busy with an earlier pass that has not finished."
         }
     }
 }
 
-/// Guards the callback-to-async bridge for a single OCR request.
+/// Runs blocking Vision OCR one pass at a time, process-wide, and bounds how long a caller waits.
 ///
-/// Vision can report a request failure through `VNRecognizeTextRequest`'s completion handler and
-/// then rethrow that same failure from `VNImageRequestHandler.perform(_:)`. Swift checked
-/// continuations must resume exactly once, so both paths share this short-lived gate.
-private final class OCRContinuationResumer {
+/// Why this exists: `VNImageRequestHandler.perform` blocks its thread until Vision returns, and
+/// Vision can wedge (a pass was seen parked forever on a semaphore inside TextRecognition). Before
+/// this gate every OCR pass took its own GCD worker, so each later pass queued behind the wedged
+/// one inside Vision and held another thread. After a few hours 44 threads were parked, libdispatch
+/// hit its 90-thread limit, and AppKit's own background callbacks stopped getting threads: the menu
+/// bar popover no longer heard that the app was deactivated, so it would not close and its buttons
+/// stopped answering.
+///
+/// The gate holds three invariants:
+/// - Vision runs only on one serial queue, so a wedged pass costs exactly one thread.
+/// - A caller waits at most `timeout` (or until its task is cancelled), never forever.
+/// - Once the running pass has overrun its deadline, new callers are refused at once (`busy`)
+///   instead of queueing behind something that may never return. Work whose caller already gave up
+///   is skipped when its turn comes, so a backlog never runs stale OCR late.
+///
+/// Lifetime: `ScreenTextExtractor.sharedGate` lives for the whole process; tests build their own.
+final class OCRWorkGate: @unchecked Sendable {
+    enum Failure: Error, Equatable {
+        /// The pass currently running overran its deadline; OCR is unavailable until it returns.
+        case busy
+        /// This caller's wait ran out before its pass finished.
+        case timedOut
+    }
+
+    private let queue: DispatchQueue
     private let lock = NSLock()
-    private var hasResumed = false
+    /// Deadline of the pass executing on `queue` right now; nil while the queue is idle.
+    private var runningDeadline: Date?
 
-    func resume(_ action: () -> Void) {
-        lock.lock()
-        let shouldResume = !hasResumed
-        if shouldResume {
-            hasResumed = true
+    init(label: String) {
+        queue = DispatchQueue(label: label, qos: .userInitiated)
+    }
+
+    func run<T: Sendable>(
+        timeout: TimeInterval,
+        _ work: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        if isWedged() {
+            throw Failure.busy
         }
-        lock.unlock()
 
-        guard shouldResume else { return }
-        action()
+        let call = GatedCall<T>()
+        // The timer lives on Swift's cooperative pool, not on GCD: it must still fire when the
+        // thing it guards against (a starved dispatch pool) is happening.
+        let timer = Task {
+            guard (try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))) != nil else { return }
+            call.settle(.failure(Failure.timedOut))
+        }
+        defer { timer.cancel() }
+
+        queue.async { [self] in
+            // The caller timed out or was cancelled while this item waited its turn.
+            guard !call.isSettled else { return }
+            setRunningDeadline(Date().addingTimeInterval(timeout))
+            let result = Result { try work() }
+            setRunningDeadline(nil)
+            call.settle(result)
+        }
+
+        // `withTaskCancellationHandler` lets a cancelled caller (the user moved to another field)
+        // stop waiting right away; the Vision pass itself cannot be interrupted and simply finishes
+        // or stays wedged on the gate's one thread.
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                call.install(continuation)
+            }
+        } onCancel: {
+            call.settle(.failure(CancellationError()))
+        }
+    }
+
+    private func isWedged() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let runningDeadline else { return false }
+        return Date() > runningDeadline
+    }
+
+    private func setRunningDeadline(_ deadline: Date?) {
+        lock.lock()
+        runningDeadline = deadline
+        lock.unlock()
+    }
+}
+
+/// One caller's pending result. Three parties race to settle it (the work, the timer, task
+/// cancellation) and a checked continuation must resume exactly once, so the first outcome wins
+/// and later ones are dropped. Cancellation can also fire before the continuation is installed;
+/// the outcome is then held and delivered on install.
+private final class GatedCall<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Error>?
+    private var outcome: Result<T, Error>?
+
+    var isSettled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return outcome != nil
+    }
+
+    func install(_ continuation: CheckedContinuation<T, Error>) {
+        lock.lock()
+        if let outcome {
+            lock.unlock()
+            continuation.resume(with: outcome)
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func settle(_ result: Result<T, Error>) {
+        lock.lock()
+        guard outcome == nil else {
+            lock.unlock()
+            return
+        }
+        outcome = result
+        let waiting = continuation
+        continuation = nil
+        lock.unlock()
+        waiting?.resume(with: result)
     }
 }
 
@@ -75,6 +184,16 @@ struct ScreenTextExtractor: ScreenTextExtracting {
     /// Vision cannot produce useful text from near-zero-sized request images. Treating those as
     /// empty OCR keeps degenerate screenshots on the same unavailable-context path as blank windows.
     private static let minimumOCRImageDimension = 4
+
+    /// One gate for every OCR caller in the process (screen context builds a new extractor per
+    /// pass, so the gate cannot live on the instance).
+    static let sharedGate = OCRWorkGate(label: "com.jasshans.ghostype.ocr")
+
+    /// A warm accurate pass takes well under two seconds, but the first one in a process loads
+    /// Vision's text models and was measured at 31 s on a busy machine. The timeout only frees a
+    /// waiting caller (OCR is background context, so a long wait costs nothing visible); the thread
+    /// bound that prevents starvation comes from the gate's serial queue, not from this number.
+    static let ocrTimeoutSeconds: TimeInterval = 60
 
     let maxImageDimension: Int
     let maxRecognizedCharacters: Int
@@ -111,72 +230,13 @@ struct ScreenTextExtractor: ScreenTextExtracting {
             throw ScreenTextExtractionError.noRecognizedText
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let resumer = OCRContinuationResumer()
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                let request = VNRecognizeTextRequest { request, error in
-                    if let error {
-                        resumer.resume {
-                            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                            self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
-                            continuation.resume(
-                                throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription)
-                            )
-                        }
-                        return
-                    }
-
-                    let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
-                    // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
-                    // the recognizer's weakest guesses; the joined `text` below is for logging and the
-                    // window-title fallback only.
-                    let recognizedLines: [OCRTextHygiene.OCRLine] = observations
-                        .sorted {
-                            if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
-                                return $0.boundingBox.minY > $1.boundingBox.minY
-                            }
-
-                            return $0.boundingBox.minX < $1.boundingBox.minX
-                        }
-                        .compactMap { observation -> OCRTextHygiene.OCRLine? in
-                            guard let candidate = observation.topCandidates(1).first else { return nil }
-                            let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return nil }
-                            return OCRTextHygiene.OCRLine(
-                                text: trimmed, confidence: candidate.confidence, boundingBox: observation.boundingBox
-                            )
-                        }
-
-                    let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
-                    let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
-
-                    guard !cappedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        resumer.resume {
-                            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                            self.log("ocr-empty elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count)")
-                            continuation.resume(throwing: ScreenTextExtractionError.noRecognizedText)
-                        }
-                        return
-                    }
-
-                    resumer.resume {
-                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                        self.log(
-                            "ocr-success elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count) chars=\(cappedText.count) " +
-                                "preview=\(self.preview(cappedText))"
-                        )
-
-                        continuation.resume(
-                            returning: ExtractedScreenText(
-                                text: cappedText,
-                                lineCount: recognizedLines.count,
-                                lines: recognizedLines
-                            )
-                        )
-                    }
-                }
-
+        let maxRecognizedCharacters = self.maxRecognizedCharacters
+        let recognizedLines: [OCRTextHygiene.OCRLine]
+        do {
+            // `perform` is synchronous and Vision has filled `results` by the time it returns, so
+            // the pass is one blocking call on the gate's single thread (see `OCRWorkGate`).
+            recognizedLines = try await Self.sharedGate.run(timeout: Self.ocrTimeoutSeconds) {
+                let request = VNRecognizeTextRequest()
                 // Accurate OCR is slower, but visual context refresh is throttled independently
                 // of typing and the result can materially improve autocomplete relevance. Language
                 // correction is on for the same reason: it cuts garbled recognitions at the
@@ -189,20 +249,58 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                 request.usesLanguageCorrection = !light
                 request.minimumTextHeight = 0.008
 
-                do {
-                    let handler = VNImageRequestHandler(cgImage: preparedImage, options: [:])
-                    try handler.perform([request])
-                } catch {
-                    resumer.resume {
-                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                        self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
-                        continuation.resume(
-                            throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription)
+                try VNImageRequestHandler(cgImage: preparedImage, options: [:]).perform([request])
+
+                // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
+                // the recognizer's weakest guesses; the joined `text` below is for logging and the
+                // window-title fallback only.
+                return (request.results ?? [])
+                    .sorted {
+                        if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
+                            return $0.boundingBox.minY > $1.boundingBox.minY
+                        }
+
+                        return $0.boundingBox.minX < $1.boundingBox.minX
+                    }
+                    .compactMap { observation -> OCRTextHygiene.OCRLine? in
+                        guard let candidate = observation.topCandidates(1).first else { return nil }
+                        let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return nil }
+                        return OCRTextHygiene.OCRLine(
+                            text: trimmed, confidence: candidate.confidence, boundingBox: observation.boundingBox
                         )
                     }
-                }
             }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch OCRWorkGate.Failure.busy {
+            log("ocr-refused-busy elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt))")
+            throw ScreenTextExtractionError.ocrUnavailable
+        } catch OCRWorkGate.Failure.timedOut {
+            log("ocr-timed-out elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt))")
+            throw ScreenTextExtractionError.ocrUnavailable
+        } catch {
+            log("ocr-failed elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt)) reason=\(error.localizedDescription)")
+            throw ScreenTextExtractionError.ocrFailed(error.localizedDescription)
         }
+
+        let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
+        let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
+
+        guard !cappedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            log("ocr-empty elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt)) lines=\(recognizedLines.count)")
+            throw ScreenTextExtractionError.noRecognizedText
+        }
+
+        log(
+            "ocr-success elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt)) lines=\(recognizedLines.count) " +
+                "chars=\(cappedText.count) preview=\(preview(cappedText))"
+        )
+        return ExtractedScreenText(text: cappedText, lineCount: recognizedLines.count, lines: recognizedLines)
+    }
+
+    private static func elapsedMilliseconds(since startedAt: Date) -> Int {
+        Int(Date().timeIntervalSince(startedAt) * 1000)
     }
 
     /// Keeps OCR latency bounded on very large Retina windows by scaling the image to a reasonable
