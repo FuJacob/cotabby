@@ -291,6 +291,20 @@ final class FocusTracker {
         return (appFocused, frontmost)
     }
 
+    /// Every consumer keyed on the focus session (visual context, prediction memory, the KV-cache
+    /// prefix) restarts on a new one, so name the facts that broke continuity (names only, no values).
+    private func logNewFocusSession(
+        next: FocusedInputPollingSignature,
+        previous: FocusedInputPollingSignature?,
+        application: NSRunningApplication
+    ) {
+        guard let previous else { return }
+        let facts = next.changedFacts(since: previous)
+        CotabbyLogger.focus.debug(
+            "New focus session: app=\(application.localizedName ?? "?") changed=\(facts.joined(separator: ","))"
+        )
+    }
+
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.
     private func captureSnapshot() -> FocusCaptureResult {
         guard permissionProvider() else {
@@ -401,13 +415,16 @@ final class FocusTracker {
         }
 
         let nextSignature = FocusedInputPollingSignature(context: context)
-        if let lastFocusedInputSignature, nextSignature.continuesField(of: lastFocusedInputSignature) {
-            // Same field, possibly resized in place. Track its latest frame so later growth is
-            // compared with the current edges, without opening a new writing session.
-            self.lastFocusedInputSignature = nextSignature
+        if let lastFocusedInputSignature,
+           let continued = nextSignature.continuation(of: lastFocusedInputSignature) {
+            // Same field, possibly resized in place. Remember its latest frame so later growth is
+            // compared with the current edges, plus the placeholder it last showed (hidden while
+            // the field has text), without opening a new writing session.
+            self.lastFocusedInputSignature = continued
             return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
         }
 
+        logNewFocusSession(next: nextSignature, previous: lastFocusedInputSignature, application: application)
         lastFocusedInputSignature = nextSignature
         focusChangeSequence += 1
 

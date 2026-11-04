@@ -19,13 +19,16 @@ nonisolated struct FocusedInputIdentity: Equatable, Sendable {
 /// advances the sequence when it observes navigation; the surface facts also protect consumers
 /// during a direct snapshot refresh. Requests and caches carry this immutable value only in
 /// memory. The full URL distinguishes conversations on one host and is never a prompt field.
+///
+/// The field placeholder is deliberately absent. Hosts show it only while the field is empty, so
+/// its live value flips with the text inside one session; FocusTracker's polling signature
+/// already folds a genuinely different placeholder into a new `focusChangeSequence`.
 nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let processIdentifier: Int32
     let bundleIdentifier: String
     let focusChangeSequence: UInt64
     let focusedURLString: String?
     let windowTitle: String?
-    let fieldPlaceholder: String?
 }
 
 /// Describes how trustworthy the resolved caret rect is.
@@ -363,6 +366,13 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let observedContentEdges: ObservedContentEdges?
     let precedingText: String
     let trailingText: String
+    /// True when Accessibility answered nothing for the text after the caret, so `trailingText` is
+    /// empty without the field ending at the caret. A Chromium contenteditable answers nothing
+    /// whenever its range text is shorter than the length it reports (see `BlockBreakAlignment`).
+    /// The resolver recovers that text from the value where the two align; otherwise it keeps the
+    /// text empty and sets this, rather than pairing the whole `AXValue` with a caret counted in
+    /// the range space.
+    let trailingTextUnavailable: Bool
     let selection: NSRange
     /// The text inside `selection`, which `precedingText` and `trailingText` both exclude. Empty for
     /// a bare caret. Read by the selected-word synonym feature (`SelectedWordSynonyms`); the
@@ -462,6 +472,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         observedContentEdges: ObservedContentEdges? = nil,
         precedingText: String,
         trailingText: String,
+        trailingTextUnavailable: Bool = false,
         selection: NSRange,
         selectedText: String = "",
         isSecure: Bool,
@@ -492,6 +503,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.observedContentEdges = observedContentEdges
         self.precedingText = precedingText
         self.trailingText = trailingText
+        self.trailingTextUnavailable = trailingTextUnavailable
         self.selection = selection
         self.selectedText = selectedText
         self.isSecure = isSecure
@@ -540,7 +552,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         FocusedInputSessionIdentity(
             processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
             focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
-            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            windowTitle: windowTitle
         )
     }
 
@@ -551,6 +563,12 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// True when capture may have cut the start of `precedingText` to fit that window.
     nonisolated var precedingTextMayBeTruncated: Bool {
         precedingText.utf16.count >= Self.textWindowUTF16
+    }
+
+    /// True when capture may have cut the end of `trailingText` to fit that window, or could not
+    /// read it at all.
+    nonisolated var trailingTextMayBeTruncated: Bool {
+        trailingTextUnavailable || trailingText.utf16.count >= Self.textWindowUTF16
     }
 
     /// The signature lets later pipeline stages detect whether a completion result is stale.

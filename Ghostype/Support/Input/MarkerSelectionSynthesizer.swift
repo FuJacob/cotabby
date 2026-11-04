@@ -9,6 +9,9 @@ import Foundation
 struct MarkerSelection: Equatable {
     let text: String
     let selection: NSRange
+    /// True when the host answered nothing for the text after the caret, so `text` ends at the
+    /// selection without the document ending there (see `FocusedInputSnapshot.trailingTextUnavailable`).
+    var trailingTextUnavailable = false
 }
 
 /// Pure logic for turning the three text fragments around a caret (before / selected / after),

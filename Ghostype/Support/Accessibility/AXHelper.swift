@@ -857,17 +857,20 @@ enum AXHelper {
 
         let selectedText = stringForMarkerRange(selectionRange, on: element) ?? ""
 
-        // After-caret context is nice-to-have, not required for offset correctness.
-        var afterText = ""
-        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element),
-            let trailing = stringForMarkerRange(postRange, on: element) {
-            afterText = trailing
+        // After-caret context is nice-to-have, not required for offset correctness. A failed read
+        // still yields a selection, marked so nothing downstream takes the empty text as the end of
+        // the document.
+        var afterText: String?
+        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element) {
+            afterText = stringForMarkerRange(postRange, on: element)
         }
 
-        return MarkerSelectionSynthesizer.make(
-            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText,
+        var selection = MarkerSelectionSynthesizer.make(
+            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText ?? "",
             normalizeNonBreakingSpaces: normalizeNonBreakingSpaces
         )
+        selection.trailingTextUnavailable = afterText == nil
+        return selection
     }
 
     /// Reads endpoints locally from the opaque CF range returned by the host. WebKit (including
