@@ -146,6 +146,12 @@ final class OCRWorkGate: @unchecked Sendable {
 /// the outcome is then held and delivered on install.
 private final class GatedCall<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
+
+    // The target's default isolation is MainActor, which gives this generic class an isolated
+    // deinit. Xcode 26.3's Release optimizer crashes on it (EarlyPerfInliner, x86_64), and nothing
+    // here needs main-actor cleanup, so an explicit nonisolated deinit is equivalent. Same Xcode 26
+    // isolated-deinit workaround as `DailyCompletionStats`.
+    nonisolated deinit {}
     private var continuation: CheckedContinuation<T, Error>?
     private var outcome: Result<T, Error>?
 
