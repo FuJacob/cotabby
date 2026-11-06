@@ -118,8 +118,6 @@ struct SuggestionSettingsStore {
     private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
     private static let doubleTapFullAcceptanceDefaultsKey = "cotabbyDoubleTapAcceptsEntireSuggestion"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
-    private static let completeInCodingAgentsDefaultsKey = "cotabbyCompleteInCodingAgents"
-    private static let codeEditorDisabledAppRulesDefaultsKey = "cotabbyCodeEditorDisabledAppRules"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showDevelopmentDebugOverlaysDefaultsKey = "cotabbyShowDevelopmentDebugOverlays"
@@ -148,10 +146,8 @@ struct SuggestionSettingsStore {
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let surfaceContextEnabledDefaultsKey = "cotabbySurfaceContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
-    private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
     private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
     private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
-    private static let automaticallyFixTyposDefaultsKey = "cotabbyAutomaticallyFixTypos"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let lowPowerModeAutoDisableDefaultsKey = "cotabbyLowPowerModeAutoDisableEnabled"
     /// Shared with `CotabbyApp` because SwiftUI's scene-level `@AppStorage` is what invalidates the
@@ -172,11 +168,9 @@ struct SuggestionSettingsStore {
     private static let showFollowingWordsDefaultsKey = "cotabbyShowFollowingWords"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let macroExpansionEnabledDefaultsKey = "cotabbyMacroExpansionEnabled"
-    private static let synonymsForSelectedWordDefaultsKey = "cotabbySynonymsForSelectedWord"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
-    private static let fullAcceptPunctuationDefaultsKey = "cotabbyIncludeTrailingPunctuationOnFullAccept"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
@@ -218,8 +212,6 @@ struct SuggestionSettingsStore {
         perAppShortcutOverridesDefaultsKey,
         doubleTapFullAcceptanceDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
-        completeInCodingAgentsDefaultsKey,
-        codeEditorDisabledAppRulesDefaultsKey,
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
         showAcceptanceHintDefaultsKey,
@@ -240,10 +232,8 @@ struct SuggestionSettingsStore {
         clipboardContextEnabledDefaultsKey,
         surfaceContextEnabledDefaultsKey,
         fastModeEnabledDefaultsKey,
-        suppressCompletionsOnTypoDefaultsKey,
         offerTypoCorrectionsDefaultsKey,
         spellingDictionaryCodesDefaultsKey,
-        automaticallyFixTyposDefaultsKey,
         performanceTrackingEnabledDefaultsKey,
         lowPowerModeAutoDisableDefaultsKey,
         menuBarWordCountVisibleDefaultsKey,
@@ -260,11 +250,9 @@ struct SuggestionSettingsStore {
         showFollowingWordsDefaultsKey,
         emojiPickerEnabledDefaultsKey,
         macroExpansionEnabledDefaultsKey,
-        synonymsForSelectedWordDefaultsKey,
         preferredEmojiSkinToneDefaultsKey,
         preferredEmojiGenderDefaultsKey,
         autoAcceptTrailingPunctuationDefaultsKey,
-        fullAcceptPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
         predictAheadWhileTypingDefaultsKey,
@@ -306,9 +294,7 @@ struct SuggestionSettingsStore {
         let persistedPauseState = userDefaults.data(forKey: Self.pauseStateDefaultsKey)
             .flatMap { try? JSONDecoder().decode(SuggestionPauseState.self, from: $0) }
         let resolvedPauseState = persistedPauseState?.activeState()
-        let resolvedDisabledAppRules = loadAppRules(forKey: Self.disabledAppRulesDefaultsKey)
-        // Empty by default: every app's code editor keeps completing, as before the switch existed.
-        let resolvedCodeEditorDisabledAppRules = loadAppRules(forKey: Self.codeEditorDisabledAppRulesDefaultsKey)
+        let resolvedDisabledAppRules = loadDisabledAppRules()
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
         // Off by default: a fast second Tab has always accepted one more word, and turning it into a
         // whole-suggestion accept is an opt-in change to that muscle memory.
@@ -326,9 +312,6 @@ struct SuggestionSettingsStore {
         // standalone terminal apps are already skipped. Existing installs (no key) get the same.
         let resolvedSuggestInIntegratedTerminals =
             userDefaults.object(forKey: Self.suggestInIntegratedTerminalsDefaultsKey) as? Bool ?? false
-        // Opt-in like integrated terminals: an install that never saw the switch keeps terminals off.
-        let resolvedCompleteInCodingAgents =
-            userDefaults.object(forKey: Self.completeInCodingAgentsDefaultsKey) as? Bool ?? false
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
@@ -389,11 +372,6 @@ struct SuggestionSettingsStore {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
-        // Hiding a completion on a misspelled current word and offering a fix remain the default
-        // behavior. Automatic replacement is deliberately opt-in because it mutates host-app text
-        // without a confirmation key.
-        let resolvedSuppressCompletionsOnTypo =
-            userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
         let resolvedOfferTypoCorrections =
             userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
         let resolvedEnabledSpellingDictionaryCodes: [String] = {
@@ -404,8 +382,6 @@ struct SuggestionSettingsStore {
                 userDefaults.stringArray(forKey: Self.spellingDictionaryCodesDefaultsKey) ?? []
             )
         }()
-        let resolvedAutomaticallyFixTypos =
-            userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? false
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -489,18 +465,12 @@ struct SuggestionSettingsStore {
         let resolvedShowFollowingWords = userDefaults.object(forKey: Self.showFollowingWordsDefaultsKey) as? Bool ?? true
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
-        // Defaults to false: synonyms ask the selected engine for a short generation on every word
-        // selection, which an existing install never opted into.
-        let resolvedSynonymsForSelectedWord =
-            userDefaults.object(forKey: Self.synonymsForSelectedWordDefaultsKey) as? Bool ?? false
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
             .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
         let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
             .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
         let resolvedAutoAcceptTrailingPunctuation =
             userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
-        // Defaults to true: full acceptance has always inserted the suggestion verbatim.
-        let resolvedFullAcceptPunctuation = userDefaults.object(forKey: Self.fullAcceptPunctuationDefaultsKey) as? Bool ?? true
         // Defaults to false so the WYSIWYG accept behavior is unchanged for existing installs; the
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
@@ -602,8 +572,6 @@ struct SuggestionSettingsStore {
                 pauseState: resolvedPauseState,
                 disabledAppRules: resolvedDisabledAppRules,
                 suggestInIntegratedTerminals: resolvedSuggestInIntegratedTerminals,
-                completeInCodingAgents: resolvedCompleteInCodingAgents,
-                codeEditorDisabledAppRules: resolvedCodeEditorDisabledAppRules,
                 isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
                 isLowPowerModeAutoDisableEnabled: resolvedLowPowerModeAutoDisableEnabled
             ),
@@ -633,7 +601,6 @@ struct SuggestionSettingsStore {
                 suggestWithinWords: resolvedSuggestWithinWords,
                 showFollowingWords: resolvedShowFollowingWords,
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
-                includeTrailingPunctuationOnFullAccept: resolvedFullAcceptPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: resolvedPredictAheadWhileTyping,
@@ -649,10 +616,8 @@ struct SuggestionSettingsStore {
                 extendedContext: resolvedExtendedContext
             ),
             correction: SuggestionCorrectionSettings(
-                suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
                 offerTypoCorrections: resolvedOfferTypoCorrections,
-                enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
-                automaticallyFixTypos: resolvedAutomaticallyFixTypos
+                enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes
             ),
             presentation: SuggestionPresentationSettings(
                 showIndicator: resolvedShowIndicator,
@@ -672,7 +637,6 @@ struct SuggestionSettingsStore {
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
                 isMacroExpansionEnabled: resolvedMacroExpansionEnabled,
-                synonymsForSelectedWord: resolvedSynonymsForSelectedWord,
                 preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
                 preferredEmojiGender: resolvedPreferredEmojiGender
             ),
@@ -703,8 +667,6 @@ struct SuggestionSettingsStore {
         savePauseState(data.pauseState)
         saveDisabledAppRules(data.disabledAppRules)
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
-        saveCompleteInCodingAgents(data.completeInCodingAgents)
-        saveCodeEditorDisabledAppRules(data.codeEditorDisabledAppRules)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
         saveShowDevelopmentDebugOverlays(data.presentation.showDevelopmentDebugOverlays)
@@ -723,10 +685,8 @@ struct SuggestionSettingsStore {
         saveClipboardContextEnabled(data.isClipboardContextEnabled)
         saveSurfaceContextEnabled(data.isSurfaceContextEnabled)
         saveFastModeEnabled(data.isFastModeEnabled)
-        saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
         saveOfferTypoCorrections(data.offerTypoCorrections)
         saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
-        saveAutomaticallyFixTypos(data.automaticallyFixTypos)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
         saveLowPowerModeAutoDisableEnabled(data.isLowPowerModeAutoDisableEnabled)
         saveMenuBarIconVisible(data.isMenuBarIconVisible)
@@ -743,11 +703,9 @@ struct SuggestionSettingsStore {
         saveShowFollowingWords(data.showFollowingWords)
         saveEmojiPickerEnabled(data.isEmojiPickerEnabled)
         saveMacroExpansionEnabled(data.isMacroExpansionEnabled)
-        saveSynonymsForSelectedWord(data.synonymsForSelectedWord)
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
-        saveIncludeTrailingPunctuationOnFullAccept(data.includeTrailingPunctuationOnFullAccept)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         savePredictAheadWhileTyping(data.predictAheadWhileTyping)
@@ -824,27 +782,14 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.suggestInIntegratedTerminalsDefaultsKey)
     }
 
-    func saveCompleteInCodingAgents(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.completeInCodingAgentsDefaultsKey)
-    }
-
     func saveDisabledAppRules(_ rules: [DisabledApplicationRule]) {
-        saveAppRules(rules, forKey: Self.disabledAppRulesDefaultsKey)
-    }
-
-    func saveCodeEditorDisabledAppRules(_ rules: [DisabledApplicationRule]) {
-        saveAppRules(rules, forKey: Self.codeEditorDisabledAppRulesDefaultsKey)
-    }
-
-    /// Both per-app lists (disabled apps, apps with code-editor completion off) share one encoding.
-    private func saveAppRules(_ rules: [DisabledApplicationRule], forKey key: String) {
         guard !rules.isEmpty else {
-            userDefaults.removeObject(forKey: key)
+            userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
             return
         }
 
         if let data = try? JSONEncoder().encode(rules) {
-            userDefaults.set(data, forKey: key)
+            userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
         }
     }
 
@@ -980,10 +925,6 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
     }
 
-    func saveSuppressCompletionsOnTypo(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.suppressCompletionsOnTypoDefaultsKey)
-    }
-
     func saveOfferTypoCorrections(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.offerTypoCorrectionsDefaultsKey)
     }
@@ -993,10 +934,6 @@ struct SuggestionSettingsStore {
             SpellingDictionaryCatalog.normalize(codes),
             forKey: Self.spellingDictionaryCodesDefaultsKey
         )
-    }
-
-    func saveAutomaticallyFixTypos(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.automaticallyFixTyposDefaultsKey)
     }
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {
@@ -1067,10 +1004,6 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.macroExpansionEnabledDefaultsKey)
     }
 
-    func saveSynonymsForSelectedWord(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.synonymsForSelectedWordDefaultsKey)
-    }
-
     func savePreferredEmojiSkinTone(_ tone: EmojiSkinTone) {
         userDefaults.set(tone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
     }
@@ -1081,10 +1014,6 @@ struct SuggestionSettingsStore {
 
     func saveAutoAcceptTrailingPunctuation(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
-    }
-
-    func saveIncludeTrailingPunctuationOnFullAccept(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.fullAcceptPunctuationDefaultsKey)
     }
 
     func saveAddSpaceAfterAccept(_ enabled: Bool) {
@@ -1139,8 +1068,8 @@ struct SuggestionSettingsStore {
 
     // MARK: - Disabled-app rule decoding
 
-    private func loadAppRules(forKey key: String) -> [DisabledApplicationRule] {
-        guard let data = userDefaults.data(forKey: key),
+    private func loadDisabledAppRules() -> [DisabledApplicationRule] {
+        guard let data = userDefaults.data(forKey: Self.disabledAppRulesDefaultsKey),
               let decodedRules = try? JSONDecoder().decode([DisabledApplicationRule].self, from: data)
         else {
             return []

@@ -110,12 +110,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability
     /// gate sees the live value alongside the other "where Ghostype runs" rules.
     let suggestInIntegratedTerminals: Bool
-    /// When true (default false), terminals and integrated terminals get suggestions while the caret
-    /// is in a coding agent's input box (`FocusedInputSnapshot.isCodingAgentPrompt`).
-    let completeInCodingAgents: Bool
-    /// Apps whose code editor surface (not their chat or other fields) gets no suggestions: the
-    /// per-app "Complete in code editors" switch turned off.
-    let codeEditorDisabledBundleIdentifiers: Set<String>
     /// Whether the availability gate pauses suggestions during Low Power Mode.
     let isLowPowerModeAutoDisableEnabled: Bool
     let selectedEngine: SuggestionEngineKind
@@ -178,20 +172,12 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// How much of the buffered suggestion the primary accept key takes per press. Read once per
     /// accept call so a mid-press setting change can't strand a partially-handled press.
     let acceptanceGranularity: AcceptanceGranularity
-    /// When true, Ghostype checks the committed word with `NSSpellChecker` and hides the normal
-    /// continuation when it looks misspelled. Travels in the snapshot so the prediction gate reads
-    /// the live value without subscribing to the settings model directly.
-    let suppressCompletionsOnTypo: Bool
-    /// When true (and `suppressCompletionsOnTypo` is also true), a detected typo is offered a native
-    /// spell-checker correction instead of being silently suppressed. No effect when suppression is off.
+    /// When true, a detected typo is offered a native spell-checker correction as a
+    /// replace-the-word suggestion. Corrections are only ever offered, never applied.
     let offerTypoCorrections: Bool
     /// Normalized ISO codes for the bundled SymSpell dictionaries eligible for correction ranking.
     /// Language routing chooses at most one per typo; an empty array uses only `NSSpellChecker`.
     let enabledSpellingDictionaryCodes: [String]
-    /// When true (and typo suppression is on), a correction is applied automatically after the user
-    /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
-    /// from triggering destructive edits.
-    let automaticallyFixTypos: Bool
     /// When true, a second press of the Accept Word key within `DoubleTapAcceptanceState.window`
     /// accepts the rest of the suggestion. Travels in the snapshot so the acceptance path reads the
     /// live value without subscribing to the settings model. Read it per app through
@@ -201,12 +187,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// double tap lives in the global Accept Entire Suggestion slot, and an app's own binding
     /// replaces that slot there, so these apps never treat a double tap as accept-all.
     let fullAcceptanceOverrideBundleIdentifiers: Set<String>
-    /// When false, accepting the entire suggestion leaves its final punctuation behind (see
-    /// `SuggestionSessionReconciler.fullAcceptanceChunk`). Defaulted so fixtures keep today's behavior.
-    var includeTrailingPunctuationOnFullAccept = true
-    /// Opt-in selected-word synonyms (see `SynonymController`). Defaulted off so fixtures and
-    /// existing installs keep today's behavior.
-    var synonymsForSelectedWord = false
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

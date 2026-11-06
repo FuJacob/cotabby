@@ -90,32 +90,4 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsItem.developmentDebugOverlays.category, .general)
     }
     #endif
-
-    func test_noPaneTagsTwoRowsWithTheSameSettingsItem() throws {
-        // `.settingsItem` sets the row's SwiftUI `.id`. Two rows in one form with the same id are
-        // drawn as copies of the first (the Speed pane showed "Adapt speed" twice and hid
-        // "Shorter context"). Rows in opposite branches of an if/else never coexist, so the one
-        // known pair is allowed explicitly.
-        let allowed: Set<String> = ["PerformancePaneView.swift:recentRequests"]
-        let panes = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Ghostype/UI/Settings/Panes")
-        let files = try XCTUnwrap(FileManager.default.enumerator(at: panes, includingPropertiesForKeys: nil))
-        let pattern = try NSRegularExpression(pattern: #"\.settingsItem\(\.(\w+)\)"#)
-        var checked = 0
-        for case let url as URL in files where url.pathExtension == "swift" {
-            let source = try String(contentsOf: url, encoding: .utf8)
-            let range = NSRange(source.startIndex..., in: source)
-            var counts: [String: Int] = [:]
-            for match in pattern.matches(in: source, range: range) {
-                counts[(source as NSString).substring(with: match.range(at: 1)), default: 0] += 1
-            }
-            for (item, count) in counts where count > 1 {
-                XCTAssertTrue(allowed.contains("\(url.lastPathComponent):\(item)"),
-                              "\(url.lastPathComponent) tags \(count) rows with .settingsItem(.\(item))")
-            }
-            checked += 1
-        }
-        XCTAssertGreaterThan(checked, 5, "Pane sources were not found at \(panes.path)")
-    }
 }

@@ -203,8 +203,6 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
-
-        XCTAssertFalse(data.automaticallyFixTypos)
     }
 
     func test_load_menuBarIconDefaultsVisible() async {
@@ -232,7 +230,6 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGhostTextOpacity(0.5)
         store.saveGhostTextSizeMultiplier(0.8)
         store.saveFastModeEnabled(true)
-        store.saveAutomaticallyFixTypos(true)
         store.saveMenuBarIconVisible(false)
         store.saveMenuBarWordCountVisible(false)
         store.saveFadeInSuggestions(false)
@@ -246,7 +243,6 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.ghostTextOpacity, 0.5, accuracy: 0.0001)
         XCTAssertEqual(data.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
         XCTAssertTrue(data.isFastModeEnabled)
-        XCTAssertTrue(data.automaticallyFixTypos)
         XCTAssertFalse(data.isMenuBarIconVisible)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
         XCTAssertFalse(data.fadeInSuggestions)
@@ -734,10 +730,8 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveClipboardContextEnabled(true)
         store.saveSurfaceContextEnabled(false)
         store.saveFastModeEnabled(true)
-        store.saveSuppressCompletionsOnTypo(false)
         store.saveOfferTypoCorrections(false)
         store.saveEnabledSpellingDictionaryCodes([])
-        store.saveAutomaticallyFixTypos(true)
         store.savePerformanceTrackingEnabled(true)
         store.saveLowPowerModeAutoDisableEnabled(false)
         store.saveMenuBarWordCountVisible(false)
@@ -754,7 +748,6 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePreferredEmojiSkinTone(.mediumDark)
         store.savePreferredEmojiGender(.female)
         store.saveAutoAcceptTrailingPunctuation(false)
-        store.saveIncludeTrailingPunctuationOnFullAccept(false)
         store.saveAddSpaceAfterAccept(true)
         store.saveStreamSuggestionsWhileGenerating(true)
         store.savePredictAheadWhileTyping(false)

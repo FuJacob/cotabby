@@ -24,12 +24,9 @@ enum CotabbyTestFixtures {
         observedContentEdges: ObservedContentEdges? = nil,
         precedingText: String = "Hello",
         trailingText: String = "",
-        trailingTextUnavailable: Bool = false,
         selection: NSRange? = nil,
         isSecure: Bool = false,
         isIntegratedTerminal: Bool = false,
-        isCodingAgentPrompt: Bool = false,
-        isCodeEditorSurface: Bool = false,
         isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 1,
         focusedURLString: String? = nil,
@@ -55,12 +52,9 @@ enum CotabbyTestFixtures {
             observedContentEdges: observedContentEdges,
             precedingText: precedingText,
             trailingText: trailingText,
-            trailingTextUnavailable: trailingTextUnavailable,
             selection: resolvedSelection,
             isSecure: isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
-            isCodingAgentPrompt: isCodingAgentPrompt,
-            isCodeEditorSurface: isCodeEditorSurface,
             isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
@@ -133,8 +127,7 @@ enum CotabbyTestFixtures {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         historyExamples: [String] = [],
-        isMultiLineEnabled: Bool = false,
-        wordRange: SuggestionWordRange? = nil
+        isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
         let context = focusedInputContext(
@@ -164,8 +157,7 @@ enum CotabbyTestFixtures {
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
             historyExamples: historyExamples,
-            isMultiLineEnabled: isMultiLineEnabled,
-            wordRange: wordRange
+            isMultiLineEnabled: isMultiLineEnabled
         )
     }
 
@@ -254,8 +246,6 @@ enum CotabbyTestFixtures {
         isTemporarilyPaused: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
-        completeInCodingAgents: Bool = false,
-        codeEditorDisabledBundleIdentifiers: Set<String> = [],
         isLowPowerModeAutoDisableEnabled: Bool = true,
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
@@ -279,10 +269,8 @@ enum CotabbyTestFixtures {
         isFastModeEnabled: Bool = false,
         mirrorPreference: MirrorPreference = .auto,
         acceptanceGranularity: AcceptanceGranularity = .word,
-        suppressCompletionsOnTypo: Bool = false,
         offerTypoCorrections: Bool = false,
         enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
-        automaticallyFixTypos: Bool = false,
         doubleTapAcceptsEntireSuggestion: Bool = false,
         fullAcceptanceOverrideBundleIdentifiers: Set<String> = []
     ) -> SuggestionSettingsSnapshot {
@@ -291,8 +279,6 @@ enum CotabbyTestFixtures {
             isTemporarilyPaused: isTemporarilyPaused,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            completeInCodingAgents: completeInCodingAgents,
-            codeEditorDisabledBundleIdentifiers: codeEditorDisabledBundleIdentifiers,
             isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
@@ -316,10 +302,8 @@ enum CotabbyTestFixtures {
             isFastModeEnabled: isFastModeEnabled,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity,
-            suppressCompletionsOnTypo: suppressCompletionsOnTypo,
             offerTypoCorrections: offerTypoCorrections,
             enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: automaticallyFixTypos,
             doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
             fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrideBundleIdentifiers
         )

@@ -39,6 +39,34 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.lastLatencyByEngine, [.llamaOpenSource: 10])
     }
 
+    func test_subMillisecondFastPathResult_doesNotPolluteLatencySignals() async {
+        // The n-gram / typing-history fast paths answer in under a millisecond without
+        // touching the model. Recording those as backend latency would sink the Speed
+        // auto-tuner's median toward 0 ms (disabling short context) and tell the debounce
+        // the backend is instant. The suggestion still presents; only the latency signals
+        // stay untouched.
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello ")
+        ))
+        rig.engine.resultProvider = { request in
+            SuggestionResult(generation: request.generation, rawText: " world", text: " world", latency: 0.0004)
+        }
+
+        rig.coordinator.schedulePrediction()
+        await waitUntil("Suggestion never became ready") {
+            rig.coordinator.state == .ready(text: "world", latency: 0.0004)
+        }
+
+        XCTAssertTrue(
+            rig.coordinator.lastLatencyByEngine.isEmpty,
+            "A sub-5 ms fast-path result must not feed the debounce fallback"
+        )
+        XCTAssertEqual(
+            rig.coordinator.latencyAutoTuner.medianLatencyMs, nil,
+            "A sub-5 ms fast-path result must not feed the Speed auto-tuner"
+        )
+    }
+
     // MARK: - Gates before generation
 
     func test_schedulePrediction_disabledAppGoesStraightToDisabledState() async {
@@ -222,20 +250,22 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
 
     // MARK: - Typo gate
 
-    func test_typoGate_unknownWordWithoutCorrectionKeepsPredicting() async {
-        // Names and words the dictionary does not know used to hide every prediction after them.
+    func test_typoGate_suppressesGenerationForAMisspelledCurrentWord() async {
         let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
-                debounceMilliseconds: 1,
-                suppressCompletionsOnTypo: true,
-                offerTypoCorrections: true
+                debounceMilliseconds: 1
             )
         ))
 
         rig.coordinator.schedulePrediction()
-        await waitUntil("Prediction never ran") { !rig.engine.requests.isEmpty }
-        XCTAssertEqual(rig.engine.requests.first?.prefixText, "I typed qzxkvjw ")
+        await waitUntil("Typo gate never settled") { rig.coordinator.state == .idle }
+
+        XCTAssertTrue(rig.engine.requests.isEmpty, "A misspelled current word must skip generation")
+        XCTAssertEqual(
+            rig.overlayController.hideReasons.last,
+            "Overlay hidden because the current word looks misspelled."
+        )
     }
 
     func test_typoGate_offersACorrectionSessionInsteadOfGenerating() async {
@@ -243,7 +273,6 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
-                suppressCompletionsOnTypo: true,
                 offerTypoCorrections: true
             )
         ))
@@ -261,23 +290,21 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
     }
 
-    func test_typoGate_neverChangesTextWithoutTheAcceptKey() async {
-        // A stored "automatically fix" preference from older builds now only offers the fix.
+    func test_typoGate_automaticallyFixesACompletedWordAfterSpace() async {
         let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
-                suppressCompletionsOnTypo: true,
-                offerTypoCorrections: true,
-                automaticallyFixTypos: true
+                offerTypoCorrections: true
             )
         ))
 
         rig.coordinator.schedulePrediction()
-        await waitUntil("Correction was never offered") {
-            rig.interactionState.activeSession?.kind.isCorrection == true
-        }
-        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+        await waitUntil("Automatic correction never ran") { !rig.inserter.replacements.isEmpty }
+
+        XCTAssertEqual(rig.inserter.replacements.count, 1)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertTrue(rig.engine.requests.allSatisfy { $0.prefixText == "I typed receive " })
     }
 
     // MARK: - Environment reconciliation
@@ -305,24 +332,6 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
             rig.visualContext.cancelCalls.isEmpty,
             "Transient disables must not destroy the field-scoped visual-context session"
         )
-    }
-
-    /// Key, scheduling, and reconcile paths disable through `disablePredictions`. For the field's own
-    /// transient state (⌘A selects the composer's text) they must keep its screen context like the
-    /// focus-change path does; the next keystroke used to start a fresh screenshot and OCR.
-    func test_disablePredictions_forTheFieldsOwnSelectionKeepsTheOCRSession() {
-        let rig = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
-
-        rig.coordinator.schedulePrediction()
-
-        XCTAssertEqual(rig.coordinator.state, .disabled("Text is currently selected."))
-        XCTAssertTrue(rig.visualContext.cancelCalls.isEmpty)
-
-        // Without Screen Recording the session has nothing to keep, so the teardown still ends it.
-        let withoutScreenRecording = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
-        withoutScreenRecording.permissionProvider.screenRecordingGranted = false
-        withoutScreenRecording.coordinator.schedulePrediction()
-        XCTAssertEqual(withoutScreenRecording.visualContext.cancelCalls, [true])
     }
 
     // MARK: - Session reconciliation

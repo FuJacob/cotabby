@@ -39,14 +39,18 @@ nonisolated enum DecodeStopPolicy {
         if containsScaffoldingStopMarker(accumulated) {
             return .scaffoldingMarker
         }
-        // A single-line suggestion ends where the model ends the line, however short: what follows
-        // a line break is the next line's content, never this line's continuation.
-        if stopsAtLineBreak, accumulated.contains(where: \.isNewline) {
-            return .lineBreak
-        }
 
         guard tokensGenerated >= minimumTokens else {
             return nil
+        }
+
+        // A single-line suggestion ends where the model ends the line — but only once the
+        // minimum-token guard has passed. Checked before the guard, a first token of "\n"
+        // stopped decode immediately, the normalizer stripped it to empty, and the user got
+        // no suggestion at all. The sentence-boundary stop below has the same guard for
+        // the same reason (a lone first-token period).
+        if stopsAtLineBreak, accumulated.contains(where: \.isNewline) {
+            return .lineBreak
         }
 
         // A sentence end before the preset's minimum word count ("report.") made one ghost a single

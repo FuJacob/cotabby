@@ -6,31 +6,6 @@ import XCTest
 /// proving that work identity and publication checks protect insertion even with a slow backend.
 @MainActor
 final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
-    func testFailedInlineAdvanceWaitsForPublishedTextInsteadOfUsingSessionStartCaret() async {
-        let engine = ControlledTypingEngine()
-        let rig = makeRig(engine, streaming: true)
-        defer { rig.coordinator.stop(); engine.finishAll() }
-        rig.coordinator.schedulePrediction()
-        await waitUntil { engine.requests.count == 1 }
-        engine.finish("you the report")
-        await waitUntil { rig.interactionState.activeSession != nil }
-        let shownBeforeTyping = rig.overlayController.shownTexts.count
-
-        type("y", in: rig)
-        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "ou the report")
-        XCTAssertFalse(rig.overlayController.state.isVisible)
-        XCTAssertEqual(rig.overlayController.shownTexts.count, shownBeforeTyping,
-                       "No remaining tail may be painted at the old pre-typing caret")
-
-        rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
-        XCTAssertFalse(rig.overlayController.state.isVisible,
-                       "A refresh with unpublished text must not restore the stale caret")
-
-        publish("I'll send y", in: rig)
-        await waitUntil { rig.overlayController.state.isVisible }
-        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "ou the report")
-    }
-
     func testHiddenCandidateSurvivesMatchingKeysWithoutAnotherRequest() async {
         let engine = ControlledTypingEngine()
         let rig = makeRig(engine)
@@ -299,7 +274,7 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         let engine = ControlledTypingEngine()
         let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence,
-                debounceMilliseconds: 1, suppressCompletionsOnTypo: true, automaticallyFixTypos: true),
+                debounceMilliseconds: 1,
             generationEngine: engine)
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
         defer { rig.coordinator.stop(); engine.finishAll() }

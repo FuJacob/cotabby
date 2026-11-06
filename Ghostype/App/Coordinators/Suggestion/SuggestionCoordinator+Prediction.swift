@@ -66,24 +66,6 @@ extension SuggestionCoordinator {
         )
     }
 
-    /// The text a result becomes once it meets the live field: its leading space decided against
-    /// the text there now (see `GhostSpaceBoundary`), then its quotes curled when macOS smart quotes
-    /// is on (see `SmartQuoteSubstitution`). Done before the session starts so the ghost, the
-    /// typed-through match, and the inserted text are the same characters.
-    func liveCompletionText(_ completion: String, precedingText: String, requestPrecedingText: String?) -> String {
-        let spaced = GhostSpaceBoundary.liveAdjusted(
-            completion, precedingText: precedingText, requestPrecedingText: requestPrecedingText
-        )
-        return smartQuoted(spaced, precedingText: precedingText)
-    }
-
-    /// Reads the system preference per call: it is a cheap defaults lookup, and the user can flip it
-    /// in System Settings at any time without Ghostype being told.
-    func smartQuoted(_ text: String, precedingText: String) -> String {
-        guard userDefaults.bool(forKey: SmartQuoteSubstitution.defaultsKey) else { return text }
-        return SmartQuoteSubstitution.apply(text, precedingText: precedingText)
-    }
-
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
     func generateFromCurrentFocus(workID: UInt64) async {
         guard workController.isCurrent(workID) else {
@@ -125,17 +107,6 @@ extension SuggestionCoordinator {
         // word after Space. Native correction is instant and needs no model generation, so it is
         // handled synchronously and returns before any request runs.
         if handleTypoGate(rawContext: rawContext, workID: workID) {
-            return
-        }
-
-        // "Current word only" has nothing to finish once the caret leaves a word. Checked after the
-        // typo gate so a committed typo ("teh ") still gets its correction offer.
-        if settingsSnapshot.effectiveWordRange.isCurrentWordOnly,
-           interactionState.activeSession == nil,
-           CaretWordContext.unfinishedWord(in: rawContext.precedingText) == nil {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because Current word only waits for a word in progress.")
-            state = .idle
             return
         }
 
@@ -428,7 +399,7 @@ extension SuggestionCoordinator {
             guard let self, let result, !result.text.isEmpty else { return }
             // Space-corrected against the text this continuation will follow, so the cached entry
             // is already right when it is restored (see `GhostSpaceBoundary`).
-            let text = liveCompletionText(
+            let text = GhostSpaceBoundary.liveAdjusted(
                 result.text,
                 precedingText: precedingText,
                 requestPrecedingText: result.spacingIsExact ? request.context.precedingText : nil
@@ -582,7 +553,7 @@ extension SuggestionCoordinator {
         // A partial that attaches to a word the user has since ended with a space is stale, and the
         // leading space of the rest is decided against the live text (see `GhostSpaceBoundary`).
         guard !GhostSpaceBoundary.isStaleAfterTypedSpace(presentedPartial.text, precedingText: liveContext.precedingText) else { return }
-        let spacedText = liveCompletionText(
+        let spacedText = GhostSpaceBoundary.liveAdjusted(
             presentedPartial.text,
             precedingText: liveContext.precedingText,
             requestPrecedingText: presentedPartial.spacingIsExact ? latestRequestPrecedingText : nil
@@ -792,14 +763,24 @@ extension SuggestionCoordinator {
         // Without this, a cancelled result can present after cancelPredictionWork.
         guard workController.isCurrent(workID) else { return }
 
-        // Record every completed result, including output later suppressed by normalization or seam
-        // checks. Those requests still consumed backend time and are exactly the evidence the next
-        // debounce needs to avoid another burst of doomed HTTP work.
+        // Record every completed result that actually went through a backend generation,
+        // including output later suppressed by normalization or seam checks. Those requests
+        // still consumed backend time and are exactly the evidence the next debounce needs
+        // to avoid another burst of doomed HTTP work.
+        //
+        // The n-gram and typing-history fast paths return in under a millisecond without
+        // touching the model — recording those would poison both signals: the auto-tuner's
+        // median would sink toward 0 ms and disable short context, and the debounce
+        // fallback would think the backend is instant. A 5 ms floor separates them with
+        // wide margins: the fastest real generation (one token, warm cache) is still tens
+        // of milliseconds, while the fast paths measure in microseconds.
         let latencyMs = Int((result.latency * 1_000).rounded())
-        lastLatencyByEngine[settingsSnapshot.selectedEngine] = latencyMs
-        // Feed the Speed auto-tuner from the same completion: the next request's context
-        // window adapts to the latency this one just measured.
-        latencyAutoTuner.record(latencyMs: latencyMs)
+        if latencyMs >= 5 {
+            lastLatencyByEngine[settingsSnapshot.selectedEngine] = latencyMs
+            // Feed the Speed auto-tuner from the same completion: the next request's context
+            // window adapts to the latency this one just measured.
+            latencyAutoTuner.record(latencyMs: latencyMs)
+        }
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
         // capture often already exists here; only pay a synchronous AX walk when it does not.
@@ -933,7 +914,7 @@ extension SuggestionCoordinator {
         // the snapshot the request was built from: the user keeps typing while the model runs, so a
         // space that arrived meanwhile would otherwise leave the ghost a space too far right (and
         // insert two), and a completion the model returned without one would glue to the last word.
-        let spacedText = liveCompletionText(
+        let spacedText = GhostSpaceBoundary.liveAdjusted(
             result.text,
             precedingText: liveContext.precedingText,
             requestPrecedingText: result.spacingIsExact ? latestRequestPrecedingText : nil
@@ -1259,63 +1240,12 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
-            codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
     }
 
-    /// The gate for selected-word synonyms (`SynonymController`): the setting, then every rule that
-    /// turns suggestions off (pause, Low Power Mode, per-app and per-domain lists, terminals, code
-    /// editors, Input Monitoring), reusing `SuggestionAvailabilityEvaluator` so the two features can
-    /// never disagree about where Ghostype is allowed. The field-capability verdict is skipped because
-    /// a selection always blocks suggestions; `SelectedWordSynonyms.selectedWord(in:)` applies the
-    /// remaining capability rules (secure, credential and unsupported fields still refuse).
-    func synonymDisabledReason(focusSnapshot: FocusSnapshot) -> String? {
-        guard settingsSnapshot.synonymsForSelectedWord else {
-            return "Synonyms for selected word are turned off."
-        }
-        return SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
-            codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            focusSnapshot: focusSnapshot,
-            checkCapability: false
-        )
-    }
-
-    /// Whether disabling predictions for `reason` should keep `focusSnapshot`'s visual-context
-    /// session; see `SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled`.
-    func shouldKeepVisualContextWhileDisabled(reason: String, focusSnapshot: FocusSnapshot) -> Bool {
-        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
-            disabledReason: reason,
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            completeInCodingAgents: settingsSnapshot.completeInCodingAgents,
-            codeEditorDisabledBundleIdentifiers: settingsSnapshot.codeEditorDisabledBundleIdentifiers,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: focusSnapshot,
-            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
-        )
-    }
-
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
-    /// The field's visual-context session survives a transient state of a field still in focus
-    /// (see `shouldKeepVisualContextWhileDisabled`); every other disable ends it.
     func disablePredictions(reason: String) {
         suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
@@ -1329,12 +1259,7 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
-        // Key, scheduling, and reconcile paths reach here for the same transient field states the
-        // focus-change path handles with `disablePredictionsPreservingVisualContext`; decide by the
-        // current snapshot so both paths agree on when the field's screen context survives.
-        if !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
-            visualContextCoordinator.cancel(resetState: true)
-        }
+        visualContextCoordinator.cancel(resetState: true)
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)

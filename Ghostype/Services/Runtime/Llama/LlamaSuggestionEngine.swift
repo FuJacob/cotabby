@@ -31,8 +31,20 @@ final class LlamaSuggestionEngine {
     /// against a representative real-usage distribution, it stays opt-in via
     /// `cotabbyConfidenceFloorOverride`; the eval harness sets that key to measure with the gate on.
     static let defaultConfidenceFloor: Double = -.infinity
+    /// Split confidence gate (TabType's measured finding): finishing a half-typed word is much
+    /// easier for the model than guessing the next word after a space, so one bar for both either
+    /// shows wrong next-word guesses or hides good word endings. The mid-word bar must sit lower
+    /// (more permissive) than the word-boundary bar. Both ship OFF (-infinity) until each is
+    /// calibrated separately against real-usage logs — the single-floor -1.5 lesson above applies
+    /// to each bar independently. The split resolves in `makeGenerationOptions` from the same
+    /// mid-word signal that sets `forceWordContinuation`, so the core's single-floor machinery
+    /// is untouched.
+    static let defaultConfidenceFloorMidWord: Double = -.infinity
+    static let defaultConfidenceFloorWordBoundary: Double = -.infinity
     /// `defaults write` escape hatches for dogfooding and field diagnosis without a rebuild.
     static let confidenceFloorOverrideKey = "cotabbyConfidenceFloorOverride"
+    static let confidenceFloorMidWordOverrideKey = "cotabbyConfidenceFloorMidWordOverride"
+    static let confidenceFloorWordBoundaryOverrideKey = "cotabbyConfidenceFloorWordBoundaryOverride"
     static let argmaxStopDisabledKey = "cotabbyArgmaxStopDisabled"
 
     static func resolvedConfidenceFloor(_ defaults: UserDefaults = .standard) -> Double {
@@ -40,6 +52,26 @@ final class LlamaSuggestionEngine {
             return defaultConfidenceFloor
         }
         return defaults.double(forKey: confidenceFloorOverrideKey)
+    }
+
+    /// Split-gate resolution: mid-word carets (finishing a half-typed word) use the permissive
+    /// bar, word-boundary carets (guessing the next word) the strict one. A set single-floor
+    /// override still wins over both, so the eval harness's existing key keeps working; the
+    /// split overrides only apply when no single-floor override is set.
+    static func resolvedConfidenceFloor(isMidWord: Bool, _ defaults: UserDefaults = .standard) -> Double {
+        if defaults.object(forKey: confidenceFloorOverrideKey) != nil {
+            return defaults.double(forKey: confidenceFloorOverrideKey)
+        }
+        if isMidWord {
+            guard defaults.object(forKey: confidenceFloorMidWordOverrideKey) != nil else {
+                return defaultConfidenceFloorMidWord
+            }
+            return defaults.double(forKey: confidenceFloorMidWordOverrideKey)
+        }
+        guard defaults.object(forKey: confidenceFloorWordBoundaryOverrideKey) != nil else {
+            return defaultConfidenceFloorWordBoundary
+        }
+        return defaults.double(forKey: confidenceFloorWordBoundaryOverrideKey)
     }
 
     /// Mirrors `resolvedConfidenceFloor`: injectable defaults so the disable toggle is testable
@@ -260,7 +292,16 @@ final class LlamaSuggestionEngine {
     /// One shared mapping from a request to engine options so prewarm prefills decode under the
     /// exact sampling fingerprint the following generation will validate its KV reuse against.
     private static func makeGenerationOptions(for request: SuggestionRequest) -> LlamaGenerationOptions {
-        LlamaGenerationOptions(
+        // The mid-word signal is computed once and shared: it constrains the first token to
+        // continue the current word AND picks the split confidence bar (see
+        // `resolvedConfidenceFloor(isMidWord:)`). A caret mid-word is finishing a half-typed
+        // word (easy for the model, permissive bar); a caret at a boundary is guessing the
+        // next word (hard, strict bar).
+        let isMidWord = MidWordContinuationPolicy.shouldForceContinuation(
+            precedingText: request.context.precedingText,
+            trailingText: request.context.trailingText
+        )
+        return LlamaGenerationOptions(
             maxPredictionTokens: request.maxPredictionTokens,
             temperature: request.temperature,
             topK: request.topK,
@@ -272,11 +313,8 @@ final class LlamaSuggestionEngine {
             // `LlamaGenerationOptions.stopAtLineBreak`. The normalizer keeps only the first line.
             singleLine: false,
             stopAtLineBreak: !request.isMultiLineEnabled,
-            forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
-                precedingText: request.context.precedingText,
-                trailingText: request.context.trailingText
-            ),
-            confidenceFloor: resolvedConfidenceFloor(),
+            forceWordContinuation: isMidWord,
+            confidenceFloor: resolvedConfidenceFloor(isMidWord: isMidWord),
             sentenceStopMinimumWords: request.wordRange?.lowWords ?? 0,
             stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
         )

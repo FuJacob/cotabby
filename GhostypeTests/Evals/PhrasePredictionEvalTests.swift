@@ -53,7 +53,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
             isClipboardContextEnabled: false, isSurfaceContextEnabled: options.promptVariant != "content-only",
             userName: options.profile == "personalized" && options.promptVariant != "content-only" ? "Alex" : "",
             responseLanguages: options.profile == "personalized" && options.promptVariant != "content-only" ? ["English"] : [],
-            isMultiLineEnabled: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true
+            isMultiLineEnabled: false, offerTypoCorrections: true
         )
         var configurationRecord = Dictionary(uniqueKeysWithValues: Mirror(reflecting: configuration).children.compactMap {
             child -> (String, String)? in
@@ -232,7 +232,8 @@ final class PhrasePredictionEvalTests: XCTestCase {
             return .init(checkpoint: checkpoint, raw: "", shown: nil, suppression: "pre-generation-gate", latencyMilliseconds: 0, error: nil)
         }
         let typoDecision = TypoGate.resolve(precedingText: checkpoint.prefix,
-            settings: .init(offerTypoCorrections: settings.offerTypoCorrections),
+            settings: .init(
+                            offerTypoCorrections: settings.offerTypoCorrections,
             isTypo: { spellChecker.isTypo($0) }, bestCorrection: { spellChecker.bestCorrection(for: $0) })
         guard typoDecision == .proceed else {
             // Replacement offers cannot be scored as appended word continuations. The coordinator

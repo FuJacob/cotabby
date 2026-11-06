@@ -48,13 +48,6 @@ final class SuggestionSettingsModel: ObservableObject {
     /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
     /// overlaps command output. Power users who want it can opt back in from the Apps settings pane.
     @Published private(set) var suggestInIntegratedTerminals: Bool
-    /// Whether terminals (and integrated terminals) get suggestions while the caret is in an AI
-    /// coding agent's input box. Off by default; the agent-prompt rule is
-    /// `CodingAgentPromptDetector`, and a plain shell prompt never qualifies.
-    @Published private(set) var completeInCodingAgents: Bool
-    /// Apps whose code editor gets no suggestions (the per-app "Complete in code editors" switch
-    /// turned off). Their chat and other fields keep suggesting.
-    @Published private(set) var codeEditorDisabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
     /// Multiplier the overlay applies on top of the caret-approximated ghost-text size. Read live by
@@ -85,18 +78,13 @@ final class SuggestionSettingsModel: ObservableObject {
     /// typing in. See `SurfaceContextComposer` for what is actually rendered.
     @Published private(set) var isSurfaceContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
-    /// When on, a misspelled committed word hides the normal continuation (see the typo gate).
-    @Published private(set) var suppressCompletionsOnTypo: Bool
-    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled committed word is offered a
-    /// green spell-checker correction the user can accept to replace the typo.
+    /// When on, a misspelled committed word is offered a green spell-checker correction
+    /// the user can accept to replace the typo.
     @Published private(set) var offerTypoCorrections: Bool
     /// Bundled SymSpell languages eligible for frequency-ranked corrections. This remains separate
     /// from response languages because model prompting and deterministic autocorrection are distinct
     /// user policies.
     @Published private(set) var enabledSpellingDictionaryCodes: [String]
-    /// When on (and typo suppression is on), pressing Space after a misspelled word applies the best
-    /// local correction immediately. Kept opt-in because this changes text without confirmation.
-    @Published private(set) var automaticallyFixTypos: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
@@ -133,14 +121,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the inline `/macro` preview is active. Read live by `MacroController` at event time,
     /// so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isMacroExpansionEnabled: Bool
-    /// Whether selecting a single word offers numbered synonyms. Travels in the snapshot, so the
-    /// synonym gate reads it through the coordinator's settings like every other availability rule.
-    @Published private(set) var synonymsForSelectedWord: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
-    @Published private(set) var includeTrailingPunctuationOnFullAccept: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
     /// The store owns durability; snapshots carry this live choice to the coordinator.
@@ -250,8 +234,6 @@ final class SuggestionSettingsModel: ObservableObject {
         showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
-        completeInCodingAgents = data.completeInCodingAgents
-        codeEditorDisabledAppRules = data.codeEditorDisabledAppRules
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
@@ -268,10 +250,8 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isSurfaceContextEnabled = data.isSurfaceContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
-        suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
-        automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
@@ -288,11 +268,9 @@ final class SuggestionSettingsModel: ObservableObject {
         showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
-        synonymsForSelectedWord = data.synonymsForSelectedWord
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
-        includeTrailingPunctuationOnFullAccept = data.includeTrailingPunctuationOnFullAccept
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
@@ -347,8 +325,6 @@ final class SuggestionSettingsModel: ObservableObject {
         showDevelopmentDebugOverlays = data.presentation.showDevelopmentDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
-        completeInCodingAgents = data.completeInCodingAgents
-        codeEditorDisabledAppRules = data.codeEditorDisabledAppRules
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
@@ -365,10 +341,8 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isSurfaceContextEnabled = data.isSurfaceContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
-        suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
-        automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
@@ -385,11 +359,9 @@ final class SuggestionSettingsModel: ObservableObject {
         showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
-        synonymsForSelectedWord = data.synonymsForSelectedWord
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
-        includeTrailingPunctuationOnFullAccept = data.includeTrailingPunctuationOnFullAccept
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
@@ -437,8 +409,6 @@ final class SuggestionSettingsModel: ObservableObject {
                 pauseState: pauseState,
                 disabledAppRules: disabledAppRules,
                 suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-                completeInCodingAgents: completeInCodingAgents,
-                codeEditorDisabledAppRules: codeEditorDisabledAppRules,
                 isPerformanceTrackingEnabled: isPerformanceTrackingEnabled,
                 isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled
             ),
@@ -468,7 +438,6 @@ final class SuggestionSettingsModel: ObservableObject {
                 suggestWithinWords: suggestWithinWords,
                 showFollowingWords: showFollowingWords,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
-                includeTrailingPunctuationOnFullAccept: includeTrailingPunctuationOnFullAccept,
                 addSpaceAfterAccept: addSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: predictAheadWhileTyping,
@@ -484,10 +453,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 extendedContext: extendedContext
             ),
             correction: SuggestionCorrectionSettings(
-                suppressCompletionsOnTypo: suppressCompletionsOnTypo,
                 offerTypoCorrections: offerTypoCorrections,
-                enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                automaticallyFixTypos: automaticallyFixTypos
+                enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes
             ),
             presentation: SuggestionPresentationSettings(
                 showIndicator: showIndicator,
@@ -507,7 +474,6 @@ final class SuggestionSettingsModel: ObservableObject {
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: isEmojiPickerEnabled,
                 isMacroExpansionEnabled: isMacroExpansionEnabled,
-                synonymsForSelectedWord: synonymsForSelectedWord,
                 preferredEmojiSkinTone: preferredEmojiSkinTone,
                 preferredEmojiGender: preferredEmojiGender
             ),
@@ -555,8 +521,6 @@ final class SuggestionSettingsModel: ObservableObject {
             isTemporarilyPaused: settings.general.pauseState?.isActive() == true,
             disabledAppBundleIdentifiers: Set(settings.general.disabledAppRules.map(\.bundleIdentifier)),
             suggestInIntegratedTerminals: settings.general.suggestInIntegratedTerminals,
-            completeInCodingAgents: settings.general.completeInCodingAgents,
-            codeEditorDisabledBundleIdentifiers: Set(settings.general.codeEditorDisabledAppRules.map(\.bundleIdentifier)),
             isLowPowerModeAutoDisableEnabled: settings.general.isLowPowerModeAutoDisableEnabled,
             selectedEngine: settings.engine.selectedEngine,
             selectedWordCountPreset: settings.completion.selectedWordCountPreset,
@@ -583,16 +547,12 @@ final class SuggestionSettingsModel: ObservableObject {
             isFastModeEnabled: settings.context.isFastModeEnabled,
             mirrorPreference: settings.presentation.mirrorPreference,
             acceptanceGranularity: settings.completion.acceptanceGranularity,
-            suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
             doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
             fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
                 in: settings.shortcuts.perAppOverrides
-            ),
-            includeTrailingPunctuationOnFullAccept: settings.completion.includeTrailingPunctuationOnFullAccept,
-            synonymsForSelectedWord: settings.inlineFeatures.synonymsForSelectedWord
+            )
         )
     }
 
@@ -869,15 +829,6 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveFastModeEnabled(enabled)
     }
 
-    func setSuppressCompletionsOnTypo(_ enabled: Bool) {
-        guard suppressCompletionsOnTypo != enabled else {
-            return
-        }
-
-        suppressCompletionsOnTypo = enabled
-        store.saveSuppressCompletionsOnTypo(enabled)
-    }
-
     func setOfferTypoCorrections(_ enabled: Bool) {
         guard offerTypoCorrections != enabled else {
             return
@@ -906,15 +857,6 @@ final class SuggestionSettingsModel: ObservableObject {
 
     func isSpellingDictionaryEnabled(_ language: SpellingDictionaryLanguage) -> Bool {
         enabledSpellingDictionaryCodes.contains(language.rawValue)
-    }
-
-    func setAutomaticallyFixTypos(_ enabled: Bool) {
-        guard automaticallyFixTypos != enabled else {
-            return
-        }
-
-        automaticallyFixTypos = enabled
-        store.saveAutomaticallyFixTypos(enabled)
     }
 
     func setPerformanceTrackingEnabled(_ enabled: Bool) {
@@ -998,14 +940,6 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveMacroExpansionEnabled(enabled)
     }
 
-    func setSynonymsForSelectedWord(_ enabled: Bool) {
-        guard synonymsForSelectedWord != enabled else {
-            return
-        }
-        synonymsForSelectedWord = enabled
-        store.saveSynonymsForSelectedWord(enabled)
-    }
-
     func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {
         guard preferredEmojiSkinTone != tone else { return }
         preferredEmojiSkinTone = tone
@@ -1086,14 +1020,6 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         autoAcceptTrailingPunctuation = enabled
         store.saveAutoAcceptTrailingPunctuation(enabled)
-    }
-
-    func setIncludeTrailingPunctuationOnFullAccept(_ enabled: Bool) {
-        guard includeTrailingPunctuationOnFullAccept != enabled else {
-            return
-        }
-        includeTrailingPunctuationOnFullAccept = enabled
-        store.saveIncludeTrailingPunctuationOnFullAccept(enabled)
     }
 
     func setAddSpaceAfterAccept(_ enabled: Bool) {
@@ -1216,40 +1142,6 @@ final class SuggestionSettingsModel: ObservableObject {
 
         suggestInIntegratedTerminals = enabled
         store.saveSuggestInIntegratedTerminals(enabled)
-    }
-
-    func setCompleteInCodingAgents(_ enabled: Bool) {
-        guard completeInCodingAgents != enabled else {
-            return
-        }
-
-        completeInCodingAgents = enabled
-        store.saveCompleteInCodingAgents(enabled)
-    }
-
-    /// The per-app "Complete in code editors" switch. On (the default) removes the app from the
-    /// list; off records it, with its display name for the Apps pane.
-    func setCodeEditorCompletionEnabled(bundleIdentifier: String?, displayName: String, enabled: Bool) {
-        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
-            return
-        }
-
-        var rulesByBundleIdentifier = Dictionary(
-            uniqueKeysWithValues: codeEditorDisabledAppRules.map { ($0.bundleIdentifier, $0) }
-        )
-        rulesByBundleIdentifier[normalizedBundleIdentifier] = enabled ? nil : DisabledApplicationRule(
-            bundleIdentifier: normalizedBundleIdentifier,
-            displayName: SuggestionSettingsStore.normalizedDisplayName(
-                displayName, fallbackBundleIdentifier: normalizedBundleIdentifier
-            )
-        )
-        let updatedRules = SuggestionSettingsStore.sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
-        guard codeEditorDisabledAppRules != updatedRules else {
-            return
-        }
-
-        codeEditorDisabledAppRules = updatedRules
-        store.saveCodeEditorDisabledAppRules(updatedRules)
     }
 
     func setApplicationDisabled(
@@ -1836,17 +1728,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            // Group the typo settings into one inner publisher so the presentation slot stays at
-            // Combine's four-upstream cap while carrying the full correction policy.
+            // The typo-correction policy is a single toggle now (offer only — see
+            // `TypoGate`); it rides the presentation slot directly.
             Publishers.CombineLatest4(
                 $isClipboardContextEnabled,
                 $isFastModeEnabled,
                 $mirrorPreference,
-                Publishers.CombineLatest3(
-                    $suppressCompletionsOnTypo,
-                    $offerTypoCorrections,
-                    $automaticallyFixTypos
-                )
+                $offerTypoCorrections
             ),
             // Profile and language policy travel together because both affect a request/correction
             // without changing presentation or timing.
@@ -1882,19 +1770,10 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
         // What a press of an accept key does: how much one press takes, whether a double tap takes
         // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
-        let acceptance = Publishers.CombineLatest4(
+        let acceptance = Publishers.CombineLatest3(
             $acceptanceGranularity,
             $doubleTapAcceptsEntireSuggestion,
-            $perAppShortcutOverrides,
-            $includeTrailingPunctuationOnFullAccept
-        )
-        // Terminal-agent and code-editor placement rules, and the selected-word synonym switch,
-        // travel with `customRange` in its slot.
-        let rangeAndPlacement = Publishers.CombineLatest4(
-            customRange,
-            $completeInCodingAgents,
-            $codeEditorDisabledAppRules,
-            $synonymsForSelectedWord
+            $perAppShortcutOverrides
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1906,23 +1785,19 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $isSurfaceContextEnabled,
                 $isLowPowerModeAutoDisableEnabled
             ),
-            rangeAndPlacement
+            customRange
         )
-            .map { primaryTuple, acceptanceTuple, extendedContextTuple, rangeAndPlacementTuple in
-                let (customRangeTuple, completeInCodingAgents, codeEditorDisabledAppRules, synonymsForSelectedWord) =
-                    rangeAndPlacementTuple
+            .map { primaryTuple, acceptanceTuple, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
-                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
-                let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
+                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, offerCorrections) = presentationToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
-                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides, includeFullAcceptPunctuation) =
-                    acceptanceTuple
+                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides) = acceptanceTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1930,8 +1805,6 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isTemporarilyPaused: pauseState?.isActive() == true,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-                    completeInCodingAgents: completeInCodingAgents,
-                    codeEditorDisabledBundleIdentifiers: Set(codeEditorDisabledAppRules.map(\.bundleIdentifier)),
                     isLowPowerModeAutoDisableEnabled: lowPowerModeAutoDisableEnabled,
                     selectedEngine: engine,
                     selectedWordCountPreset: wordCountPreset,
@@ -1955,15 +1828,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,
-                    suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos,
                     doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
                     fullAcceptanceOverrideBundleIdentifiers:
-                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides),
-                    includeTrailingPunctuationOnFullAccept: includeFullAcceptPunctuation,
-                    synonymsForSelectedWord: synonymsForSelectedWord
+                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides)
                 )
             }
             .removeDuplicates()

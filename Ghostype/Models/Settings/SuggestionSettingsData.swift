@@ -10,10 +10,6 @@ struct SuggestionGeneralSettings: Equatable {
     var pauseState: SuggestionPauseState?
     var disabledAppRules: [DisabledApplicationRule]
     var suggestInIntegratedTerminals: Bool
-    /// Opt-in: suggest inside AI coding agents (Claude Code, Codex, …) running in terminals.
-    var completeInCodingAgents: Bool
-    /// Apps where the per-app "Complete in code editors" switch is off.
-    var codeEditorDisabledAppRules: [DisabledApplicationRule]
     var isPerformanceTrackingEnabled: Bool
     /// Whether suggestions pause while Low Power Mode is active.
     var isLowPowerModeAutoDisableEnabled: Bool
@@ -53,8 +49,6 @@ struct SuggestionCompletionSettings: Equatable {
     /// Limits the visible preview, while the session retains following words for subsequent typing.
     var showFollowingWords: Bool
     var autoAcceptTrailingPunctuation: Bool
-    /// When false, accepting the entire suggestion leaves its final punctuation (`.,;:!?`) behind.
-    var includeTrailingPunctuationOnFullAccept: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
     /// Keeps an on-device request alive through matching typing, independently of partial display.
@@ -75,10 +69,8 @@ struct SuggestionContextSettings: Equatable {
 
 /// Deterministic spelling and typo-correction policy.
 struct SuggestionCorrectionSettings: Equatable {
-    var suppressCompletionsOnTypo: Bool
     var offerTypoCorrections: Bool
     var enabledSpellingDictionaryCodes: [String]
-    var automaticallyFixTypos: Bool
 }
 
 /// Overlay, indicator, menu-bar, and transition presentation.
@@ -104,8 +96,6 @@ struct SuggestionPresentationSettings: Equatable {
 struct SuggestionInlineFeatureSettings: Equatable {
     var isEmojiPickerEnabled: Bool
     var isMacroExpansionEnabled: Bool
-    /// Opt-in: selecting a single word offers numbered synonyms (see `SynonymController`).
-    var synonymsForSelectedWord: Bool
     var preferredEmojiSkinTone: EmojiSkinTone
     var preferredEmojiGender: EmojiGender
 }
@@ -166,16 +156,6 @@ extension SuggestionSettingsData {
     var suggestInIntegratedTerminals: Bool {
         get { general.suggestInIntegratedTerminals }
         set { general.suggestInIntegratedTerminals = newValue }
-    }
-
-    var completeInCodingAgents: Bool {
-        get { general.completeInCodingAgents }
-        set { general.completeInCodingAgents = newValue }
-    }
-
-    var codeEditorDisabledAppRules: [DisabledApplicationRule] {
-        get { general.codeEditorDisabledAppRules }
-        set { general.codeEditorDisabledAppRules = newValue }
     }
 
     var isPerformanceTrackingEnabled: Bool {
@@ -303,11 +283,6 @@ extension SuggestionSettingsData {
         set { completion.autoAcceptTrailingPunctuation = newValue }
     }
 
-    var includeTrailingPunctuationOnFullAccept: Bool {
-        get { completion.includeTrailingPunctuationOnFullAccept }
-        set { completion.includeTrailingPunctuationOnFullAccept = newValue }
-    }
-
     var addSpaceAfterAccept: Bool {
         get { completion.addSpaceAfterAccept }
         set { completion.addSpaceAfterAccept = newValue }
@@ -363,11 +338,6 @@ extension SuggestionSettingsData {
         set { context.extendedContext = newValue }
     }
 
-    var suppressCompletionsOnTypo: Bool {
-        get { correction.suppressCompletionsOnTypo }
-        set { correction.suppressCompletionsOnTypo = newValue }
-    }
-
     var offerTypoCorrections: Bool {
         get { correction.offerTypoCorrections }
         set { correction.offerTypoCorrections = newValue }
@@ -376,11 +346,6 @@ extension SuggestionSettingsData {
     var enabledSpellingDictionaryCodes: [String] {
         get { correction.enabledSpellingDictionaryCodes }
         set { correction.enabledSpellingDictionaryCodes = newValue }
-    }
-
-    var automaticallyFixTypos: Bool {
-        get { correction.automaticallyFixTypos }
-        set { correction.automaticallyFixTypos = newValue }
     }
 
     var showIndicator: Bool {
@@ -451,11 +416,6 @@ extension SuggestionSettingsData {
     var isMacroExpansionEnabled: Bool {
         get { inlineFeatures.isMacroExpansionEnabled }
         set { inlineFeatures.isMacroExpansionEnabled = newValue }
-    }
-
-    var synonymsForSelectedWord: Bool {
-        get { inlineFeatures.synonymsForSelectedWord }
-        set { inlineFeatures.synonymsForSelectedWord = newValue }
     }
 
     var preferredEmojiSkinTone: EmojiSkinTone {

@@ -38,6 +38,43 @@ final class LlamaDecodeGateDefaultsTests: XCTestCase {
         XCTAssertEqual(LlamaSuggestionEngine.resolvedConfidenceFloor(defaults), -.infinity)
     }
 
+    /// Split gate ships OFF on both bars: each bar needs its own calibration against
+    /// real-usage logs (the single-floor -1.5 lesson applies to each independently).
+    func test_splitConfidenceFloor_shippedOff_byDefault() {
+        XCTAssertEqual(LlamaSuggestionEngine.defaultConfidenceFloorMidWord, -.infinity)
+        XCTAssertEqual(LlamaSuggestionEngine.defaultConfidenceFloorWordBoundary, -.infinity)
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: true, defaults), -.infinity
+        )
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: false, defaults), -.infinity
+        )
+    }
+
+    func test_splitConfidenceFloor_eachBarResolvesItsOwnOverride() {
+        defaults.set(-3.5, forKey: LlamaSuggestionEngine.confidenceFloorMidWordOverrideKey)
+        defaults.set(-2.5, forKey: LlamaSuggestionEngine.confidenceFloorWordBoundaryOverrideKey)
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: true, defaults), -3.5
+        )
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: false, defaults), -2.5
+        )
+    }
+
+    func test_splitConfidenceFloor_singleFloorOverrideWinsOverBothBars() {
+        // The eval harness's existing key keeps working unchanged.
+        defaults.set(-0.8, forKey: LlamaSuggestionEngine.confidenceFloorOverrideKey)
+        defaults.set(-3.5, forKey: LlamaSuggestionEngine.confidenceFloorMidWordOverrideKey)
+        defaults.set(-2.5, forKey: LlamaSuggestionEngine.confidenceFloorWordBoundaryOverrideKey)
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: true, defaults), -0.8
+        )
+        XCTAssertEqual(
+            LlamaSuggestionEngine.resolvedConfidenceFloor(isMidWord: false, defaults), -0.8
+        )
+    }
+
     func test_argmaxStop_onByDefault_andDisableToggleWorks() {
         XCTAssertTrue(LlamaSuggestionEngine.resolvedStopAtArgmaxEOG(defaults))
 

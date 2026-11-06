@@ -88,7 +88,6 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         data.acceptanceKeyModifiers = [.command]
         data.fullAcceptanceKeyModifiers = [.shift]
         data.globalToggleKeyModifiers = [.option]
-        data.suppressCompletionsOnTypo = true
         data.offerTypoCorrections = false
         data.isClipboardContextEnabled = true
         data.isSurfaceContextEnabled = false
@@ -109,7 +108,6 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertEqual(data.shortcuts.acceptance.modifiers, [.command])
         XCTAssertEqual(data.shortcuts.fullAcceptance.modifiers, [.shift])
         XCTAssertEqual(data.shortcuts.globalToggle.modifiers, [.option])
-        XCTAssertTrue(data.correction.suppressCompletionsOnTypo)
         XCTAssertFalse(data.correction.offerTypoCorrections)
         XCTAssertTrue(data.context.isClipboardContextEnabled)
         XCTAssertFalse(data.context.isSurfaceContextEnabled)

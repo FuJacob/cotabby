@@ -112,13 +112,6 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             let want = result.evalCase.expectation.mustContain.joined(separator: "|")
             print("\(mark) \(result.evalCase.id) want=\(want) got=\(result.shownText ?? "<suppressed:\(result.suppressionStage ?? "none")>")")
         }
-        // Scoring folds punctuation away (a recalled "WF 1000XM5" counts), but accepting "6 15 PM"
-        // types the wrong text. Count the passes that carry every fact exactly as written.
-        let verbatim = results.filter { result in
-            guard result.outcome == .correctInsert, let shown = result.shownText?.lowercased() else { return false }
-            return result.evalCase.expectation.mustContain.allSatisfy { shown.contains($0.lowercased()) }
-        }.count
-        print("verbatim \(verbatim)/\(results.count)")
         try Self.writeArtifact(report)
 
         XCTAssertFalse(results.isEmpty)
@@ -178,18 +171,13 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             precedingText: evalCase.precedingText,
             trailingText: evalCase.trailingText
         )
-        // The suite's baseline is multi-line 12–20-word suggestions. `COTABBY_PHRASE_WORD_COUNT`
-        // (also read by `LlamaEvalRuntime.configuration`) and `COTABBY_EVAL_SINGLE_LINE=1` score the
-        // same cases under a user's own settings instead, so a change is judged on what they see.
-        let environment = ProcessInfo.processInfo.environment
         let settings = CotabbyTestFixtures.settingsSnapshot(
             selectedEngine: .llamaOpenSource,
-            selectedWordCountPreset: environment["COTABBY_PHRASE_WORD_COUNT"]
-                .flatMap(SuggestionWordCountPreset.init(rawValue:)) ?? .twelveToTwenty,
+            selectedWordCountPreset: .twelveToTwenty,
             // Only a case that supplies clipboard text turns the section on, so the ordinary
             // continuation cases keep the exact prompt shape they have always been scored against.
             isClipboardContextEnabled: evalCase.clipboardContext != nil,
-            isMultiLineEnabled: evalCase.isMultiLineEnabled && environment["COTABBY_EVAL_SINGLE_LINE"] != "1"
+            isMultiLineEnabled: evalCase.isMultiLineEnabled
         )
         let request = SuggestionRequestFactory.buildRequest(
             context: context,

@@ -11,8 +11,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         let rig = makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
-                selectedEngine: .openAICompatible, debounceMilliseconds: 1,
-                suppressCompletionsOnTypo: true, offerTypoCorrections: true
+                selectedEngine: .openAICompatible, debounceMilliseconds: 1, offerTypoCorrections: true
             )
         )
         defer { rig.coordinator.stop() }
@@ -429,7 +428,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
                 precedingText: "Please recieve ", isWebContentField: true
             ),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
-                debounceMilliseconds: 1, suppressCompletionsOnTypo: true, offerTypoCorrections: true
+                debounceMilliseconds: 1, offerTypoCorrections: true
             )
         )
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
@@ -466,7 +465,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         let rig = makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
-                debounceMilliseconds: 1, suppressCompletionsOnTypo: true, offerTypoCorrections: true
+                debounceMilliseconds: 1, offerTypoCorrections: true
             )
         )
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
