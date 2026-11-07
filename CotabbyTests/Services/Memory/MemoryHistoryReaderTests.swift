@@ -42,23 +42,27 @@ final class MemoryHistoryReaderTests: XCTestCase {
             INSERT INTO Z_METADATA VALUES (1, '\(storeID)', NULL);
             """)
         }
-        // Apple-epoch dates: 810000000 is 2026-09-01.
+        // Apple-epoch dates: 810000000 is 2026-09-01. Rows are shaped like WhatsApp's own: ordinary
+        // messages carry ZGROUPEVENTTYPE 2 (it is not a "system event" flag), and system notices are
+        // message types 6 (group events) and 10 (calls, security notices), whose text is ids.
         try makeDatabase(path, """
         CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
         CREATE TABLE ZWAGROUPMEMBER (Z_PK INTEGER PRIMARY KEY, ZCHATSESSION INTEGER, ZMEMBERJID VARCHAR, ZCONTACTNAME VARCHAR, ZFIRSTNAME VARCHAR);
         CREATE TABLE ZWAMESSAGE (Z_PK INTEGER PRIMARY KEY, ZTEXT VARCHAR, ZISFROMME INTEGER, ZMESSAGEDATE TIMESTAMP,
-            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER);
+            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER,
+            ZMESSAGETYPE INTEGER);
         INSERT INTO ZWACHATSESSION VALUES (1, '15550100001@s.whatsapp.net', 'Ayşe', 0), (2, '12036@g.us', 'Trip', 1),
             (3, 'status@broadcast', 'Status', 3);
         INSERT INTO ZWAGROUPMEMBER VALUES (10, 2, '15550100001@s.whatsapp.net', 'Ayşe', 'Ayşe'), (11, 2, '15550100002@s.whatsapp.net', NULL, 'Can');
         INSERT INTO ZWAMESSAGE VALUES
-            (1, 'the invoice is paid', 0, 810000000, 1, NULL, 'A1', NULL, 0),
-            (2, 'thanks!', 1, 810000100, 1, NULL, 'A2', NULL, 0),
-            (3, 'budget is fixed', 0, 810000200, 2, 11, 'G1', 'Can P', 0),
-            (4, NULL, 0, 810000300, 1, NULL, 'A3', NULL, 0),
-            (5, 'Can joined', 0, 810000400, 2, NULL, 'G2', NULL, 1),
-            (6, 'my status', 1, 810000500, 3, NULL, 'S1', NULL, 0),
-            (7, printf('%.*c', 20000, 'x'), 0, 810000600, 1, NULL, 'A4', NULL, 0);
+            (1, 'the invoice is paid', 0, 810000000, 1, NULL, 'A1', NULL, 2, 0),
+            (2, 'thanks!', 1, 810000100, 1, NULL, 'A2', NULL, 2, 7),
+            (3, 'budget is fixed', 0, 810000200, 2, 11, 'G1', 'Can P', 2, 0),
+            (4, NULL, 0, 810000300, 1, NULL, 'A3', NULL, 2, 1),
+            (5, '45467211710489@lid', 0, 810000400, 2, NULL, 'G2', NULL, 12, 6),
+            (6, 'my status', 1, 810000500, 3, NULL, 'S1', NULL, 2, 0),
+            (7, printf('%.*c', 20000, 'x'), 0, 810000600, 1, NULL, 'A4', NULL, 2, 0),
+            (8, ' cisiklioglu 114585516400735', 0, 810000650, 1, NULL, 'A6', NULL, 69, 10);
         """)
         return WhatsAppHistoryReader(databasePath: path)
     }
@@ -68,7 +72,9 @@ final class MemoryHistoryReaderTests: XCTestCase {
         XCTAssertEqual(reader.readiness(), .ready)
         let page = try reader.read(after: nil, since: nil, limit: 100)
 
-        XCTAssertEqual(page.records.prefix(3).map(\.text), ["the invoice is paid", "thanks!", "budget is fixed"])
+        XCTAssertEqual(page.records.prefix(3).map(\.text), ["the invoice is paid", "thanks!", "budget is fixed"],
+                       "ordinary messages (ZGROUPEVENTTYPE 2), links (type 7) included")
+        XCTAssertEqual(page.records.count, 4, "no text, status, group events (type 6) and notices (type 10) are skipped")
         XCTAssertEqual(page.records.last?.text.count, EmailBodyExtractor.maximumCharacters, "huge messages are capped")
         let first = page.records[0]
         XCTAssertEqual(first.conversationID, "15550100001@s.whatsapp.net")
@@ -84,7 +90,7 @@ final class MemoryHistoryReaderTests: XCTestCase {
                        "a group carries its marker, so it never has exactly a 1:1 chat's people")
         // The cursor is the last row returned; rows the query skips (no text, system events, status)
         // are simply re-checked by the next read.
-        XCTAssertEqual(page.nextCursor, "7")
+        XCTAssertEqual(page.nextCursor, "r2|:7")
         XCTAssertFalse(page.hasMore)
     }
 
@@ -99,7 +105,7 @@ final class MemoryHistoryReaderTests: XCTestCase {
     func test_whatsAppCursorNamesTheStoreItWasReadFrom() throws {
         let reader = try whatsAppFixture(storeID: "STORE-A")
         let page = try reader.read(after: nil, since: nil, limit: 100)
-        XCTAssertEqual(page.nextCursor, "STORE-A:7")
+        XCTAssertEqual(page.nextCursor, "r2|STORE-A:7")
         let rest = try reader.read(after: page.nextCursor, since: nil, limit: 100)
         XCTAssertTrue(rest.records.isEmpty, "a cursor of the same store resumes after its row")
     }
@@ -117,21 +123,22 @@ final class MemoryHistoryReaderTests: XCTestCase {
         CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
         CREATE TABLE ZWAGROUPMEMBER (Z_PK INTEGER PRIMARY KEY, ZCHATSESSION INTEGER, ZMEMBERJID VARCHAR, ZCONTACTNAME VARCHAR, ZFIRSTNAME VARCHAR);
         CREATE TABLE ZWAMESSAGE (Z_PK INTEGER PRIMARY KEY, ZTEXT VARCHAR, ZISFROMME INTEGER, ZMESSAGEDATE TIMESTAMP,
-            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER);
+            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER,
+            ZMESSAGETYPE INTEGER);
         """)
         let reader = WhatsAppHistoryReader(databasePath: path)
         let empty = try reader.read(after: oldCursor, since: nil, limit: 100)
         XCTAssertTrue(empty.records.isEmpty)
-        XCTAssertEqual(empty.nextCursor, "STORE-B:0", "an empty new store is still recorded, so its first rows are not skipped")
+        XCTAssertEqual(empty.nextCursor, "r2|STORE-B:0", "an empty new store is still recorded, so its first rows are not skipped")
 
         try makeDatabase(path, """
         INSERT INTO ZWACHATSESSION VALUES (1, '15550100001@s.whatsapp.net', 'Ayşe', 0);
-        INSERT INTO ZWAMESSAGE VALUES (1, 'linked again', 0, 810000700, 1, NULL, 'A5', NULL, 0);
+        INSERT INTO ZWAMESSAGE VALUES (1, 'linked again', 0, 810000700, 1, NULL, 'A5', NULL, 2, 0);
         """)
         for cursor in [oldCursor, empty.nextCursor] {
             let page = try reader.read(after: cursor, since: nil, limit: 100)
             XCTAssertEqual(page.records.map(\.text), ["linked again"])
-            XCTAssertEqual(page.nextCursor, "STORE-B:1")
+            XCTAssertEqual(page.nextCursor, "r2|STORE-B:1")
         }
     }
 
@@ -142,14 +149,25 @@ final class MemoryHistoryReaderTests: XCTestCase {
         let reader = try whatsAppFixture(storeID: "STORE-A")
         let page = try reader.read(after: "7", since: nil, limit: 100)
         XCTAssertEqual(page.records.first?.text, "the invoice is paid")
-        XCTAssertEqual(page.nextCursor, "STORE-A:7")
+        XCTAssertEqual(page.nextCursor, "r2|STORE-A:7")
+    }
+
+    /// Cursors saved while the reader skipped every message with a nonzero ZGROUPEVENTTYPE (nearly
+    /// all of them) passed rows it never read: a cursor of an earlier reading starts over.
+    func test_aWhatsAppCursorOfAnEarlierReadingStartsOver() throws {
+        let reader = try whatsAppFixture(storeID: "STORE-A")
+        for old in ["STORE-A:7", "7", "r1|STORE-A:7"] {
+            let page = try reader.read(after: old, since: nil, limit: 100)
+            XCTAssertEqual(page.records.first?.text, "the invoice is paid", old)
+            XCTAssertEqual(page.nextCursor, "r2|STORE-A:7", old)
+        }
     }
 
     func test_aWhatsAppCursorPastTheLastRowStartsOver() throws {
         let reader = try whatsAppFixture()
-        let page = try reader.read(after: "65448", since: nil, limit: 100)
+        let page = try reader.read(after: "r2|:65448", since: nil, limit: 100)
         XCTAssertEqual(page.records.first?.text, "the invoice is paid", "a store with fewer rows than the cursor is a new store")
-        XCTAssertEqual(page.nextCursor, "7")
+        XCTAssertEqual(page.nextCursor, "r2|:7")
     }
 
     /// Logged out or reset, WhatsApp keeps its group container but has no chat store until it is

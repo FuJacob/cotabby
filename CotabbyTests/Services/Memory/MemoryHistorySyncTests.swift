@@ -76,7 +76,7 @@ final class MemoryHistorySyncTests: XCTestCase {
 
         try WhatsAppFixture.write(path, storeID: "OLD", messages: (1...40).map { ("old message \($0) about the invoice", $0) })
         await sync.sync(WhatsAppFixture.source)
-        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "OLD:40")
+        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "r2|OLD:40")
 
         try FileManager.default.removeItem(atPath: path)
         await sync.sync(WhatsAppFixture.source)
@@ -88,7 +88,7 @@ final class MemoryHistorySyncTests: XCTestCase {
         try WhatsAppFixture.write(path, storeID: "NEW", messages: [("linked again, the budget is fixed", 1)])
         await sync.sync(WhatsAppFixture.source)
         XCTAssertEqual(sync.readiness[WhatsAppFixture.source], .ready)
-        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "NEW:1")
+        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "r2|NEW:1")
         let stats = engine.sources().first { $0.id == WhatsAppFixture.source }?.stats
         XCTAssertEqual(stats?.messages, 41, "the new store's message is stored next to what memory kept")
     }
@@ -106,7 +106,7 @@ final class MemoryHistorySyncTests: XCTestCase {
 
         try WhatsAppFixture.write(path, storeID: "NEW", messages: [("linked again, the budget is fixed", 1)])
         sync.refreshReadiness()
-        try await waitUntil { engine.cursor(source: WhatsAppFixture.source) == "NEW:1" }
+        try await waitUntil { engine.cursor(source: WhatsAppFixture.source) == "r2|NEW:1" }
     }
 
     func test_aSourceThatBecomesReadableWaitsForACPower() async throws {
@@ -183,7 +183,7 @@ private enum WhatsAppFixture {
     static func write(_ path: String, storeID: String, messages: [(text: String, row: Int)]) throws {
         let now = Date().timeIntervalSince1970 - WhatsAppHistoryReader.appleEpochOffset
         let rows = messages.map { message in
-            "(\(message.row), '\(message.text)', 0, \(now), 1, NULL, '\(storeID)-\(message.row)', NULL, 0)"
+            "(\(message.row), '\(message.text)', 0, \(now), 1, NULL, '\(storeID)-\(message.row)', NULL, 2, 0)"
         }
         var sql = """
         CREATE TABLE Z_METADATA (Z_VERSION INTEGER PRIMARY KEY, Z_UUID VARCHAR(255), Z_PLIST BLOB);
@@ -191,7 +191,8 @@ private enum WhatsAppFixture {
         CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
         CREATE TABLE ZWAGROUPMEMBER (Z_PK INTEGER PRIMARY KEY, ZCHATSESSION INTEGER, ZMEMBERJID VARCHAR, ZCONTACTNAME VARCHAR, ZFIRSTNAME VARCHAR);
         CREATE TABLE ZWAMESSAGE (Z_PK INTEGER PRIMARY KEY, ZTEXT VARCHAR, ZISFROMME INTEGER, ZMESSAGEDATE TIMESTAMP,
-            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER);
+            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER,
+            ZMESSAGETYPE INTEGER);
         INSERT INTO ZWACHATSESSION VALUES (1, '15550100001@s.whatsapp.net', 'Ayşe', 0);
         """
         if !rows.isEmpty { sql += "INSERT INTO ZWAMESSAGE VALUES \(rows.joined(separator: ", "));" }

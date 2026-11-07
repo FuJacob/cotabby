@@ -15,14 +15,18 @@ import Foundation
 ///   WhatsApp titles its window "WhatsApp", so reading the open chat's name is a follow-up.
 /// - Participants: JIDs, not names, so memory's audience rule (only conversations with exactly the
 ///   same people) identifies a person reliably; names are not unique and can change.
-/// - Only messages with text (including captions), from 1:1 chats and groups; status updates,
-///   broadcasts and group system events are skipped.
-/// - Cursor: `<store id>:<row>`, the Core Data store's identity (`Z_METADATA.Z_UUID`) and the last
-///   message's primary key. Rows only grow within one store, but linking WhatsApp again (after a
+/// - Only messages with text (including captions and links), from 1:1 chats and groups; status
+///   updates, broadcasts and system notices are skipped. System notices are message types 6 (group
+///   events: joins, subject changes) and 10 (calls, security-code changes), whose "text" is ids such
+///   as `…@lid`. `ZGROUPEVENTTYPE` is no filter: WhatsApp sets it to 2 on ordinary messages, so
+///   skipping nonzero values (as an earlier reading did) dropped nearly every message.
+/// - Cursor: `r<reading>|<store id>:<row>`: which reading wrote it (`Cursor.currentReading`, raised
+///   whenever the messages read change, so rows passed under an older reading are read again), the
+///   Core Data store's identity (`Z_METADATA.Z_UUID`) and the last message's primary key. Rows only grow within one store, but linking WhatsApp again (after a
 ///   logout or reset) or reinstalling it creates a new store whose rows count from 1: a bare row
 ///   cursor would skip every new message until the new rows passed it. A cursor of another store,
 ///   one without a store (saved by an earlier build), or one past the store's last row therefore
-///   reads the store from the start. That re-read is safe: records are keyed by WhatsApp's own
+///   reads the store from the start, as does a cursor of an earlier reading. That re-read is safe: records are keyed by WhatsApp's own
 ///   message id (`ZSTANZAID`), which a re-linked store keeps, so memory matches what it holds.
 nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
     let sourceID = "whatsapp"
@@ -64,38 +68,52 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
             + "with your phone; memory reads it on its next sync and keeps what it already holds.")
     }
 
-    /// `<store id>:<row>`, or a bare row for a store without an identity (and for cursors saved
-    /// before cursors named their store).
+    /// `r<reading>|<store id>:<row>` (the store id empty for a store without an identity). Cursors
+    /// saved by earlier builds, a bare row or `<store id>:<row>`, read as reading 1.
     struct Cursor: Equatable {
+        /// Raised whenever the set of messages read changes: 2 stopped skipping every message with a
+        /// nonzero `ZGROUPEVENTTYPE`.
+        static let currentReading = 2
+
+        let reading: Int
         let store: String?
         let row: Int64
 
-        init(store: String?, row: Int64) {
+        init(reading: Int = Cursor.currentReading, store: String?, row: Int64) {
+            self.reading = reading
             self.store = store
             self.row = row
         }
 
         init?(_ text: String?) {
             guard let text, !text.isEmpty else { return nil }
+            var reading = 1
+            var position = Substring(text)
+            if text.hasPrefix("r"), let bar = text.firstIndex(of: "|"),
+               let version = Int(text[text.index(after: text.startIndex)..<bar]) {
+                reading = version
+                position = text[text.index(after: bar)...]
+            }
             // Split at the last colon: the row never has one, a store id might.
-            if let colon = text.lastIndex(of: ":") {
-                guard let row = Int64(text[text.index(after: colon)...]) else { return nil }
-                self.init(store: String(text[..<colon]), row: row)
+            if let colon = position.lastIndex(of: ":") {
+                guard let row = Int64(position[position.index(after: colon)...]) else { return nil }
+                let store = String(position[..<colon])
+                self.init(reading: reading, store: store.isEmpty ? nil : store, row: row)
             } else {
-                guard let row = Int64(text) else { return nil }
-                self.init(store: nil, row: row)
+                guard let row = Int64(position) else { return nil }
+                self.init(reading: reading, store: nil, row: row)
             }
         }
 
-        var text: String { store.map { "\($0):\(row)" } ?? String(row) }
+        var text: String { "r\(reading)|\(store ?? ""):\(row)" }
     }
 
-    /// The row to read after: the cursor's, when it belongs to this store; 0 (the whole store)
-    /// when the cursor came from another store, names none while the store has one, or points past
-    /// the store's last row (a replaced store without an identity).
+    /// The row to read after: the cursor's, when this reading wrote it for this store; 0 (the whole
+    /// store) when an earlier reading wrote it, it came from another store, names none while the
+    /// store has one, or points past the store's last row (a replaced store without an identity).
     static func startRow(after cursor: Cursor?, store: String?, lastRow: Int64) -> Int64 {
         guard let cursor else { return 0 }
-        if cursor.store != store || cursor.row > lastRow { return 0 }
+        if cursor.reading != Cursor.currentReading || cursor.store != store || cursor.row > lastRow { return 0 }
         return cursor.row
     }
 
@@ -109,7 +127,7 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
     private func schemaMatches(_ database: ReadOnlySQLiteDatabase) throws -> Bool {
         try database.hasColumns(
             ["Z_PK", "ZTEXT", "ZISFROMME", "ZMESSAGEDATE", "ZCHATSESSION", "ZGROUPMEMBER", "ZSTANZAID",
-             "ZPUSHNAME", "ZGROUPEVENTTYPE"],
+             "ZPUSHNAME", "ZMESSAGETYPE"],
             in: "ZWAMESSAGE"
         ) && database.hasColumns(["Z_PK", "ZCONTACTJID", "ZPARTNERNAME", "ZSESSIONTYPE"], in: "ZWACHATSESSION")
             && database.hasColumns(["Z_PK", "ZCHATSESSION", "ZMEMBERJID", "ZCONTACTNAME", "ZFIRSTNAME"], in: "ZWAGROUPMEMBER")
@@ -126,6 +144,7 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
         let after = Self.startRow(after: saved, store: store, lastRow: lastRow)
         let sinceApple = (since?.timeIntervalSince1970).map { $0 - Self.appleEpochOffset } ?? -Double.greatestFiniteMagnitude
         // ZSESSIONTYPE: 0 = one-to-one, 1 = group (others are broadcast lists and status).
+        // ZMESSAGETYPE 6 and 10 are system notices (see the file overview).
         let rows = try database.rows(
             """
             SELECT m.Z_PK AS pk, m.ZSTANZAID AS stanza, m.ZTEXT AS text, m.ZISFROMME AS from_me,
@@ -136,7 +155,7 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
             JOIN ZWACHATSESSION s ON s.Z_PK = m.ZCHATSESSION
             LEFT JOIN ZWAGROUPMEMBER g ON g.Z_PK = m.ZGROUPMEMBER
             WHERE m.Z_PK > ? AND m.ZTEXT IS NOT NULL AND m.ZTEXT != ''
-              AND s.ZSESSIONTYPE IN (0, 1) AND COALESCE(m.ZGROUPEVENTTYPE, 0) = 0
+              AND s.ZSESSIONTYPE IN (0, 1) AND COALESCE(m.ZMESSAGETYPE, 0) NOT IN (6, 10)
               AND COALESCE(m.ZMESSAGEDATE, 0) >= ?
             ORDER BY m.Z_PK LIMIT ?
             """,
