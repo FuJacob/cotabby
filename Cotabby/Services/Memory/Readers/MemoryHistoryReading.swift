@@ -46,10 +46,15 @@ nonisolated protocol MemoryHistoryReading: Sendable {
     /// documents): after a full sync, memory forgets the rest. Nil (the default) when the source
     /// cannot tell, which never removes anything.
     func liveConversationIDs() -> Set<String>?
+    /// What a failed open means for this source, in the pane's words. A requirement (not only an
+    /// extension method) so a reader's own wording wins when the sync holds it as `any`
+    /// `MemoryHistoryReading`; the default is the generic text of `DatabaseError.readiness`.
+    func readiness(for error: ReadOnlySQLiteDatabase.DatabaseError) -> MemorySourceReadiness
 }
 
 nonisolated extension MemoryHistoryReading {
     func liveConversationIDs() -> Set<String>? { nil }
+    func readiness(for error: ReadOnlySQLiteDatabase.DatabaseError) -> MemorySourceReadiness { error.readiness }
 }
 
 nonisolated enum MemorySourceReadiness: Equatable, Sendable {

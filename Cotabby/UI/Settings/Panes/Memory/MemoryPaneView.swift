@@ -37,10 +37,12 @@ struct MemoryPaneView: View {
             control.historySync.checkFullDiskAccess()
             control.historySync.refreshReadiness()
         }
-        // Coming back from System Settings makes Cotabby active again: re-check right away so a
-        // fresh grant shows without restarting.
+        // Coming back from System Settings, or from WhatsApp after linking it, makes Cotabby active
+        // again: re-check right away so a fresh grant or a store that came back shows (and syncs)
+        // without restarting or waiting for the next round.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             control.historySync.checkFullDiskAccess()
+            control.historySync.refreshReadiness()
         }
         .onDisappear { control.endObserving() }
     }

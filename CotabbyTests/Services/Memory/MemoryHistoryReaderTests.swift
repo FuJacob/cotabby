@@ -32,8 +32,16 @@ final class MemoryHistoryReaderTests: XCTestCase {
 
     // MARK: - WhatsApp
 
-    private func whatsAppFixture() throws -> WhatsAppHistoryReader {
+    /// `storeID` is the Core Data store identity (`Z_METADATA.Z_UUID`) WhatsApp's store carries;
+    /// nil builds a store without that table, like the fixtures written before it was read.
+    private func whatsAppFixture(storeID: String? = nil) throws -> WhatsAppHistoryReader {
         let path = directory.appendingPathComponent("ChatStorage.sqlite").path
+        if let storeID {
+            try makeDatabase(path, """
+            CREATE TABLE Z_METADATA (Z_VERSION INTEGER PRIMARY KEY, Z_UUID VARCHAR(255), Z_PLIST BLOB);
+            INSERT INTO Z_METADATA VALUES (1, '\(storeID)', NULL);
+            """)
+        }
         // Apple-epoch dates: 810000000 is 2026-09-01.
         try makeDatabase(path, """
         CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
@@ -86,6 +94,76 @@ final class MemoryHistoryReaderTests: XCTestCase {
         XCTAssertTrue(first.hasMore)
         let rest = try reader.read(after: first.nextCursor, since: nil, limit: 10)
         XCTAssertEqual(rest.records.first?.text, "budget is fixed")
+    }
+
+    func test_whatsAppCursorNamesTheStoreItWasReadFrom() throws {
+        let reader = try whatsAppFixture(storeID: "STORE-A")
+        let page = try reader.read(after: nil, since: nil, limit: 100)
+        XCTAssertEqual(page.nextCursor, "STORE-A:7")
+        let rest = try reader.read(after: page.nextCursor, since: nil, limit: 100)
+        XCTAssertTrue(rest.records.isEmpty, "a cursor of the same store resumes after its row")
+    }
+
+    /// Linking WhatsApp again (or reinstalling it) replaces its store: a new Core Data store whose
+    /// rows count from 1 again. A row cursor from the old store would skip every new message until
+    /// the new rows passed it, so a cursor of another store reads the new one from the start.
+    func test_aReplacedWhatsAppStoreIsReadFromTheStart() throws {
+        let path = try whatsAppFixture(storeID: "STORE-A").databasePath
+        let oldCursor = try WhatsAppHistoryReader(databasePath: path).read(after: nil, since: nil, limit: 100).nextCursor
+        try FileManager.default.removeItem(atPath: path)
+        try makeDatabase(path, """
+        CREATE TABLE Z_METADATA (Z_VERSION INTEGER PRIMARY KEY, Z_UUID VARCHAR(255), Z_PLIST BLOB);
+        INSERT INTO Z_METADATA VALUES (1, 'STORE-B', NULL);
+        CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
+        CREATE TABLE ZWAGROUPMEMBER (Z_PK INTEGER PRIMARY KEY, ZCHATSESSION INTEGER, ZMEMBERJID VARCHAR, ZCONTACTNAME VARCHAR, ZFIRSTNAME VARCHAR);
+        CREATE TABLE ZWAMESSAGE (Z_PK INTEGER PRIMARY KEY, ZTEXT VARCHAR, ZISFROMME INTEGER, ZMESSAGEDATE TIMESTAMP,
+            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER);
+        """)
+        let reader = WhatsAppHistoryReader(databasePath: path)
+        let empty = try reader.read(after: oldCursor, since: nil, limit: 100)
+        XCTAssertTrue(empty.records.isEmpty)
+        XCTAssertEqual(empty.nextCursor, "STORE-B:0", "an empty new store is still recorded, so its first rows are not skipped")
+
+        try makeDatabase(path, """
+        INSERT INTO ZWACHATSESSION VALUES (1, '15550100001@s.whatsapp.net', 'Ayşe', 0);
+        INSERT INTO ZWAMESSAGE VALUES (1, 'linked again', 0, 810000700, 1, NULL, 'A5', NULL, 0);
+        """)
+        for cursor in [oldCursor, empty.nextCursor] {
+            let page = try reader.read(after: cursor, since: nil, limit: 100)
+            XCTAssertEqual(page.records.map(\.text), ["linked again"])
+            XCTAssertEqual(page.nextCursor, "STORE-B:1")
+        }
+    }
+
+    /// A cursor saved before cursors named their store cannot say which store it came from. Read
+    /// once from the start: records are keyed by WhatsApp's message id, so what memory already holds
+    /// is matched again rather than stored twice.
+    func test_aWhatsAppCursorWithoutAStoreReadsOnceFromTheStart() throws {
+        let reader = try whatsAppFixture(storeID: "STORE-A")
+        let page = try reader.read(after: "7", since: nil, limit: 100)
+        XCTAssertEqual(page.records.first?.text, "the invoice is paid")
+        XCTAssertEqual(page.nextCursor, "STORE-A:7")
+    }
+
+    func test_aWhatsAppCursorPastTheLastRowStartsOver() throws {
+        let reader = try whatsAppFixture()
+        let page = try reader.read(after: "65448", since: nil, limit: 100)
+        XCTAssertEqual(page.records.first?.text, "the invoice is paid", "a store with fewer rows than the cursor is a new store")
+        XCTAssertEqual(page.nextCursor, "7")
+    }
+
+    /// Logged out or reset, WhatsApp keeps its group container but has no chat store until it is
+    /// linked again: say that, rather than a path the user cannot act on.
+    func test_whatsAppWithoutAChatStoreIsNotLinked() throws {
+        let path = directory.appendingPathComponent("ChatStorage.sqlite").path
+        let reader = WhatsAppHistoryReader(databasePath: path)
+        guard case .notFound(let message) = reader.readiness() else { return XCTFail("expected not found") }
+        XCTAssertTrue(message.contains("not linked"), message)
+        XCTAssertEqual(reader.readiness(for: .missing(path)), reader.readiness())
+
+        let noContainer = WhatsAppHistoryReader(databasePath: directory.appendingPathComponent("gone/ChatStorage.sqlite").path)
+        guard case .notFound(let other) = noContainer.readiness() else { return XCTFail("expected not found") }
+        XCTAssertFalse(other.contains("not linked"), "no container at all: WhatsApp was never set up here")
     }
 
     func test_anUnrecognizedLayoutIsRefused() throws {

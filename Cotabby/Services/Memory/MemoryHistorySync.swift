@@ -118,6 +118,9 @@ final class MemoryHistorySync: ObservableObject {
         refreshReadiness()
     }
 
+    /// Re-checks every source. One that could not be read before and can now (WhatsApp linked
+    /// again, its store re-created) is read right away when it is on and the Mac is on AC power,
+    /// rather than at the next round; on battery it waits for that round, like the schedule does.
     func refreshReadiness() {
         var readers = readers
         if let documents = reader(for: DocumentsHistoryReader.id) { readers[DocumentsHistoryReader.id] = documents }
@@ -125,7 +128,17 @@ final class MemoryHistorySync: ObservableObject {
             let results = await Task.detached(priority: .utility) {
                 readers.mapValues { $0.readiness() }
             }.value
+            // Only a source known to be unreadable counts as coming back: the first check after
+            // launch has nothing to compare with, and memory's start already syncs every source.
+            let cameBack = results.filter { id, now in
+                now.isReady && readiness[id].map { !$0.isReady } == true
+            }.keys
             if readiness != results { readiness = results }
+            guard !cameBack.isEmpty, let engine = engine(), isOnACPower() else { return }
+            let enabled = Set(engine.configuration.enabledSourceIDs)
+            for id in cameBack.sorted() where enabled.contains(id) {
+                await sync(id)
+            }
         }
     }
 
@@ -204,7 +217,9 @@ final class MemoryHistorySync: ObservableObject {
                 "seconds": .stringConvertible(Int(Date().timeIntervalSince(started)))
             ])
         } catch let error as ReadOnlySQLiteDatabase.DatabaseError {
-            readiness[sourceID] = error.readiness
+            // The reader words it: a WhatsApp that lost its chat store says it is not linked. The
+            // next round (or Sync Now) reads again, so a source that comes back is picked up.
+            readiness[sourceID] = reader.readiness(for: error)
             lastOutcome[sourceID] = error.localizedDescription
         } catch {
             lastOutcome[sourceID] = error.localizedDescription

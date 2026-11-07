@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SQLite3
 import XCTest
 @testable import Cotabby
 
@@ -63,6 +64,66 @@ final class MemoryHistorySyncTests: XCTestCase {
         XCTAssertNil(engine.cursor(source: PagedReader.source))
     }
 
+    /// The whole path of a re-linked WhatsApp: memory read the old store, WhatsApp was logged out
+    /// (its container stays, the chat store goes), then linked again with a new store whose rows
+    /// count from 1. Memory says it is not linked meanwhile, and stores the new store's messages.
+    func test_aRelinkedWhatsAppIsReadAgainAfterBeingReportedNotLinked() async throws {
+        let engine = try makeEngine()
+        try engine.updateConfiguration { $0.sources[WhatsAppFixture.source] = MemorySourceSettings(enabled: true) }
+        let path = directory.appendingPathComponent("ChatStorage.sqlite").path
+        let sync = MemoryHistorySync(readers: [WhatsAppHistoryReader(databasePath: path)],
+                                     engine: { engine }, isOnACPower: { true })
+
+        try WhatsAppFixture.write(path, storeID: "OLD", messages: (1...40).map { ("old message \($0) about the invoice", $0) })
+        await sync.sync(WhatsAppFixture.source)
+        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "OLD:40")
+
+        try FileManager.default.removeItem(atPath: path)
+        await sync.sync(WhatsAppFixture.source)
+        guard case .notFound(let message) = sync.readiness[WhatsAppFixture.source] else {
+            return XCTFail("expected not found, got \(String(describing: sync.readiness[WhatsAppFixture.source]))")
+        }
+        XCTAssertTrue(message.contains("not linked"), message)
+
+        try WhatsAppFixture.write(path, storeID: "NEW", messages: [("linked again, the budget is fixed", 1)])
+        await sync.sync(WhatsAppFixture.source)
+        XCTAssertEqual(sync.readiness[WhatsAppFixture.source], .ready)
+        XCTAssertEqual(engine.cursor(source: WhatsAppFixture.source), "NEW:1")
+        let stats = engine.sources().first { $0.id == WhatsAppFixture.source }?.stats
+        XCTAssertEqual(stats?.messages, 41, "the new store's message is stored next to what memory kept")
+    }
+
+    /// Linking WhatsApp while the Memory pane waits on it: the next readiness check (the pane
+    /// appearing, Cotabby becoming active) finds the store and reads it then, not a round later.
+    func test_aSourceThatBecomesReadableIsSyncedWhenReadinessIsRechecked() async throws {
+        let engine = try makeEngine()
+        try engine.updateConfiguration { $0.sources[WhatsAppFixture.source] = MemorySourceSettings(enabled: true) }
+        let path = directory.appendingPathComponent("ChatStorage.sqlite").path
+        let sync = MemoryHistorySync(readers: [WhatsAppHistoryReader(databasePath: path)],
+                                     engine: { engine }, isOnACPower: { true })
+        await sync.sync(WhatsAppFixture.source)
+        XCTAssertEqual(sync.readiness[WhatsAppFixture.source]?.isReady, false)
+
+        try WhatsAppFixture.write(path, storeID: "NEW", messages: [("linked again, the budget is fixed", 1)])
+        sync.refreshReadiness()
+        try await waitUntil { engine.cursor(source: WhatsAppFixture.source) == "NEW:1" }
+    }
+
+    func test_aSourceThatBecomesReadableWaitsForACPower() async throws {
+        let engine = try makeEngine()
+        try engine.updateConfiguration { $0.sources[WhatsAppFixture.source] = MemorySourceSettings(enabled: true) }
+        let path = directory.appendingPathComponent("ChatStorage.sqlite").path
+        let sync = MemoryHistorySync(readers: [WhatsAppHistoryReader(databasePath: path)],
+                                     engine: { engine }, isOnACPower: { false })
+        await sync.sync(WhatsAppFixture.source)
+
+        try WhatsAppFixture.write(path, storeID: "NEW", messages: [("linked again, the budget is fixed", 1)])
+        sync.refreshReadiness()
+        try await waitUntil { sync.readiness[WhatsAppFixture.source] == .ready }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNil(engine.cursor(source: WhatsAppFixture.source), "on battery it waits for the next round on AC")
+    }
+
     private func waitUntil(_ condition: () -> Bool) async throws {
         for _ in 0..<200 where !condition() {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -111,5 +172,32 @@ private final class PagedReader: MemoryHistoryReading, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return body()
+    }
+}
+
+/// A minimal WhatsApp chat store: the tables and columns `WhatsAppHistoryReader` reads, one 1:1
+/// chat, and messages dated just now (so retention keeps them), keyed by stanza id per store.
+private enum WhatsAppFixture {
+    static let source = "whatsapp"
+
+    static func write(_ path: String, storeID: String, messages: [(text: String, row: Int)]) throws {
+        let now = Date().timeIntervalSince1970 - WhatsAppHistoryReader.appleEpochOffset
+        let rows = messages.map { message in
+            "(\(message.row), '\(message.text)', 0, \(now), 1, NULL, '\(storeID)-\(message.row)', NULL, 0)"
+        }
+        var sql = """
+        CREATE TABLE Z_METADATA (Z_VERSION INTEGER PRIMARY KEY, Z_UUID VARCHAR(255), Z_PLIST BLOB);
+        INSERT INTO Z_METADATA VALUES (1, '\(storeID)', NULL);
+        CREATE TABLE ZWACHATSESSION (Z_PK INTEGER PRIMARY KEY, ZCONTACTJID VARCHAR, ZPARTNERNAME VARCHAR, ZSESSIONTYPE INTEGER);
+        CREATE TABLE ZWAGROUPMEMBER (Z_PK INTEGER PRIMARY KEY, ZCHATSESSION INTEGER, ZMEMBERJID VARCHAR, ZCONTACTNAME VARCHAR, ZFIRSTNAME VARCHAR);
+        CREATE TABLE ZWAMESSAGE (Z_PK INTEGER PRIMARY KEY, ZTEXT VARCHAR, ZISFROMME INTEGER, ZMESSAGEDATE TIMESTAMP,
+            ZCHATSESSION INTEGER, ZGROUPMEMBER INTEGER, ZSTANZAID VARCHAR, ZPUSHNAME VARCHAR, ZGROUPEVENTTYPE INTEGER);
+        INSERT INTO ZWACHATSESSION VALUES (1, '15550100001@s.whatsapp.net', 'Ayşe', 0);
+        """
+        if !rows.isEmpty { sql += "INSERT INTO ZWAMESSAGE VALUES \(rows.joined(separator: ", "));" }
+        var handle: OpaquePointer?
+        guard sqlite3_open(path, &handle) == SQLITE_OK else { throw NSError(domain: "fixture", code: 1) }
+        defer { sqlite3_close(handle) }
+        guard sqlite3_exec(handle, sql, nil, nil, nil) == SQLITE_OK else { throw NSError(domain: "fixture", code: 2) }
     }
 }

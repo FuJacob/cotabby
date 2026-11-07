@@ -17,7 +17,13 @@ import Foundation
 ///   same people) identifies a person reliably; names are not unique and can change.
 /// - Only messages with text (including captions), from 1:1 chats and groups; status updates,
 ///   broadcasts and group system events are skipped.
-/// - Cursor: the message's Core Data primary key, which only grows.
+/// - Cursor: `<store id>:<row>`, the Core Data store's identity (`Z_METADATA.Z_UUID`) and the last
+///   message's primary key. Rows only grow within one store, but linking WhatsApp again (after a
+///   logout or reset) or reinstalling it creates a new store whose rows count from 1: a bare row
+///   cursor would skip every new message until the new rows passed it. A cursor of another store,
+///   one without a store (saved by an earlier build), or one past the store's last row therefore
+///   reads the store from the start. That re-read is safe: records are keyed by WhatsApp's own
+///   message id (`ZSTANZAID`), which a re-linked store keeps, so memory matches what it holds.
 nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
     let sourceID = "whatsapp"
     /// Added to every group's participants, so a group never shares memory with a 1:1 chat.
@@ -41,10 +47,63 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
             return try schemaMatches(database) ? .ready
                 : .failed("This WhatsApp version stores messages differently; memory cannot read it yet.")
         } catch let error as ReadOnlySQLiteDatabase.DatabaseError {
-            return error.readiness
+            return readiness(for: error)
         } catch {
             return .failed(error.localizedDescription)
         }
+    }
+
+    /// A logged-out or reset WhatsApp keeps its group container but has no chat store until it is
+    /// linked again; a container that is missing too means WhatsApp was never set up here.
+    func readiness(for error: ReadOnlySQLiteDatabase.DatabaseError) -> MemorySourceReadiness {
+        guard case .missing = error,
+              FileManager.default.fileExists(atPath: (databasePath as NSString).deletingLastPathComponent) else {
+            return error.readiness
+        }
+        return .notFound("WhatsApp is not linked on this Mac, so it has no chat history yet. Link it in WhatsApp "
+            + "with your phone; memory reads it on its next sync and keeps what it already holds.")
+    }
+
+    /// `<store id>:<row>`, or a bare row for a store without an identity (and for cursors saved
+    /// before cursors named their store).
+    struct Cursor: Equatable {
+        let store: String?
+        let row: Int64
+
+        init(store: String?, row: Int64) {
+            self.store = store
+            self.row = row
+        }
+
+        init?(_ text: String?) {
+            guard let text, !text.isEmpty else { return nil }
+            // Split at the last colon: the row never has one, a store id might.
+            if let colon = text.lastIndex(of: ":") {
+                guard let row = Int64(text[text.index(after: colon)...]) else { return nil }
+                self.init(store: String(text[..<colon]), row: row)
+            } else {
+                guard let row = Int64(text) else { return nil }
+                self.init(store: nil, row: row)
+            }
+        }
+
+        var text: String { store.map { "\($0):\(row)" } ?? String(row) }
+    }
+
+    /// The row to read after: the cursor's, when it belongs to this store; 0 (the whole store)
+    /// when the cursor came from another store, names none while the store has one, or points past
+    /// the store's last row (a replaced store without an identity).
+    static func startRow(after cursor: Cursor?, store: String?, lastRow: Int64) -> Int64 {
+        guard let cursor else { return 0 }
+        if cursor.store != store || cursor.row > lastRow { return 0 }
+        return cursor.row
+    }
+
+    /// The Core Data store's identity: new each time WhatsApp creates its store, the same for as
+    /// long as that store lives. Nil when the store has no metadata table.
+    private func storeIdentity(_ database: ReadOnlySQLiteDatabase) throws -> String? {
+        guard try database.hasColumns(["Z_UUID"], in: "Z_METADATA") else { return nil }
+        return try database.rows("SELECT Z_UUID AS id FROM Z_METADATA LIMIT 1").first?["id"]?.string
     }
 
     private func schemaMatches(_ database: ReadOnlySQLiteDatabase) throws -> Bool {
@@ -61,7 +120,10 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
         guard try schemaMatches(database) else {
             throw ReadOnlySQLiteDatabase.DatabaseError.sqlite("Unrecognized WhatsApp database layout.")
         }
-        let after = Int64(cursor ?? "") ?? 0
+        let store = try storeIdentity(database)
+        let lastRow = try database.rows("SELECT COALESCE(MAX(Z_PK), 0) AS last FROM ZWAMESSAGE").first?["last"]?.int ?? 0
+        let saved = Cursor(cursor)
+        let after = Self.startRow(after: saved, store: store, lastRow: lastRow)
         let sinceApple = (since?.timeIntervalSince1970).map { $0 - Self.appleEpochOffset } ?? -Double.greatestFiniteMagnitude
         // ZSESSIONTYPE: 0 = one-to-one, 1 = group (others are broadcast lists and status).
         let rows = try database.rows(
@@ -127,7 +189,11 @@ nonisolated struct WhatsAppHistoryReader: MemoryHistoryReading {
                 subject: nil
             ))
         }
-        let last = rows.last?["pk"]?.int
-        return MemoryReadPage(records: records, nextCursor: last.map(String.init), hasMore: rows.count == limit)
+        // A cursor that starts this store over is replaced even when the store has no messages yet,
+        // so its first rows are read as they arrive instead of waiting behind the old store's row.
+        let startedOver = saved != nil && after == 0
+        let last = rows.last?["pk"]?.int ?? (startedOver ? 0 : nil)
+        return MemoryReadPage(records: records, nextCursor: last.map { Cursor(store: store, row: $0).text },
+                              hasMore: rows.count == limit)
     }
 }
