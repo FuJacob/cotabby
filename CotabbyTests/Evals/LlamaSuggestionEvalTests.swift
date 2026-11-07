@@ -184,7 +184,11 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             settings: settings,
             configuration: LlamaEvalRuntime.configuration,
             clipboardContext: evalCase.clipboardContext,
-            visualContextSummary: evalCase.visualContextSummary
+            visualContextSummary: evalCase.visualContextSummary,
+            // COTABBY_EVAL_NO_MEMORY=1 runs the memory cases without their memory lines, the
+            // baseline that shows what conversation memory adds.
+            memorySnippets: ProcessInfo.processInfo.environment["COTABBY_EVAL_NO_MEMORY"] == "1"
+                ? [] : (evalCase.memorySnippets ?? [])
         ).request
 
         let start = Date()

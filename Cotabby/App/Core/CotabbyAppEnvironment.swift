@@ -41,6 +41,12 @@ final class CotabbyAppEnvironment {
     let performanceMetricsStore: PerformanceMetricsStore
     let qualityMetricsStore: SuggestionQualityMetricsStore
     let typingHistoryStore: TypingHistoryStore
+    /// Conversation memory: the controller owns the engine's lifecycle (on/off, its embedding
+    /// model, the encryption key); the control model is what the Memory pane reads and acts through.
+    let memoryController: MemoryEngineController
+    let memoryControl: MemoryControlModel
+    /// Answers the suggestion pipeline's memory lookups (`SuggestionMemoryProviding`).
+    let memoryRetriever: MemoryRetriever
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -197,7 +203,7 @@ final class CotabbyAppEnvironment {
         CotabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
 
-        let routedEngine: any SuggestionGenerating = SuggestionEngineRouter(
+        let router = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
             llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
@@ -222,6 +228,7 @@ final class CotabbyAppEnvironment {
                 suggestionSettings?.openAICompatibleModelName.nonEmpty
             }
         )
+        let routedEngine: any SuggestionGenerating = router
         // Under `-cotabby-debug` with `cotabbyDebugForcedSuggestion` set, every request answers with
         // that fixed text so ghost placement can be measured deterministically without a model.
         // Typing history owns its own encrypted archive. Inside the XCTest host it starts empty and
@@ -243,6 +250,21 @@ final class CotabbyAppEnvironment {
         // "Clear History" control can reach it, and before the picker which reads and writes it.
         let emojiUsageStore = EmojiUsageStore()
 
+        // Conversation memory. Constructing the controller loads nothing: it reads paths and the
+        // enabled flag. `AppDelegate` starts it after launch.
+        // Indexing waits while a suggestion is generating: both use the GPU, and the suggestion
+        // is what the user is waiting for.
+        let memoryController = MemoryEngineController(
+            isOnACPower: { [weak powerSourceMonitor] in powerSourceMonitor?.isPluggedIn ?? false },
+            isGenerating: { [weak router] in (router?.generationsInFlight ?? 0) > 0 }
+        )
+        let memoryHistorySync = MemoryHistorySync(
+            engine: { [weak memoryController] in memoryController?.engine },
+            isOnACPower: { [weak powerSourceMonitor] in powerSourceMonitor?.isPluggedIn ?? false }
+        )
+        let memoryControl = MemoryControlModel(controller: memoryController, historySync: memoryHistorySync)
+        let memoryRetriever = MemoryRetriever(engine: { [weak memoryController] in memoryController?.engine })
+
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
@@ -260,7 +282,9 @@ final class CotabbyAppEnvironment {
                 welcomeCoordinator?.showWelcome()
             },
             clearEmojiHistory: { emojiUsageStore.clear() },
-            typingHistoryStore: typingHistoryStore
+            typingHistoryStore: typingHistoryStore,
+            memoryController: memoryController,
+            memoryControl: memoryControl
         )
 
         let interactionState = SuggestionInteractionState()
@@ -338,6 +362,7 @@ final class CotabbyAppEnvironment {
             macro: macroController,
             inputMonitor: inputMonitor
         )
+        suggestionCoordinator.memoryProvider = memoryRetriever
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false
         }
@@ -367,6 +392,9 @@ final class CotabbyAppEnvironment {
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
         self.typingHistoryStore = typingHistoryStore
+        self.memoryController = memoryController
+        self.memoryControl = memoryControl
+        self.memoryRetriever = memoryRetriever
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
@@ -421,7 +449,36 @@ final class CotabbyAppEnvironment {
             .store(in: &cancellables)
 
         observePowerSourceProfileSwitching()
+        observeMemoryEngine()
         observeOpenAICompatibleSelection()
+    }
+
+    /// Memory sources sync once the engine is running and every 15 minutes on AC after that;
+    /// nothing runs while memory is off. The retriever's app -> sources map follows both the
+    /// engine's state and every reload of the source list, so switching a source on or off takes
+    /// effect on the next suggestion.
+    private func observeMemoryEngine() {
+        memoryController.$state
+            .map { $0 == .running }
+            .removeDuplicates()
+            .sink { [weak self, weak memoryControl] running in
+                guard let memoryControl else { return }
+                let historySync = memoryControl.historySync
+                if running {
+                    historySync.refreshReadiness()
+                    historySync.startPeriodicSync()
+                } else {
+                    historySync.stopPeriodicSync()
+                }
+                Task { await self?.memoryRetriever.reloadSources() }
+            }
+            .store(in: &cancellables)
+        memoryControl.$sources
+            .sink { [weak memoryRetriever] sources in
+                guard !sources.isEmpty else { return }
+                memoryRetriever?.updateSources(sources)
+            }
+            .store(in: &cancellables)
     }
 
     /// Applies the user's per-power-source profile (engine + model) whenever anything that could

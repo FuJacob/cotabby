@@ -84,12 +84,15 @@ struct LlamaEvalCase: Decodable, Equatable {
     /// Clipboard text to inject, standing in for what the coordinator would have pinned. Enables
     /// the clipboard section in settings for that case only.
     var clipboardContext: String?
+    /// Earlier messages of the conversation, as conversation memory renders them for the prompt
+    /// ("12 Sep · Ayşe: …"); recall cases put the fact the completion needs in one of them.
+    var memorySnippets: [String]?
     let expectation: LlamaEvalExpectation
 
     private enum CodingKeys: String, CodingKey {
         case id, tags, applicationName, bundleIdentifier
         case precedingText, trailingText, isMultiLineEnabled, expectation
-        case visualContextSummary, clipboardContext
+        case visualContextSummary, clipboardContext, memorySnippets
     }
 
     init(from decoder: Decoder) throws {
@@ -104,6 +107,7 @@ struct LlamaEvalCase: Decodable, Equatable {
         isMultiLineEnabled = try container.decodeIfPresent(Bool.self, forKey: .isMultiLineEnabled) ?? true
         visualContextSummary = try container.decodeIfPresent(String.self, forKey: .visualContextSummary)
         clipboardContext = try container.decodeIfPresent(String.self, forKey: .clipboardContext)
+        memorySnippets = try container.decodeIfPresent([String].self, forKey: .memorySnippets)
         expectation = try container.decode(LlamaEvalExpectation.self, forKey: .expectation)
     }
 

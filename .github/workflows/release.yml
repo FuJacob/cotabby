@@ -365,11 +365,18 @@ jobs:
 
           for code_path in "${nested_code[@]}"; do
             if [[ -e "${code_path}" ]]; then
+              # The app itself keeps its resource-access entitlements (Calendars). The array is
+              # expanded as ${a[@]+"${a[@]}"} because bash 3.2 treats an empty one as unbound under set -u.
+              entitlement_args=()
+              if [[ "${code_path}" == "${app_path}" ]]; then
+                entitlement_args=(--entitlements Cotabby/Cotabby.entitlements)
+              fi
               codesign \
                 --force \
                 --options runtime \
                 --timestamp \
                 --sign "${signing_identity}" \
+                ${entitlement_args[@]+"${entitlement_args[@]}"} \
                 "${code_path}"
             fi
           done

@@ -68,6 +68,7 @@ required. An optional OpenAI-compatible engine can connect to a server you confi
 - **One-key autocorrect** — fix a likely typo with a single keystroke
 - **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
 - **Optional screen context** — control visual context independently of the local prediction settings
+- **Conversation memory** *(optional, off by default)* — when you write in a Microsoft Teams chat, suggestions can draw on what was said earlier in that conversation. Apple Mail and Outlook mail, WhatsApp chats, Calendar events and documents in a folder or cloud drive you choose are synced and searchable in Settings → Memory; WhatsApp chats will feed suggestions once Cotabby reads the open chat's name
 
 ## Privacy
 
@@ -80,6 +81,11 @@ Privacy is the whole point, so Cotabby's default engines keep generation on your
 - A normal install never writes what you type to disk.
 - Apart from a configured endpoint, the network is used for model downloads and update checks, not
   suggestion generation.
+- Conversation memory is off until you switch it on and choose its sources. It reads those apps'
+  local stores on this Mac, keeps message contents, names and titles encrypted in Cotabby's folder
+  (the key is in your Keychain), embeds them on-device, and never sends any of it to an endpoint.
+  Its embedding model is downloaded once from Hugging Face. Reading a cloud drive makes the drive's
+  own app download files that are only online, which it then gives back.
 
 ## Engines
 
@@ -155,6 +161,7 @@ Cotabby works inside other apps, so macOS asks for a few permissions. Each one m
 - **Accessibility** — read the text and cursor position in the field you're typing in, and insert what you accept.
 - **Input Monitoring** — notice your typing so it knows when to suggest, and detect the accept keys.
 - **Screen Recording** *(optional)* — capture the area around your cursor for visual context, and to match the ghost text's font, size, and position to the app's own text where the app doesn't report them. Leave it off and everything else still works.
+- **Full Disk Access** and **Calendars** *(optional, conversation memory only)* — read the local history of the mail and chat apps, and the events of your calendars, for the memory sources you switch on.
 
 Cotabby blocks generation, presentation, and insertion in password and other secure fields.
 

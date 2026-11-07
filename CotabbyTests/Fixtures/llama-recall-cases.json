@@ -399,5 +399,112 @@
       ]
     },
     "clipboardContext": "Shipment details\nCarrier: UPS\nTracking: 1Z999AA10123456784\nStatus: In transit\nExpected: Thursday"
+  },
+  {
+    "id": "memory-whatsapp-time-01",
+    "tags": [
+      "recall",
+      "memory"
+    ],
+    "applicationName": "WhatsApp",
+    "bundleIdentifier": "net.whatsapp.WhatsApp",
+    "precedingText": "Perfect, see you tomorrow at ",
+    "isMultiLineEnabled": false,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "3"
+      ]
+    },
+    "memorySnippets": [
+      "2 Oct · Ayşe: Shall we meet at the office tomorrow?",
+      "2 Oct · You: Yes, what time works?",
+      "2 Oct · Ayşe: 3 pm is best for me, in the small meeting room."
+    ]
+  },
+  {
+    "id": "memory-mail-amount-01",
+    "tags": [
+      "recall",
+      "memory"
+    ],
+    "applicationName": "Mail",
+    "bundleIdentifier": "com.apple.mail",
+    "precedingText": "Hi Ayşe,\n\nThanks for confirming. As agreed, the monthly fee for the pilot will be ",
+    "isMultiLineEnabled": true,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "2500"
+      ]
+    },
+    "memorySnippets": [
+      "28 Sep · Ayşe Yılmaz: Could you confirm the price for the pilot?",
+      "29 Sep · You: The pilot is 2,500 EUR per month, including support for 30 days."
+    ]
+  },
+  {
+    "id": "memory-whatsapp-place-01",
+    "tags": [
+      "recall",
+      "memory"
+    ],
+    "applicationName": "WhatsApp",
+    "bundleIdentifier": "net.whatsapp.WhatsApp",
+    "precedingText": "Ok, I'll book a table at ",
+    "isMultiLineEnabled": false,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "Karaköy"
+      ]
+    },
+    "memorySnippets": [
+      "1 Oct · Can: Dinner Friday? I'd love to try that fish place in Karaköy again.",
+      "1 Oct · You: Good idea, around 8?",
+      "1 Oct · Can: 8 is perfect."
+    ]
+  },
+  {
+    "id": "memory-teams-ticket-01",
+    "tags": [
+      "recall",
+      "memory"
+    ],
+    "applicationName": "Microsoft Teams",
+    "bundleIdentifier": "com.microsoft.teams2",
+    "precedingText": "I looked into the failing export job, it is tracked in ticket ",
+    "isMultiLineEnabled": false,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "123"
+      ]
+    },
+    "memorySnippets": [
+      "30 Sep · Sam: The nightly export job stopped running again after the upgrade.",
+      "30 Sep · Sam: I opened !123 for it, can you take a look?"
+    ]
+  },
+  {
+    "id": "memory-turkish-date-01",
+    "tags": [
+      "recall",
+      "memory"
+    ],
+    "applicationName": "WhatsApp",
+    "bundleIdentifier": "net.whatsapp.WhatsApp",
+    "precedingText": "Tamam, o zaman toplantıyı ",
+    "isMultiLineEnabled": false,
+    "expectation": {
+      "kind": "recall",
+      "mustContain": [
+        "perşembe"
+      ]
+    },
+    "memorySnippets": [
+      "3 Oct · Mehmet: Toplantıyı perşembe saat 10'a alabilir miyiz?",
+      "3 Oct · Mehmet: Salı benim için zor."
+    ]
   }
 ]

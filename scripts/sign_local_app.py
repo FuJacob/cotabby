@@ -49,7 +49,10 @@ def main():
         sign = ["codesign", "--force", "--options", "runtime", "--timestamp=none", "--sign", args.identity]
         for path in sorted(candidates, key=lambda item: len(item.parts), reverse=True):
             run(*sign, str(path))
-        entitlements = {}
+        # The app's own entitlements (resource access such as Calendars) come from the checked-in
+        # file every signing path uses; local builds only add their debugging extras.
+        app_entitlements = Path(__file__).resolve().parent.parent / "Cotabby" / "Cotabby.entitlements"
+        entitlements = plistlib.loads(app_entitlements.read_bytes())
         if args.debug or args.testing:
             entitlements["com.apple.security.get-task-allow"] = True
         if args.testing:

@@ -46,7 +46,8 @@ enum SuggestionRequestFactory {
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
-        historyExamples: [String] = []
+        historyExamples: [String] = [],
+        memorySnippets: [String] = []
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -98,6 +99,9 @@ enum SuggestionRequestFactory {
         // engine; dropping it here as well keeps that guarantee in the one pure place every request
         // passes through.
         let activeHistoryExamples = settings.selectedEngine == .openAICompatible ? [] : historyExamples
+        // Conversation memory is private history from this Mac, held to the same rule as typing
+        // history: never part of a request the endpoint engine could receive.
+        let activeMemorySnippets = settings.selectedEngine == .openAICompatible ? [] : memorySnippets
         let maxPredictionTokens = activeMaxPredictionTokens(
             configuration: configuration,
             wordRange: settings.effectiveWordRange,
@@ -125,6 +129,7 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             historyExamples: activeHistoryExamples,
+            memorySnippets: activeMemorySnippets,
             contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
             maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
             screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
@@ -159,6 +164,7 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             historyExamples: activeHistoryExamples,
+            memorySnippets: activeMemorySnippets,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
             wordRange: settings.effectiveWordRange

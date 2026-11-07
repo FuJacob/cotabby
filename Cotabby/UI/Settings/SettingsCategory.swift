@@ -9,7 +9,7 @@ import SwiftUI
 /// the engine dropdown at the top of that pane.
 ///
 /// Order reflects a top-down reading: core behavior, how suggestions look, the emoji feature, what
-/// the model is told (writing then context), the model itself, input bindings, then system and info.
+/// the model is told (writing, context, then memory), the model itself, input bindings, then system and info.
 enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case home
     case general
@@ -17,6 +17,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case emoji
     case writing
     case context
+    case memory
     case engineAndModel
     case shortcuts
     case apps
@@ -34,6 +35,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "Emoji"
         case .writing: return "Writing"
         case .context: return "Context"
+        case .memory: return "Memory"
         case .engineAndModel: return "Engine & Model"
         case .shortcuts: return "Shortcuts"
         case .apps: return "Apps"
@@ -52,6 +54,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "face.smiling"
         case .writing: return "square.and.pencil"
         case .context: return "doc.text"
+        case .memory: return "brain"
         case .engineAndModel: return "cpu.fill"
         case .shortcuts: return "keyboard.fill"
         case .apps: return "app.badge.fill"
@@ -72,6 +75,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return .yellow
         case .writing: return .indigo
         case .context: return .teal
+        case .memory: return .mint
         case .engineAndModel: return .orange
         case .shortcuts: return .pink
         case .apps: return .red
@@ -90,6 +94,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .emoji: return "The inline emoji picker"
         case .writing: return "Length, profile, and corrections"
         case .context: return "What the model can reference"
+        case .memory: return "Chat and mail history for suggestions"
         case .engineAndModel: return "Choose the engine and models"
         case .shortcuts: return "Keys that accept suggestions"
         case .apps: return "Where Cotabby stays quiet"
@@ -106,7 +111,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     static let sidebarGroups: [[SettingsCategory]] = [
         [.home],
         [.general, .appearance, .emoji],
-        [.writing, .context, .engineAndModel],
+        [.writing, .context, .memory, .engineAndModel],
         [.shortcuts, .apps, .permissions],
         [.performance, .about]
     ]

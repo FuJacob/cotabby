@@ -87,6 +87,9 @@ nonisolated protocol TypingHistoryKeyStore: Sendable {
 /// The production key store: one generic-password item in the login Keychain.
 nonisolated struct KeychainTypingHistoryKeyStore: TypingHistoryKeyStore {
     let service: String
+    /// What Keychain Access shows for the item. Conversation memory reuses this store
+    /// for its own key under a different service name and label.
+    var label = "Cotabby typing history key"
     private static let account = "archive-key"
 
     private var baseQuery: [String: Any] {
@@ -116,7 +119,7 @@ nonisolated struct KeychainTypingHistoryKeyStore: TypingHistoryKeyStore {
         var attributes = baseQuery
         attributes[kSecValueData as String] = key.withUnsafeBytes { Data($0) }
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        attributes[kSecAttrLabel as String] = "Cotabby typing history key"
+        attributes[kSecAttrLabel as String] = label
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else { throw TypingHistoryVault.VaultError.keychain(status) }
         return key
