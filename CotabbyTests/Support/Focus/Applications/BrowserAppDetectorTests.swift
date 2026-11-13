@@ -44,6 +44,9 @@ final class BrowserAppDetectorTests: XCTestCase {
         // editor's web-AX tree stays dormant and no focused field ever resolves.
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "md.obsidian"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "MD.Obsidian"))
+        // Signal Desktop: stock Electron, its composer stays dormant until primed.
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "org.whispersystems.signal-desktop"))
+        XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: "org.whispersystems.signal-desktop"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
