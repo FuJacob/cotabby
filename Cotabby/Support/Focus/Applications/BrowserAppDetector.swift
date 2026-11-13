@@ -54,6 +54,10 @@ nonisolated enum BrowserAppDetector {
     /// With the bundle absent here nothing ever flipped that switch, so the system-wide focus query
     /// returned nil and the tracker reported "No focused Accessibility element" on every tick.
     ///
+    /// Signal Desktop (`org.whispersystems.signal-desktop`, 8.35 / Electron 45) is the same failure in
+    /// a messenger: its composer is a `contenteditable` in a stock Electron renderer that stays
+    /// dormant until primed.
+    ///
     /// Cursor is intentionally absent: it ships under opaque ToDesktop bundle ids
     /// (`com.todesktop.<hash>`) that change between builds, so there is no stable id to allowlist
     /// here without a broad `com.todesktop.` prefix that would also prime unrelated ToDesktop apps.
@@ -65,7 +69,8 @@ nonisolated enum BrowserAppDetector {
         "com.microsoft.vscode",          // Visual Studio Code
         "com.microsoft.vscodeinsiders",  // VS Code - Insiders
         "com.vscodium",                  // VSCodium (FOSS VS Code build)
-        "md.obsidian"                    // Obsidian (Electron, CodeMirror 6 editor) — #791
+        "md.obsidian",                   // Obsidian (Electron, CodeMirror 6 editor) — #791
+        "org.whispersystems.signal-desktop"  // Signal Desktop (Electron chat composer)
     ]
 
     /// Broad check: is the user typing inside any web browser? Used for prompt tone hints.
