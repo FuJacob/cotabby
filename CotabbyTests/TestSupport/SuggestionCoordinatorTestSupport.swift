@@ -331,7 +331,9 @@ func makeCoordinatorRig(
         interactionState: interactionState,
         workController: SuggestionWorkController(),
         configuration: configuration,
-        spellChecker: CurrentWordSpellChecker(),
+        // Pinned to English: the replays assert English corrections, which must not follow the
+        // locale of the machine running the tests.
+        spellChecker: CurrentWordSpellChecker(language: "en"),
         symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
         qualityMetricsStore: SuggestionQualityMetricsStore(
             userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.quality.\(UUID().uuidString)") ?? .standard
