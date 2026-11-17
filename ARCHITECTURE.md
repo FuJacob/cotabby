@@ -501,7 +501,9 @@ focus change or incompatible input. They do not call a language model.
 [SettingsCoordinator.swift](Cotabby/App/Coordinators/SettingsCoordinator.swift) and
 [WelcomeCoordinator.swift](Cotabby/App/Coordinators/WelcomeCoordinator.swift) own app-lifetime AppKit
 windows hosting SwiftUI content. Settings and onboarding observe the shared graph. Hiding the menu bar
-icon retains a recovery path to Settings.
+icon retains a recovery path to Settings. Cotabby launches as an agent app (`LSUIElement`), and
+`SettingsCoordinator` switches the process to `.regular` while Settings is open (Dock tile and
+Command-Tab entry, per `SettingsActivationPolicy`) and back to `.accessory` when it closes.
 
 ## Concurrency and Reliability Rules
 
