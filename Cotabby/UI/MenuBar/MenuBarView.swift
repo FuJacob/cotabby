@@ -29,6 +29,8 @@ struct MenuBarView: View {
     /// Captures the popover's host window so `Button` actions that open another window can dismiss
     /// the popover behind them. SwiftUI's `\.dismiss` does not work for `MenuBarExtra(.window)`.
     @StateObject private var popoverDismisser = MenuBarPopoverDismisser()
+    /// One-time "turn off Apple's inline predictions" card, a week into use (see `InlinePredictionNudge`).
+    @StateObject private var inlinePredictionNudge = InlinePredictionNudge()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -36,6 +38,7 @@ struct MenuBarView: View {
             Divider().padding(.bottom, 12)
             controlsSection
             permissionsCard
+            inlinePredictionCard
             footerSection
         }
         .padding(16)
@@ -45,6 +48,7 @@ struct MenuBarView: View {
             MenuBarPresentationObserver {
                 permissionManager.refresh()
                 runtimeModel.refreshAvailableModels()
+                inlinePredictionNudge.refresh()
             }
         )
         .background(
@@ -56,6 +60,7 @@ struct MenuBarView: View {
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
+            inlinePredictionNudge.refresh()
         }
     }
 
@@ -303,6 +308,23 @@ struct MenuBarView: View {
             .padding(12)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
             .padding(.bottom, 12)
+        }
+    }
+
+    // MARK: - Inline prediction reminder
+
+    /// Shown once, a week into use, while macOS inline predictive text is still on. Same styling as
+    /// the permissions card so the popover keeps one card vocabulary.
+    @ViewBuilder
+    private var inlinePredictionCard: some View {
+        if inlinePredictionNudge.isVisible {
+            InlinePredictionReminderCard(
+                onOpenSettings: {
+                    popoverDismisser.dismiss()
+                    inlinePredictionNudge.openKeyboardSettings()
+                },
+                onDismiss: inlinePredictionNudge.dismiss
+            )
         }
     }
 
@@ -566,5 +588,44 @@ private enum MenuBarWindowChromeConfigurator {
             backingView.layer?.masksToBounds = false
         }
         window.invalidateShadow()
+    }
+}
+
+/// The week-later reminder card in the menu bar popover (see `InlinePredictionNudge`).
+struct InlinePredictionReminderCard: View {
+    let onOpenSettings: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("You've been using Cotabby for a week")
+                .font(.subheadline.weight(.medium))
+
+            Text(
+                "macOS still shows its own gray inline predictions, and they take Tab too. "
+                    + "Turn them off so only Cotabby suggests?"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Button("Open Keyboard Settings") {
+                    onOpenSettings()
+                }
+                .controlSize(.small)
+
+                Button("No Thanks") {
+                    onDismiss()
+                }
+                .controlSize(.small)
+                .buttonStyle(.borderless)
+            }
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.bottom, 12)
     }
 }
