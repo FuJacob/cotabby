@@ -201,6 +201,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
+        // While Settings is open Cotabby has a Dock tile, so clicking it lands here too. AppKit does
+        // not reliably restore a minimized window on reopen, so bring the existing window forward
+        // ourselves (`showSettings` reuses it; it never creates a second one).
+        if settingsCoordinator.isSettingsWindowOpen {
+            settingsCoordinator.showSettings()
+            return false
+        }
+
         if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
             isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
             hasVisibleWindows: flag,
