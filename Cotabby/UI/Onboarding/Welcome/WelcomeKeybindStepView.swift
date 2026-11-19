@@ -253,8 +253,7 @@ struct InlinePredictionCallout: View {
 
                 Text(
                     "macOS shows its own gray word predictions and accepts them with Tab too. "
-                        + "In Keyboard settings, choose Text Input › Edit… and turn off "
-                        + "\u{201C}Show inline predictive text\u{201D} so only Cotabby suggests."
+                        + SystemKeyboardSettingsLabels.current.turnOffInstruction
                 )
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)

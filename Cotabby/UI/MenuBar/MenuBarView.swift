@@ -603,7 +603,7 @@ struct InlinePredictionReminderCard: View {
 
             Text(
                 "macOS still shows its own gray inline predictions, and they take Tab too. "
-                    + "Turn them off so only Cotabby suggests?"
+                    + SystemKeyboardSettingsLabels.current.turnOffInstruction
             )
             .font(.caption)
             .foregroundStyle(.secondary)
