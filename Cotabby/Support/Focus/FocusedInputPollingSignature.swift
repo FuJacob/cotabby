@@ -24,7 +24,11 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
         processIdentifier = context.processIdentifier
         role = context.role
         subrole = context.subrole
-        windowTitle = context.windowTitle
+        // Same rule as the session identity: in a browser the title is a volatile display string.
+        windowTitle = FocusedInputSessionIdentity.identifyingWindowTitle(
+            context.windowTitle, focusedURLString: context.focusedURLString,
+            bundleIdentifier: context.bundleIdentifier
+        )
         focusedURLString = context.focusedURLString
         fieldPlaceholder = context.fieldPlaceholder
         fieldAnchor = FieldAnchor(

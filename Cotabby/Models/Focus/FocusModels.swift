@@ -26,6 +26,41 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let focusedURLString: String?
     let windowTitle: String?
     let fieldPlaceholder: String?
+
+    init(
+        processIdentifier: Int32,
+        bundleIdentifier: String,
+        focusChangeSequence: UInt64,
+        focusedURLString: String?,
+        windowTitle: String?,
+        fieldPlaceholder: String?
+    ) {
+        self.processIdentifier = processIdentifier
+        self.bundleIdentifier = bundleIdentifier
+        self.focusChangeSequence = focusChangeSequence
+        self.focusedURLString = focusedURLString
+        self.windowTitle = Self.identifyingWindowTitle(
+            windowTitle, focusedURLString: focusedURLString, bundleIdentifier: bundleIdentifier
+        )
+        self.fieldPlaceholder = fieldPlaceholder
+    }
+
+    /// The window title only when it is the best conversation signal available. In a browser the
+    /// title is just the tab title, which web apps rewrite on their own: Google Chat alternates it
+    /// with "X messaged you" every ~2s while a notification is unread, and Gmail prefixes unread
+    /// counts. Counting those flashes as navigation tore the suggestion down and restarted screen
+    /// capture every time. A browser field's URL names the conversation when Accessibility exposes
+    /// one (Google Chat's composer sits too deep for the bounded URL climb, so the browser check is
+    /// needed too), and a host that keeps one URL across conversations is still caught by the
+    /// changed-screen-text signal. Native fields outside browsers keep the title as their signal.
+    static func identifyingWindowTitle(
+        _ windowTitle: String?, focusedURLString: String?, bundleIdentifier: String
+    ) -> String? {
+        guard focusedURLString == nil, !BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier) else {
+            return nil
+        }
+        return windowTitle
+    }
 }
 
 /// Describes how trustworthy the resolved caret rect is.

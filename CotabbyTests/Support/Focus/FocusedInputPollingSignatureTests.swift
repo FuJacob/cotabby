@@ -13,6 +13,38 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         }
     }
 
+    func test_aFlashingTitleOnTheSameURLIsNotNavigationButANativeTitleChangeIs() {
+        // Google Chat alternates its tab title with "X messaged you" while a notification is unread;
+        // the URL, not the title, names a browser conversation.
+        let url = "https://chat.example.com/dm/conversation-one"
+        let chat = CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: url, windowTitle: "Alex Example - Chat")
+        let flashed = CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: url, windowTitle: "Sam Sample messaged you - Chat"
+        )
+        XCTAssertTrue(FocusedInputPollingSignature(context: flashed)
+            .continuesField(of: FocusedInputPollingSignature(context: chat)))
+        XCTAssertEqual(flashed.sessionIdentity, chat.sessionIdentity)
+
+        // Google Chat's composer sits too deep for the bounded URL climb, so in a browser the title
+        // is ignored even when no URL was read.
+        let urlless = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: "com.google.Chrome", windowTitle: "Alex Example - Chat"
+        )
+        let urllessFlashed = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: "com.google.Chrome", windowTitle: "Sam Sample messaged you - Chat"
+        )
+        XCTAssertTrue(FocusedInputPollingSignature(context: urllessFlashed)
+            .continuesField(of: FocusedInputPollingSignature(context: urlless)))
+        XCTAssertEqual(urllessFlashed.sessionIdentity, urlless.sessionIdentity)
+
+        // A native field has no URL, so its title is still the conversation signal.
+        let native = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Morgan")
+        let otherNative = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Riley")
+        XCTAssertFalse(FocusedInputPollingSignature(context: otherNative)
+            .continuesField(of: FocusedInputPollingSignature(context: native)))
+        XCTAssertNotEqual(otherNative.sessionIdentity, native.sessionIdentity)
+    }
+
     func test_typingAndAXWrapperChurnDoNotSignalNavigation() {
         let first = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
         let typed = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
