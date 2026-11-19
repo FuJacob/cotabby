@@ -107,6 +107,19 @@ struct ShortcutsPaneView: View {
                 }
                 .settingsItem(.acceptEntireSuggestion)
 
+                // Forms: with Accept Word on plain Tab, a visible suggestion otherwise traps Tab in
+                // name, address, and search inputs. Only plain Tab is affected; other keys still accept.
+                Toggle(isOn: tabLeavesSingleLineFieldsBinding) {
+                    SettingsRowLabel(
+                        title: "Tab Moves to Next Field",
+                        description: "In one-line fields such as form inputs, Tab moves to the next field "
+                            + "instead of accepting. Chat apps and editors keep accepting with Tab. "
+                            + "Accept Entire Suggestion still works everywhere. Only applies while Accept Word is Tab.",
+                        systemImage: "arrow.right.to.line.compact"
+                    )
+                }
+                .settingsItem(.tabLeavesSingleLineFields)
+
                 // The opt-in toggle has no factory binding; Clear is its only reset action.
                 LabeledContent {
                     KeybindRow(
@@ -144,6 +157,13 @@ struct ShortcutsPaneView: View {
                 .settingsItem(.toggleTabby)
             }
         }
+    }
+
+    private var tabLeavesSingleLineFieldsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.tabLeavesSingleLineFields },
+            set: { suggestionSettings.setTabLeavesSingleLineFields($0) }
+        )
     }
 
     /// The Accept Word key, offered to the recorder as a double press. Nil while Accept Word is

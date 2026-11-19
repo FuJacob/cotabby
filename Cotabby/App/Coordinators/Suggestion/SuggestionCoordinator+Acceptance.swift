@@ -35,7 +35,16 @@ extension SuggestionCoordinator {
     ///
     /// The focused app is resolved from the same focus snapshot the input monitor used to classify
     /// this press, so an app with its own Accept Entire Suggestion binding keeps it here too.
-    func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
+    ///
+    /// `isPlainTab` marks a press of Tab without modifiers. With `tabLeavesSingleLineFields` on, such
+    /// a press in a single-line field is handed back to the host instead of accepting, so Tab moves
+    /// to the next form field as it would without Cotabby.
+    func acceptForWordAcceptKeyPress(isAutorepeat: Bool, isPlainTab: Bool = false) -> Bool {
+        if isPlainTab, settingsSnapshot.tabLeavesSingleLineFields, tabMovesFocusInFocusedField {
+            doubleTapAcceptanceState.reset()
+            return passTabThrough(reason: "Tab left to the host in a single-line field")
+        }
+
         let doubleTapApplies = settingsSnapshot.isDoubleTapFullAcceptanceActive(
             forBundleIdentifier: focusModel.snapshot.bundleIdentifier
         )
@@ -502,6 +511,26 @@ extension SuggestionCoordinator {
         armPostExhaustionAcceptance()
         schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
         return true
+    }
+
+    /// Whether Tab in the focused field should move focus rather than accept: a field the host lays
+    /// out on one line (see `FocusedInputContext.isSingleLineField`), outside chat apps and the named
+    /// Electron editors. Both are excluded because their composers can report a single-line role
+    /// although Tab has nowhere useful to go there (2026-11-18): Messages' composer is an
+    /// `AXTextField`, and Signal's `contenteditable` composer reports one while the message fits on
+    /// one line, then a text area once it wraps. Handing them Tab inserted a tab character. The
+    /// Claude desktop composer showed the same symptom, Tab sometimes moving focus out of it, which
+    /// is why the exclusion covers the named Electron editors rather than chat apps alone.
+    /// WhatsApp's Catalyst composer reports a text area throughout and was unaffected.
+    private var tabMovesFocusInFocusedField: Bool {
+        guard let raw = focusModel.snapshot.context else { return false }
+        let context = interactionState.materializeContext(from: raw)
+        guard context.isSingleLineField else { return false }
+        let bundleIdentifier = context.bundleIdentifier
+        if AppSurfaceClassifier.classify(bundleIdentifier: bundleIdentifier) == .chat {
+            return false
+        }
+        return !BrowserAppDetector.isElectronEditor(bundleIdentifier: bundleIdentifier)
     }
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.

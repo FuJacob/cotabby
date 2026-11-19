@@ -191,6 +191,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// live value without subscribing to the settings model. Read it per app through
     /// `isDoubleTapFullAcceptanceActive(forBundleIdentifier:)`.
     let doubleTapAcceptsEntireSuggestion: Bool
+    /// When true, a plain Tab bound to Accept Word passes through to the host in single-line fields,
+    /// so form navigation keeps working. See `SuggestionShortcutSettings.tabLeavesSingleLineFields`.
+    let tabLeavesSingleLineFields: Bool
     /// Apps with their own Accept Entire Suggestion binding: a one-press key, or Disable. The
     /// double tap lives in the global Accept Entire Suggestion slot, and an app's own binding
     /// replaces that slot there, so these apps never treat a double tap as accept-all.
