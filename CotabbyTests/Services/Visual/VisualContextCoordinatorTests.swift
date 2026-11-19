@@ -23,6 +23,29 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
+    func test_screenChangeExplainedByTheFieldsOwnEditIsNotReportedAsNavigation() async throws {
+        // Accepting words puts them on screen. A refresh that sees both new field text and new screen
+        // text must not look like navigation, or it retires the suggestion the user is accepting.
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review")
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { notifications == 1 }
+
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
+        generator.text = "Please review the attached"
+        try await waitUntil { coordinator.latestExcerpt == "Please review the attached" }
+        XCTAssertEqual(notifications, 1, "The user's own accepted words changed the screen")
+
+        // Field unchanged since that screenshot, screen changed: something else moved, report it.
+        generator.text = "A new message arrived"
+        try await waitUntil { notifications == 2 }
+    }
+
     func test_permissionRevocationStopsRefreshAndClearsExcerpt() async throws {
         let generator = StubVisualContextGenerator()
         var allowed = true

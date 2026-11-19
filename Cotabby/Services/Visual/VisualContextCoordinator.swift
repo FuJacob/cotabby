@@ -23,6 +23,9 @@ final class VisualContextCoordinator {
     private var expiryTask: Task<Void, Never>?
     private var excerptCapturedAt: TimeInterval?
     private var activeSessionIdentity: FocusedInputSessionIdentity?
+    /// The focused field's text when the current excerpt's screenshot was taken. Lets the next
+    /// excerpt tell a screen change the user's own edits explain from one they do not.
+    private var excerptFieldText: String?
 
     private(set) var status: VisualContextStatus = .idle
     private(set) var latestExcerpt: String?
@@ -159,6 +162,7 @@ final class VisualContextCoordinator {
         activeAugmentationSession = session
         activeSessionIdentity = snapshotContext.sessionIdentity
         latestExcerpt = nil
+        excerptFieldText = nil
         status = initialStatus
         publishState()
 
@@ -217,7 +221,8 @@ final class VisualContextCoordinator {
                     excerpt,
                     for: session.sessionID,
                     identity: snapshotContext.identity,
-                    capturedAt: capturedAt
+                    capturedAt: capturedAt,
+                    fieldText: snapshotContext.precedingText + snapshotContext.trailingText
                 )
             } catch is CancellationError {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
@@ -270,6 +275,7 @@ final class VisualContextCoordinator {
         expiryTask?.cancel()
         expiryTask = nil
         excerptCapturedAt = nil
+        excerptFieldText = nil
         activeSessionIdentity = nil
         refreshTask?.cancel()
         refreshTask = nil
@@ -336,7 +342,8 @@ final class VisualContextCoordinator {
         _ excerpt: VisualContextExcerpt,
         for sessionID: UUID,
         identity: FocusedInputIdentity,
-        capturedAt: TimeInterval
+        capturedAt: TimeInterval,
+        fieldText: String
     ) {
         guard activeAugmentationSession?.sessionID == sessionID,
             activeAugmentationSession?.elementIdentifier == identity.elementIdentifier,
@@ -350,7 +357,17 @@ final class VisualContextCoordinator {
             return
         }
 
-        let changed = activeAugmentationSession?.excerpt?.text != excerpt.text
+        let previousExcerptText = activeAugmentationSession?.excerpt?.text
+        let changed = previousExcerptText != excerpt.text
+        // A changed excerpt is reported as possible navigation so the coordinator retires the
+        // visible tail. When the focused field's own text changed between the two screenshots, the
+        // user's typing or accepting explains the change (accepted words land on screen), and that
+        // edit already went through text reconciliation, which retires a tail the new text no longer
+        // continues. Reporting it anyway replaced the suggestion mid-accept whenever the user paused
+        // between Tabs. The excerpt is still stored, so the next request uses it. A first excerpt is
+        // always reported: it is new context, not a comparison.
+        let fieldEdited = previousExcerptText != nil && excerptFieldText.map { $0 != fieldText } == true
+        excerptFieldText = fieldText
         activeAugmentationSession?.status = .ready
         activeAugmentationSession?.excerpt = excerpt
         status = .ready
@@ -359,7 +376,11 @@ final class VisualContextCoordinator {
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
         CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
-        if changed { onInjectedContextReady?(identity) }
+        if changed && fieldEdited {
+            CotabbyLogger.app.debug("Visual context changed with the field's own edits; not treated as navigation")
+        } else if changed {
+            onInjectedContextReady?(identity)
+        }
     }
 
     /// Timer-driven expiry updates the UI and request-driven expiry covers a delayed timer. Both
