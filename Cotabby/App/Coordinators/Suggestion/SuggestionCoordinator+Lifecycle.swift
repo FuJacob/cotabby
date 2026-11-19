@@ -18,8 +18,7 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.info("Suggestion coordinator stopping")
         suggestionPresentationTiming.clear()
         // A deferred screen-context retirement would otherwise wake after stop and schedule work.
-        deferredScreenContextRetirement?.cancel()
-        deferredScreenContextRetirement = nil
+        settleDeferredScreenContextChange()
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
@@ -37,6 +36,9 @@ extension SuggestionCoordinator {
     func prepareForRuntimeModelSwitch() {
         CotabbyLogger.suggestion.info("Preparing for runtime model switch, clearing active state")
         suggestionPresentationTiming.clear()
+        // The visual-context reset below makes a deferred screen-context change moot; left pending,
+        // it would wake after the switch and retire whatever the new model shows.
+        settleDeferredScreenContextChange()
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
@@ -57,6 +59,9 @@ extension SuggestionCoordinator {
 
         CotabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
         settingsSnapshot = snapshot
+        // Same as a model switch: the reset below restarts visual context and schedules its own
+        // prediction, which a deferred screen-context change would otherwise retire on waking.
+        settleDeferredScreenContextChange()
         cancelPredictionWork()
         resetCachedGenerationContext()
         clearSuggestion(clearDiagnostics: true)

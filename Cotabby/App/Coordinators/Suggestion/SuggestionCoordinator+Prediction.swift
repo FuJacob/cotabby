@@ -1468,11 +1468,13 @@ extension SuggestionCoordinator {
         schedulePredictionForCurrentFocusIfPossible(matching: identity)
     }
 
-    /// Resolves a deferred screen-context change once the user edits, moves the caret, or
-    /// dismisses. That input already retires the tail and decides whether to predict, so the
-    /// deferral must not later regenerate on its own (a caret move would otherwise get a fresh
-    /// suggestion with no new typing). The caches it would have retired are still dropped, so a
-    /// navigation the change stood for cannot resurface through a rollback or a pinned preface.
+    /// Resolves a deferred screen-context change without predicting, for events that already
+    /// retire the tail and decide on their own whether to predict: a caret move or dismissal (which
+    /// leave Cotabby idle; waking later would show a suggestion with no new typing), and a settings
+    /// change, model switch, or stop (which reset visual context themselves). Typing does not
+    /// settle it, because a matching keystroke keeps the tail alive. The caches the change would
+    /// have retired are still dropped, so a navigation it stood for cannot resurface through a
+    /// rollback or a pinned preface.
     func settleDeferredScreenContextChange() {
         guard let deferred = deferredScreenContextRetirement else { return }
         deferred.cancel()

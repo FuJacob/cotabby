@@ -272,6 +272,11 @@ extension SuggestionCoordinator {
         // no overlay to hide, the usual `.hidden` release never runs on these idle paths.
         if event.shouldClearSuggestion {
             releasePostExhaustionAcceptanceWindow()
+        }
+        // A caret move or dismissal leaves Cotabby idle, so a deferred screen-context change must
+        // not wake later and predict on its own. Typing keeps it: a matching keystroke keeps the
+        // tail alive, and only the deferred retirement still guards it against a navigation.
+        if event.kind == .navigation || event.kind == .dismissal {
             settleDeferredScreenContextChange()
         }
 
