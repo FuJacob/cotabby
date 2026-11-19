@@ -272,6 +272,7 @@ extension SuggestionCoordinator {
         // no overlay to hide, the usual `.hidden` release never runs on these idle paths.
         if event.shouldClearSuggestion {
             releasePostExhaustionAcceptanceWindow()
+            settleDeferredScreenContextChange()
         }
 
         if event.kind == .textMutation, let raw = focusModel.snapshot.context {

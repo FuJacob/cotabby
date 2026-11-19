@@ -223,6 +223,24 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because screen context changed.")
     }
 
+    func test_caretMoveDuringTheHoldSettlesTheDeferredChangeWithoutPredicting() async {
+        // The arrow key retires the tail and leaves Cotabby idle. The deferred change must not wake
+        // after it and start a prediction the user never typed for.
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 50
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .navigation))
+        XCTAssertNil(rig.coordinator.deferredScreenContextRetirement)
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertTrue(rig.engine.requests.isEmpty)
+    }
+
     func test_screenContextChangeAfterTheFinalChunkKeepsOwningTab() {
         // After the last word there is no session, only the post-exhaustion window that keeps a fast
         // follow-up Tab from reaching the host. An undeferred retirement hides the (already hidden)

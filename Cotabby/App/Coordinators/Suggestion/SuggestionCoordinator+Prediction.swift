@@ -1468,6 +1468,19 @@ extension SuggestionCoordinator {
         schedulePredictionForCurrentFocusIfPossible(matching: identity)
     }
 
+    /// Resolves a deferred screen-context change once the user edits, moves the caret, or
+    /// dismisses. That input already retires the tail and decides whether to predict, so the
+    /// deferral must not later regenerate on its own (a caret move would otherwise get a fresh
+    /// suggestion with no new typing). The caches it would have retired are still dropped, so a
+    /// navigation the change stood for cannot resurface through a rollback or a pinned preface.
+    func settleDeferredScreenContextChange() {
+        guard let deferred = deferredScreenContextRetirement else { return }
+        deferred.cancel()
+        deferredScreenContextRetirement = nil
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
+    }
+
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
     /// field and there is enough typed text for a real inline completion request.
     func schedulePredictionForCurrentFocusIfPossible(matching identity: FocusedInputIdentity) {
