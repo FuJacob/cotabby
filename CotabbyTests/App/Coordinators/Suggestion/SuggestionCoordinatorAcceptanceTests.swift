@@ -189,6 +189,80 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertNil(rig.interactionState.activeSession)
     }
 
+    // MARK: - Post-accept hold against screen-context refresh
+
+    func test_screenContextChangeRightAfterAnAcceptKeepsTheTailBeingAccepted() {
+        // Regression from a Gmail repro: the ~3s OCR refresh landed mid Tab burst, read the user's
+        // own accepted words as navigation, and replaced the suggestion; the next Tab, finding no
+        // ghost, went to Gmail and moved focus out of the compose body.
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world again")
+        XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement, "The change is deferred, not dropped")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "The next Tab must continue the same suggestion")
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world"])
+    }
+
+    func test_deferredScreenContextChangeRetiresTheTailOnceAcceptingStops() async {
+        // The excerpt is stored when it arrives and an identical later refresh does not fire again,
+        // so a held change must still be acted on: otherwise a real navigation is lost for good.
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 50
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+        XCTAssertNotNil(rig.interactionState.activeSession)
+
+        await waitUntil { rig.interactionState.activeSession == nil }
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because screen context changed.")
+    }
+
+    func test_screenContextChangeAfterTheFinalChunkKeepsOwningTab() {
+        // After the last word there is no session, only the post-exhaustion window that keeps a fast
+        // follow-up Tab from reaching the host. An undeferred retirement hides the (already hidden)
+        // overlay, which ends that window and hands Tab back mid burst.
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        startVisibleSession(in: rig, fullText: " today")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertTrue(rig.inputMonitor.shouldConsumeAcceptKeyProvider(), "A follow-up Tab must still be owned")
+    }
+
+    func test_screenContextChangeAfterTheHoldLapsesRetiresTheTailImmediately() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.coordinator.lastAcceptanceAt = ProcessInfo.processInfo.systemUptime - 1
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertNil(rig.coordinator.deferredScreenContextRetirement)
+    }
+
+    func test_zeroHoldRestoresImmediateRetirementAfterAnAccept() {
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 0
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertNil(rig.interactionState.activeSession)
+    }
+
     private func visibleText(of state: OverlayState) -> String? {
         guard case let .visible(text, _, _) = state else { return nil }
         return text

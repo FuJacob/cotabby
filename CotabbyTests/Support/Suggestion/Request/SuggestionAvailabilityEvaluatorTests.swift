@@ -384,4 +384,29 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             )
         }
     }
+
+    func test_postAcceptanceHoldReportsTheTimeLeftAfterARecentAccept() {
+        let now: TimeInterval = 1_000
+        let cases: [(name: String, lastAcceptanceUptime: TimeInterval?, holdMilliseconds: Int, expected: Int)] = [
+            ("never accepted", nil, 500, 0),
+            ("accepted 370ms ago", now - 0.37, 500, 130),
+            ("accepted exactly at the limit", now - 0.5, 500, 0),
+            ("accepted 1s ago", now - 1, 500, 0),
+            ("hold off", now - 0.01, 0, 0),
+            // Uptime is monotonic, but a caller passing a future instant must not extend the hold.
+            ("acceptance in the future", now + 5, 500, 500)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
+                    lastAcceptanceUptime: testCase.lastAcceptanceUptime,
+                    nowUptime: now,
+                    holdMilliseconds: testCase.holdMilliseconds
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
 }

@@ -219,7 +219,7 @@ extension SuggestionCoordinator {
         // hosts would otherwise map the published caret into pre-insert run frames for up to a
         // throttle window. Stamp the acceptance so the stability gate can scope its
         // backward-drift hold to the frames-catching-up window.
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
 
         if preparedContinuation == nil, sessionForAcceptance.advancing(by: acceptedChunk.count).isExhausted {
@@ -475,7 +475,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
         cancelPredictionWork(preservingContinuation: true)

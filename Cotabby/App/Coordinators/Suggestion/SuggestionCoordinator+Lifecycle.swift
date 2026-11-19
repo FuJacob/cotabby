@@ -17,6 +17,9 @@ extension SuggestionCoordinator {
     func stop() {
         CotabbyLogger.suggestion.info("Suggestion coordinator stopping")
         suggestionPresentationTiming.clear()
+        // A deferred screen-context retirement would otherwise wake after stop and schedule work.
+        deferredScreenContextRetirement?.cancel()
+        deferredScreenContextRetirement = nil
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
