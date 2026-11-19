@@ -109,15 +109,16 @@ struct ShortcutsPaneView: View {
 
                 // Forms: with Accept Word on plain Tab, a visible suggestion otherwise traps Tab in
                 // name, address, and search inputs. Only plain Tab is affected; other keys still accept.
+                // Off while a double tap accepts everything: the first Tab must stay with Cotabby
+                // there, or the double tap could never complete in a form field.
                 Toggle(isOn: tabLeavesSingleLineFieldsBinding) {
                     SettingsRowLabel(
                         title: "Tab Moves to Next Field",
-                        description: "In one-line fields such as form inputs, Tab moves to the next field "
-                            + "instead of accepting. Chat apps and editors keep accepting with Tab. "
-                            + "Accept Entire Suggestion still works everywhere. Only applies while Accept Word is Tab.",
+                        description: tabLeavesSingleLineFieldsDescription,
                         systemImage: "arrow.right.to.line.compact"
                     )
                 }
+                .disabled(suggestionSettings.isDoubleTapFullAcceptanceActive)
                 .settingsItem(.tabLeavesSingleLineFields)
 
                 // The opt-in toggle has no factory binding; Clear is its only reset action.
@@ -157,6 +158,16 @@ struct ShortcutsPaneView: View {
                 .settingsItem(.toggleTabby)
             }
         }
+    }
+
+    private var tabLeavesSingleLineFieldsDescription: String {
+        if suggestionSettings.isDoubleTapFullAcceptanceActive {
+            return "Unavailable while Accept Entire Suggestion is a double tap of Tab: the first Tab "
+                + "has to stay with Cotabby. Give Accept Entire Suggestion its own key to use this."
+        }
+        return "In one-line fields such as form inputs, Tab moves to the next field instead of accepting. "
+            + "Chat apps and editors keep accepting with Tab. Accept Entire Suggestion keeps working "
+            + "on its own key. Only applies while Accept Word is Tab."
     }
 
     private var tabLeavesSingleLineFieldsBinding: Binding<Bool> {

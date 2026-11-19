@@ -6,7 +6,8 @@ import XCTest
 /// Pins "Tab Moves to Next Field": with the setting on, a plain Tab bound to Accept Word is handed
 /// back to the host in a single-line field, so form navigation works while a suggestion shows.
 /// Everything else keeps accepting: the setting off, a multi-line field, a chat or Electron-editor
-/// composer that reports a single-line role, the full-accept key, and a modified Tab binding.
+/// composer that reports a single-line role, Claude's composer, the full-accept key, a double tap
+/// of Tab bound to full acceptance, and a modified Tab binding.
 @MainActor
 final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
     private let tab = CapturedInputEvent(kind: .acceptance, keyCode: 48, characters: "\t", flags: [])
@@ -55,6 +56,27 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
         XCTAssertEqual(rig.inserter.insertedChunks, ["world"])
     }
 
+    func testPlainTabStillAcceptsInClaudeComposerReportedAsSingleLine() async {
+        let rig = await makeReadyRig(
+            role: "AXTextField",
+            bundleIdentifier: "com.anthropic.claudefordesktop",
+            tabLeavesSingleLineFields: true
+        )
+        defer { rig.coordinator.stop() }
+
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world"])
+    }
+
+    func testDoubleTapFullAcceptStillWorksInSingleLineFieldWhenEnabled() async {
+        let rig = await makeReadyRig(role: "AXTextField", tabLeavesSingleLineFields: true, doubleTapAcceptsEntireSuggestion: true)
+        defer { rig.coordinator.stop() }
+
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab), "The first Tab stays with Cotabby")
+        XCTAssertTrue(rig.coordinator.handleInputEvent(tab), "The second Tab completes the double tap")
+        XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again tomorrow"])
+    }
+
     func testFullAcceptStillWorksInSingleLineFieldWhenEnabled() async {
         let rig = await makeReadyRig(role: "AXTextField", tabLeavesSingleLineFields: true)
         defer { rig.coordinator.stop() }
@@ -78,7 +100,8 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
     private func makeReadyRig(
         role: String,
         bundleIdentifier: String = "com.example.TestApp",
-        tabLeavesSingleLineFields: Bool
+        tabLeavesSingleLineFields: Bool,
+        doubleTapAcceptsEntireSuggestion: Bool = false
     ) async -> CoordinatorRig {
         let rig = makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(
@@ -88,6 +111,7 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
             ),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
+                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
                 tabLeavesSingleLineFields: tabLeavesSingleLineFields
             )
         )
