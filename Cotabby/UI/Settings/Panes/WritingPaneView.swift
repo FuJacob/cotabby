@@ -74,9 +74,9 @@ struct WritingPaneView: View {
                     HStack(spacing: 10) {
                         TickMarkSlider(
                             value: postAcceptHoldBinding,
-                            range: Double(SuggestionSettingsModel.minimumPostAcceptRegenerationHoldMilliseconds)
-                                ... Double(SuggestionSettingsModel.maximumPostAcceptRegenerationHoldMilliseconds),
-                            step: Double(SuggestionSettingsModel.postAcceptRegenerationHoldStepMilliseconds)
+                            range: Double(SuggestionSettingsModel.minimumPostAcceptHoldMilliseconds)
+                                ... Double(SuggestionSettingsModel.maximumPostAcceptHoldMilliseconds),
+                            step: Double(SuggestionSettingsModel.postAcceptHoldStepMilliseconds)
                         )
                         .frame(width: 180)
 
@@ -212,13 +212,13 @@ struct WritingPaneView: View {
     /// The slider works in `Double`; the setting stores whole milliseconds, so round on the way in.
     private var postAcceptHoldBinding: Binding<Double> {
         Binding(
-            get: { Double(suggestionSettings.postAcceptRegenerationHoldMilliseconds) },
-            set: { suggestionSettings.setPostAcceptRegenerationHoldMilliseconds(Int($0.rounded())) }
+            get: { Double(suggestionSettings.postAcceptHoldMilliseconds) },
+            set: { suggestionSettings.setPostAcceptHoldMilliseconds(Int($0.rounded())) }
         )
     }
 
     private var postAcceptHoldLabel: String {
-        let milliseconds = suggestionSettings.postAcceptRegenerationHoldMilliseconds
+        let milliseconds = suggestionSettings.postAcceptHoldMilliseconds
         return milliseconds == 0 ? "Off" : "\(milliseconds) ms"
     }
 

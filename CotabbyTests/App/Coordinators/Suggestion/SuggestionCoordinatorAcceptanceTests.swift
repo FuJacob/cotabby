@@ -212,7 +212,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         // The excerpt is stored when it arrives and an identical later refresh does not fire again,
         // so a held change must still be acted on: otherwise a real navigation is lost for good.
         let rig = retained(makeCoordinatorRig())
-        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 50
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
         startVisibleSession(in: rig, fullText: " hello world again")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
@@ -227,7 +227,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         // The arrow key retires the tail and leaves Cotabby idle. The deferred change must not wake
         // after it and start a prediction the user never typed for.
         let rig = retained(makeCoordinatorRig())
-        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 50
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
         startVisibleSession(in: rig, fullText: " hello world again")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
@@ -241,12 +241,36 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
 
+    func test_inputThatEndsTheTailDuringTheHoldSettlesTheDeferredChange() {
+        // A mismatched keystroke retires the tail and schedules its own prediction; the emoji picker
+        // takes over input. Either way a deferral waking later would cancel newer work or predict
+        // under the picker, so it must be settled on the spot.
+        let cases: [(name: String, prepare: (CoordinatorRig) -> Void, event: CapturedInputEvent)] = [
+            ("mismatched typing", { _ in }, CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "x")),
+            ("emoji picker", { $0.coordinator.emojiInputObserver = { _ in true } },
+             CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: ":"))
+        ]
+        for testCase in cases {
+            let rig = retained(makeCoordinatorRig())
+            testCase.prepare(rig)
+            startVisibleSession(in: rig, fullText: " hello world again")
+            XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), testCase.name)
+            rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+            XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement, testCase.name)
+
+            _ = rig.coordinator.handleInputEvent(testCase.event)
+
+            XCTAssertNil(rig.interactionState.activeSession, testCase.name)
+            XCTAssertNil(rig.coordinator.deferredScreenContextRetirement, testCase.name)
+        }
+    }
+
     func test_matchingTypingDuringTheHoldStillRetiresTheTailOnceItLapses() async {
         // A keystroke that matches the tail keeps it alive, so it must not settle the deferred
         // change: on a navigation with identical field identity, that change is the only thing that
         // retires the old conversation's tail.
         let rig = retained(makeCoordinatorRig())
-        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 50
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
         startVisibleSession(in: rig, fullText: " hello world again")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
@@ -302,7 +326,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
     func test_zeroHoldRestoresImmediateRetirementAfterAnAccept() {
         let rig = retained(makeCoordinatorRig())
-        rig.settingsProvider.postAcceptRegenerationHoldMilliseconds = 0
+        rig.settingsProvider.postAcceptHoldMilliseconds = 0
         startVisibleSession(in: rig, fullText: " hello world again")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 

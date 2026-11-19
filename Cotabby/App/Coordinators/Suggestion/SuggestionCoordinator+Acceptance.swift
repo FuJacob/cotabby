@@ -696,6 +696,9 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)
         state = .idle
+        // The tail a deferred screen-context change was waiting to retire is gone, and the caller
+        // decides whether to predict; left pending, it would cancel that newer work on waking.
+        settleDeferredScreenContextChange()
     }
 
     func completeActiveSuggestion(
@@ -709,6 +712,8 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         hideOverlay(reason: reason)
         state = .idle
+        // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
+        settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
 
         if scheduleNextPrediction {

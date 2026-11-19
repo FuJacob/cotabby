@@ -1439,7 +1439,7 @@ extension SuggestionCoordinator {
         let remainingMilliseconds = SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
             lastAcceptanceUptime: lastAcceptanceAt,
             nowUptime: ProcessInfo.processInfo.systemUptime,
-            holdMilliseconds: suggestionSettings.postAcceptRegenerationHoldMilliseconds
+            holdMilliseconds: suggestionSettings.postAcceptHoldMilliseconds
         )
         deferredScreenContextRetirement?.cancel()
         deferredScreenContextRetirement = nil
@@ -1468,13 +1468,15 @@ extension SuggestionCoordinator {
         schedulePredictionForCurrentFocusIfPossible(matching: identity)
     }
 
-    /// Resolves a deferred screen-context change without predicting, for events that already
-    /// retire the tail and decide on their own whether to predict: a caret move or dismissal (which
-    /// leave Cotabby idle; waking later would show a suggestion with no new typing), and a settings
-    /// change, model switch, or stop (which reset visual context themselves). Typing does not
-    /// settle it, because a matching keystroke keeps the tail alive. The caches the change would
-    /// have retired are still dropped, so a navigation it stood for cannot resurface through a
-    /// rollback or a pinned preface.
+    /// Resolves a deferred screen-context change without predicting. The deferral exists to retire
+    /// the tail the user was accepting, so anything that ends or completes that tail settles it:
+    /// invalidation (a caret move, dismissal, mismatched typing, shortcut), typing through it,
+    /// input with no session, the emoji picker, and a settings change, model switch, or stop. Each
+    /// of those already decides whether to predict, and a deferral waking later would either show
+    /// a suggestion nobody typed for or cancel the newer request. Only a keystroke that matches,
+    /// and so keeps the tail alive, leaves it pending. The caches the change would have retired
+    /// are still dropped, so a navigation it stood for cannot resurface through a rollback or a
+    /// pinned preface.
     func settleDeferredScreenContextChange() {
         guard let deferred = deferredScreenContextRetirement else { return }
         deferred.cancel()
