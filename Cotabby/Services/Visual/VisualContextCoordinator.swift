@@ -202,22 +202,29 @@ final class VisualContextCoordinator {
                 guard !Task.isCancelled else {
                     return
                 }
+                // The field's text on both sides of the screenshot: an accept can land after the
+                // read above and before the pixels are taken, and its words must still read as the
+                // user's own edit rather than new screen text.
+                var fieldTexts = [snapshotContext.precedingText + snapshotContext.trailingText]
                 if let provider = refreshContextProvider {
                     let liveContext = provider()
                     guard activeAugmentationSession?.sessionID == session.sessionID else { return }
-                    guard screenRecordingPermissionProvider(), liveContext?.identity == snapshotContext.identity,
-                          liveContext?.sessionIdentity == snapshotContext.sessionIdentity,
-                          liveContext?.isSecure == false else {
+                    guard screenRecordingPermissionProvider(), let liveContext,
+                          liveContext.identity == snapshotContext.identity,
+                          liveContext.sessionIdentity == snapshotContext.sessionIdentity,
+                          !liveContext.isSecure else {
                         cancel(resetState: true)
                         return
                     }
+                    fieldTexts.append(liveContext.precedingText + liveContext.trailingText)
                 }
 
                 applyExcerpt(
                     excerpt,
                     for: session.sessionID,
                     identity: snapshotContext.identity,
-                    capturedAt: capturedAt
+                    capturedAt: capturedAt,
+                    fieldTexts: fieldTexts
                 )
             } catch is CancellationError {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
@@ -336,7 +343,8 @@ final class VisualContextCoordinator {
         _ excerpt: VisualContextExcerpt,
         for sessionID: UUID,
         identity: FocusedInputIdentity,
-        capturedAt: TimeInterval
+        capturedAt: TimeInterval,
+        fieldTexts: [String]
     ) {
         guard activeAugmentationSession?.sessionID == sessionID,
             activeAugmentationSession?.elementIdentifier == identity.elementIdentifier,
@@ -350,7 +358,18 @@ final class VisualContextCoordinator {
             return
         }
 
-        let changed = activeAugmentationSession?.excerpt?.text != excerpt.text
+        let previousExcerptText = activeAugmentationSession?.excerpt?.text
+        let changed = previousExcerptText != excerpt.text
+        // A changed excerpt is reported as possible navigation so the coordinator retires the
+        // visible tail. Only a change that shows text the old screen and the field's own text do not
+        // account for qualifies: accepted words landing on screen and OCR wobble are not navigation,
+        // and reporting them replaced the suggestion mid-accept whenever the user paused between
+        // Tabs. An edit cannot hide a navigation that brings lines of its own. The excerpt is stored
+        // either way, so the next request uses it. A first excerpt is always reported: it is new
+        // context, not a comparison.
+        let isNavigation = previousExcerptText.map {
+            OCRTextHygiene.showsUnexplainedText(excerpt.text, previous: $0, fieldTexts: fieldTexts)
+        } ?? true
         activeAugmentationSession?.status = .ready
         activeAugmentationSession?.excerpt = excerpt
         status = .ready
@@ -359,7 +378,11 @@ final class VisualContextCoordinator {
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
         CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
-        if changed { onInjectedContextReady?(identity) }
+        if isNavigation {
+            onInjectedContextReady?(identity)
+        } else if changed {
+            CotabbyLogger.app.debug("Visual context changed only by the field's own text or OCR noise; not navigation")
+        }
     }
 
     /// Timer-driven expiry updates the UI and request-driven expiry covers a delayed timer. Both

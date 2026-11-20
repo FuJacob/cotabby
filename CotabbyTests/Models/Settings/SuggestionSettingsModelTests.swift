@@ -229,6 +229,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setPreferredEmojiGender(.female)
         model.setAutoAcceptTrailingPunctuation(false)
         model.setAddSpaceAfterAccept(true)
+        model.setPostAcceptHoldMilliseconds(1500)
         model.setStreamSuggestionsWhileGenerating(true)
         model.setPredictAheadWhileTyping(false)
         model.setAcceptanceGranularity(.phrase)
@@ -286,6 +287,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.preferredEmojiGender, pristine.preferredEmojiGender)
         XCTAssertEqual(model.autoAcceptTrailingPunctuation, pristine.autoAcceptTrailingPunctuation)
         XCTAssertEqual(model.addSpaceAfterAccept, pristine.addSpaceAfterAccept)
+        XCTAssertEqual(model.postAcceptHoldMilliseconds, pristine.postAcceptHoldMilliseconds)
         XCTAssertEqual(model.streamSuggestionsWhileGenerating, pristine.streamSuggestionsWhileGenerating)
         XCTAssertEqual(model.predictAheadWhileTyping, pristine.predictAheadWhileTyping)
         XCTAssertEqual(model.acceptanceGranularity, pristine.acceptanceGranularity)
@@ -786,6 +788,34 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
         model.setGhostTextSizeMultiplier(0)
         XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
+    }
+
+    func test_postAcceptHold_defaultsTo500AndClampsToDocumentedBounds() {
+        let model = makeModel()
+        XCTAssertEqual(model.postAcceptHoldMilliseconds, 500)
+
+        model.setPostAcceptHoldMilliseconds(10_000)
+        XCTAssertEqual(
+            model.postAcceptHoldMilliseconds,
+            SuggestionSettingsModel.maximumPostAcceptHoldMilliseconds
+        )
+        model.setPostAcceptHoldMilliseconds(-50)
+        XCTAssertEqual(model.postAcceptHoldMilliseconds, 0, "0 turns the hold off")
+    }
+
+    func test_postAcceptHold_changesDoNotPublishASnapshot() {
+        // Every snapshot change resets the suggestion pipeline (KV cache, OCR session); a slider
+        // drag emits one value per tick, so the hold is read live instead of riding the snapshot.
+        let model = makeModel()
+        var emissions = 0
+        let subscription = model.snapshotPublisher.dropFirst().sink { _ in emissions += 1 }
+        defer { subscription.cancel() }
+
+        model.setPostAcceptHoldMilliseconds(1500)
+        model.setPostAcceptHoldMilliseconds(250)
+
+        XCTAssertEqual(emissions, 0)
+        XCTAssertEqual(model.postAcceptHoldMilliseconds, 250)
     }
 
     func test_ghostTextAppearanceDefaultsAreFullyOpaqueAndUnscaled() {

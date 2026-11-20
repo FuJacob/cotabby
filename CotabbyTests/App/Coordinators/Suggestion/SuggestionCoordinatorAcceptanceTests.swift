@@ -189,6 +189,153 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertNil(rig.interactionState.activeSession)
     }
 
+    // MARK: - Post-accept hold against screen-context refresh
+
+    func test_screenContextChangeRightAfterAnAcceptKeepsTheTailBeingAccepted() {
+        // Regression from a Gmail repro: the ~3s OCR refresh landed mid Tab burst, read the user's
+        // own accepted words as navigation, and replaced the suggestion; the next Tab, finding no
+        // ghost, went to Gmail and moved focus out of the compose body.
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world again")
+        XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement, "The change is deferred, not dropped")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "The next Tab must continue the same suggestion")
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world"])
+    }
+
+    func test_deferredScreenContextChangeRetiresTheTailOnceAcceptingStops() async {
+        // The excerpt is stored when it arrives and an identical later refresh does not fire again,
+        // so a held change must still be acted on: otherwise a real navigation is lost for good.
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+        XCTAssertNotNil(rig.interactionState.activeSession)
+
+        await waitUntil { rig.interactionState.activeSession == nil }
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because screen context changed.")
+    }
+
+    func test_caretMoveDuringTheHoldSettlesTheDeferredChangeWithoutPredicting() async {
+        // The arrow key retires the tail and leaves Cotabby idle. The deferred change must not wake
+        // after it and start a prediction the user never typed for.
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .navigation))
+        XCTAssertNil(rig.coordinator.deferredScreenContextRetirement)
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertTrue(rig.engine.requests.isEmpty)
+    }
+
+    func test_inputThatEndsTheTailDuringTheHoldSettlesTheDeferredChange() {
+        // A mismatched keystroke retires the tail and schedules its own prediction; the emoji picker
+        // takes over input. Either way a deferral waking later would cancel newer work or predict
+        // under the picker, so it must be settled on the spot.
+        let cases: [(name: String, prepare: (CoordinatorRig) -> Void, event: CapturedInputEvent)] = [
+            ("mismatched typing", { _ in }, CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "x")),
+            ("emoji picker", { $0.coordinator.emojiInputObserver = { _ in true } },
+             CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: ":"))
+        ]
+        for testCase in cases {
+            let rig = retained(makeCoordinatorRig())
+            testCase.prepare(rig)
+            startVisibleSession(in: rig, fullText: " hello world again")
+            XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), testCase.name)
+            rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+            XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement, testCase.name)
+
+            _ = rig.coordinator.handleInputEvent(testCase.event)
+
+            XCTAssertNil(rig.interactionState.activeSession, testCase.name)
+            XCTAssertNil(rig.coordinator.deferredScreenContextRetirement, testCase.name)
+        }
+    }
+
+    func test_matchingTypingDuringTheHoldStillRetiresTheTailOnceItLapses() async {
+        // A keystroke that matches the tail keeps it alive, so it must not settle the deferred
+        // change: on a navigation with identical field identity, that change is the only thing that
+        // retires the old conversation's tail.
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptHoldMilliseconds = 50
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: " "))
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world again", "The keystroke matched")
+        XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement)
+
+        await waitUntil { rig.overlayController.hideReasons.last == "Overlay hidden because screen context changed." }
+    }
+
+    func test_settingsChangeDuringTheHoldSettlesTheDeferredChange() {
+        // The settings reset restarts visual context and schedules its own prediction; a deferred
+        // change left pending would wake and retire that replacement.
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+        XCTAssertNotNil(rig.coordinator.deferredScreenContextRetirement)
+
+        rig.coordinator.handleSuggestionSettingsChange(CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 2))
+
+        XCTAssertNil(rig.coordinator.deferredScreenContextRetirement)
+    }
+
+    func test_screenContextChangeAfterTheFinalChunkKeepsOwningTab() {
+        // After the last word there is no session, only the post-exhaustion window that keeps a fast
+        // follow-up Tab from reaching the host. An undeferred retirement hides the (already hidden)
+        // overlay, which ends that window and hands Tab back mid burst.
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        startVisibleSession(in: rig, fullText: " today")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertTrue(rig.inputMonitor.shouldConsumeAcceptKeyProvider(), "A follow-up Tab must still be owned")
+    }
+
+    func test_screenContextChangeAfterTheHoldLapsesRetiresTheTailImmediately() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        rig.coordinator.lastAcceptanceAt = ProcessInfo.processInfo.systemUptime - 1
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertNil(rig.coordinator.deferredScreenContextRetirement)
+    }
+
+    func test_zeroHoldRestoresImmediateRetirementAfterAnAccept() {
+        let rig = retained(makeCoordinatorRig())
+        rig.settingsProvider.postAcceptHoldMilliseconds = 0
+        startVisibleSession(in: rig, fullText: " hello world again")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertNil(rig.interactionState.activeSession)
+    }
+
     private func visibleText(of state: OverlayState) -> String? {
         guard case let .visible(text, _, _) = state else { return nil }
         return text

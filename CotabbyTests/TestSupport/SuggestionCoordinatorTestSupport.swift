@@ -203,6 +203,7 @@ final class RigSuggestionEngine: SuggestionGenerating {
 @MainActor
 final class RigSettingsProvider: SuggestionSettingsProviding {
     var snapshot: SuggestionSettingsSnapshot
+    var postAcceptHoldMilliseconds = SuggestionSettingsStore.defaultPostAcceptHoldMilliseconds
 
     let snapshotSubject = PassthroughSubject<SuggestionSettingsSnapshot, Never>()
 

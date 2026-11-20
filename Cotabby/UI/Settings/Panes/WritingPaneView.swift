@@ -46,8 +46,9 @@ struct WritingPaneView: View {
                 }
             }
 
-            // What an accept inserts beyond the bare word. These shape the written output, so they sit
-            // with Writing rather than General; the accept keys themselves live in the Shortcuts pane.
+            // What an accept inserts beyond the bare word, and how long the accepted suggestion stays
+            // put. These shape the written output, so they sit with Writing rather than General; the
+            // accept keys themselves live in the Shortcuts pane.
             Section("Acceptance") {
                 Toggle(isOn: autoAcceptTrailingPunctuationBinding) {
                     SettingsRowLabel(
@@ -68,6 +69,32 @@ struct WritingPaneView: View {
                     )
                 }
                 .settingsItem(.addSpaceAfterAccept)
+
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        TickMarkSlider(
+                            value: postAcceptHoldBinding,
+                            range: Double(SuggestionSettingsModel.minimumPostAcceptHoldMilliseconds)
+                                ... Double(SuggestionSettingsModel.maximumPostAcceptHoldMilliseconds),
+                            step: Double(SuggestionSettingsModel.postAcceptHoldStepMilliseconds)
+                        )
+                        .frame(width: 180)
+
+                        Text(postAcceptHoldLabel)
+                            .font(.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Keep Suggestion After Accepting",
+                        description: "After you accept a word, wait this long before a change on screen can " +
+                            "replace the suggestion, so accepting word by word isn't interrupted.",
+                        systemImage: "timer"
+                    )
+                }
+                .settingsItem(.keepSuggestionAfterAccepting)
             }
 
             // Typo handling is a dependency chain, so the UI discloses it progressively rather than
@@ -180,6 +207,19 @@ struct WritingPaneView: View {
             get: { suggestionSettings.addSpaceAfterAccept },
             set: { suggestionSettings.setAddSpaceAfterAccept($0) }
         )
+    }
+
+    /// The slider works in `Double`; the setting stores whole milliseconds, so round on the way in.
+    private var postAcceptHoldBinding: Binding<Double> {
+        Binding(
+            get: { Double(suggestionSettings.postAcceptHoldMilliseconds) },
+            set: { suggestionSettings.setPostAcceptHoldMilliseconds(Int($0.rounded())) }
+        )
+    }
+
+    private var postAcceptHoldLabel: String {
+        let milliseconds = suggestionSettings.postAcceptHoldMilliseconds
+        return milliseconds == 0 ? "Off" : "\(milliseconds) ms"
     }
 
     private var suppressCompletionsOnTypoBinding: Binding<Bool> {

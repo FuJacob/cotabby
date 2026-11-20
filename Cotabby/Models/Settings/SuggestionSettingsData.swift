@@ -50,6 +50,8 @@ struct SuggestionCompletionSettings: Equatable {
     var showFollowingWords: Bool
     var autoAcceptTrailingPunctuation: Bool
     var addSpaceAfterAccept: Bool
+    /// How long after an accept a screen-context change may not replace the live suggestion; 0 is off.
+    var postAcceptHoldMilliseconds: Int
     var streamSuggestionsWhileGenerating: Bool
     /// Keeps an on-device request alive through matching typing, independently of partial display.
     var predictAheadWhileTyping: Bool
@@ -288,6 +290,11 @@ extension SuggestionSettingsData {
     var addSpaceAfterAccept: Bool {
         get { completion.addSpaceAfterAccept }
         set { completion.addSpaceAfterAccept = newValue }
+    }
+
+    var postAcceptHoldMilliseconds: Int {
+        get { completion.postAcceptHoldMilliseconds }
+        set { completion.postAcceptHoldMilliseconds = newValue }
     }
 
     var predictAheadWhileTyping: Bool {

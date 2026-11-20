@@ -199,6 +199,9 @@ extension LlamaRuntimeGenerating {
 protocol SuggestionSettingsProviding: AnyObject {
     var snapshot: SuggestionSettingsSnapshot { get }
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> { get }
+    /// Read live when a screen-context change arrives, deliberately outside `snapshot`: every
+    /// snapshot change resets the pipeline, and a slider drag would otherwise do that per tick.
+    var postAcceptHoldMilliseconds: Int { get }
 }
 
 @MainActor

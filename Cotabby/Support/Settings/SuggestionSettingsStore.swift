@@ -38,6 +38,13 @@ struct SuggestionSettingsStore {
     static let defaultGhostTextOpacity: Double = 1.0
     static let ghostTextOpacityStep: Double = 0.1
 
+    /// Bounds for the post-accept hold. 500ms covers the gap between Tab presses in a normal accept
+    /// burst (measured 150-370ms in a Gmail repro) without keeping a stale tail much past it.
+    static let minimumPostAcceptHoldMilliseconds = 0
+    static let maximumPostAcceptHoldMilliseconds = 2000
+    static let defaultPostAcceptHoldMilliseconds = 500
+    static let postAcceptHoldStepMilliseconds = 50
+
     /// Multiplier the overlay applies on top of the caret-approximated ghost-text size. 1.0 is the
     /// out-of-box default (the unchanged best-approximation). The band is symmetric around 1.0 with
     /// real shrink room because "suggestions look too big" is the common complaint, and is kept
@@ -174,6 +181,8 @@ struct SuggestionSettingsStore {
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
+    private static let postAcceptHoldMillisecondsDefaultsKey =
+        "cotabbyPostAcceptRegenerationHoldMilliseconds"
     private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
@@ -258,6 +267,7 @@ struct SuggestionSettingsStore {
         preferredEmojiGenderDefaultsKey,
         autoAcceptTrailingPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
+        postAcceptHoldMillisecondsDefaultsKey,
         streamWhileGeneratingDefaultsKey,
         predictAheadWhileTypingDefaultsKey,
         fadeInSuggestionsDefaultsKey,
@@ -486,6 +496,10 @@ struct SuggestionSettingsStore {
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
             userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
+        let resolvedPostAcceptHoldMilliseconds = Self.clampedPostAcceptHoldMilliseconds(
+            userDefaults.object(forKey: Self.postAcceptHoldMillisecondsDefaultsKey) as? Int
+                ?? Self.defaultPostAcceptHoldMilliseconds
+        )
         // Missing keys opt existing installations into prediction reuse; an explicit false survives reload.
         let resolvedPredictAheadWhileTyping =
             userDefaults.object(forKey: Self.predictAheadWhileTypingDefaultsKey) as? Bool ?? true
@@ -611,6 +625,7 @@ struct SuggestionSettingsStore {
                 showFollowingWords: resolvedShowFollowingWords,
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
+                postAcceptHoldMilliseconds: resolvedPostAcceptHoldMilliseconds,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: resolvedPredictAheadWhileTyping,
                 acceptanceGranularity: resolvedAcceptanceGranularity
@@ -720,6 +735,7 @@ struct SuggestionSettingsStore {
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
+        savePostAcceptHoldMilliseconds(data.postAcceptHoldMilliseconds)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         savePredictAheadWhileTyping(data.predictAheadWhileTyping)
         saveFadeInSuggestions(data.fadeInSuggestions)
@@ -1041,6 +1057,10 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.addSpaceAfterAcceptDefaultsKey)
     }
 
+    func savePostAcceptHoldMilliseconds(_ value: Int) {
+        userDefaults.set(value, forKey: Self.postAcceptHoldMillisecondsDefaultsKey)
+    }
+
     func savePredictAheadWhileTyping(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.predictAheadWhileTypingDefaultsKey)
     }
@@ -1199,6 +1219,10 @@ struct SuggestionSettingsStore {
     ) -> String {
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallbackBundleIdentifier : trimmed
+    }
+
+    static func clampedPostAcceptHoldMilliseconds(_ value: Int) -> Int {
+        min(maximumPostAcceptHoldMilliseconds, max(minimumPostAcceptHoldMilliseconds, value))
     }
 
     static func clampedGhostTextOpacity(_ value: Double) -> Double {
