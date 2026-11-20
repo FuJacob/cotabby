@@ -259,12 +259,12 @@ nonisolated enum OCRTextHygiene {
     ///
     /// A changed excerpt is the navigation signal on hosts that keep one field identity across
     /// conversations, but most changes between refreshes are not navigation. Accepting words puts
-    /// them on screen, and OCR disagrees with itself (`Settings ...` vs `Settings...`, the caret read as
-    /// a trailing `I` or `l`, a counter ticking). So lines compare as lowercase alphanumeric words,
-    /// a line with fewer than four letters is noise, and a line that is the field's text, with or
-    /// without one trailing caret glyph, is the user's own edit. Only new lines count. A line that
-    /// disappears is not evidence: a growing field scrolls the page, and OCR drops lines it read
-    /// last time.
+    /// them on screen, and OCR disagrees with itself (`Settings ...` vs `Settings...`, the caret
+    /// read as a trailing `I` or `l`, a counter ticking). So lines compare as lowercase alphanumeric
+    /// words, a line with fewer than four letters is noise, and a line that is the field's text,
+    /// with or without one trailing caret glyph (joined to the last word or read as a word of its
+    /// own), is the user's own edit. Only new lines count. A line that disappears is not evidence:
+    /// a growing field scrolls the page, and OCR drops lines it read last time.
     /// ponytail: a switch to a conversation that shows nothing new (empty, sharing all its chrome)
     /// goes unreported; count lost substantive lines too if that case turns up in practice.
     ///
@@ -276,7 +276,10 @@ nonisolated enum OCRTextHygiene {
         return excerpt.split(separator: "\n").contains { rawLine in
             let line = comparable(String(rawLine))
             guard line.filter(\.isLetter).count >= 4, !previousLines.contains(line) else { return false }
-            let withoutCaret = line.last.map { "il1".contains($0) } == true ? String(line.dropLast()) : line
+            // Trim after dropping the glyph: a caret read as its own word leaves `attached ` behind,
+            // which the field's `attached` at its end never contains.
+            let withoutCaret = line.last.map { "il1".contains($0) } == true
+                ? String(line.dropLast()).trimmingCharacters(in: .whitespaces) : line
             return !fields.contains { $0.contains(line) || $0.contains(withoutCaret) }
         }
     }

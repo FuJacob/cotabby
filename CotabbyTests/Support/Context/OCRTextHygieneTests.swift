@@ -227,6 +227,10 @@ final class OCRTextHygieneTests: XCTestCase {
         // Each change here is the user's accept or OCR re-reading the same pixels differently.
         let next = "Team Settings...\n20\nWrite a reply mention someone with @\nThe launch moved to Thursdal"
         XCTAssertFalse(OCRTextHygiene.showsUnexplainedText(next, previous: chat, fieldTexts: ["The launch moved to Thursday"]))
+        // The caret read as a word of its own after the field's last word.
+        XCTAssertFalse(OCRTextHygiene.showsUnexplainedText(
+            chat + "\nThe launch moved to Thursday I", previous: chat, fieldTexts: ["The launch moved to Thursday"]
+        ))
     }
 
     func test_showsUnexplainedText_reportsANewConversationEvenWhenTheFieldChanged() {
