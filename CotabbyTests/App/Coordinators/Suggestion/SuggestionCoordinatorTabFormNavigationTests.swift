@@ -77,6 +77,21 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
         XCTAssertEqual(rig.inserter.insertedChunks, ["world", "again tomorrow"])
     }
 
+    func testPlainTabStillPassesThroughInAppWithItsOwnFullAcceptKey() async {
+        // An app with its own Accept Entire Suggestion binding never inherits the double tap, so
+        // nothing there waits for a second Tab and form navigation keeps working.
+        let rig = await makeReadyRig(
+            role: "AXTextField",
+            tabLeavesSingleLineFields: true,
+            doubleTapAcceptsEntireSuggestion: true,
+            fullAcceptanceOverrideBundleIdentifiers: ["com.example.TestApp"]
+        )
+        defer { rig.coordinator.stop() }
+
+        XCTAssertFalse(rig.coordinator.handleInputEvent(tab))
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+    }
+
     func testFullAcceptStillWorksInSingleLineFieldWhenEnabled() async {
         let rig = await makeReadyRig(role: "AXTextField", tabLeavesSingleLineFields: true)
         defer { rig.coordinator.stop() }
@@ -101,7 +116,8 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
         role: String,
         bundleIdentifier: String = "com.example.TestApp",
         tabLeavesSingleLineFields: Bool,
-        doubleTapAcceptsEntireSuggestion: Bool = false
+        doubleTapAcceptsEntireSuggestion: Bool = false,
+        fullAcceptanceOverrideBundleIdentifiers: Set<String> = []
     ) async -> CoordinatorRig {
         let rig = makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(
@@ -112,7 +128,8 @@ final class SuggestionCoordinatorTabFormNavigationTests: XCTestCase {
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
                 doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
-                tabLeavesSingleLineFields: tabLeavesSingleLineFields
+                tabLeavesSingleLineFields: tabLeavesSingleLineFields,
+                fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrideBundleIdentifiers
             )
         )
         rig.engine.resultProvider = { request in

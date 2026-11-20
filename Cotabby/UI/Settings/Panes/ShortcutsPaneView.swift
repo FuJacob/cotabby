@@ -109,8 +109,8 @@ struct ShortcutsPaneView: View {
 
                 // Forms: with Accept Word on plain Tab, a visible suggestion otherwise traps Tab in
                 // name, address, and search inputs. Only plain Tab is affected; other keys still accept.
-                // Off while a double tap accepts everything: the first Tab must stay with Cotabby
-                // there, or the double tap could never complete in a form field.
+                // Stays editable while a double tap accepts everything: that mode only pauses it in
+                // apps that inherit the double tap, and apps with their own full-accept key still use it.
                 Toggle(isOn: tabLeavesSingleLineFieldsBinding) {
                     SettingsRowLabel(
                         title: "Tab Moves to Next Field",
@@ -118,7 +118,6 @@ struct ShortcutsPaneView: View {
                         systemImage: "arrow.right.to.line.compact"
                     )
                 }
-                .disabled(suggestionSettings.isDoubleTapFullAcceptanceActive)
                 .settingsItem(.tabLeavesSingleLineFields)
 
                 // The opt-in toggle has no factory binding; Clear is its only reset action.
@@ -161,14 +160,21 @@ struct ShortcutsPaneView: View {
     }
 
     private var tabLeavesSingleLineFieldsDescription: String {
-        if suggestionSettings.isDoubleTapFullAcceptanceActive {
-            return "Unavailable while Accept Entire Suggestion is a double tap of Tab: the first Tab "
-                + "has to stay with Cotabby. Give Accept Entire Suggestion its own key to use this."
+        let base = "In one-line fields such as form inputs, Tab moves to the next field instead of accepting. "
+            + "Chat apps and editors keep accepting with Tab. "
+        // The double tap only collides with this when it is a double tap of plain Tab, the one key
+        // this setting hands back to the host.
+        let acceptWordIsPlainTab = suggestionSettings.acceptanceKeyCode == Self.tabKeyCode
+            && suggestionSettings.acceptanceKeyModifiers.isEmpty
+        if suggestionSettings.isDoubleTapFullAcceptanceActive, acceptWordIsPlainTab {
+            return base + "While Accept Entire Suggestion is \(suggestionSettings.fullAcceptanceDisplayLabel), "
+                + "Tab keeps accepting so the double tap can complete, except in apps with their own "
+                + "Accept Entire Suggestion key."
         }
-        return "In one-line fields such as form inputs, Tab moves to the next field instead of accepting. "
-            + "Chat apps and editors keep accepting with Tab. Accept Entire Suggestion keeps working "
-            + "on its own key. Only applies while Accept Word is Tab."
+        return base + "Accept Entire Suggestion keeps working on its own key. Only applies while Accept Word is Tab."
     }
+
+    private static let tabKeyCode: CGKeyCode = 48
 
     private var tabLeavesSingleLineFieldsBinding: Binding<Bool> {
         Binding(
