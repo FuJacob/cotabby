@@ -86,6 +86,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case acceptanceMode
     case acceptWord
     case acceptEntireSuggestion
+    case tabLeavesSingleLineFields
     case toggleTabby
     // Apps
     case disabledApps
@@ -178,6 +179,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
+        case .tabLeavesSingleLineFields: return "Tab Moves to Next Field"
         case .toggleTabby: return "Toggle Cotabby"
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
@@ -266,6 +268,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "textformat.abc"
         case .acceptWord: return "arrow.right.to.line"
         case .acceptEntireSuggestion: return "text.insert"
+        case .tabLeavesSingleLineFields: return "arrow.right.to.line.compact"
         case .toggleTabby: return "power.circle"
         case .disabledApps: return "nosign"
         case .suggestInIntegratedTerminals: return "terminal"
@@ -311,7 +314,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
              .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
-        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
+        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .tabLeavesSingleLineFields, .toggleTabby:
             return .shortcuts
         case .disabledApps, .suggestInIntegratedTerminals:
             return .apps
@@ -398,6 +401,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
+        case .tabLeavesSingleLineFields: return "Let Tab move between form fields instead of accepting in one-line fields."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
@@ -619,6 +623,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["accept all", "entire", "full", "shortcut", "complete", "all",
                     "whole", "everything", "keybind", "binding", "double tap", "double-tap",
                     "twice", "tab tab", "press twice"]
+        case .tabLeavesSingleLineFields:
+            return ["tab", "form", "forms", "next field", "field navigation", "single line",
+                    "one line", "input", "move focus", "tab order"]
         case .toggleTabby:
             return ["toggle", "global", "on off", "shortcut", "hotkey", "pause",
                     "enable", "disable", "keybind", "binding", "tabby"]

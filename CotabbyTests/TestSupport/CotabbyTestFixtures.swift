@@ -274,6 +274,7 @@ enum CotabbyTestFixtures {
         enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
         automaticallyFixTypos: Bool = false,
         doubleTapAcceptsEntireSuggestion: Bool = false,
+        tabLeavesSingleLineFields: Bool = false,
         fullAcceptanceOverrideBundleIdentifiers: Set<String> = []
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
@@ -309,6 +310,7 @@ enum CotabbyTestFixtures {
             enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
             automaticallyFixTypos: automaticallyFixTypos,
             doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+            tabLeavesSingleLineFields: tabLeavesSingleLineFields,
             fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrideBundleIdentifiers
         )
     }

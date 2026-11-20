@@ -121,6 +121,10 @@ struct SuggestionShortcutSettings: Equatable {
     /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
     /// the global Accept Entire Suggestion binding.
     var doubleTapAcceptsEntireSuggestion: Bool
+    /// When true and Accept Word is plain Tab, Tab in a single-line field (an HTML `<input>`, an
+    /// `NSTextField`) is left to the host, so it moves to the next field as it would without
+    /// Cotabby. Accept Entire Suggestion still accepts there.
+    var tabLeavesSingleLineFields: Bool = false
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -493,5 +497,10 @@ extension SuggestionSettingsData {
     var doubleTapAcceptsEntireSuggestion: Bool {
         get { shortcuts.doubleTapAcceptsEntireSuggestion }
         set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
+    }
+
+    var tabLeavesSingleLineFields: Bool {
+        get { shortcuts.tabLeavesSingleLineFields }
+        set { shortcuts.tabLeavesSingleLineFields = newValue }
     }
 }

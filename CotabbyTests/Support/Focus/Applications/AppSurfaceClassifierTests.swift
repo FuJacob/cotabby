@@ -22,6 +22,7 @@ final class AppSurfaceClassifierTests: XCTestCase {
             ("ru.keepcoder.Telegram", .chat),
             ("net.whatsapp.WhatsApp", .chat),
             ("com.microsoft.teams2", .chat),
+            ("org.whispersystems.signal-desktop", .chat),
             ("com.apple.Safari", .browser),
             ("com.google.Chrome", .browser),
             ("org.mozilla.firefox", .browser),
