@@ -252,6 +252,41 @@ nonisolated enum OCRTextHygiene {
         return String(joined.prefix(max(0, maxChars)))
     }
 
+    // MARK: - Screen change classification
+
+    /// Whether `excerpt` shows a line that neither `previous` nor the focused field's own text
+    /// accounts for: evidence that something other than the user's typing changed the screen.
+    ///
+    /// A changed excerpt is the navigation signal on hosts that keep one field identity across
+    /// conversations, but most changes between refreshes are not navigation. Accepting words puts
+    /// them on screen, and OCR disagrees with itself (`Settings ...` vs `Settings...`, the caret read as
+    /// a trailing `I` or `l`, a counter ticking). So lines compare as lowercase alphanumeric words,
+    /// a line with fewer than four letters is noise, and a line that is the field's text, with or
+    /// without one trailing caret glyph, is the user's own edit. Only new lines count. A line that
+    /// disappears is not evidence: a growing field scrolls the page, and OCR drops lines it read
+    /// last time.
+    /// ponytail: a switch to a conversation that shows nothing new (empty, sharing all its chrome)
+    /// goes unreported; count lost substantive lines too if that case turns up in practice.
+    ///
+    /// Pass the field's text from both sides of the screenshot (read before capture and after OCR),
+    /// so words accepted while the capture was in flight still read as the user's own.
+    static func showsUnexplainedText(_ excerpt: String, previous: String, fieldTexts: [String]) -> Bool {
+        let previousLines = Set(previous.split(separator: "\n").map { comparable(String($0)) })
+        let fields = fieldTexts.map(comparable)
+        return excerpt.split(separator: "\n").contains { rawLine in
+            let line = comparable(String(rawLine))
+            guard line.filter(\.isLetter).count >= 4, !previousLines.contains(line) else { return false }
+            let withoutCaret = line.last.map { "il1".contains($0) } == true ? String(line.dropLast()) : line
+            return !fields.contains { $0.contains(line) || $0.contains(withoutCaret) }
+        }
+    }
+
+    /// Lowercase alphanumeric words joined by single spaces. Punctuation and spacing are where OCR
+    /// of the same pixels most often differs between captures.
+    private static func comparable(_ text: String) -> String {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: " ")
+    }
+
     // MARK: - Tokenization
 
     /// Splits a line into whitespace-delimited tokens.
