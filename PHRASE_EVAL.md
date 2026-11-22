@@ -261,10 +261,9 @@ use matching one-worker runs for interactive latency comparisons. More workers a
 model/context memory and do not guarantee proportional speedup. The production autocomplete
 runtime remains single-sequence; these independent engines exist only inside the opt-in test.
 
-## Bounded improvement experiments
+## Sampling experiments
 
-`IMPROVEMENT_BRAINSTORMING.md` records the current experiment hypotheses, checklist, time window,
-and adoption criteria. Keep the model and corpus fixed while comparing sampling configurations.
+Keep the model and corpus fixed while comparing sampling configurations.
 The CLI supports explicit test-only overrides without changing product defaults or saved settings:
 
 ```sh
