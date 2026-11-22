@@ -51,7 +51,7 @@ final class ActivationIndicatorController {
             return
         }
 
-        guard !caretRect.isEmpty else {
+        guard Self.isUsableCaret(caretRect) else {
             hide(reason: "Activation indicator hidden because the caret rect was empty.")
             return
         }
@@ -101,7 +101,7 @@ final class ActivationIndicatorController {
         // hundreds of points below the line being typed. The caret is always on the active line, and
         // for single-line fields it sits at the field's own centre anyway, so short inputs are
         // unaffected. Falls back to the field when the caret rect is empty.
-        let verticalAnchor = caretRect.isEmpty ? anchorRect : caretRect
+        let verticalAnchor = Self.isUsableCaret(caretRect) ? caretRect : anchorRect
 
         let preferredLeftX = anchorRect.minX - contentSize.width - fieldEdgeGap
         let fallbackRightX = anchorRect.maxX + fieldEdgeGap
@@ -129,6 +129,15 @@ final class ActivationIndicatorController {
     }
 
     /// Chooses the screen that currently contains the given rect's center point.
+    /// Whether a caret rect can place the icon. Only its height is checked: a caret box is
+    /// legitimately zero-width (an empty field's zero-length `AXBoundsForRange`, as in WhatsApp's
+    /// composer), and `CGRect.isEmpty`, true for any zero-width rect, hid the icon in exactly the
+    /// empty field where the user most needs it.
+    static func isUsableCaret(_ caretRect: CGRect) -> Bool {
+        !caretRect.isNull && caretRect.height > 0
+            && caretRect.minX.isFinite && caretRect.minY.isFinite && caretRect.height.isFinite
+    }
+
     private func screen(for rect: CGRect) -> NSScreen? {
         let midpoint = CGPoint(x: rect.midX, y: rect.midY)
 

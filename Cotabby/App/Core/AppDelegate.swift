@@ -195,25 +195,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Launch Services sends a reopen event when the user opens Cotabby while this accessory app is
-    /// already running. When the status item is hidden, Settings is the app's only visible recovery
-    /// surface, so reopening must reveal it instead of leaving the user with no apparent response.
+    /// Launch Services sends a reopen event when the user opens Cotabby while it is already running,
+    /// and, while Settings is open, when the user clicks its Dock tile. `MenuBarRecoveryPolicy` owns
+    /// the decision so the whole reopen rule stays in one testable place.
     func applicationShouldHandleReopen(
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
-        if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
+        switch MenuBarRecoveryPolicy.reopenAction(
             isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
-            hasVisibleWindows: flag,
             isSettingsWindowOpen: settingsCoordinator.isSettingsWindowOpen
         ) {
-            // Let AppKit activate the app and bring the existing Settings window forward.
+        case .letAppKitHandle:
             return true
+        case .focusExistingSettings:
+            // `showSettings` reuses and deminiaturizes the existing window; it never creates a second.
+            settingsCoordinator.showSettings()
+            return false
+        case .openSettingsForRecovery:
+            CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
+            settingsCoordinator.showSettings()
+            return false
         }
-
-        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
-        settingsCoordinator.showSettings()
-        return false
     }
 
     /// One-time default: enable Open at Login for every user (new and existing) the first time this
@@ -277,10 +280,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // The field's own frame, not `inputFrameRect`: that one is widened to the parent container
+        // (and a 500pt minimum) for card placement, which in WhatsApp is the whole chat bar, so the
+        // icon landed left of the attachment button instead of beside the message field.
         activationIndicatorController.show(
             enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
-            inputFrameRect: context.inputFrameRect
+            inputFrameRect: context.elementFrameRect ?? context.inputFrameRect
         )
     }
 

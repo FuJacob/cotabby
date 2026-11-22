@@ -37,7 +37,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showMenuBarIcon
     case showKeyHint
     case ghostTextColor
+    case ghostTextStyle
     case ghostTextOpacity
+    case matchHostTextSize
     case ghostTextSize
     case ghostTextSizeFloor
     case ghostTextSizeCeiling
@@ -86,6 +88,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case acceptanceMode
     case acceptWord
     case acceptEntireSuggestion
+    case tabLeavesSingleLineFields
     case toggleTabby
     // Apps
     case disabledApps
@@ -136,7 +139,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
+        case .ghostTextStyle: return "Ghost Text Style"
         case .ghostTextOpacity: return "Ghost Text Opacity"
+        case .matchHostTextSize: return "Match Original Text Size"
         case .ghostTextSize: return "Ghost Text Size"
         case .ghostTextSizeFloor: return "Smallest Ghost Text"
         case .ghostTextSizeCeiling: return "Largest Ghost Text"
@@ -178,6 +183,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
+        case .tabLeavesSingleLineFields: return "Tab Moves to Next Field"
         case .toggleTabby: return "Toggle Cotabby"
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
@@ -224,7 +230,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "menubar.rectangle"
         case .showKeyHint: return "keyboard"
         case .ghostTextColor: return "paintpalette"
+        case .ghostTextStyle: return "bold.italic.underline"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
+        case .matchHostTextSize: return "equal.square"
         case .ghostTextSize: return "textformat.size"
         case .ghostTextSizeFloor: return "arrow.down.to.line"
         case .ghostTextSizeCeiling: return "arrow.up.to.line"
@@ -266,6 +274,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "textformat.abc"
         case .acceptWord: return "arrow.right.to.line"
         case .acceptEntireSuggestion: return "text.insert"
+        case .tabLeavesSingleLineFields: return "arrow.right.to.line.compact"
         case .toggleTabby: return "power.circle"
         case .disabledApps: return "nosign"
         case .suggestInIntegratedTerminals: return "terminal"
@@ -295,8 +304,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
-             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
-             .ghostTextOpacity, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
+             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor, .ghostTextStyle,
+             .ghostTextOpacity, .matchHostTextSize, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -311,7 +320,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
              .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
-        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
+        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .tabLeavesSingleLineFields, .toggleTabby:
             return .shortcuts
         case .disabledApps, .suggestInIntegratedTerminals:
             return .apps
@@ -354,7 +363,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
         case .ghostTextColor: return "Pick the color of the inline suggestion."
+        case .ghostTextStyle: return "Draw suggestions bold, italic, or both."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
+        case .matchHostTextSize: return "Draw suggestions at exactly the size of the text you are typing."
         case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
         case .ghostTextSizeFloor:
             return "The smallest point size ghost text may render at."
@@ -398,6 +409,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
+        case .tabLeavesSingleLineFields: return "Let Tab move between form fields instead of accepting in one-line fields."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
@@ -494,10 +506,16 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "show key"]
         case .ghostTextColor:
             return ["color", "ghost", "theme", "dark", "light", "tint", "appearance",
-                    "highlight", "shade"]
+                    "highlight", "shade", "white"]
+        case .ghostTextStyle:
+            return ["bold", "italic", "style", "font", "weight", "slant", "emphasis",
+                    "ghost", "appearance"]
         case .ghostTextOpacity:
             return ["opacity", "transparency", "fade", "alpha", "translucent", "dim",
                     "brightness", "visibility"]
+        case .matchHostTextSize:
+            return ["match", "same size", "original", "host", "font size", "text size", "exact",
+                    "native", "actual size", "size"]
         case .ghostTextSize:
             return ["size", "font size", "scale", "bigger", "smaller", "larger", "text size",
                     "zoom", "multiplier", "too big", "too small"]
@@ -619,6 +637,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["accept all", "entire", "full", "shortcut", "complete", "all",
                     "whole", "everything", "keybind", "binding", "double tap", "double-tap",
                     "twice", "tab tab", "press twice"]
+        case .tabLeavesSingleLineFields:
+            return ["tab", "form", "forms", "next field", "field navigation", "single line",
+                    "one line", "input", "move focus", "tab order"]
         case .toggleTabby:
             return ["toggle", "global", "on off", "shortcut", "hotkey", "pause",
                     "enable", "disable", "keybind", "binding", "tabby"]

@@ -289,9 +289,10 @@ final class LlamaSuggestionEngine {
 
 extension LlamaSuggestionEngine: SuggestionGenerating {}
 
-/// Tracks the last successful llama prompt so the engine can pass a conservative byte-prefix hint
-/// into `LlamaRuntimeManager.generate`. This type deliberately does not own correctness: native KV
-/// state is still validated by `LlamaRuntimeCore` after tokenization.
+/// Tracks the last successful llama prompt so the engine can pass a byte-prefix hint into
+/// `LlamaRuntimeManager.generate` for diagnostics (`cache_hint_bytes` in the logs). This type
+/// deliberately does not own correctness or gate reuse: `LlamaRuntimeCore` keeps whatever token
+/// prefix the new prompt shares with native KV, whether or not a hint was offered.
 struct LlamaPromptCacheHintTracker: Equatable {
     private var lastRequest: CachedRequest?
 
@@ -387,8 +388,10 @@ private extension LlamaPromptCacheHintTracker {
         }
     }
 
+    /// Mirrors the native sampler settings. The output-token budget is excluded for the same reason
+    /// as in `LlamaRuntimeCore`: performance tuning moves it between requests without changing
+    /// anything a cached prompt depends on.
     struct SamplingFingerprint: Equatable {
-        let maxPredictionTokens: Int
         let temperature: Double
         let topK: Int
         let topP: Double
@@ -397,7 +400,6 @@ private extension LlamaPromptCacheHintTracker {
         let randomSeed: UInt32?
 
         init(request: SuggestionRequest) {
-            maxPredictionTokens = request.maxPredictionTokens
             temperature = request.temperature
             topK = request.topK
             topP = request.topP

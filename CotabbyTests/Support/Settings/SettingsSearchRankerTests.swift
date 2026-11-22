@@ -16,10 +16,10 @@ final class SettingsSearchRankerTests: XCTestCase {
 
     func test_titlePrefixOutranksKeywordOnlyMatches() {
         let results = SettingsSearchRanker.rank("ghost", in: SettingsItem.allCases)
-        let topThree = Array(results.prefix(3))
+        let topFour = Array(results.prefix(4))
         XCTAssertEqual(
-            Set(topThree),
-            Set([.ghostTextColor, .ghostTextOpacity, .ghostTextSize]),
+            Set(topFour),
+            Set([.ghostTextColor, .ghostTextStyle, .ghostTextOpacity, .ghostTextSize]),
             "rows titled Ghost Text … should outrank rows that only mention ghost in keywords"
         )
     }
