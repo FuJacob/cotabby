@@ -154,6 +154,31 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         ])
     }
 
+    /// Single-line cleanup drops the model's own space after a newline, so a token that opens with a
+    /// bracket, quote or symbol must get the boundary back from the seam rules, as a word does.
+    func test_normalize_leadingNewlineSpacesOpeningPunctuationAndSymbols() {
+        assertCases([
+            Case(name: "model-spaced bracket", precedingText: "Hello", raw: "\n (for example)", expected: " (for example)"),
+            Case(name: "bare bracket", precedingText: "Hello", raw: "\n(for example)", expected: " (for example)"),
+            Case(name: "square bracket", precedingText: "Hello", raw: "\n[1]", expected: " [1]"),
+            Case(name: "straight double quote opens", precedingText: "Hello", raw: "\n\"quoted\"", expected: " \"quoted\""),
+            Case(name: "model-spaced straight quote", precedingText: "Hello", raw: "\n \"quoted\"", expected: " \"quoted\""),
+            Case(name: "straight single quote opens", precedingText: "Hello", raw: "\n'quoted'", expected: " 'quoted'"),
+            Case(name: "curly quote opens", precedingText: "Hello", raw: "\n\u{201C}quoted\u{201D}",
+                 expected: " \u{201C}quoted\u{201D}"),
+            Case(name: "currency symbol", precedingText: "It costs", raw: "\n $5", expected: " $5"),
+            Case(name: "emoji", precedingText: "Thanks", raw: "\n\u{1F600} see you", expected: " \u{1F600} see you"),
+            // The seam rules still win: no space inside an unpaired quote or after an opening bracket.
+            Case(name: "inside an open quotation", precedingText: "He said \"", raw: "\n(maybe)", expected: "(maybe)"),
+            Case(name: "after an opening bracket", precedingText: "see (", raw: "\n\"this\"", expected: "\"this\""),
+            Case(name: "closing bracket attaches", precedingText: "Hello", raw: "\n) world", expected: ") world"),
+            Case(name: "dash attaches", precedingText: "Hello", raw: "\n- world", expected: "- world"),
+            Case(name: "Japanese bracket after Japanese", precedingText: "今日は", raw: "\n「良い天気」", expected: "「良い天気」"),
+            // Without a removed newline the model's own spacing stands, as before.
+            Case(name: "no newline, glued bracket", precedingText: "f", raw: "(x)", expected: "(x)")
+        ])
+    }
+
     /// Cumulative partials must retain one stable insertion boundary as the first word arrives.
     func test_normalize_leadingNewlineCumulativePartialsKeepBoundary() {
         let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello")

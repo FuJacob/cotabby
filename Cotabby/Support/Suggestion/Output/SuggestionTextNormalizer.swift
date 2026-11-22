@@ -147,13 +147,15 @@ enum SuggestionTextNormalizer {
         // Flattening a leading line break must not glue two words together. Decide at the
         // surviving seam so echo cleanup, punctuation, existing whitespace and spaceless scripts
         // cannot turn the removed delimiter into an unwanted space. Multiline behavior stays intact.
+        // The single-line branch discards the model's own whitespace after the newline, so this is
+        // also the only place a space before "(for example)" or "$5" can be restored.
         if removedLeadingNewline, !request.isMultiLineEnabled,
            let first = normalized.first, let last = request.context.precedingText.last,
-           first.isLetter || first.isNumber,
+           startsNewToken(first),
            !first.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
            !last.unicodeScalars.contains(where: CaretWordContext.isUnspacedScript),
            GhostSpaceBoundary.needsLeadingSpace(
-               normalized, precedingText: request.context.precedingText, boundary: .newWord
+               openingQuoteNormalized(normalized), precedingText: request.context.precedingText, boundary: .newWord
            ) {
             normalized = " " + normalized
         }
@@ -245,6 +247,34 @@ enum SuggestionTextNormalizer {
             remaining.removeFirst()
         }
         return String(remaining)
+    }
+
+    /// Whether the first character after a flattened line break begins a token of its own: a word,
+    /// an opening bracket or quote, or a symbol such as "$" or an emoji. Closing, connecting and
+    /// other punctuation ("," "." "!" "-" "%") attaches to whatever precedes it, so it never earns a
+    /// space here. Straight quotes are opening by position: whitespace precedes them.
+    private static func startsNewToken(_ character: Character) -> Bool {
+        if character.isLetter || character.isNumber || character == "\"" || character == "'" {
+            return true
+        }
+        guard let scalar = character.unicodeScalars.first else { return false }
+        switch scalar.properties.generalCategory {
+        case .openPunctuation, .initialPunctuation, .mathSymbol, .currencySymbol, .modifierSymbol, .otherSymbol:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// `GhostSpaceBoundary` reads a leading straight quote as closing the word before the caret.
+    /// After a removed line break it can only open a quotation, so judge it as the typographic
+    /// opening quote; the seam's other rules (an unpaired quote or bracket before the caret) still apply.
+    private static func openingQuoteNormalized(_ text: String) -> String {
+        switch text.first {
+        case "\"": return "\u{201C}" + text.dropFirst()
+        case "'": return "\u{2018}" + text.dropFirst()
+        default: return text
+        }
     }
 
     /// Finds newline evidence even when spaces or tabs precede it in the leading formatting run.
