@@ -184,6 +184,15 @@ struct MirrorOverlayLayout: Equatable {
             // document. Keep the same tight visual gap used for trusted caret geometry: the caret
             // rect already describes the full line box, so another line-height offset would create
             // an unnecessary blank row between the typed line and the card.
+            //
+            // Unless the line's Y was never measured: then it is the estimator's default inset, and
+            // the host's real line can sit below it. A Claude desktop textarea with 20pt of padding
+            // drew its text 12pt under the guess, and the card under the guess covered that text.
+            // Below the field the card cannot cover any of it, and it keeps the caret's x.
+            if geometry.isCaretLineVerticallyUncalibrated,
+               let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.minY - Metrics.anchorGap
+            }
             if hasCaretLine(geometry.caretRect) {
                 return geometry.caretRect.minY - Metrics.anchorGap
             }

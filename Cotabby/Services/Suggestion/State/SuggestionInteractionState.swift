@@ -96,7 +96,7 @@ final class SuggestionInteractionState {
             return false
         }
 
-        return currentContext.sessionIdentity != focusedContext.sessionIdentity
+        return !focusedContext.sessionIdentity.continues(currentContext.sessionIdentity)
     }
 
     /// Reconciles the currently active session against the latest AX snapshot and stores the
@@ -244,7 +244,7 @@ final class SuggestionInteractionState {
                 sessionForAcceptance = reconciledSession
             }
         } else {
-            guard liveContext.sessionIdentity == activeSession.baseContext.sessionIdentity else {
+            guard liveContext.sessionIdentity.continues(activeSession.baseContext.sessionIdentity) else {
                 return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
             }
 

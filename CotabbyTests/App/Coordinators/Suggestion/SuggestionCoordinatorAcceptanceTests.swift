@@ -159,6 +159,70 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         )
     }
 
+    /// A browser field whose title and URL were readable when the suggestion was offered.
+    private var browserComposerSnapshot: FocusedInputSnapshot {
+        CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello", isWebContentField: true,
+            focusedURLString: "https://chat.example/one", windowTitle: "Chat one"
+        )
+    }
+
+    private func setLiveSnapshot(_ context: FocusedInputSnapshot, in rig: CoordinatorRig) {
+        rig.focusProvider.snapshot = FocusSnapshot(
+            applicationName: context.applicationName,
+            bundleIdentifier: context.bundleIdentifier,
+            capability: .supported,
+            context: context
+        )
+    }
+
+    func test_rapidTabIsStillConsumedWhenThePreAcceptRefreshCannotReadTheTitleOrURL() {
+        // Regression: the accept path refreshes the focus snapshot synchronously, inside the event
+        // tap, while the host is still busy with the previous synthetic insertion. The window title
+        // and page URL are re-read on that refresh under a 50 ms AX timeout, and a busy Chromium
+        // answers one of them with nothing. That nil used to fail the session-identity equality as
+        // a "focused field" change: the session was torn down and Tab reached the page, moving
+        // focus to its buttons. Slow Tabs never hit it because the host was idle by the next read.
+        let rig = retained(makeCoordinatorRig(snapshot: browserComposerSnapshot))
+        startVisibleSession(in: rig, fullText: " hello world again")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        // The second Tab's refresh reads the same field, but its title and URL time out. AX has not
+        // published " hello" yet either.
+        setLiveSnapshot(CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello", isWebContentField: true, focusedURLString: nil, windowTitle: nil
+        ), in: rig)
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "An unreadable title is not another field")
+
+        // The third Tab's refresh reads both facts again.
+        setLiveSnapshot(browserComposerSnapshot, in: rig)
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world", " again"])
+        XCTAssertFalse(
+            rig.overlayController.hideReasons.contains { $0.contains("focused field changed") },
+            "A timed-out surface read must not be mistaken for navigation"
+        )
+    }
+
+    func test_tabStillPassesThroughWhenTheRefreshReadsAnotherConversation() {
+        // The tolerance is for facts that could not be read, never for facts that read differently:
+        // identical draft text in another conversation must still hand Tab back.
+        let rig = retained(makeCoordinatorRig(snapshot: browserComposerSnapshot))
+        startVisibleSession(in: rig, fullText: " hello world")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        setLiveSnapshot(CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello", isWebContentField: true,
+            focusedURLString: "https://chat.example/two", windowTitle: "Chat two"
+        ), in: rig)
+
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" hello"])
+        XCTAssertNil(rig.interactionState.activeSession)
+    }
+
     func test_heldPresentLandingKeepsTheRemainingTailAcceptable() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " hello world again")

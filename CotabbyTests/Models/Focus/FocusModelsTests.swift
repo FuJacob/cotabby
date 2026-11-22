@@ -91,6 +91,50 @@ final class FocusModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.identity, FocusedInputIdentity(elementIdentifier: "field-a", focusChangeSequence: 4))
     }
 
+    /// The surface facts are re-read from the host on every poll under a short AX timeout, so a
+    /// live identity can carry a nil where the session's base identity has a value. That is an
+    /// unreadable fact, not a navigation; only two known, different values are.
+    func test_sessionIdentity_continuesAcrossUnreadableSurfaceFactsButNotAcrossChangedOnes() {
+        // The window title only identifies a session when no URL does (see `identifyingWindowTitle`),
+        // so title cases use a URL-less native field and URL/placeholder cases a URL-bearing one.
+        let titled = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Chat one", fieldPlaceholder: "Message")
+            .sessionIdentity
+        let located = CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"
+        ).sessionIdentity
+
+        let unreadable: [(String, FocusedInputSnapshot, FocusedInputSessionIdentity)] = [
+            ("title timed out", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message"), titled),
+            ("url timed out", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message"), located),
+            ("every fact timed out", CotabbyTestFixtures.focusedInputSnapshot(), titled),
+            ("every fact timed out", CotabbyTestFixtures.focusedInputSnapshot(), located)
+        ]
+        for (label, live, base) in unreadable {
+            XCTAssertTrue(live.sessionIdentity.continues(base), label)
+            XCTAssertNotEqual(live.sessionIdentity, base, "\(label): equality is deliberately stricter")
+            // A base captured during an unreadable poll must also accept the later known value.
+            XCTAssertTrue(base.continues(live.sessionIdentity), "\(label): the fact coming back")
+        }
+
+        let navigated: [(String, FocusedInputSnapshot, FocusedInputSessionIdentity)] = [
+            ("new title", CotabbyTestFixtures.focusedInputSnapshot(
+                windowTitle: "Chat two", fieldPlaceholder: "Message"), titled),
+            ("new url", CotabbyTestFixtures.focusedInputSnapshot(
+                focusedURLString: "https://chat.example/two", fieldPlaceholder: "Message"), located),
+            ("new placeholder", CotabbyTestFixtures.focusedInputSnapshot(
+                focusedURLString: "https://chat.example/one", fieldPlaceholder: "Reply"), located),
+            ("new focus sequence", CotabbyTestFixtures.focusedInputSnapshot(
+                focusChangeSequence: 2, focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"),
+             located),
+            ("other process", CotabbyTestFixtures.focusedInputSnapshot(
+                processIdentifier: 456, focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"),
+             located)
+        ]
+        for (label, live, base) in navigated {
+            XCTAssertFalse(live.sessionIdentity.continues(base), label)
+        }
+    }
+
     func test_focusedInputSnapshot_flagsPossibleTruncationAtTheCaptureWindow() {
         let window = FocusedInputSnapshot.textWindowUTF16
         let underWindow = String(repeating: "a", count: window - 1)
