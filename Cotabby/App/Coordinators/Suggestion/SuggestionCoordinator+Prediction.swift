@@ -929,6 +929,21 @@ extension SuggestionCoordinator {
             pendingSpeculativeContext = nil
         }
 
+        // The speculative request itself, finished before the host published its keystroke: the
+        // live text cannot match yet, so park the result for the publish poll to replay.
+        if !isPaidOffSpeculation, let speculated = pendingSpeculativeContext,
+           result.generation == speculated.generation,
+           liveContext.sessionIdentity.continues(speculated.sessionIdentity) {
+            parkedSpeculativeResult = (result, workID)
+            logStage(
+                "speculation-parked",
+                workID: workID,
+                generation: result.generation,
+                message: "Speculative result finished before the host published its text; holding it."
+            )
+            return
+        }
+
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
 
             // Lifecycle discards are counted under their own reasons so `generated` always equals

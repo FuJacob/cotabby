@@ -202,6 +202,10 @@ final class InputMonitor {
     /// How long a disabled accept tap is kept for its next suggestion before it is released.
     private static let acceptTapReleaseDelaySeconds: TimeInterval = 10
     private var acceptTapStateGeneration: UInt64 = 0
+    /// `ProcessInfo.systemUptime` of the last keydown the observer saw, real or synthetic. The idle
+    /// disable is measured from it, not from the overlay hide: the user can keep typing long after
+    /// the last suggestion state change, and that burst must not see the tap switch off.
+    private var lastObservedKeyDownUptime: TimeInterval?
 
     private var acceptTapWanted: Bool {
         permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
@@ -255,16 +259,37 @@ final class InputMonitor {
             // toggled around every keystroke, and none with Cotabby quit. Every state change bumps
             // `acceptTapStateGeneration`, so only a disable scheduled after the last change runs.
             acceptTapStateGeneration &+= 1
-            let generation = acceptTapStateGeneration
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapIdleDisableSeconds) { [weak self] in
-                guard let self, generation == self.acceptTapStateGeneration, !self.acceptTapWanted else { return }
-                self.disableAcceptTap()
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapReleaseDelaySeconds) { [weak self] in
-                    guard let self, !self.acceptTapWanted, !self.acceptTapEnabled else { return }
-                    self.destroyAcceptTap()
-                }
+            scheduleAcceptTapDisable(generation: acceptTapStateGeneration, after: Self.acceptTapIdleDisableSeconds)
+        }
+    }
+
+    /// Disables the accept tap once input has been quiet for `acceptTapIdleDisableSeconds`, then
+    /// releases it after `acceptTapReleaseDelaySeconds` more. Both steps are owned by `generation`:
+    /// any later state change bumps it, so a stale callback (say, a release scheduled before the
+    /// tap was re-armed and disabled again) cannot cut the newer idle period short.
+    private func scheduleAcceptTapDisable(generation: UInt64, after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, generation == self.acceptTapStateGeneration, !self.acceptTapWanted else { return }
+            let remaining = Self.acceptTapIdleRemaining(
+                lastKeyDownUptime: self.lastObservedKeyDownUptime, nowUptime: ProcessInfo.processInfo.systemUptime
+            )
+            if remaining > 0 {
+                self.scheduleAcceptTapDisable(generation: generation, after: remaining)
+                return
+            }
+            self.disableAcceptTap()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapReleaseDelaySeconds) { [weak self] in
+                guard let self, generation == self.acceptTapStateGeneration,
+                      !self.acceptTapWanted, !self.acceptTapEnabled else { return }
+                self.destroyAcceptTap()
             }
         }
+    }
+
+    /// Seconds until input will have been quiet for `acceptTapIdleDisableSeconds`, or 0 once it has.
+    nonisolated static func acceptTapIdleRemaining(lastKeyDownUptime: TimeInterval?, nowUptime: TimeInterval) -> TimeInterval {
+        guard let lastKeyDownUptime else { return 0 }
+        return max(0, acceptTapIdleDisableSeconds - max(0, nowUptime - lastKeyDownUptime))
     }
 
     private func installObserverTapIfNeeded() {
@@ -518,6 +543,9 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
+            // Every keydown, synthetic insertions included, is input in flight that a tap toggle
+            // could drop; the idle disable waits for quiet measured from here.
+            lastObservedKeyDownUptime = ProcessInfo.processInfo.systemUptime
             // Identity first: every event the inserter posts carries the synthetic marker, which
             // survives any counter race. The countdown alone proved leaky under rapid accept
             // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown

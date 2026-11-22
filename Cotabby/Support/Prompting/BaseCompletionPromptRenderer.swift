@@ -66,7 +66,7 @@ enum BaseCompletionPromptRenderer {
         // Sections are ordered from least to most volatile so a change invalidates as little of the
         // cached prompt as possible: everything after the first changed byte is re-decoded. The
         // clipboard is pinned per field and the screen excerpt only changes on a material update
-        // (`VisualContextChangePolicy`), while history examples move every few words. History
+        // (`VisualContextExcerptStability`), while history examples move every few words. History
         // therefore follows the screen text: placed before it, each history step re-decoded the
         // whole screen section (up to ~1,200 tokens) as well.
         if let clip = Self.nonEmpty(clipboardContext) {

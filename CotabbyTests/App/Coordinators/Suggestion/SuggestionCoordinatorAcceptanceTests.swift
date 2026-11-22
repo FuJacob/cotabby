@@ -283,8 +283,11 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
         XCTAssertNotNil(rig.interactionState.activeSession)
 
-        await waitUntil { rig.interactionState.activeSession == nil }
-        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because screen context changed.")
+        // Wait for the retirement itself, not for an empty session: retiring schedules a fresh
+        // prediction, and the stub engine can answer it before a poll ever sees the gap.
+        let requestsBefore = rig.engine.requests.count
+        await waitUntil { rig.overlayController.hideReasons.contains("Overlay hidden because screen context changed.") }
+        await waitUntil { rig.engine.requests.count > requestsBefore }
     }
 
     func test_caretMoveDuringTheHoldSettlesTheDeferredChangeWithoutPredicting() async {
@@ -662,6 +665,46 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
         XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
         XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "the exemption is single-use")
+    }
+
+    /// A speculative result can finish before the host publishes the keystroke it was built for.
+    /// It must be held, not dropped: once the publish matches, the poll does not request again, so
+    /// a dropped result would leave that keystroke without a suggestion.
+    func test_speculativeResultFinishingBeforeThePublishIsParkedThenShown() async {
+        let unpublished = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello worl")
+        let published = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
+        let rig = retained(makeCoordinatorRig(snapshot: unpublished))
+        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(snapshot: published, generation: 999)
+
+        await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
+        XCTAssertNotNil(rig.coordinator.parkedSpeculativeResult, "an early speculative result is held")
+        XCTAssertNotEqual(rig.overlayController.hideReasons.last, "Overlay hidden because a stale result was dropped.")
+
+        // The host publishes the speculated text; replaying the parked result shows it.
+        rig.focusProvider.snapshot = FocusSnapshot(
+            applicationName: published.applicationName, bundleIdentifier: published.bundleIdentifier,
+            capability: .supported, context: published
+        )
+        let parked = try? XCTUnwrap(rig.coordinator.parkedSpeculativeResult)
+        await rig.coordinator.apply(result: parked!.result, workID: parked!.workID)
+        XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext)
+        XCTAssertNil(rig.coordinator.parkedSpeculativeResult)
+    }
+
+    /// A new bet, or a reschedule that abandons the old one, discards a parked result for good.
+    func test_parkedSpeculativeResultIsDiscardedWithItsBet() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello worl")
+        ))
+        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world "), generation: 999
+        )
+        await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
+        XCTAssertNotNil(rig.coordinator.parkedSpeculativeResult)
+
+        rig.coordinator.pendingSpeculativeContext = nil
+        XCTAssertNil(rig.coordinator.parkedSpeculativeResult)
     }
 
     /// Without the signature exemption, a stale-generation result must keep being dropped.

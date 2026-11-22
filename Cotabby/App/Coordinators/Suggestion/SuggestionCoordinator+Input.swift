@@ -542,6 +542,12 @@ extension SuggestionCoordinator {
                     generation: latestGenerationNumber,
                     message: "Host published exactly the speculated text; keeping the in-flight generation."
                 )
+                // The generation may already have finished against the unpublished text and been
+                // parked by `apply`; now that the text matches, it is exactly current.
+                if let parked = parkedSpeculativeResult {
+                    parkedSpeculativeResult = nil
+                    Task { [weak self] in await self?.apply(result: parked.result, workID: parked.workID) }
+                }
                 return
             }
             if let expected = pendingSpeculativeContext, let published = currentContext {
