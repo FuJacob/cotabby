@@ -6,6 +6,9 @@ import Logging
 /// Focus, permission, and keyboard-event entry points for `SuggestionCoordinator`.
 /// This file answers: "what should happen when the environment changes or the user types?"
 extension SuggestionCoordinator {
+    /// Virtual key code of Tab (`kVK_Tab`).
+    static let tabKeyCode: CGKeyCode = 48
+
     // MARK: - Environment and Input Handling
 
     func handlePermissionChange() {
@@ -300,7 +303,9 @@ extension SuggestionCoordinator {
         }
 
         if event.kind == .acceptance {
-            return acceptForWordAcceptKeyPress(isAutorepeat: event.isAutorepeat)
+            let isPlainTab = event.keyCode == Self.tabKeyCode
+                && ShortcutModifierMask(eventFlags: event.flags).isEmpty
+            return acceptForWordAcceptKeyPress(isAutorepeat: event.isAutorepeat, isPlainTab: isPlainTab)
         }
 
         // Anything between two Accept Word presses (typing, navigation, the full-accept key) means
