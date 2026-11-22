@@ -383,9 +383,10 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         )), "title read timed out")
         XCTAssertFalse(state.hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot()),
                        "every surface read timed out")
+        // With a URL known, the title is not an identity fact; the URL is.
         XCTAssertTrue(state.hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot(
-            focusedURLString: "https://chat.example/one", windowTitle: "Chat two"
-        )), "a different known title is still a switch")
+            focusedURLString: "https://chat.example/two", windowTitle: "Chat one"
+        )), "a different known URL is still a switch")
     }
 
     /// A session started from a context that never went through the buffer still anchors the

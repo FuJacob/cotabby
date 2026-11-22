@@ -95,39 +95,42 @@ final class FocusModelsTests: XCTestCase {
     /// live identity can carry a nil where the session's base identity has a value. That is an
     /// unreadable fact, not a navigation; only two known, different values are.
     func test_sessionIdentity_continuesAcrossUnreadableSurfaceFactsButNotAcrossChangedOnes() {
-        let base = CotabbyTestFixtures.focusedInputSnapshot(
-            focusedURLString: "https://chat.example/one", windowTitle: "Chat one", fieldPlaceholder: "Message"
+        // The window title only identifies a session when no URL does (see `identifyingWindowTitle`),
+        // so title cases use a URL-less native field and URL/placeholder cases a URL-bearing one.
+        let titled = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Chat one", fieldPlaceholder: "Message")
+            .sessionIdentity
+        let located = CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"
         ).sessionIdentity
 
-        let unreadable: [(String, FocusedInputSnapshot)] = [
-            ("title timed out", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: "https://chat.example/one", windowTitle: nil, fieldPlaceholder: "Message")),
-            ("url timed out", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: nil, windowTitle: "Chat one", fieldPlaceholder: "Message")),
-            ("every fact timed out", CotabbyTestFixtures.focusedInputSnapshot())
+        let unreadable: [(String, FocusedInputSnapshot, FocusedInputSessionIdentity)] = [
+            ("title timed out", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message"), titled),
+            ("url timed out", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message"), located),
+            ("every fact timed out", CotabbyTestFixtures.focusedInputSnapshot(), titled),
+            ("every fact timed out", CotabbyTestFixtures.focusedInputSnapshot(), located)
         ]
-        for (label, live) in unreadable {
+        for (label, live, base) in unreadable {
             XCTAssertTrue(live.sessionIdentity.continues(base), label)
             XCTAssertNotEqual(live.sessionIdentity, base, "\(label): equality is deliberately stricter")
+            // A base captured during an unreadable poll must also accept the later known value.
+            XCTAssertTrue(base.continues(live.sessionIdentity), "\(label): the fact coming back")
         }
-        // A base captured during an unreadable poll must also accept the later known value.
-        XCTAssertTrue(base.continues(CotabbyTestFixtures.focusedInputSnapshot().sessionIdentity))
 
-        let navigated: [(String, FocusedInputSnapshot)] = [
+        let navigated: [(String, FocusedInputSnapshot, FocusedInputSessionIdentity)] = [
             ("new title", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: "https://chat.example/one", windowTitle: "Chat two", fieldPlaceholder: "Message")),
+                windowTitle: "Chat two", fieldPlaceholder: "Message"), titled),
             ("new url", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: "https://chat.example/two", windowTitle: "Chat one", fieldPlaceholder: "Message")),
+                focusedURLString: "https://chat.example/two", fieldPlaceholder: "Message"), located),
             ("new placeholder", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: "https://chat.example/one", windowTitle: "Chat one", fieldPlaceholder: "Reply")),
+                focusedURLString: "https://chat.example/one", fieldPlaceholder: "Reply"), located),
             ("new focus sequence", CotabbyTestFixtures.focusedInputSnapshot(
-                focusChangeSequence: 2, focusedURLString: "https://chat.example/one",
-                windowTitle: "Chat one", fieldPlaceholder: "Message")),
+                focusChangeSequence: 2, focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"),
+             located),
             ("other process", CotabbyTestFixtures.focusedInputSnapshot(
-                processIdentifier: 456, focusedURLString: "https://chat.example/one",
-                windowTitle: "Chat one", fieldPlaceholder: "Message"))
+                processIdentifier: 456, focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"),
+             located)
         ]
-        for (label, live) in navigated {
+        for (label, live, base) in navigated {
             XCTAssertFalse(live.sessionIdentity.continues(base), label)
         }
     }

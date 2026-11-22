@@ -20,7 +20,6 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let targets = [
             CotabbyTestFixtures.focusedInputContext(
                 focusChangeSequence: 2, focusedURLString: "https://chat.example/one", windowTitle: "This chat"),
-            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: "Other chat"),
             CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "This chat")
         ]
         for target in targets {
@@ -28,6 +27,19 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
                 session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
             ), reason: "Overlay hidden because the focused field changed.")
         }
+
+        // A native field has no URL, so its window title names the conversation.
+        let nativeSession = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(windowTitle: "This chat"),
+            fullText: " world again",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: nativeSession,
+            with: CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
+            pendingInsertionConsumedCount: nativeSession.consumedCharacterCount
+        ), reason: "Overlay hidden because the focused field changed.")
     }
 
     /// The live poll re-reads the title and URL from the host under a short AX timeout; during a
@@ -55,7 +67,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         }
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: session,
-            with: CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: "Chat two"),
+            with: CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "Chat one"),
             pendingInsertionConsumedCount: session.consumedCharacterCount
         ), reason: "Overlay hidden because the focused field changed.")
     }
