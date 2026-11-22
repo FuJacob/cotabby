@@ -1,0 +1,19 @@
+.github/workflows/tests.yml
+  s_06b938d10fb9a9::t_1e52416f86474f 75-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "952669da8add1107533d5c4350bfae6c80fb215c",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
