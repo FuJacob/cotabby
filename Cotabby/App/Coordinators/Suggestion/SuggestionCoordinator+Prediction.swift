@@ -26,12 +26,14 @@ extension SuggestionCoordinator {
             return
         }
 
-        // The debounce window adapts to the last generation latency: snappier when the model is
-        // fast, calmer when it is slow (fewer doomed generations to cancel). The configured value
-        // is the fallback until a first latency exists.
+        // The debounce window adapts to how quickly the engine produces text: none when a warm
+        // request shows its first text fast, calmer when the model is slow (fewer doomed
+        // generations to cancel). The configured value is the fallback until a latency exists.
         let debounceMilliseconds = DebouncePolicy.milliseconds(
             lastGenerationLatencyMilliseconds:
                 lastLatencyByEngine[settingsSnapshot.selectedEngine],
+            lastFirstTextLatencyMilliseconds:
+                typicalFirstTextLatency(engine: settingsSnapshot.selectedEngine),
             fallback: settingsSnapshot.debounceMilliseconds,
             engine: settingsSnapshot.selectedEngine
         )
@@ -252,11 +254,46 @@ extension SuggestionCoordinator {
         guard !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }
         guard !insertionChunk.isEmpty else { return }
 
-        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(
-            after: rawContext,
-            inserting: insertionChunk
+        dispatchSpeculativeGeneration(
+            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: insertionChunk),
+            message: "Started the post-acceptance generation against the expected post-insert text."
         )
+    }
 
+    /// Starts generating for a plain typed character at keystroke time, against the text the host
+    /// is about to publish, instead of after the host-publish poll sees it (10-50 ms in native
+    /// hosts, longer in Chromium). The poll that follows validates exactly as it does for
+    /// post-acceptance speculation: a matching publish keeps this request, anything else (smart
+    /// quotes, dead keys, IME, auto-pairing, a key the host had not yet applied to the snapshot)
+    /// schedules the ordinary request and retires this one. Results and streamed partials are only
+    /// shown once the live text matches, so a wrong bet costs one discarded generation, never a
+    /// ghost at the wrong caret.
+    ///
+    /// Endpoint requests keep their debounced path: speculative traffic must not multiply requests
+    /// to a configured server.
+    ///
+    /// `knownPrecedingText` is the text before the caret as Cotabby already knows it when the
+    /// captured snapshot lags: typing through a visible suggestion advances the session without a
+    /// new AX capture, so the snapshot can still miss those letters. It is used only when it
+    /// extends the snapshot's own text.
+    func dispatchSpeculativeTypingGeneration(
+        rawContext: FocusedInputSnapshot, typed characters: String, knownPrecedingText: String? = nil
+    ) {
+        guard settingsSnapshot.selectedEngine != .openAICompatible,
+              !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey),
+              characters.count == 1, let typed = characters.first, !typed.isNewline,
+              rawContext.selection.length == 0, !rawContext.isSecure else { return }
+        let base = knownPrecedingText.flatMap { $0.hasPrefix(rawContext.precedingText) ? $0 : nil }
+            ?? rawContext.precedingText
+        dispatchSpeculativeGeneration(
+            optimistic: SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, precedingText: base + characters),
+            message: "Started generating against the typed character before the host published it."
+        )
+    }
+
+    /// Shared body of the speculative paths: gate, build the request for `optimistic`, and run it
+    /// with no debounce while `pendingSpeculativeContext` lets the publish poll validate it.
+    private func dispatchSpeculativeGeneration(optimistic: FocusedInputSnapshot, message: String) {
         // Same pre-generation gates the ordinary cycle applies, minus their UI side effects: a
         // speculative request must not spend a decode on text the normal path would refuse (too
         // little text) or suppress (typo gate). The post-publish regeneration still runs the full
@@ -306,7 +343,7 @@ extension SuggestionCoordinator {
             "speculative-generating",
             workID: workID,
             generation: context.generation,
-            message: "Started the post-acceptance generation against the expected post-insert text.",
+            message: message,
             prompt: requestBuildResult.promptPreview
         )
     }
@@ -576,7 +613,25 @@ extension SuggestionCoordinator {
             }
             return rebased
         }
-        return liveContext.generation == partial.generation ? partial : nil
+        if liveContext.generation == partial.generation { return partial }
+        // A speculative request was built against text the host had not published yet, so any
+        // read of the pre-publish snapshot moves the live generation past the partial's. Like
+        // `apply`, accept it by content instead: once the live field reads exactly what was
+        // speculated, the partial is current; before that it stays hidden.
+        if let expected = pendingSpeculativeContext,
+           expected.sessionIdentity == liveContext.sessionIdentity,
+           expected.contentSignature == liveContext.contentSignature,
+           expected.generation == partial.generation {
+            return SuggestionResult(
+                generation: liveContext.generation,
+                rawText: partial.rawText,
+                text: partial.text,
+                latency: partial.latency,
+                suppressionReason: partial.suppressionReason,
+                spacingIsExact: partial.spacingIsExact
+            )
+        }
+        return nil
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,
@@ -866,11 +921,27 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeContext != nil
-            && pendingSpeculativeContext?.sessionIdentity == liveContext.sessionIdentity
-            && pendingSpeculativeContext?.contentSignature == liveContext.contentSignature
+        let isPaidOffSpeculation = pendingSpeculativeContext.map { speculated in
+            liveContext.sessionIdentity.continues(speculated.sessionIdentity)
+                && liveContext.contentSignature == speculated.contentSignature
+        } ?? false
         if isPaidOffSpeculation {
             pendingSpeculativeContext = nil
+        }
+
+        // The speculative request itself, finished before the host published its keystroke: the
+        // live text cannot match yet, so park the result for the publish poll to replay.
+        if !isPaidOffSpeculation, let speculated = pendingSpeculativeContext,
+           result.generation == speculated.generation,
+           liveContext.sessionIdentity.continues(speculated.sessionIdentity) {
+            parkedSpeculativeResult = (result, workID)
+            logStage(
+                "speculation-parked",
+                workID: workID,
+                generation: result.generation,
+                message: "Speculative result finished before the host published its text; holding it."
+            )
+            return
         }
 
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
@@ -1206,7 +1277,7 @@ extension SuggestionCoordinator {
             // the pre-insertion one; re-anchoring to it is the left-then-right accept jitter.
             isAwaitingPostInsertionSync: interactionState.isAwaitingPostInsertionSync,
             millisecondsSinceLastAcceptance: lastAcceptanceAt.map {
-                Int(Date().timeIntervalSince($0) * 1000)
+                Int((ProcessInfo.processInfo.systemUptime - $0) * 1000)
             }
         ) {
             presentOverlay(
@@ -1288,7 +1359,28 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Whether disabling predictions for `reason` should keep `focusSnapshot`'s visual-context
+    /// session; see `SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled`.
+    func shouldKeepVisualContextWhileDisabled(reason: String, focusSnapshot: FocusSnapshot) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
+            disabledReason: reason,
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+        )
+    }
+
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
+    /// The field's visual-context session survives a transient state of a field still in focus
+    /// (see `shouldKeepVisualContextWhileDisabled`); every other disable ends it.
     func disablePredictions(reason: String) {
         suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
@@ -1302,7 +1394,12 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
-        visualContextCoordinator.cancel(resetState: true)
+        // Key, scheduling, and reconcile paths reach here for the same transient field states the
+        // focus-change path handles with `disablePredictionsPreservingVisualContext`; decide by the
+        // current snapshot so both paths agree on when the field's screen context survives.
+        if !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
+            visualContextCoordinator.cancel(resetState: true)
+        }
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
@@ -1421,6 +1518,75 @@ extension SuggestionCoordinator {
     }
 
     // MARK: - Visual Context
+
+    /// Reacts to a changed screen-context excerpt for `identity`: retires the visible tail and
+    /// cached/async work, then regenerates against the new excerpt.
+    ///
+    /// A host may expose identical URL/title/geometry for two chats, so changed screen text is the
+    /// navigation signal there; keeping an old tail stable would let it outlive arbitrarily many
+    /// refreshes. Accepting words changes the screen too, though, so within the post-accept hold
+    /// the retirement is deferred, not dropped: the excerpt is already stored and a later refresh
+    /// of the same text would not fire again, so dropping it would lose a real navigation for good.
+    /// The deferred call re-runs this method, which defers again while accepts keep landing and
+    /// otherwise retires exactly as an undeferred change would. The identity guard turns a
+    /// deferral that outlived its field into a no-op.
+    func handleInjectedContextReady(_ identity: FocusedInputIdentity) {
+        guard focusModel.snapshot.context?.identity == identity else { return }
+        // A terminal screen field (HerdrM, Ghostty) redraws its status line and agent output every
+        // few seconds, so its screen text changes without any navigation, and each pane is its own
+        // field, so a switch already arrives as a focus change. The new text simply feeds the next
+        // request; retiring the visible suggestion here hid it every 2-3 seconds.
+        guard !TerminalAppDetector.isTerminalScreenField(bundleIdentifier: focusModel.snapshot.context?.bundleIdentifier)
+        else { return }
+
+        let remainingMilliseconds = SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
+            lastAcceptanceUptime: lastAcceptanceAt,
+            nowUptime: ProcessInfo.processInfo.systemUptime,
+            holdMilliseconds: postAcceptHoldMilliseconds
+        )
+        deferredScreenContextRetirement?.cancel()
+        deferredScreenContextRetirement = nil
+        if remainingMilliseconds > 0 {
+            logStage(
+                "screen-context-held",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Deferred a screen-context change for \(remainingMilliseconds)ms after an accept."
+            )
+            // `Task` inherits the coordinator's main actor; cancellation (a newer change, or stop)
+            // wakes the sleep early, and the `isCancelled` check keeps that wake from acting.
+            deferredScreenContextRetirement = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(remainingMilliseconds) * 1_000_000)
+                guard !Task.isCancelled else { return }
+                self?.handleInjectedContextReady(identity)
+            }
+            return
+        }
+
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
+        cancelPredictionWork()
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden because screen context changed.")
+        schedulePredictionForCurrentFocusIfPossible(matching: identity)
+    }
+
+    /// Resolves a deferred screen-context change without predicting. The deferral exists to retire
+    /// the tail the user was accepting, so anything that ends or completes that tail settles it:
+    /// invalidation (a caret move, dismissal, mismatched typing, shortcut), typing through it,
+    /// input with no session, the emoji picker, and a settings change, model switch, or stop. Each
+    /// of those already decides whether to predict, and a deferral waking later would either show
+    /// a suggestion nobody typed for or cancel the newer request. Only a keystroke that matches,
+    /// and so keeps the tail alive, leaves it pending. The caches the change would have retired
+    /// are still dropped, so a navigation it stood for cannot resurface through a rollback or a
+    /// pinned preface.
+    func settleDeferredScreenContextChange() {
+        guard let deferred = deferredScreenContextRetirement else { return }
+        deferred.cancel()
+        deferredScreenContextRetirement = nil
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
+    }
 
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
     /// field and there is enough typed text for a real inline completion request.

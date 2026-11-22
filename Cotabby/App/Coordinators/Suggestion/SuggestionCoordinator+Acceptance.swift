@@ -35,10 +35,21 @@ extension SuggestionCoordinator {
     ///
     /// The focused app is resolved from the same focus snapshot the input monitor used to classify
     /// this press, so an app with its own Accept Entire Suggestion binding keeps it here too.
-    func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
+    ///
+    /// `isPlainTab` marks a press of Tab without modifiers. With `tabLeavesSingleLineFields` on, such
+    /// a press in a single-line field is handed back to the host instead of accepting, so Tab moves
+    /// to the next form field as it would without Cotabby. While a double tap of the same key
+    /// accepts the whole suggestion, the press keeps accepting instead: handing the first Tab to the
+    /// host would leave no second press, and so no way at all to accept everything in that field.
+    func acceptForWordAcceptKeyPress(isAutorepeat: Bool, isPlainTab: Bool = false) -> Bool {
         let doubleTapApplies = settingsSnapshot.isDoubleTapFullAcceptanceActive(
             forBundleIdentifier: focusModel.snapshot.bundleIdentifier
         )
+        if isPlainTab, !doubleTapApplies, settingsSnapshot.tabLeavesSingleLineFields, tabMovesFocusInFocusedField {
+            doubleTapAcceptanceState.reset()
+            return passTabThrough(reason: "Tab left to the host in a single-line field")
+        }
+
         guard doubleTapApplies, !isAutorepeat else {
             doubleTapAcceptanceState.reset()
             return acceptCurrentSuggestion()
@@ -219,7 +230,7 @@ extension SuggestionCoordinator {
         // hosts would otherwise map the published caret into pre-insert run frames for up to a
         // throttle window. Stamp the acceptance so the stability gate can scope its
         // backward-drift hold to the frames-catching-up window.
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
 
         if preparedContinuation == nil, sessionForAcceptance.advancing(by: acceptedChunk.count).isExhausted {
@@ -475,7 +486,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
         cancelPredictionWork(preservingContinuation: true)
@@ -503,6 +514,36 @@ extension SuggestionCoordinator {
         schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
         return true
     }
+
+    /// Whether Tab in the focused field should move focus rather than accept: a field the host lays
+    /// out on one line (see `FocusedInputContext.isSingleLineField`), outside chat apps and the named
+    /// Electron editors. Both are excluded because their composers can report a single-line role
+    /// although Tab has nowhere useful to go there (2026-11-18): Messages' composer is an
+    /// `AXTextField`, and Signal's `contenteditable` composer reports one while the message fits on
+    /// one line, then a text area once it wraps. Handing them Tab inserted a tab character. The
+    /// Claude desktop composer showed the same symptom, Tab sometimes moving focus out of it, which
+    /// is why the exclusion covers the named Electron editors rather than chat apps alone, and why
+    /// Claude is named here as well: it is not in `BrowserAppDetector`'s editor list on main yet.
+    /// WhatsApp's Catalyst composer reports a text area throughout and was unaffected.
+    private var tabMovesFocusInFocusedField: Bool {
+        guard let raw = focusModel.snapshot.context else { return false }
+        let context = interactionState.materializeContext(from: raw)
+        guard context.isSingleLineField else { return false }
+        let bundleIdentifier = context.bundleIdentifier
+        if Self.tabKeepsAcceptingBundleIdentifiers.contains(bundleIdentifier) {
+            return false
+        }
+        if AppSurfaceClassifier.classify(bundleIdentifier: bundleIdentifier) == .chat {
+            return false
+        }
+        return !BrowserAppDetector.isElectronEditor(bundleIdentifier: bundleIdentifier)
+    }
+
+    /// Composers that report a single-line role but are not chat apps by `AppSurfaceClassifier` nor
+    /// named Electron editors by `BrowserAppDetector`.
+    static let tabKeepsAcceptingBundleIdentifiers: Set<String> = [
+        "com.anthropic.claudefordesktop"  // Claude desktop: Tab moved focus out of its composer
+    ]
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
     ///
@@ -696,6 +737,9 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)
         state = .idle
+        // The tail a deferred screen-context change was waiting to retire is gone, and the caller
+        // decides whether to predict; left pending, it would cancel that newer work on waking.
+        settleDeferredScreenContextChange()
     }
 
     func completeActiveSuggestion(
@@ -709,6 +753,8 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         hideOverlay(reason: reason)
         state = .idle
+        // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
+        settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
 
         if scheduleNextPrediction {
@@ -870,7 +916,8 @@ extension SuggestionCoordinator {
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun,
-            observedContentEdges: context.observedContentEdges
+            observedContentEdges: context.observedContentEdges,
+            isCaretLineVerticallyUncalibrated: anchor.isCaretLineVerticallyUncalibrated
         )
         let presentationMessage = overlayPresenter.present(
             text: text,
@@ -1093,6 +1140,16 @@ extension SuggestionCoordinator {
         /// came from trusted AX and repair stood down" is distinguishable from "this field never
         /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
         let skipReason: LayoutRepairSkipReason?
+
+        /// Whether the anchor is a layout estimate whose line was placed from default insets, not
+        /// host measurements. Only an estimate that replaced the AX rect counts: a kept AX rect
+        /// carries the host's own line, whatever the estimate it was checked against measured.
+        var isCaretLineVerticallyUncalibrated: Bool {
+            guard quality == .layoutEstimated, case .estimate(let estimate)? = outcome else {
+                return false
+            }
+            return !estimate.isVerticallyCalibrated
+        }
     }
 
     /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
@@ -1158,6 +1215,7 @@ extension SuggestionCoordinator {
             metadata["line_height"] = .stringConvertible(Double(estimate.lineHeight))
             metadata["used_observed_line_height"] = .stringConvertible(estimate.usedObservedLineHeight)
             metadata["used_observed_content_edges"] = .stringConvertible(estimate.usedObservedContentEdges)
+            metadata["vertically_calibrated"] = .stringConvertible(estimate.isVerticallyCalibrated)
             metadata["layout_font_point_size"] = .stringConvertible(Double(estimate.layoutFontPointSize))
             CotabbyLogger.suggestion.debug(
                 substituted

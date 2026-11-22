@@ -52,6 +52,19 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertFalse(reset.isGhostTextItalic)
     }
 
+    func test_tabLeavesSingleLineFields_defaultsOffPersistsChoiceAndResets() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        XCTAssertFalse(store.load(configuration: .standard).tabLeavesSingleLineFields)
+
+        store.saveTabLeavesSingleLineFields(true)
+        XCTAssertTrue(store.load(configuration: .standard).tabLeavesSingleLineFields)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyTabLeavesSingleLineFields") as? Bool, true)
+
+        XCTAssertFalse(store.resetToDefaults(configuration: .standard).tabLeavesSingleLineFields)
+        XCTAssertNotEqual(defaults.object(forKey: "cotabbyTabLeavesSingleLineFields") as? Bool, true)
+    }
+
     // MARK: - Suggestion timing
 
     func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {
@@ -302,6 +315,16 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
         XCTAssertTrue(SuggestionSettingsStore.defaultFadeInSuggestions)
         XCTAssertTrue(data.fadeInSuggestions)
+    }
+
+    func test_matchesHostTextSize_defaultsOffAndRoundTrips() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertFalse(store.load(configuration: .standard).matchesHostTextSize, "off keeps the user's size tuning")
+
+        store.saveMatchesHostTextSize(true)
+        XCTAssertTrue(store.load(configuration: .standard).matchesHostTextSize)
     }
 
     func test_load_fadeInDurationDefaultsToSecondFastestTick() async {

@@ -138,7 +138,9 @@ struct AppearancePaneView: View {
                 GhostTextPreview(
                     ghostColor: resolvedGhostTextColor,
                     opacity: suggestionSettings.ghostTextOpacity,
-                    fontSize: GhostTextPreview.baseFontSize * CGFloat(suggestionSettings.ghostTextSizeMultiplier),
+                    // The overlay sets the multiplier aside while matching the host's size; so does this.
+                    fontSize: GhostTextPreview.baseFontSize
+                        * (suggestionSettings.matchesHostTextSize ? 1 : CGFloat(suggestionSettings.ghostTextSizeMultiplier)),
                     isBold: suggestionSettings.isGhostTextBold,
                     isItalic: suggestionSettings.isGhostTextItalic
                 )
@@ -199,6 +201,16 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.ghostTextOpacity)
 
+                Toggle(isOn: matchesHostTextSizeBinding) {
+                    SettingsRowLabel(
+                        title: "Match Original Text Size",
+                        description: "Draw suggestions at exactly the size of the text you are typing. " +
+                            "The size settings below are set aside while this is on.",
+                        systemImage: "equal.square"
+                    )
+                }
+                .settingsItem(.matchHostTextSize)
+
                 LabeledContent {
                     HStack(spacing: 10) {
                         TickMarkSlider(
@@ -223,6 +235,7 @@ struct AppearancePaneView: View {
                     )
                 }
                 .settingsItem(.ghostTextSize)
+                .disabled(suggestionSettings.matchesHostTextSize)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -248,6 +261,7 @@ struct AppearancePaneView: View {
                     )
                 }
                 .settingsItem(.ghostTextSizeFloor)
+                .disabled(suggestionSettings.matchesHostTextSize)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -273,6 +287,7 @@ struct AppearancePaneView: View {
                     )
                 }
                 .settingsItem(.ghostTextSizeCeiling)
+                .disabled(suggestionSettings.matchesHostTextSize)
             }
         }
     }
@@ -364,6 +379,13 @@ struct AppearancePaneView: View {
         Binding(
             get: { suggestionSettings.ghostTextOpacity },
             set: { suggestionSettings.setGhostTextOpacity($0) }
+        )
+    }
+
+    private var matchesHostTextSizeBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.matchesHostTextSize },
+            set: { suggestionSettings.setMatchesHostTextSize($0) }
         )
     }
 

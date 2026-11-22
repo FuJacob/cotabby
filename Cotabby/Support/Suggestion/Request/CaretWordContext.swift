@@ -46,7 +46,8 @@ nonisolated enum CaretWordContext {
         character == "'" || character == "’" || character == "-"
     }
 
-    private static func isUnspacedScript(_ scalar: Unicode.Scalar) -> Bool {
+    /// Shared with normalization so flattening a line break does not invent spaces in these scripts.
+    static func isUnspacedScript(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar.value {
         case 0x0E00...0x0EFF, 0x3040...0x30FF, 0x3400...0x9FFF, 0xAC00...0xD7AF, 0x20000...0x3134F:
             return true

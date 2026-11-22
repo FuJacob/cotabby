@@ -94,6 +94,9 @@ struct SuggestionPresentationSettings: Equatable {
     /// the plain matched font still measures the host's text, so caret placement is unaffected.
     var isGhostTextBold: Bool = false
     var isGhostTextItalic: Bool = false
+    /// Draws the ghost at exactly the size measured for the host's own text, so the size multiplier
+    /// and the floor/ceiling above are not applied. Off by default, which keeps the user's tuning.
+    var matchesHostTextSize: Bool = false
     /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
     var showDevelopmentDebugOverlays: Bool = false
 }
@@ -125,6 +128,10 @@ struct SuggestionShortcutSettings: Equatable {
     /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
     /// the global Accept Entire Suggestion binding.
     var doubleTapAcceptsEntireSuggestion: Bool
+    /// When true and Accept Word is plain Tab, Tab in a single-line field (an HTML `<input>`, an
+    /// `NSTextField`) is left to the host, so it moves to the next field as it would without
+    /// Cotabby. Accept Entire Suggestion still accepts there.
+    var tabLeavesSingleLineFields: Bool = false
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -434,6 +441,11 @@ extension SuggestionSettingsData {
         set { presentation.fadeInDurationSeconds = newValue }
     }
 
+    var matchesHostTextSize: Bool {
+        get { presentation.matchesHostTextSize }
+        set { presentation.matchesHostTextSize = newValue }
+    }
+
     var isEmojiPickerEnabled: Bool {
         get { inlineFeatures.isEmojiPickerEnabled }
         set { inlineFeatures.isEmojiPickerEnabled = newValue }
@@ -507,5 +519,10 @@ extension SuggestionSettingsData {
     var doubleTapAcceptsEntireSuggestion: Bool {
         get { shortcuts.doubleTapAcceptsEntireSuggestion }
         set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
+    }
+
+    var tabLeavesSingleLineFields: Bool {
+        get { shortcuts.tabLeavesSingleLineFields }
+        set { shortcuts.tabLeavesSingleLineFields = newValue }
     }
 }

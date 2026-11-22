@@ -45,6 +45,24 @@ struct FocusSnapshotResolver {
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// The label and DOM-id reads behind `CredentialFieldDetector` and `SearchFieldDetector`: up to
+    /// four AX round trips that would otherwise repeat on every poll of every single-line field,
+    /// for values that rarely change while focus stays in one field. A navigation that reuses the
+    /// element changes the URL, title or placeholder, which starts a new focus session and so a fresh read. A field
+    /// relabelled in place (a reused input whose aria-label turns it into a code box) changes none
+    /// of those, so a reading is also refreshed after `fieldLabelRefreshInterval`.
+    private let fieldLabelCache = FocusSessionScopedCache<FieldLabelReading>()
+    /// How long a field label reading is trusted within one focus session. One second bounds
+    /// how long an in-place relabel goes unnoticed, while the reads run about a dozen times less
+    /// often than the 80 ms active poll.
+    static let fieldLabelRefreshInterval: TimeInterval = 1
+    /// Whether a single-line field sits inside a web page (`AXHelper.isInsideWebArea`), which
+    /// `SearchFieldDetector` needs to tell page content from browser and native UI. Asked only for
+    /// fields that already look like search boxes (see `SearchFieldDetector.isSearchField`). An
+    /// element's ancestry cannot change while it stays the same element, and the climb is one AX
+    /// round trip pair per level (~30 levels in web apps), so it is paid at most once per focus
+    /// session per field.
+    private let webAreaAncestryCache = FocusSessionScopedCache<Bool>()
     /// The text margin the caret's paragraph wraps to, which a field's `AXFrame` does not reveal
     /// (Word's frame is the page edge, not the text margin). Up to three AX round trips, so each
     /// result is cached per focus session *and* per paragraph: the margin changes between an indented
@@ -72,8 +90,15 @@ struct FocusSnapshotResolver {
     /// answers no width query (Chromium contenteditables, Electron composers); see
     /// `CaretAdvanceSampler`. One sampler follows the focused field; a new field starts a new one.
     private let caretAdvanceSamples = CaretAdvanceSampleStore()
-    init(geometryResolver: AXTextGeometryResolver? = nil) {
+    /// Seconds since boot, for the credential label refresh. Injected so tests can step time.
+    private let uptime: () -> TimeInterval
+
+    init(
+        geometryResolver: AXTextGeometryResolver? = nil,
+        uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+        self.uptime = uptime
     }
 
     /// Drops the cached static-text-run walk so the next capture pays a fresh one. Called through
@@ -322,6 +347,7 @@ struct FocusSnapshotResolver {
             observedContentEdges: observedContentEdges,
             precedingText: nsValue.substring(to: safeSelectionLocation),
             trailingText: nsValue.substring(from: trailingStart),
+            trailingTextUnavailable: resolvedCandidate.trailingTextUnavailable,
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
@@ -336,8 +362,12 @@ struct FocusSnapshotResolver {
             hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
         )
 
-        if let reason = Self.blockedReason(
-            for: resolvedCandidate, bundleIdentifier: bundleIdentifier, selection: selection, rawSelection: rawSelection
+        if let reason = blockedReason(
+            for: resolvedCandidate,
+            bundleIdentifier: bundleIdentifier,
+            selection: selection,
+            rawSelection: rawSelection,
+            focusChangeSequence: focusChangeSequence
         ) {
             return FocusSnapshot(
                 applicationName: applicationName,
@@ -356,12 +386,14 @@ struct FocusSnapshotResolver {
     }
 
     /// Why a field Cotabby can read is still one it must not complete in, or nil when it may: a
-    /// secure field, one of Mail's header rows, or a field with text selected.
-    private static func blockedReason(
+    /// secure field, one of Mail's header rows, a sign-in or verification field, a search box, or a
+    /// field with text selected.
+    private func blockedReason(
         for candidate: AXFocusCandidate,
         bundleIdentifier: String,
         selection: NSRange,
-        rawSelection: NSRange
+        rawSelection: NSRange,
+        focusChangeSequence: UInt64
     ) -> String? {
         if candidate.isSecure {
             return "Secure text input is active."
@@ -376,6 +408,50 @@ struct FocusSnapshotResolver {
                accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: candidate.element)
            ) {
             return MailHeaderFieldDetector.blockedReason
+        }
+
+        // Email, username, phone and code boxes, single-line fields only. The labels are read at
+        // most once a second per field; the typed text is checked on every poll, since typing
+        // "alice@" is what reveals an unlabelled address box.
+        if CredentialFieldDetector.mightBeCredentialField(role: candidate.role) {
+            let labelReading = fieldLabelReading(for: candidate, focusChangeSequence: focusChangeSequence)
+            if CredentialFieldDetector.isCredentialField(
+                role: candidate.role,
+                labels: labelReading.labels,
+                domIdentifier: labelReading.domIdentifier,
+                text: candidate.textValue
+            ) {
+                return CredentialFieldDetector.blockedReason
+            }
+        }
+
+        // Search boxes take a query, not prose. Same cached label reading as above. Whether the
+        // field is inside a web page is what keeps every browser's address bar supported, listed
+        // browser or not (see `SearchFieldDetector`); `vendsDOMAttributes` cannot answer that,
+        // since Chrome's omnibox vends a DOM id too.
+        if SearchFieldDetector.mightBeSearchField(role: candidate.role) {
+            let labelReading = fieldLabelReading(for: candidate, focusChangeSequence: focusChangeSequence)
+            let signal = SearchFieldDetector.signal(
+                role: candidate.role,
+                subrole: candidate.subrole,
+                labels: labelReading.labels,
+                domIdentifier: labelReading.domIdentifier
+            )
+            // The ancestry climb runs inside the closure, so a field with no search signal (every
+            // ordinary form input) pays no AX read for it at all.
+            if SearchFieldDetector.isSearchField(
+                signal: signal,
+                isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier),
+                isInWebPage: {
+                    webAreaAncestryCache.value(
+                        forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+                    ) {
+                        AXHelper.isInsideWebArea(candidate.element)
+                    }
+                }
+            ) {
+                return SearchFieldDetector.blockedReason
+            }
         }
 
         guard selection.length > 0 else { return nil }
@@ -984,7 +1060,7 @@ struct FocusSnapshotResolver {
         // and `textValue` stay consistent; otherwise use a bounded native text window when the host
         // supports `AXStringForRange`, falling back to the full value for older/native controls.
         let textSelection = (markerSelection.map {
-            AXTextSelection(text: $0.text, selection: $0.selection)
+            AXTextSelection(text: $0.text, selection: $0.selection, trailingTextUnavailable: $0.trailingTextUnavailable)
         } ?? nativeTextSelection).map {
             restoringBlockBreaks(
                 in: $0,
@@ -1127,6 +1203,7 @@ struct FocusSnapshotResolver {
             role: role,
             subrole: subrole,
             textValue: textValue,
+            trailingTextUnavailable: textSelection?.trailingTextUnavailable ?? false,
             selection: selection,
             caretRect: caretRect,
             caretQuality: caretQuality,
@@ -1163,7 +1240,9 @@ struct FocusSnapshotResolver {
             markedRange: windowMarkedRange
         )
         guard stripped != window.text else { return window }
-        return AXTextSelection(text: stripped, selection: window.selection)
+        return AXTextSelection(
+            text: stripped, selection: window.selection, trailingTextUnavailable: window.trailingTextUnavailable
+        )
     }
 
     /// One candidate's already-fetched state that the line-margin lookup needs, bundled so the
@@ -1396,58 +1475,69 @@ struct FocusSnapshotResolver {
             return fullTextSelection()
         }
 
-        let documentLength = rawDocumentLength
+        return Self.windowedTextSelection(
+            selection: selection,
+            documentLength: rawDocumentLength,
+            contextWindow: Self.focusedTextContextWindowUTF16,
+            readRange: { range in
+                AXHelper.parameterizedStringValue(
+                    for: kAXStringForRangeParameterizedAttribute as CFString,
+                    range: range,
+                    on: element
+                )
+            }
+        ) ?? fullTextSelection()
+    }
+
+    /// The caret-windowed text assembled from `readRange` (the host's `AXStringForRange`), or `nil`
+    /// when the host could not read the text before the caret or the selection, which sends the
+    /// caller to the full `AXValue`.
+    ///
+    /// A zero-length range is the empty string by definition, so it is never asked of the host:
+    /// Catalyst text views (WhatsApp's composer) answer an empty range, and an empty field's
+    /// `AXValue`, with `kAXErrorNoValue` rather than `""`, which would leave an empty field with
+    /// no text at all and so unsupported, with no ghost and no field icon until the first keystroke.
+    static func windowedTextSelection(
+        selection: NSRange,
+        documentLength: Int,
+        contextWindow: Int,
+        readRange: (NSRange) -> String?
+    ) -> AXTextSelection? {
+        func read(_ range: NSRange) -> String? {
+            range.length == 0 ? "" : readRange(range)
+        }
+
         let safeLocation = min(max(selection.location, 0), documentLength)
         let requestedEnd = selection.location > Int.max - selection.length
             ? Int.max
             : selection.location + selection.length
         let safeEnd = min(max(requestedEnd, safeLocation), documentLength)
 
-        let beforeLength = min(safeLocation, Self.focusedTextContextWindowUTF16)
+        let beforeLength = min(safeLocation, contextWindow)
         let beforeStart = safeLocation - beforeLength
         let afterStart = safeEnd
-        let afterLength = min(max(documentLength - afterStart, 0), Self.focusedTextContextWindowUTF16)
+        let afterLength = min(max(documentLength - afterStart, 0), contextWindow)
 
-        guard let beforeText = AXHelper.parameterizedStringValue(
-            for: kAXStringForRangeParameterizedAttribute as CFString,
-            range: NSRange(location: beforeStart, length: beforeLength),
-            on: element
-        ) else {
-            return fullTextSelection()
+        guard let beforeText = read(NSRange(location: beforeStart, length: beforeLength)),
+              let selectedText = read(NSRange(location: safeLocation, length: safeEnd - safeLocation))
+        else {
+            return nil
         }
+        // A failed trailing read keeps the window rather than falling back to `AXValue`. Chromium
+        // fails it in every multi-block contenteditable (the window is sized from the value's length,
+        // past the range text's end), and the value paired with this range-space caret would put the
+        // caret before the wrong character. `restoringBlockBreaks` fills that text in from the value
+        // where the two align; elsewhere the snapshot says the text after the caret is unknown.
+        let trailingText = read(NSRange(location: afterStart, length: afterLength))
 
-        let selectedText: String
-        if safeEnd > safeLocation {
-            guard let nativeSelectedText = AXHelper.parameterizedStringValue(
-                for: kAXStringForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: safeLocation, length: safeEnd - safeLocation),
-                on: element
-            ) else {
-                return fullTextSelection()
-            }
-            selectedText = nativeSelectedText
-        } else {
-            selectedText = ""
-        }
-
-        let trailingText: String
-        if afterLength > 0 {
-            trailingText = AXHelper.parameterizedStringValue(
-                for: kAXStringForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: afterStart, length: afterLength),
-                on: element
-            ) ?? ""
-        } else {
-            trailingText = ""
-        }
-
-        let text = beforeText + selectedText + trailingText
+        let text = beforeText + selectedText + (trailingText ?? "")
         return AXTextSelection(
             text: text,
             selection: NSRange(
                 location: (beforeText as NSString).length,
                 length: (selectedText as NSString).length
-            )
+            ),
+            trailingTextUnavailable: trailingText == nil
         )
     }
 
@@ -1554,6 +1644,59 @@ struct FocusSnapshotResolver {
             descriptionLabel: AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)
         )
     }
+
+    /// What a single-line field says about itself (title, description, placeholder, DOM id), read
+    /// through `fieldLabelCache`: once per focus session, refreshed after
+    /// `fieldLabelRefreshInterval`.
+    ///
+    /// An all-empty reading from web content is returned but not cached: a web field can be read
+    /// before the page has filled in its name, and caching that would leave a real sign-in box
+    /// unrecognized until the next refresh. Such a field keeps paying the reads until it answers.
+    /// A native field's attributes are there as soon as it is, so its empty reading is kept.
+    private func fieldLabelReading(
+        for candidate: AXFocusCandidate,
+        focusChangeSequence: UInt64
+    ) -> FieldLabelReading {
+        let now = uptime()
+        if let cached = fieldLabelCache.cachedValue(
+            forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+        ), now - cached.readAt < Self.fieldLabelRefreshInterval {
+            return cached
+        }
+
+        let reading = FieldLabelReading(
+            readAt: now,
+            labels: [
+                AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: candidate.element),
+                AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: candidate.element),
+                AXHelper.stringValue(for: kAXPlaceholderValueAttribute as CFString, on: candidate.element)
+            ],
+            // Only web content vends DOM ids; asking a native field is a wasted round trip.
+            domIdentifier: candidate.vendsDOMAttributes
+                ? AXHelper.stringValue(for: "AXDOMIdentifier" as CFString, on: candidate.element)
+                : nil
+        )
+        if !reading.isEmpty || !candidate.vendsDOMAttributes {
+            fieldLabelCache.store(
+                reading, forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+            )
+        }
+        return reading
+    }
+}
+
+/// The attributes `CredentialFieldDetector` and `SearchFieldDetector` judge a field by, cached per
+/// focus session.
+private struct FieldLabelReading {
+    /// `uptime()` when the attributes were read, so the reading can be refreshed.
+    let readAt: TimeInterval
+    let labels: [String?]
+    let domIdentifier: String?
+
+    /// True when the field answered nothing usable, so a web field's reading may simply be early.
+    var isEmpty: Bool {
+        (labels + [domIdentifier]).allSatisfy { ($0 ?? "").isEmpty }
+    }
 }
 
 private struct FocusCandidateResolution {
@@ -1569,9 +1712,12 @@ private struct FocusedElementReading {
     let subrole: String?
 }
 
-private struct AXTextSelection {
+struct AXTextSelection {
     let text: String
     let selection: NSRange
+    /// See `FocusedInputSnapshot.trailingTextUnavailable`. A selection rebuilt from the field's
+    /// value (`restoringBlockBreaks`) has its trailing text again and drops the flag.
+    var trailingTextUnavailable = false
 }
 
 /// AX data read from one candidate element near the current focus.
@@ -1582,6 +1728,8 @@ private struct AXFocusCandidate {
     let role: String
     let subrole: String?
     let textValue: String?
+    /// See `FocusedInputSnapshot.trailingTextUnavailable`.
+    let trailingTextUnavailable: Bool
     let selection: NSRange?
     let caretRect: CGRect?
     let caretQuality: CaretGeometryQuality?

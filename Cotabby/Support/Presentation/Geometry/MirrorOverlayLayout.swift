@@ -89,6 +89,7 @@ struct MirrorOverlayLayout: Equatable {
         showsAcceptanceHint: Bool,
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
+        hostFontSize: CGFloat? = nil,
         isBold: Bool = false,
         isItalic: Bool = false,
         reason: CompletionRenderMode.MirrorReason
@@ -102,9 +103,13 @@ struct MirrorOverlayLayout: Equatable {
         // "Ghost Text Size" knob still scales it so suggestions stay one consistent size across both
         // display modes. The shared legibility floor guards a low multiplier; the keycap pill keeps
         // its own fixed size, so its width reservation below is intentionally left unscaled.
-        let scaledFontSize = max(Metrics.absoluteMinimumFontSize, Metrics.fontSize * sizeMultiplier)
+        // With Match Original Text Size on, the host's reported size replaces the fixed one (the
+        // caret height is what is untrustworthy here, not a size the host states outright).
+        let baseFontSize = hostFontSize.flatMap { $0 > 0 && $0.isFinite ? $0 : nil } ?? Metrics.fontSize
+        let scaledFontSize = max(Metrics.absoluteMinimumFontSize, baseFontSize * sizeMultiplier)
         let measuredTextWidth = measuredWidth(
-            of: normalizedSuggestion, fontSize: scaledFontSize, isBold: isBold, isItalic: isItalic
+            of: normalizedSuggestion, highlightedPrefix: highlightedPrefix,
+            fontSize: scaledFontSize, isBold: isBold, isItalic: isItalic
         )
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
@@ -116,7 +121,12 @@ struct MirrorOverlayLayout: Equatable {
         let cardWidth = contentWidth + (Metrics.horizontalPadding * 2)
         let cardHeight = ceil(scaledFontSize * 1.6) + (Metrics.verticalPadding * 2)
 
-        let anchorTopY = computeAnchorTopY(geometry: geometry, reason: reason)
+        // An uncalibrated line is the one anchor no reason may trust: the popup reason only says why
+        // the card is up ("Always Popup" shows it for a layout-estimated caret too), not how good
+        // the caret is. Below the field the card cannot cover the text the guessed line may sit on.
+        let fieldToStayOutsideOf = uncalibratedEstimateField(geometry: geometry, reason: reason)
+        let anchorTopY = fieldToStayOutsideOf.map { $0.minY - Metrics.anchorGap }
+            ?? computeAnchorTopY(geometry: geometry, reason: reason)
         var originX = computeAnchorOriginX(geometry: geometry, cardWidth: cardWidth)
         // Card sits BELOW the field/caret. AppKit screen coordinates are bottom-up, so subtracting
         // the card height from the anchor's bottom edge places the card just under the anchor line.
@@ -133,10 +143,12 @@ struct MirrorOverlayLayout: Equatable {
 
         let minY = visibleFrame.minY + Metrics.screenMargin
         let maxY = visibleFrame.maxY - Metrics.screenMargin - cardHeight
-        if maxY >= minY {
-            originY = min(max(originY, minY), maxY)
-        } else {
+        if maxY < minY {
             originY = minY
+        } else if let field = fieldToStayOutsideOf {
+            originY = originYOutside(field: field, cardHeight: cardHeight, minY: minY, maxY: maxY)
+        } else {
+            originY = min(max(originY, minY), maxY)
         }
 
         let panelFrame = CGRect(
@@ -195,7 +207,8 @@ struct MirrorOverlayLayout: Equatable {
             // rather than the whole field — the popup should track the cursor, not float below the
             // document. Keep the same tight visual gap used for trusted caret geometry: the caret
             // rect already describes the full line box, so another line-height offset would create
-            // an unnecessary blank row between the typed line and the card.
+            // an unnecessary blank row between the typed line and the card. An uncalibrated line
+            // never reaches here: `uncalibratedEstimateField` anchors it under the field instead.
             if hasCaretLine(geometry.caretRect) {
                 return geometry.caretRect.minY - Metrics.anchorGap
             }
@@ -216,6 +229,53 @@ struct MirrorOverlayLayout: Equatable {
             }
             return geometry.caretRect.minY - Metrics.anchorGap
         }
+    }
+
+    /// The field the card must stay outside of, when the caret is a layout estimate whose line Y
+    /// was never measured. That Y is the estimator's default inset, and the host's real line can
+    /// sit below it: a Claude desktop textarea with 20pt of padding drew its text 12pt under the
+    /// guess, and a card under the guess covered that text. Outside the field the card cannot
+    /// cover any of it, and it keeps the caret's x.
+    ///
+    /// Gated on the caret being a layout estimate (the quality, or the reason that reports it)
+    /// rather than on the reason alone, because `.alwaysMirror` reports `.userPreference` or
+    /// `.perAppOverride` whatever the caret quality. Trusted carets measured their own line and
+    /// never qualify. Nil without a usable field frame: then the caret line is the only anchor.
+    private static func uncalibratedEstimateField(
+        geometry: SuggestionOverlayGeometry,
+        reason: CompletionRenderMode.MirrorReason
+    ) -> CGRect? {
+        guard geometry.isCaretLineVerticallyUncalibrated,
+              geometry.caretQuality == .layoutEstimated || reason == .caretLayoutEstimated,
+              let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty else {
+            return nil
+        }
+        return inputFrame
+    }
+
+    /// Clamps the card onto the screen without moving it back over `field`. The plain clamp would
+    /// lift a below-the-field card into a field that ends near the screen's bottom, right over the
+    /// text it was moved off, so the card goes above the field when below does not fit. When
+    /// neither side fits (a field nearly as tall as the screen), some overlap is unavoidable, and
+    /// the card is pinned to the side that covers less of the field; below wins a tie, matching
+    /// where the card sits whenever it fits.
+    private static func originYOutside(
+        field: CGRect,
+        cardHeight: CGFloat,
+        minY: CGFloat,
+        maxY: CGFloat
+    ) -> CGFloat {
+        let below = field.minY - Metrics.anchorGap - cardHeight
+        if below >= minY {
+            return min(below, maxY)
+        }
+        let above = field.maxY + Metrics.anchorGap
+        if above <= maxY {
+            return max(above, minY)
+        }
+        let overlapPinnedBelow = (minY + cardHeight) - field.minY
+        let overlapPinnedAbove = field.maxY - maxY
+        return overlapPinnedBelow <= overlapPinnedAbove ? minY : maxY
     }
 
     /// Whether the caret rect describes a line to sit under. A caret has height and, from most
@@ -277,13 +337,23 @@ struct MirrorOverlayLayout: Equatable {
         return collapsed
     }
 
-    private static func measuredWidth(of text: String, fontSize: CGFloat, isBold: Bool, isItalic: Bool) -> CGFloat {
-        // The card draws in the system face, so it is measured in the system face with the same
-        // style the view applies (`MirrorOverlayView` uses SwiftUI's bold and italic).
-        let font = GhostFontStyler.styled(NSFont.systemFont(ofSize: fontSize), bold: isBold, italic: isItalic)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font
-        ]
-        return (text as NSString).size(withAttributes: attributes).width
+    /// Width of the card's text drawn the way `MirrorOverlayView` draws it: the system face with the
+    /// user's bold and italic, and the highlighted next-accept prefix a weight heavier (semibold, or
+    /// heavy when the suggestion is bold). Measuring the prefix at the base weight under-reserved the
+    /// card and truncated the end of the suggestion near its width limit.
+    static func measuredWidth(
+        of text: String, highlightedPrefix: String, fontSize: CGFloat, isBold: Bool, isItalic: Bool
+    ) -> CGFloat {
+        let base = GhostFontStyler.styled(NSFont.systemFont(ofSize: fontSize), bold: isBold, italic: isItalic)
+        let highlight = GhostFontStyler.styled(
+            NSFont.systemFont(ofSize: fontSize, weight: isBold ? .heavy : .semibold), bold: false, italic: isItalic
+        )
+        let measured = NSMutableAttributedString(string: text, attributes: [.font: base])
+        if !highlightedPrefix.isEmpty, text.hasPrefix(highlightedPrefix) {
+            measured.addAttribute(
+                .font, value: highlight, range: NSRange(location: 0, length: (highlightedPrefix as NSString).length)
+            )
+        }
+        return measured.size().width
     }
 }

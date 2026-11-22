@@ -1,7 +1,5 @@
 # Installed Cotabby model evaluation
 
-Investigation and retained evidence: [2026-09-25 usability report](benchmarks/model-usability/2026-09-25/README.md).
-
 Run the shipping catalog against the real autocomplete pipeline, without downloading models:
 
 ```sh
