@@ -47,6 +47,9 @@ final class BrowserAppDetectorTests: XCTestCase {
         // Claude desktop (#861): stock Electron, its composer stays dormant until primed.
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.anthropic.claudefordesktop"))
         XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: "com.anthropic.claudefordesktop"))
+        // Signal Desktop: stock Electron, its composer stays dormant until primed.
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "org.whispersystems.signal-desktop"))
+        XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: "org.whispersystems.signal-desktop"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
