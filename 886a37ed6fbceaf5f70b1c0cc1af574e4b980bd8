@@ -1,0 +1,21 @@
+Cotabby/Support/Suggestion/Output/PromptPrefaceEchoFilter.swift
+  s_6acd44f7eb20eb::t_33b0d8af169153 25-36
+CotabbyTests/Support/Suggestion/Output/PromptPrefaceEchoFilterTests.swift
+  s_6acd44f7eb20eb::t_fd534fbbb8a82a 27-73,81-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "886a37ed6fbceaf5f70b1c0cc1af574e4b980bd8",
+  "prompts": {},
+  "sessions": {
+    "s_6acd44f7eb20eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac476f55-819f-47a6-b830-ca7fbc55bae3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <jjacobfu@gmail.com>"
+    }
+  }
+}

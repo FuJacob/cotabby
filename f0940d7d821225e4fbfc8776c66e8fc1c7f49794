@@ -1,0 +1,23 @@
+Cotabby/Models/Focus/FocusModels.swift
+  s_06b938d10fb9a9::t_446707a503e9df 57-71
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_06b938d10fb9a9::t_a0427e4380ccfe 89-111
+Cotabby/Services/Visual/VisualContextCoordinator.swift
+  s_06b938d10fb9a9::t_969b4b01544c39 223-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f0940d7d821225e4fbfc8776c66e8fc1c7f49794",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
