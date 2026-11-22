@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for OCR excerpt selection: lines near the focused field (same column first) win the
+/// Tests for OCR excerpt selection: the composer (caret line, field, chrome band) is dropped while
+/// content beneath it survives, lines near the focused field (same column first) win the
 /// character budget, geometry-free OCR favors the most recent lines, and survivors are returned in
 /// reading order with numbers and names intact.
 final class VisualContextExcerptSelectorTests: XCTestCase {
@@ -98,20 +99,41 @@ final class VisualContextExcerptSelectorTests: XCTestCase {
         )
     }
 
-    func test_focusedFieldOrBelowIsLimitedToTheFieldsColumn() {
+    func test_composerLineIsLimitedToTheFieldsColumnAndChromeBand() {
         let focus = CGRect(x: 0.4, y: 0.1, width: 0.4, height: 0.1)
-        XCTAssertTrue(VisualContextExcerptSelector.isFocusedFieldOrBelow(
-            CGRect(x: 0.45, y: 0.12, width: 0.2, height: 0.03), focus: focus
-        ), "the caret line itself")
-        XCTAssertTrue(VisualContextExcerptSelector.isFocusedFieldOrBelow(
-            CGRect(x: 0.45, y: 0.02, width: 0.2, height: 0.03), focus: focus
-        ), "chrome under the field")
-        XCTAssertFalse(VisualContextExcerptSelector.isFocusedFieldOrBelow(
-            CGRect(x: 0.45, y: 0.3, width: 0.2, height: 0.03), focus: focus
-        ), "a message above the field")
-        XCTAssertFalse(VisualContextExcerptSelector.isFocusedFieldOrBelow(
-            CGRect(x: 0, y: 0.02, width: 0.2, height: 0.03), focus: focus
-        ), "another column")
+        let composer = CGRect(x: 0.4, y: 0.0, width: 0.4, height: 0.2)
+        func isComposer(x: Double, y: Double) -> Bool {
+            VisualContextExcerptSelector.isComposerLine(
+                CGRect(x: x, y: y, width: 0.2, height: 0.03), focus: focus, composer: composer
+            )
+        }
+        XCTAssertTrue(isComposer(x: 0.45, y: 0.12), "the caret line itself")
+        XCTAssertTrue(isComposer(x: 0.45, y: 0.02), "chrome under the field")
+        XCTAssertFalse(isComposer(x: 0.45, y: 0.3), "a message above the field")
+        XCTAssertFalse(isComposer(x: 0, y: 0.02), "another column")
+        XCTAssertFalse(VisualContextExcerptSelector.isComposerLine(
+            CGRect(x: 0.45, y: 0.02, width: 0.2, height: 0.03), focus: focus, composer: nil
+        ), "without composer geometry only the caret line is the composer")
+    }
+
+    func test_keepsTheConversationBelowAReplyFieldNearTheTop() {
+        // YouTube comments and top-posted reply boxes sit above the thread they answer: the
+        // composer's buttons go, but the conversation further down the field's column must survive.
+        let lines = [
+            line("Video title and channel name", x: 0.4, y: 0.95),
+            line("Cancel Comment", x: 0.4, y: 0.8),
+            line("Great breakdown of the 2027 tour dates", x: 0.4, y: 0.6),
+            line("Does anyone know if Toronto is included", x: 0.4, y: 0.5)
+        ]
+        XCTAssertEqual(
+            VisualContextExcerptSelector.select(
+                lines: lines, fieldText: "",
+                focusBounds: CGRect(x: 0.4, y: 0.85, width: 0.4, height: 0.04),
+                composerBounds: CGRect(x: 0.4, y: 0.77, width: 0.4, height: 0.12),
+                maxCharacters: 4000
+            ),
+            [lines[0], lines[2], lines[3]].map(\.text).joined(separator: "\n")
+        )
     }
 
     private func line(_ text: String, x: Double, y: Double) -> OCRTextHygiene.OCRLine {
@@ -121,7 +143,7 @@ final class VisualContextExcerptSelectorTests: XCTestCase {
     private func select(_ lines: [OCRTextHygiene.OCRLine], budget: Int) -> String {
         VisualContextExcerptSelector.select(
             lines: lines, fieldText: "", focusBounds: CGRect(x: 0.4, y: 0.1, width: 0.4, height: 0.1),
-            maxCharacters: budget
+            composerBounds: CGRect(x: 0.4, y: 0.0, width: 0.4, height: 0.2), maxCharacters: budget
         )
     }
 }
