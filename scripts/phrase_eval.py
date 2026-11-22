@@ -418,7 +418,7 @@ def sign_test_hosts(products, output):
     entitlements = output / "test-host.entitlements"
     entitlements.write_bytes(plistlib.dumps({"com.apple.security.get-task-allow": True,
         "com.apple.security.cs.disable-library-validation": True}))
-    with tempfile.TemporaryDirectory(prefix="cohamster-eval-", dir="/private/tmp") as staging:
+    with tempfile.TemporaryDirectory(prefix="cotabby-eval-", dir="/private/tmp") as staging:
         host = pathlib.Path(staging) / "Cotabby.app"
         logged_command(["ditto", "--norsrc", "--noextattr", source, host], output / "sign-copy.log")
         logged_command(["xattr", "-cr", host], output / "sign-attributes.log")
