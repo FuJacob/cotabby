@@ -16,5 +16,4 @@ CotabbyInference revision pinned in `project.yml` and pins every other package f
 builds and CI tests. Cotabby carries no native patch: a needed CotabbyInference API lands upstream
 first, then both pins move together.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local builds and evaluations. Historical CoHamster
-release notes describe past fork binaries and do not control Cotabby's release configuration.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local builds and evaluations.
