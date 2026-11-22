@@ -83,6 +83,7 @@ struct MirrorOverlayLayout: Equatable {
         showsAcceptanceHint: Bool,
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
+        hostFontSize: CGFloat? = nil,
         reason: CompletionRenderMode.MirrorReason
     ) -> MirrorOverlayLayout {
         let normalizedSuggestion = normalizedDisplayText(suggestion)
@@ -94,7 +95,10 @@ struct MirrorOverlayLayout: Equatable {
         // "Ghost Text Size" knob still scales it so suggestions stay one consistent size across both
         // display modes. The shared legibility floor guards a low multiplier; the keycap pill keeps
         // its own fixed size, so its width reservation below is intentionally left unscaled.
-        let scaledFontSize = max(Metrics.absoluteMinimumFontSize, Metrics.fontSize * sizeMultiplier)
+        // With Match Original Text Size on, the host's reported size replaces the fixed one (the
+        // caret height is what is untrustworthy here, not a size the host states outright).
+        let baseFontSize = hostFontSize.flatMap { $0 > 0 && $0.isFinite ? $0 : nil } ?? Metrics.fontSize
+        let scaledFontSize = max(Metrics.absoluteMinimumFontSize, baseFontSize * sizeMultiplier)
         let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: scaledFontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 

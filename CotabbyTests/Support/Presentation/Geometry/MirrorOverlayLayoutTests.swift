@@ -26,6 +26,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         showsHint: Bool = true,
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
+        hostFontSize: CGFloat? = nil,
         caretQuality: CaretGeometryQuality = .exact,
         isCaretLineVerticallyUncalibrated: Bool = false,
         reason: CompletionRenderMode.MirrorReason = .userPreference
@@ -43,6 +44,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             showsAcceptanceHint: showsHint,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             sizeMultiplier: sizeMultiplier,
+            hostFontSize: hostFontSize,
             reason: reason
         )
     }
@@ -289,6 +291,15 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         XCTAssertEqual(halved.panelFrame.height, 23)
 
         XCTAssertEqual(makeLayout().fontSize, 13)
+    }
+
+    func test_make_hostFontSizeReplacesTheFixedFont() {
+        // Match Original Text Size passes the host's stated size, which replaces the fixed 13pt.
+        XCTAssertEqual(makeLayout(hostFontSize: 17).fontSize, 17, accuracy: 0.0001)
+        // An unusable host size keeps the fixed one; the legibility floor still holds.
+        XCTAssertEqual(makeLayout(hostFontSize: 0).fontSize, 13)
+        XCTAssertEqual(makeLayout(hostFontSize: .nan).fontSize, 13)
+        XCTAssertEqual(makeLayout(hostFontSize: 6).fontSize, GhostFontSizeLimits.absoluteMinimumPointSize)
     }
 
     // MARK: - Text normalization and highlight

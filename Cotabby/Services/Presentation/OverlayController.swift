@@ -544,7 +544,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 hostMetrics: geometry.hostTextMetrics,
                 caretBoxHeight: geometry.caretRect.height,
                 renderer: renderer,
-                sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+                sizeMultiplier: ghostSizeMultiplier
             )
         )
         let judged = applyingTypefaceEvidence(resolution, for: geometry)
@@ -553,7 +553,7 @@ final class OverlayController: SuggestionOverlayControlling {
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
             widthSample: heldWidthSample(for: geometry),
-            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier),
+            sizeMultiplier: ghostSizeMultiplier,
             reportedSize: zoomStep(for: geometry).reportedSize,
             zoomKind: zoomStep(for: geometry).kind
         )
@@ -568,11 +568,20 @@ final class OverlayController: SuggestionOverlayControlling {
     /// to read, so a host that reports 6pt or a runaway caret estimate cannot override them. The face
     /// and provenance stay as resolved; only the size moves, and `HostFaceMemory` above already
     /// recorded the unclamped host size so the field's own measurement is not polluted by the limit.
+    /// The user's Ghost Text Size multiplier, or 1 when they asked for the host's own size. Every
+    /// size path reads it through here, including the ones that divide it back out to recover the
+    /// host size from a ghost size, so the two directions always agree.
+    private var ghostSizeMultiplier: CGFloat {
+        suggestionSettings.matchesHostTextSize ? 1 : CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+    }
+
     private func applyingUserSizeLimits(_ resolution: GhostFontResolver.Resolution) -> GhostFontResolver.Resolution {
+        // Matching the host's size sets the user's limits aside; only the legibility backstop stays.
+        let matches = suggestionSettings.matchesHostTextSize
         let clamped = GhostFontSizeLimits.clamped(
             resolution.font.pointSize,
-            floor: CGFloat(suggestionSettings.ghostFontSizeFloor),
-            ceiling: CGFloat(suggestionSettings.ghostFontSizeCeiling)
+            floor: matches ? 0 : CGFloat(suggestionSettings.ghostFontSizeFloor),
+            ceiling: matches ? 0 : CGFloat(suggestionSettings.ghostFontSizeCeiling)
         )
         guard abs(clamped - resolution.font.pointSize) > 0.01 else { return resolution }
         return GhostFontResolver.Resolution(
@@ -660,7 +669,7 @@ final class OverlayController: SuggestionOverlayControlling {
         let size: CGFloat
         if let fit = hostAdvanceFits[geometry.focusedInputIdentityKey], fit.faceName == resolution.font.fontName,
            let adopted = fit.adopted {
-            size = adopted.pointSize * max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+            size = adopted.pointSize * max(ghostSizeMultiplier, 0.01)
         } else if let key = hostStyleKey(for: geometry), let remembered = hostFaceMemory.face(for: key),
                   remembered.advanceMeasured == true, remembered.fontName == resolution.font.fontName {
             // Kept with the multiplier applied, under a key that includes it.
@@ -706,7 +715,7 @@ final class OverlayController: SuggestionOverlayControlling {
               let last = request.paragraphTextBeforeCaret.last, !last.isWhitespace,
               !request.paragraphTextBeforeCaret.contains(where: \.isNewline),
               let hostFace = GhostFontResolver.font(
-                  named: face.fontName, size: face.pointSize / max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+                  named: face.fontName, size: face.pointSize / max(ghostSizeMultiplier, 0.01)
               )
         else { return }
         let identity = request.focusedInputIdentityKey
@@ -751,7 +760,7 @@ final class OverlayController: SuggestionOverlayControlling {
             isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier),
             reportedSize: geometry.resolvedFieldStyle?.fontPointSize,
             caretHeight: geometry.caretRect.height,
-            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+            sizeMultiplier: ghostSizeMultiplier
         )
     }
 
@@ -1397,7 +1406,7 @@ final class OverlayController: SuggestionOverlayControlling {
     private func linePitch(for geometry: SuggestionOverlayGeometry, fontSize: CGFloat) -> CGFloat? {
         let key = geometry.isWebContentField ? hostStyleKey(for: geometry) : nil
         // The ghost's size carries the user's multiplier; the host's line-height does not.
-        let hostSize = fontSize / max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+        let hostSize = fontSize / max(ghostSizeMultiplier, 0.01)
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0,
            HostFaceMemory.isPlausiblePitch(measured, pointSize: hostSize) {
             if geometry.hostTextMetrics?.linePitchIsFromParagraphBox == true {
@@ -1527,6 +1536,22 @@ final class OverlayController: SuggestionOverlayControlling {
 
     // MARK: - Mirror card
 
+    /// The host's own text size for the mirror card under Match Original Text Size: the size the
+    /// field reports, else one the inline path measured for this field (an advance fit, or a face
+    /// remembered with its advance measured). Never the caret height: an untrustworthy caret is
+    /// often why the card is showing at all. Nil keeps the card's fixed size.
+    private func mirrorHostFontSize(for geometry: SuggestionOverlayGeometry) -> CGFloat? {
+        guard suggestionSettings.matchesHostTextSize else { return nil }
+        if let reported = geometry.resolvedFieldStyle?.fontPointSize, reported > 0 { return reported }
+        if let adopted = hostAdvanceFits[geometry.focusedInputIdentityKey]?.adopted { return adopted.pointSize }
+        // Remembered with the multiplier applied; matching the host size makes that multiplier 1.
+        if let key = hostStyleKey(for: geometry), let remembered = hostFaceMemory.face(for: key),
+           remembered.advanceMeasured == true {
+            return remembered.pointSize
+        }
+        return nil
+    }
+
     /// Mirror-mode rendering. Draws the suggestion inside a Cotabby-owned card anchored beneath the
     /// best available text line.
     private func showMirror(
@@ -1544,7 +1569,8 @@ final class OverlayController: SuggestionOverlayControlling {
             visibleFrame: visibleFrame,
             showsAcceptanceHint: acceptanceHintLabel != nil,
             autoAcceptTrailingPunctuation: suggestionSettings.autoAcceptTrailingPunctuation,
-            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier),
+            sizeMultiplier: ghostSizeMultiplier,
+            hostFontSize: mirrorHostFontSize(for: geometry),
             reason: reason
         )
         let customGhostColor = SuggestionTextColorCodec.color(
