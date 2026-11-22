@@ -109,6 +109,14 @@ final class OverlayController: SuggestionOverlayControlling {
     /// number of distinct unresolvable fonts actually encountered, which is small.
     private var requestedHostFonts: Set<String> = []
 
+    /// `@MainActor` with stored properties, so without this Swift routes the deinit through the
+    /// back-deployed `swift_task_deinitOnExecutorMainActorBackDeploy` shim, whose
+    /// `TaskLocal::StopLookupScope` frees a pointer it never allocated on macOS 15 and aborts the
+    /// process (CI's test host crashed releasing one in `OverlayControllerTypefaceTests`). The app
+    /// owns one controller for its lifetime and tests release theirs on the main thread, so the
+    /// panels and tasks it holds are still released there; nothing here needs the executor hop.
+    nonisolated deinit {}
+
     init(
         suggestionSettings: SuggestionSettingsModel,
         renderModePolicyOverride: CompletionRenderModePolicy? = nil,
