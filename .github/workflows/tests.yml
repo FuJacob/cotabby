@@ -72,6 +72,25 @@ jobs:
             -skip-testing:CotabbyTests/FoundationModelDriftEvalTests \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Print crash reports
+        if: always()
+        run: |
+          ls -la ~/Library/Logs/DiagnosticReports/ || true
+          for f in ~/Library/Logs/DiagnosticReports/*Cotabby*; do
+            [ -f "$f" ] || continue
+            echo "=================== $f"
+            head -c 60000 "$f"
+          done
+          find build/DerivedData/Logs/Test -name '*.xcresult' -maxdepth 1 -print || true
+
+      - name: Upload crash reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports
+          path: ~/Library/Logs/DiagnosticReports/
+          if-no-files-found: ignore
+
       - name: Clean build cache
         if: always()
         run: rm -rf build/DerivedData
