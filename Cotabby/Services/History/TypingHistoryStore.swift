@@ -336,9 +336,12 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     }
 
     /// Terminals are never recorded: their text is shell commands and output, where secrets are
-    /// common and nothing is the user's prose.
+    /// common and nothing is the user's prose. That includes terminal screen fields (HerdrM,
+    /// Ghostty), where Cotabby suggests but the field holds the whole screen, output included.
     private static func isTerminal(_ input: FocusedInputSnapshot) -> Bool {
-        input.isIntegratedTerminal || AppSurfaceClassifier.classify(bundleIdentifier: input.bundleIdentifier) == .terminal
+        input.isIntegratedTerminal
+            || AppSurfaceClassifier.classify(bundleIdentifier: input.bundleIdentifier) == .terminal
+            || TerminalAppDetector.isTerminalScreenField(bundleIdentifier: input.bundleIdentifier)
     }
 
     /// Continues the record of a recently finished field when the user comes back to it, but only

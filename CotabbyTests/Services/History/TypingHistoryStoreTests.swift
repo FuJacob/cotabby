@@ -359,7 +359,12 @@ final class TypingHistoryStoreTests: XCTestCase {
                             app: "com.googlecode.iterm2")) { true }
         store.observe(focus("git push origin main and then open the pull request", element: "vs", sequence: 2,
                             app: "com.microsoft.VSCode", isIntegratedTerminal: true)) { true }
-        store.observe(focus("", element: "x", sequence: 3)) { true }
+        // Terminal screen fields get suggestions, but their field is the whole screen, output included.
+        store.observe(focus("deploy finished, token printed above, now tag the release", element: "g", sequence: 3,
+                            app: "com.mitchellh.ghostty")) { true }
+        store.observe(focus("agent output scrolls by while the next command is typed", element: "h", sequence: 4,
+                            app: "dev.bybee.herdrm")) { true }
+        store.observe(focus("", element: "x", sequence: 5)) { true }
 
         XCTAssertEqual(store.recordCount, 0)
     }

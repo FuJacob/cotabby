@@ -201,7 +201,9 @@ event payloads as complete field state.
 
 FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces (and
 Mail's compose header rows, [MailHeaderFieldDetector.swift](Cotabby/Support/Accessibility/MailHeaderFieldDetector.swift):
-Tab is the way from To to Subject to body there, not an accept), bounds
+Tab is the way from To to Subject to body there, not an accept; and single-line sign-in and
+verification fields, [CredentialFieldDetector.swift](Cotabby/Support/Accessibility/CredentialFieldDetector.swift):
+a completion there is a guess at the user's identity), bounds
 text on both sides of the caret, resolves the focused process, and publishes stable domain values.
 Chromium/Electron require accessibility priming, cursor hit-test recovery, and out-of-process iframe
 handling. All fallbacks are revalidated and yield to a valid system-focused element.
@@ -301,6 +303,10 @@ the setup. Both were doubled together after the recall eval showed facts stated 
 tokens before the caret were invisible to the model.
 The request window and section allocator preserve the prefix's spaces, line breaks, and indentation.
 Multiline output cleanup also preserves the leading space needed to join a new word at the caret.
+Single-line cleanup preserves a removed leading newline as a word separator where the existing
+spacing rules require one, before a word, an opening bracket or quote, or a symbol, but never
+before attaching punctuation or between recognized spaceless-script characters. Output without a
+leading newline keeps its original word boundary.
 Bounded right-of-caret text is descriptive reference material before the prefix, not invented
 fill-in-the-middle control tokens. This added suffix section is local-only: the endpoint renderer
 does not receive it. Optional user-authored notes retain their existing budgets and settings; no
@@ -370,6 +376,7 @@ Visual context is one field-scoped session:
 VisualContextCoordinator
   -> WindowScreenshotService (local: focused window; endpoint: original field crop)
   -> ScreenTextExtractor (Vision OCR + line confidence)
+  -> FocusedFieldScreenRegion (drop the field's own lines; field pixels never miss the OCR cache)
   -> OCRTextHygiene
   -> VisualContextExcerptSelector (local: proximity, deduplication, reading order)
   -> bounded sanitized excerpt
@@ -381,8 +388,11 @@ artifacts exist only under the explicit debug launch mode.
 
 Local engines refresh context three seconds after the previous capture finishes, while generation
 continues using the last ready excerpt. Every refresh rechecks focus, permissions and eligibility;
-unchanged pixels reuse OCR and unchanged excerpts do not trigger generation. Local selection admits
-up to 4,000 characters, additionally constrained by estimated-token budgets and caret-prefix priority.
+unchanged pixels reuse OCR and unchanged excerpts do not trigger generation. The focused field's own
+pixels and OCR lines do not count, so typing alone keeps the excerpt and the llama prompt head
+unchanged, and VisualContextExcerptStability keeps the excerpt in use when a refresh differs only by
+OCR jitter. Local selection admits up to 4,000 characters, additionally constrained by estimated-token
+budgets and caret-prefix priority.
 The endpoint retains its original crop, focus-only lifecycle, 1,500-character excerpt and 500-character
 prompt section. Increasing local context does not opt users into broader network transmission.
 Local excerpts use confidence/line hygiene without the legacy English token whitelist, preserving
@@ -499,7 +509,12 @@ focus change or incompatible input. They do not call a language model.
 [SettingsCoordinator.swift](Cotabby/App/Coordinators/SettingsCoordinator.swift) and
 [WelcomeCoordinator.swift](Cotabby/App/Coordinators/WelcomeCoordinator.swift) own app-lifetime AppKit
 windows hosting SwiftUI content. Settings and onboarding observe the shared graph. Hiding the menu bar
-icon retains a recovery path to Settings.
+icon retains a recovery path to Settings. Cotabby launches as an agent app (`LSUIElement`), and
+`SettingsCoordinator` switches the process to `.regular` while Settings is open (Dock tile and
+Command-Tab entry, per `SettingsActivationPolicy`) and back to `.accessory` when it closes.
+While `.regular`, the app menu's standard "Settings…" (⌘,) item comes from a `CommandGroup` in
+`CotabbyApp` that calls the same `showSettings()`; there is no SwiftUI `Settings` scene. Reopen
+handling (Dock click, relaunch) is decided by `MenuBarRecoveryPolicy.reopenAction`.
 
 ## Concurrency and Reliability Rules
 

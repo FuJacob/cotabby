@@ -5,18 +5,71 @@ import XCTest
 /// consumed-prefix changes advance it, and how the post-insertion and typed-input lag sentinels
 /// tolerate a host that has not published yet without excusing unrelated edits.
 final class SuggestionSessionReconciliationTests: XCTestCase {
+    /// The session was offered in a field whose title and URL were readable; a poll that reads a
+    /// *different* title or URL (or a new focus sequence) is another conversation, however similar
+    /// its text. A poll that fails to read one of them is not; see the next test.
     func test_identicalTextInAnotherConversationRejectsEvenDuringInsertionLag() {
-        let session = CotabbyTestFixtures.activeSession()
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                focusedURLString: "https://chat.example/one", windowTitle: "This chat"
+            ),
+            fullText: " world again",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
         let targets = [
-            CotabbyTestFixtures.focusedInputContext(focusChangeSequence: 2),
-            CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
-            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two")
+            CotabbyTestFixtures.focusedInputContext(
+                focusChangeSequence: 2, focusedURLString: "https://chat.example/one", windowTitle: "This chat"),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "This chat")
         ]
         for target in targets {
             assertInvalid(SuggestionSessionReconciler.reconcile(
                 session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
             ), reason: "Overlay hidden because the focused field changed.")
         }
+
+        // A native field has no URL, so its window title names the conversation.
+        let nativeSession = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(windowTitle: "This chat"),
+            fullText: " world again",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: nativeSession,
+            with: CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
+            pendingInsertionConsumedCount: nativeSession.consumedCharacterCount
+        ), reason: "Overlay hidden because the focused field changed.")
+    }
+
+    /// The live poll re-reads the title and URL from the host under a short AX timeout; during a
+    /// burst of synthetic insertions one comes back nil. That is the same field, so the session
+    /// (here still waiting for the host to publish the first insertion) must survive it. Reading
+    /// nil as another conversation retired the session and handed the next Tab to the host.
+    func test_unreadableSurfaceFactsDuringInsertionLagKeepTheSession() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                focusedURLString: "https://chat.example/one", windowTitle: "Chat one"
+            ),
+            fullText: " world again",
+            consumedCharacterCount: 6,
+            latency: 0.1
+        )
+        let blankReads = [
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/one", windowTitle: nil),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: nil, windowTitle: "Chat one"),
+            CotabbyTestFixtures.focusedInputContext()
+        ]
+        for live in blankReads {
+            guard case .valid = SuggestionSessionReconciler.reconcile(
+                session: session, with: live, pendingInsertionConsumedCount: session.consumedCharacterCount
+            ) else { return XCTFail("A surface fact that failed to read must not end the session: \(live.sessionIdentity)") }
+        }
+        assertInvalid(SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "Chat one"),
+            pendingInsertionConsumedCount: session.consumedCharacterCount
+        ), reason: "Overlay hidden because the focused field changed.")
     }
 
     func test_wrapperChurnInsideSessionStillAcceptsSuggestion() {
@@ -567,7 +620,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         )
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: session, with: edited, pendingInsertionConsumedCount: nil
-        ), reason: "Overlay hidden because text after the caret changed (0 -> 3 chars).")
+        ), reason: "Overlay hidden because text after the caret changed (0 -> 4 chars).")
 
         let retyped = terminalContext(above: "out", prompt: "❯ git switch", below: "status")
         assertInvalid(SuggestionSessionReconciler.reconcile(
@@ -598,6 +651,50 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         ) else { return XCTFail("blank cells pushed off the row must not drop the rest of the suggestion") }
         XCTAssertEqual(reconciled.consumedCharacterCount, 3)
         XCTAssertEqual(reconciled.predictedRemainingText, " main")
+    }
+
+    func test_terminalScreen_spacesBetweenWordsAfterTheCaretStillCount() {
+        // Only blank cells padding the row are ignored; joining two words after the caret is an edit.
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                bundleIdentifier: "com.mitchellh.ghostty",
+                precedingText: "out\n❯ git ",
+                trailingText: "foo bar" + String(repeating: " ", count: 60) + "\nstatus"
+            ),
+            fullText: "commit",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        let joined = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "com.mitchellh.ghostty",
+            precedingText: "out\n❯ git ",
+            trailingText: "foobar" + String(repeating: " ", count: 61) + "\nstatus"
+        )
+        guard case .invalid = SuggestionSessionReconciler.reconcile(
+            session: session, with: joined, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("removing a space between words after the caret must retire the suggestion") }
+    }
+
+    func test_terminalScreen_shrinkingGapBeforeARightPromptKeepsTheTail() {
+        // A shell's right prompt sits after a run of blank cells that shrinks as the user types.
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(
+                bundleIdentifier: "com.mitchellh.ghostty",
+                precedingText: "❯ git check",
+                trailingText: String(repeating: " ", count: 40) + "main ✓ 12:01"
+            ),
+            fullText: "out main",
+            consumedCharacterCount: 0,
+            latency: 0.1
+        )
+        let live = CotabbyTestFixtures.focusedInputContext(
+            bundleIdentifier: "com.mitchellh.ghostty",
+            precedingText: "❯ git checkout",
+            trailingText: String(repeating: " ", count: 37) + "main ✓ 12:01"
+        )
+        guard case .valid = SuggestionSessionReconciler.reconcile(
+            session: session, with: live, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("the gap before a right prompt shrinking is not an edit after the caret") }
     }
 
     func test_otherFieldsStillCompareTheWholeTextAfterTheCaret() {

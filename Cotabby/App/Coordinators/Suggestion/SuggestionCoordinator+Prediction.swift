@@ -866,9 +866,10 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeContext != nil
-            && pendingSpeculativeContext?.sessionIdentity == liveContext.sessionIdentity
-            && pendingSpeculativeContext?.contentSignature == liveContext.contentSignature
+        let isPaidOffSpeculation = pendingSpeculativeContext.map { speculated in
+            liveContext.sessionIdentity.continues(speculated.sessionIdentity)
+                && liveContext.contentSignature == speculated.contentSignature
+        } ?? false
         if isPaidOffSpeculation {
             pendingSpeculativeContext = nil
         }
@@ -1206,7 +1207,7 @@ extension SuggestionCoordinator {
             // the pre-insertion one; re-anchoring to it is the left-then-right accept jitter.
             isAwaitingPostInsertionSync: interactionState.isAwaitingPostInsertionSync,
             millisecondsSinceLastAcceptance: lastAcceptanceAt.map {
-                Int(Date().timeIntervalSince($0) * 1000)
+                Int((ProcessInfo.processInfo.systemUptime - $0) * 1000)
             }
         ) {
             presentOverlay(
@@ -1288,7 +1289,28 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Whether disabling predictions for `reason` should keep `focusSnapshot`'s visual-context
+    /// session; see `SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled`.
+    func shouldKeepVisualContextWhileDisabled(reason: String, focusSnapshot: FocusSnapshot) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
+            disabledReason: reason,
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+        )
+    }
+
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
+    /// The field's visual-context session survives a transient state of a field still in focus
+    /// (see `shouldKeepVisualContextWhileDisabled`); every other disable ends it.
     func disablePredictions(reason: String) {
         suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
@@ -1302,7 +1324,12 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
-        visualContextCoordinator.cancel(resetState: true)
+        // Key, scheduling, and reconcile paths reach here for the same transient field states the
+        // focus-change path handles with `disablePredictionsPreservingVisualContext`; decide by the
+        // current snapshot so both paths agree on when the field's screen context survives.
+        if !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
+            visualContextCoordinator.cancel(resetState: true)
+        }
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
@@ -1421,6 +1448,75 @@ extension SuggestionCoordinator {
     }
 
     // MARK: - Visual Context
+
+    /// Reacts to a changed screen-context excerpt for `identity`: retires the visible tail and
+    /// cached/async work, then regenerates against the new excerpt.
+    ///
+    /// A host may expose identical URL/title/geometry for two chats, so changed screen text is the
+    /// navigation signal there; keeping an old tail stable would let it outlive arbitrarily many
+    /// refreshes. Accepting words changes the screen too, though, so within the post-accept hold
+    /// the retirement is deferred, not dropped: the excerpt is already stored and a later refresh
+    /// of the same text would not fire again, so dropping it would lose a real navigation for good.
+    /// The deferred call re-runs this method, which defers again while accepts keep landing and
+    /// otherwise retires exactly as an undeferred change would. The identity guard turns a
+    /// deferral that outlived its field into a no-op.
+    func handleInjectedContextReady(_ identity: FocusedInputIdentity) {
+        guard focusModel.snapshot.context?.identity == identity else { return }
+        // A terminal screen field (HerdrM, Ghostty) redraws its status line and agent output every
+        // few seconds, so its screen text changes without any navigation, and each pane is its own
+        // field, so a switch already arrives as a focus change. The new text simply feeds the next
+        // request; retiring the visible suggestion here hid it every 2-3 seconds.
+        guard !TerminalAppDetector.isTerminalScreenField(bundleIdentifier: focusModel.snapshot.context?.bundleIdentifier)
+        else { return }
+
+        let remainingMilliseconds = SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
+            lastAcceptanceUptime: lastAcceptanceAt,
+            nowUptime: ProcessInfo.processInfo.systemUptime,
+            holdMilliseconds: postAcceptHoldMilliseconds
+        )
+        deferredScreenContextRetirement?.cancel()
+        deferredScreenContextRetirement = nil
+        if remainingMilliseconds > 0 {
+            logStage(
+                "screen-context-held",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Deferred a screen-context change for \(remainingMilliseconds)ms after an accept."
+            )
+            // `Task` inherits the coordinator's main actor; cancellation (a newer change, or stop)
+            // wakes the sleep early, and the `isCancelled` check keeps that wake from acting.
+            deferredScreenContextRetirement = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(remainingMilliseconds) * 1_000_000)
+                guard !Task.isCancelled else { return }
+                self?.handleInjectedContextReady(identity)
+            }
+            return
+        }
+
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
+        cancelPredictionWork()
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden because screen context changed.")
+        schedulePredictionForCurrentFocusIfPossible(matching: identity)
+    }
+
+    /// Resolves a deferred screen-context change without predicting. The deferral exists to retire
+    /// the tail the user was accepting, so anything that ends or completes that tail settles it:
+    /// invalidation (a caret move, dismissal, mismatched typing, shortcut), typing through it,
+    /// input with no session, the emoji picker, and a settings change, model switch, or stop. Each
+    /// of those already decides whether to predict, and a deferral waking later would either show
+    /// a suggestion nobody typed for or cancel the newer request. Only a keystroke that matches,
+    /// and so keeps the tail alive, leaves it pending. The caches the change would have retired
+    /// are still dropped, so a navigation it stood for cannot resurface through a rollback or a
+    /// pinned preface.
+    func settleDeferredScreenContextChange() {
+        guard let deferred = deferredScreenContextRetirement else { return }
+        deferred.cancel()
+        deferredScreenContextRetirement = nil
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
+    }
 
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
     /// field and there is enough typed text for a real inline completion request.

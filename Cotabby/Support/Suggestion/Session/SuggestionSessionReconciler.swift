@@ -61,7 +61,9 @@ enum SuggestionSessionReconciler {
 
         // Text may be identical in two conversations. Validate the writing session before even
         // the post-insertion AX-lag tolerance, which must never authorize a different target.
-        guard liveContext.sessionIdentity == session.baseContext.sessionIdentity else {
+        // `continues`, not `==`: a surface fact the live poll failed to read is not a new target
+        // (see `FocusedInputSessionIdentity.continues`).
+        guard liveContext.sessionIdentity.continues(session.baseContext.sessionIdentity) else {
             return .invalid("Overlay hidden because the focused field changed.")
         }
 
@@ -191,13 +193,27 @@ enum SuggestionSessionReconciler {
             return String(precedingText[precedingText.index(after: lineBreak)...])
         }
 
-        /// The caret line's text after the caret, up to the next line break, without its blank
-        /// cells. A terminal row is a fixed width of cells, so the blanks after the caret shrink by
-        /// one with every inserted character (measured: 183 -> 176 after a 7-character Tab accept
-        /// on a 230-column prompt line) without any text after the caret changing.
+        /// The caret line's text after the caret, up to the next line break, without the blank
+        /// cells that pad it. A terminal row is a fixed width of cells, so the blanks after the
+        /// caret shrink by one with every inserted character (measured: 183 -> 176 after a
+        /// 7-character Tab accept on a 230-column prompt line) without any text after the caret
+        /// changing. The blanks are trailing, or a gap before right-aligned text (a shell's right
+        /// prompt), so trailing blanks go and any run of them reads as one space. A single space
+        /// between words stays: `foo bar` becoming `foobar` is an edit after the caret.
         static func lineAfterCaret(_ trailingText: String) -> String {
             let line = trailingText.firstIndex(of: "\n").map { trailingText[..<$0] } ?? trailingText[...]
-            return String(line.filter { !$0.isWhitespace })
+            var compared = ""
+            var pendingBlank = false
+            for character in line {
+                if character.isWhitespace {
+                    pendingBlank = true
+                    continue
+                }
+                if pendingBlank { compared.append(" ") }
+                pendingBlank = false
+                compared.append(character)
+            }
+            return compared
         }
     }
 

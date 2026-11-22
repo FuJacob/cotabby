@@ -110,8 +110,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
 
     let focusPollIntervalMilliseconds: Int
 
-    /// Output ceiling reserved out of the llama context window when sizing the prompt budget:
-    /// the largest realistic per-request token budget (multi-line doubles the 26-token default).
+    /// Output reserve built into the configured llama prompt budget. It covers the default
+    /// single-line request (12-20 words, 26 tokens) with room to spare; a request that asks for
+    /// more has the excess taken out of its own prompt (`SuggestionRequestFactory.promptTokenBudget`).
     static let llamaPromptOutputCeilingTokens = 50
     /// Margin for BOS plus token-estimator error; the estimator skews conservative, so real
     /// prompts land under the derived budget.

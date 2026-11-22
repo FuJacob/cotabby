@@ -38,7 +38,9 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_speculativeTextMatchCannotOverrideConversationMismatch() async {
-        let rig = makeCoordinatorRig()
+        // The speculation was built while the title was readable; a different known title is
+        // another conversation (a nil one would only be a timed-out read of the same field).
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This conversation"))
         defer { rig.coordinator.stop() }
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
         rig.coordinator.pendingSpeculativeContext = source
