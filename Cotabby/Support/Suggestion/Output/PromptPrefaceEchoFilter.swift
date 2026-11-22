@@ -22,8 +22,18 @@ nonisolated enum PromptPrefaceEchoFilter {
         "Notes the writer keeps in mind:",
         "Nearby on screen:",
         "On the clipboard:",
-        "Later in the same passage:"
-    ]
+        "Later in the same passage:",
+        "Earlier writing by the same author:"
+    ] + surfaceLineOpeners
+
+    /// The surface line (`SurfaceContextComposer.prefaceLines`) opens "Format: <kind>; App: ".
+    /// "Format:" alone is ordinary prose and note-taking ("Format: PDF, two pages"), even at the
+    /// start of a line, so it is matched only in the rendered form: the format word plus the
+    /// "; App: " that always follows it in production. That pairing is what no user's next words
+    /// contain, so it is safe to cut anywhere. A bare "App:" at the very start is already stripped
+    /// as a scaffolding label by `SuggestionTextNormalizer`. The eval-only compact variant
+    /// (`baseCompletionPrefaceLines`, no "App:") never ships, so it is deliberately not matched.
+    private static let surfaceLineOpeners = ["email", "chat", "web text", "text"].map { "Format: \($0); App: " }
 
     /// Preface openers that ordinary prose can contain mid-sentence ("a book written by her"), so
     /// they only count at the start of a line, the way the preface writes them.
