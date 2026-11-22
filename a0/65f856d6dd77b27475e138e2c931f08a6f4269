@@ -1,0 +1,39 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_06b938d10fb9a9::t_afeb2262fed7be 5402
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_06b938d10fb9a9::t_4f71c905596f06 545-550
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_06b938d10fb9a9::t_8fbc9dadb9636f 932-946
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_06b938d10fb9a9::t_9dd2eb029fbf6c 193-203
+Cotabby/Resources/ThirdPartyLicenses/SOURCES.md
+  s_06b938d10fb9a9::t_b5fc52b91096b7 9
+Cotabby/Services/Input/InputMonitor.swift
+  s_06b938d10fb9a9::t_6e1e46058d7e6b 205-208,262-284,289-294,546-548
+Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+  s_06b938d10fb9a9::t_a03fdbac869d66 69
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_06b938d10fb9a9::t_0ec897c5615bc5 286-290,670-709
+CotabbyTests/Services/Input/InputMonitorTests.swift
+  s_06b938d10fb9a9::t_85527d0f6241e2 297-306
+project.yml
+  s_06b938d10fb9a9::t_887f54f9e61236 16
+scripts/prepare_cotabby_workspace.sh
+  s_06b938d10fb9a9::t_b0c9cb3e9746ae 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a065f856d6dd77b27475e138e2c931f08a6f4269",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
