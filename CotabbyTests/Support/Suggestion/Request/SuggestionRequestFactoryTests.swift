@@ -526,6 +526,57 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         }
     }
 
+    /// Budgets within the reserved output ceiling leave the prompt budget alone; larger ones (a
+    /// long range with multi-line, up to 120 tokens) take their excess out of the prompt, so the
+    /// context window always holds prompt plus the full decode.
+    func test_promptTokenBudget_reservesRoomForTheRequestsWholeOutput() {
+        let ceiling = SuggestionConfiguration.llamaPromptOutputCeilingTokens
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 26), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: ceiling), 3982)
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 3982, maxPredictionTokens: 120), 3982 - (120 - ceiling))
+        XCTAssertEqual(SuggestionRequestFactory.promptTokenBudget(configuredBudget: 10, maxPredictionTokens: 120), 0)
+    }
+
+    /// The same guarantee through the factory and the shipped configuration: a prompt filled to its
+    /// budget leaves the larger of the standing reserve and the request's whole decode free, plus the
+    /// safety margin. The fixture is one whitespace-free "word" to the prefix window with a uniform
+    /// one estimated token per two characters, so the prefix alone fills any budget and the
+    /// allocator's density-based cut lands exactly on it. That isolates the budget the factory
+    /// passes from the allocator's rounding on uneven text.
+    func test_buildRequest_fullPromptLeavesTheWholeDecodeInsideTheContextWindow() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: String(repeating: "a.", count: 7_000))
+        let contextWindow = Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
+        let longRange = SuggestionWordRange(lowWords: 50, highWords: 50)
+        let cases: [(range: SuggestionWordRange, languages: [String], isMultiLineEnabled: Bool, outputTokens: Int)] = [
+            (SuggestionWordCountPreset.twelveToTwenty.range, [], false, 26),
+            (SuggestionWordCountPreset.twelveToTwenty.range, [], true, 52),
+            (longRange, ["Russian"], false, 100),
+            (longRange, ["Russian"], true, 120)
+        ]
+
+        for testCase in cases {
+            let request = SuggestionRequestFactory.buildRequest(
+                context: context,
+                settings: CotabbyTestFixtures.settingsSnapshot(
+                    isUsingCustomWordCountRange: true,
+                    customWordCountRange: testCase.range,
+                    responseLanguages: testCase.languages,
+                    isMultiLineEnabled: testCase.isMultiLineEnabled
+                ),
+                configuration: .standard
+            ).request
+            XCTAssertEqual(request.maxPredictionTokens, testCase.outputTokens)
+            let freeTokens = contextWindow
+                - SuggestionConfiguration.llamaPromptSafetyMarginTokens
+                - TokenCountEstimator.estimate(request.prompt)
+            XCTAssertEqual(
+                freeTokens,
+                max(SuggestionConfiguration.llamaPromptOutputCeilingTokens, request.maxPredictionTokens),
+                "\(testCase.outputTokens) output tokens"
+            )
+        }
+    }
+
     /// Sampling knobs and the focus generation flow through unchanged; the factory only decides
     /// content, never engine tuning. Each build also gets its own correlation ID for log joins.
     func test_buildRequest_carriesConfigurationAndGenerationThroughUnchanged() {

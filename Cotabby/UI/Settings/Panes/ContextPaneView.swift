@@ -25,6 +25,8 @@ import SwiftUI
 /// can type a trailing space; `SuggestionRequestFactory` does the once-per-request trim instead.
 struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    /// Owned by `CotabbyAppEnvironment`; drives the Typing History section.
+    @ObservedObject var typingHistory: TypingHistoryStore
 
     private static let previewEditorMinHeight: CGFloat = 132
     private static let extendedContextEditorMinHeight: CGFloat = 220
@@ -34,6 +36,7 @@ struct ContextPaneView: View {
             livePreviewSection
             extendedContextSection
             howThisIsUsedSection
+            TypingHistorySectionView(store: typingHistory)
         }
     }
 

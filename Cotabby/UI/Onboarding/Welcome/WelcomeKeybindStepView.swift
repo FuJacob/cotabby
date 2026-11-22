@@ -58,7 +58,7 @@ struct WelcomeKeybindStepView: View {
 
                 keybindRow(
                     title: "Accept entire suggestion",
-                    keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
+                    keyLabel: suggestionSettings.fullAcceptanceDisplayLabel,
                     action: .acceptEntireSuggestion,
                     onKeyRecorded: { keyCode, modifiers, label in
                         suggestionSettings.setFullAcceptanceKey(
@@ -67,18 +67,23 @@ struct WelcomeKeybindStepView: View {
                             label: label
                         )
                     },
-                    onReset: (
-                        suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
-                            || !suggestionSettings.fullAcceptanceKeyModifiers.isEmpty
-                    ) ? {
+                    onReset: !suggestionSettings.isFullAcceptanceShortcutDefault ? {
                         suggestionSettings.setFullAcceptanceKey(
                             keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
                             modifiers: [],
                             label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                         )
                     } : nil,
-                    onClear: suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
-                        ? { suggestionSettings.clearFullAcceptanceKey() } : nil
+                    onClear: suggestionSettings.hasFullAcceptanceShortcut
+                        ? { suggestionSettings.clearFullAcceptanceKey() } : nil,
+                    // Pressing Accept Word twice here binds the double tap, the same as in Settings.
+                    doubleTapKey: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
+                        ? DoubleTapRecordingKey(
+                            keyCode: suggestionSettings.acceptanceKeyCode,
+                            modifiers: suggestionSettings.acceptanceKeyModifiers,
+                            label: suggestionSettings.acceptanceKeyLabel
+                        ) : nil,
+                    onDoubleTapRecorded: { suggestionSettings.setDoubleTapFullAcceptance() }
                 )
                 .onboardingReveal(3)
 
@@ -112,7 +117,9 @@ struct WelcomeKeybindStepView: View {
         action: ShortcutAction,
         onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
         onReset: (() -> Void)? = nil,
-        onClear: (() -> Void)? = nil
+        onClear: (() -> Void)? = nil,
+        doubleTapKey: DoubleTapRecordingKey? = nil,
+        onDoubleTapRecorded: (() -> Void)? = nil
     ) -> some View {
         let isRecording = recordingAction == action
         HStack(spacing: 10) {
@@ -137,6 +144,13 @@ struct WelcomeKeybindStepView: View {
                             modifiers: modifiers,
                             excluding: action
                         )
+                    },
+                    doubleTapKey: doubleTapKey,
+                    onDoubleTapRecorded: onDoubleTapRecorded.map { record in
+                        {
+                            record()
+                            recordingAction = nil
+                        }
                     }
                 )
             } else {

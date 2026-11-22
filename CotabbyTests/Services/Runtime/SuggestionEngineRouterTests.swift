@@ -114,6 +114,18 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(rig.metrics.entries.first?.latencyMs, 20)
     }
 
+    func test_endpointNeverReceivesARequestCarryingTypingHistory() async throws {
+        let rig = makeRig(engine: .openAICompatible)
+
+        let result = try await rig.router.generateSuggestion(
+            for: CotabbyTestFixtures.suggestionRequest(historyExamples: ["My earlier sentence."])
+        )
+
+        XCTAssertTrue(rig.endpoint.requests.isEmpty)
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppressionReason, "historyWithheldFromEndpoint")
+    }
+
     func test_llamaSelection_routesToLlamaEngineAndRecordsTheModelName() async throws {
         let rig = makeRig(engine: .llamaOpenSource)
 
@@ -162,6 +174,41 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         XCTAssertEqual(result.text, " ok")
         XCTAssertEqual(rig.llama.requests.count, 1, "The locale failure must reach the local model")
         XCTAssertEqual(rig.metrics.entries.first?.modelName, "test-model.gguf")
+    }
+
+    func test_unsupportedLocale_withFallbackOff_returnsNoSuggestionAndSkipsTheLocalModel() async throws {
+        let rig = makeRig(engine: .appleIntelligence)
+        rig.settings.setAppleLanguageFallbackEnabled(false)
+        rig.foundation.script = { _ in
+            throw SuggestionClientError.unsupportedLanguageOrLocale("Locale not supported.")
+        }
+
+        let result = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppressionReason, "appleLanguageUnsupported")
+        XCTAssertTrue(rig.llama.requests.isEmpty, "With the fallback off the local model must not run")
+        // The coordinator skips results that carry a suppression reason, so the router must count
+        // this one or the Performance pane never shows it.
+        XCTAssertEqual(rig.quality.counters.generated, 1)
+        XCTAssertEqual(rig.quality.counters.suppressedByReason, ["appleLanguageUnsupported": 1])
+        XCTAssertTrue(rig.metrics.entries.isEmpty, "Nothing was generated, so there is no latency to record")
+    }
+
+    func test_fallbackSettingsDefaultToTodaysBehaviorAndPersist() {
+        let defaults = makeDefaults()
+        let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
+        Self.retained.append(settings)
+        XCTAssertTrue(settings.isAppleLanguageFallbackEnabled)
+        XCTAssertFalse(settings.keepsFallbackModelLoaded)
+
+        settings.setAppleLanguageFallbackEnabled(false)
+        settings.setKeepsFallbackModelLoaded(true)
+
+        let reloaded = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
+        Self.retained.append(reloaded)
+        XCTAssertFalse(reloaded.isAppleLanguageFallbackEnabled)
+        XCTAssertTrue(reloaded.keepsFallbackModelLoaded)
     }
 
     func test_unsupportedLocale_fallbackFailureComposesBothMessages() async {

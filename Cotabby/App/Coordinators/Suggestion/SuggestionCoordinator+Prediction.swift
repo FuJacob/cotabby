@@ -126,7 +126,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            historyExamples: historyExamples(for: context)
         )
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
@@ -288,7 +289,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            historyExamples: historyExamples(for: context)
         )
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
@@ -359,7 +361,8 @@ extension SuggestionCoordinator {
             clipboardContext: pinnedClipboardContext(rawContext: optimistic),
             visualContextSummary: permissionManager.screenRecordingGranted
                 ? visualContextCoordinator.excerpt(for: context)
-                : nil
+                : nil,
+            historyExamples: historyExamples(for: context)
         )
         let request = requestBuildResult.request
         let suggestionEngine = suggestionEngine

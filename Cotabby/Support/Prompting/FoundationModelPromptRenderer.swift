@@ -137,6 +137,16 @@ enum FoundationModelPromptRenderer {
             sections.append(summary)
         }
 
+        // The user's own earlier sentences live in the per-request prompt, not the instructions:
+        // they change as the topic moves, and instructions are the cached part of Apple's session.
+        // The framing says what they are for so the chat-tuned model borrows wording, not content.
+        let examples = request.historyExamples.filter { !$0.isEmpty }
+        if !examples.isEmpty {
+            sections.append("")
+            sections.append("Earlier writing by the same user, to match their wording (do not repeat it):")
+            sections.append(contentsOf: examples.map { "\"\($0)\"" })
+        }
+
         if let clipboardContext = request.clipboardContext,
            !clipboardContext.isEmpty {
             sections.append("")

@@ -25,6 +25,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
+    private let typingHistoryStore: TypingHistoryStore
 
     private var settingsWindowController: NSWindowController?
 
@@ -49,7 +50,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         qualityMetricsStore: SuggestionQualityMetricsStore,
         systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
-        clearEmojiHistory: @escaping () -> Void
+        clearEmojiHistory: @escaping () -> Void,
+        typingHistoryStore: TypingHistoryStore
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
@@ -65,6 +67,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
+        self.typingHistoryStore = typingHistoryStore
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -72,6 +75,12 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     /// behavior where there is a single shared preferences surface for the app.
     func showSettings() {
         if let window = settingsWindowController?.window {
+            // A minimized window is still "open" (it keeps Cotabby in the Dock and switcher), so
+            // restore it explicitly; `makeKeyAndOrderFront` alone leaves it in the Dock.
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+            applyActivationPolicy()
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return
@@ -94,6 +103,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory,
+                    typingHistoryStore: typingHistoryStore,
                     onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )
@@ -126,6 +136,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         let windowController = NSWindowController(window: window)
         settingsWindowController = windowController
 
+        // Promote before activating: an `.accessory` app is not in Command-Tab, and activation
+        // requested while still `.accessory` does not give the app a Dock tile or switcher slot.
+        applyActivationPolicy()
         NSApp.activate(ignoringOtherApps: true)
         windowController.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
@@ -138,6 +151,19 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
         if closingWindow == settingsWindowController?.window {
             settingsWindowController = nil
+            // Drop back to a menu-bar-only app so the Dock tile and switcher entry disappear. The
+            // status item, input monitor, and focus tracking are independent of activation policy.
+            applyActivationPolicy()
         }
+    }
+
+    /// Syncs the process activation policy with whether Settings exists. `LSUIElement` makes
+    /// Cotabby launch as `.accessory`; this is the only place that changes it at runtime.
+    private func applyActivationPolicy() {
+        let policy = SettingsActivationPolicy.policy(isSettingsWindowOpen: isSettingsWindowOpen)
+        guard NSApp.activationPolicy() != policy else {
+            return
+        }
+        NSApp.setActivationPolicy(policy)
     }
 }

@@ -19,6 +19,50 @@ extension SuggestionCoordinator {
         acceptSuggestion(fullText: true, keyName: "full-accept")
     }
 
+    /// Entry point for a real press of the Accept Word key.
+    ///
+    /// With double-tap enabled, the first press still accepts one word immediately, and a second
+    /// press within `DoubleTapAcceptanceState.window` on the same suggestion accepts what remains.
+    /// Promoting the second press instead of delaying the first keeps single-word acceptance as fast
+    /// as before; the pair still commits the whole suggestion. The queued post-exhaustion accept
+    /// calls `acceptCurrentSuggestion` directly, so a Tab buffered during regeneration never turns
+    /// into an accept-everything of a continuation the user has not seen yet.
+    ///
+    /// `isAutorepeat` marks a key-down the system generated because the key is held. Those keep
+    /// accepting word by word, as holding the key always has, but a held key is one long press:
+    /// a repeat neither completes a pending double tap nor arms a new one. Without this, holding
+    /// Accept Word past the first repeat (repeats arrive well inside the window) took everything.
+    ///
+    /// The focused app is resolved from the same focus snapshot the input monitor used to classify
+    /// this press, so an app with its own Accept Entire Suggestion binding keeps it here too.
+    func acceptForWordAcceptKeyPress(isAutorepeat: Bool) -> Bool {
+        let doubleTapApplies = settingsSnapshot.isDoubleTapFullAcceptanceActive(
+            forBundleIdentifier: focusModel.snapshot.bundleIdentifier
+        )
+        guard doubleTapApplies, !isAutorepeat else {
+            doubleTapAcceptanceState.reset()
+            return acceptCurrentSuggestion()
+        }
+
+        let now = doubleTapUptimeProvider()
+        if let session = interactionState.activeSession, !session.kind.isCorrection,
+           doubleTapAcceptanceState.consumeDoubleTap(of: .init(session: session), at: now) {
+            return acceptSuggestion(fullText: true, keyName: "double-tap")
+        }
+
+        let accepted = acceptCurrentSuggestion()
+        // Arm only when this press left a continuation with text still to accept. An exhausted
+        // suggestion hands Tab to the post-exhaustion window instead, and a correction commits as
+        // a unit, so neither has a "rest" for a second press to take.
+        if accepted, let advanced = interactionState.activeSession, !advanced.kind.isCorrection,
+           !advanced.isExhausted {
+            doubleTapAcceptanceState.recordWordAccept(of: .init(session: advanced), at: now)
+        } else {
+            doubleTapAcceptanceState.reset()
+        }
+        return accepted
+    }
+
     /// Shared acceptance path used by both word-by-word and full acceptance.
     private func acceptSuggestion(
         fullText: Bool,
@@ -826,7 +870,8 @@ extension SuggestionCoordinator {
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun,
-            observedContentEdges: context.observedContentEdges
+            observedContentEdges: context.observedContentEdges,
+            isCaretLineVerticallyUncalibrated: anchor.isCaretLineVerticallyUncalibrated
         )
         let presentationMessage = overlayPresenter.present(
             text: text,
@@ -1049,6 +1094,16 @@ extension SuggestionCoordinator {
         /// came from trusted AX and repair stood down" is distinguishable from "this field never
         /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
         let skipReason: LayoutRepairSkipReason?
+
+        /// Whether the anchor is a layout estimate whose line was placed from default insets, not
+        /// host measurements. Only an estimate that replaced the AX rect counts: a kept AX rect
+        /// carries the host's own line, whatever the estimate it was checked against measured.
+        var isCaretLineVerticallyUncalibrated: Bool {
+            guard quality == .layoutEstimated, case .estimate(let estimate)? = outcome else {
+                return false
+            }
+            return !estimate.isVerticallyCalibrated
+        }
     }
 
     /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
@@ -1114,6 +1169,7 @@ extension SuggestionCoordinator {
             metadata["line_height"] = .stringConvertible(Double(estimate.lineHeight))
             metadata["used_observed_line_height"] = .stringConvertible(estimate.usedObservedLineHeight)
             metadata["used_observed_content_edges"] = .stringConvertible(estimate.usedObservedContentEdges)
+            metadata["vertically_calibrated"] = .stringConvertible(estimate.isVerticallyCalibrated)
             metadata["layout_font_point_size"] = .stringConvertible(Double(estimate.layoutFontPointSize))
             CotabbyLogger.suggestion.debug(
                 substituted

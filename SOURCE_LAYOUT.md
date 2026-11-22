@@ -35,6 +35,7 @@ Cotabby/
 │   ├── Context/                      bounded context and visual-context values
 │   ├── Emoji/                        picker and usage values
 │   ├── Focus/                        focus snapshots and tracking state
+│   ├── History/                      typing-history records, archive, and preferences
 │   ├── Input/                        keyboard event values
 │   ├── Onboarding/                   onboarding templates
 │   ├── Permissions/                  TCC permission values
@@ -52,6 +53,7 @@ Cotabby/
 │   │   ├── Caching/                  field-scoped focus caches
 │   │   ├── Chromium/                 Chromium AX enablement and diagnostics
 │   │   └── Resolution/               focus snapshots, geometry, bounded AX walks
+│   ├── History/                      typing-history store, recording, and encrypted vault
 │   ├── Input/                        event taps and input-source monitoring
 │   ├── ModelManagement/              model discovery, download, and validation
 │   ├── Permission/
@@ -77,6 +79,7 @@ Cotabby/
 │   ├── Focus/
 │   │   ├── Applications/             app, browser, domain, and terminal classification
 │   │   └── Capability/               supported-field capability resolution
+│   ├── History/                      history retrieval, phrase prediction, scrubbing, import
 │   ├── Input/                        composition, key-label, and selection helpers
 │   ├── Logging/                      debug options, request IDs, and JSONL handlers
 │   ├── Macros/
@@ -92,6 +95,7 @@ Cotabby/
 │   │   ├── BundledRuntimeLocator.swift
 │   │   ├── DecodeStopPolicy.swift
 │   │   ├── DownloadOutcomeClassifier.swift
+│   │   ├── LocalRuntimeResidencyPolicy.swift  when the local model stays loaded
 │   │   ├── TokenHealingPlan.swift    bounded word-fragment retokenization at the caret
 │   │   └── TokenHealingBuffer.swift  exact byte replay and lossless streamed UTF-8
 │   ├── Settings/                     persistence and settings policies

@@ -72,6 +72,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// prompt has already folded it in; this field exists so the Foundation Models renderer can
     /// state the same sanitized facts in its own prompt shape.
     let surfaceContext: SurfaceContext?
+    /// Passages of the user's own past writing that resemble this field (see `TypingHistoryStore`).
+    /// Always empty for the endpoint engine: history never leaves this Mac, and the router refuses
+    /// to send a request that carries any.
+    let historyExamples: [String]
     /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
     let isMultiLineEnabled: Bool
     /// The user's word-count preset, so decoding does not stop at a sentence end before the minimum
@@ -104,6 +108,7 @@ struct SuggestionRequest: Equatable, Sendable {
         clipboardContext: String?,
         visualContextSummary: String?,
         surfaceContext: SurfaceContext? = nil,
+        historyExamples: [String] = [],
         isMultiLineEnabled: Bool,
         requestID: String = "req_unknown",
         wordRange: SuggestionWordRange? = nil
@@ -128,6 +133,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.clipboardContext = clipboardContext
         self.visualContextSummary = visualContextSummary
         self.surfaceContext = surfaceContext
+        self.historyExamples = historyExamples
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
         self.wordRange = wordRange

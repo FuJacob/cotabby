@@ -83,11 +83,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        suggestionSettings.$selectedEngine
+        // The engine and the two fallback switches decide whether the local model stays loaded.
+        // The publisher carries the decision computed from the emitted values: `@Published` emits
+        // before the property changes, so reading `suggestionSettings` here would act on the old
+        // settings. `dropFirst` skips the replayed current value; launch applies it explicitly.
+        suggestionSettings.localRuntimeResidencyPublisher
             .dropFirst()
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.startRuntimeIfPreferredEngineRequiresIt()
+            .sink { [weak self] keepsModelLoaded in
+                self?.applyRuntimeResidency(keepsModelLoaded: keepsModelLoaded)
             }
             .store(in: &cancellables)
 
@@ -198,6 +201,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
+        // While Settings is open Cotabby has a Dock tile, so clicking it lands here too. AppKit does
+        // not reliably restore a minimized window on reopen, so bring the existing window forward
+        // ourselves (`showSettings` reuses it; it never creates a second one).
+        if settingsCoordinator.isSettingsWindowOpen {
+            settingsCoordinator.showSettings()
+            return false
+        }
+
         if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
             isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
             hasVisibleWindows: flag,
@@ -247,6 +258,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
+        // Write the field being typed in now; the debounced background save may not have run yet.
+        environment.typingHistoryStore.flush()
         inlineCommandCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
@@ -271,22 +284,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // The field's own frame, not `inputFrameRect`: that one is widened to the parent container
+        // (and a 500pt minimum) for card placement, which in WhatsApp is the whole chat bar, so the
+        // icon landed left of the attachment button instead of beside the message field.
         activationIndicatorController.show(
             enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
-            inputFrameRect: context.inputFrameRect
+            inputFrameRect: context.elementFrameRect ?? context.inputFrameRect
         )
     }
 
-    /// Warm the local runtime only when the user is actually on a local engine path.
-    /// This avoids noisy startup failures and wasted work for Apple Intelligence users.
+    /// Warm the local runtime only when the user is actually on a local engine path, or chose to keep
+    /// the Apple Intelligence fallback model ready. This avoids noisy startup failures and wasted
+    /// work for everyone else. Safe to call outside a `@Published` sink, where settings are current.
     private func startRuntimeIfPreferredEngineRequiresIt() {
-        switch suggestionSettings.selectedEngine {
-        case .llamaOpenSource:
+        applyRuntimeResidency(keepsModelLoaded: suggestionSettings.keepsLocalRuntimeLoaded)
+    }
+
+    /// Starts or stops the runtime for a decision from `LocalRuntimeResidencyPolicy`.
+    private func applyRuntimeResidency(keepsModelLoaded: Bool) {
+        if keepsModelLoaded {
             runtimeModel.startIfNeeded()
-        case .appleIntelligence, .openAICompatible:
+        } else {
             // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
-            // user still pays the duplicate memory cost the external endpoint is meant to avoid.
+            // user still pays the duplicate memory cost the external endpoint is meant to avoid, and
+            // an Apple Intelligence user keeps a model they asked not to keep loaded.
             runtimeModel.stop()
         }
     }
