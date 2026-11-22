@@ -54,10 +54,17 @@ nonisolated enum BrowserAppDetector {
     /// With the bundle absent here nothing ever flipped that switch, so the system-wide focus query
     /// returned nil and the tracker reported "No focused Accessibility element" on every tick.
     ///
+    /// The Claude desktop app (`com.anthropic.claudefordesktop`, issue #861, reported alongside
+    /// Obsidian) is the same failure in a chat composer. It is a stock Electron app (Electron 44 /
+    /// Chromium 152 as of Claude 4.29), so its composer is a `contenteditable` that only resolves
+    /// once `AXManualAccessibility` wakes the renderer; without an entry here the composer stayed
+    /// dormant unless some other assistive client had already woken it.
+    ///
     /// Cursor is intentionally absent: it ships under opaque ToDesktop bundle ids
     /// (`com.todesktop.<hash>`) that change between builds, so there is no stable id to allowlist
     /// here without a broad `com.todesktop.` prefix that would also prime unrelated ToDesktop apps.
     private static let electronEditorBundleIdentifiers: Set<String> = [
+        "com.anthropic.claudefordesktop",  // Claude desktop (Electron chat composer) — #861
         "com.clickup.desktop-app",
         // The Chromium-based ChatGPT/Codex desktop build identifies as com.openai.codex.
         // Match its bundle identity, not its display name, so focus recovery can reach its composer.

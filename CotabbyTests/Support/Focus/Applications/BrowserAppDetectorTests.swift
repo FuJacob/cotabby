@@ -44,6 +44,9 @@ final class BrowserAppDetectorTests: XCTestCase {
         // editor's web-AX tree stays dormant and no focused field ever resolves.
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "md.obsidian"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "MD.Obsidian"))
+        // Claude desktop (#861): stock Electron, its composer stays dormant until primed.
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.anthropic.claudefordesktop"))
+        XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: "com.anthropic.claudefordesktop"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
@@ -54,6 +57,9 @@ final class BrowserAppDetectorTests: XCTestCase {
         // primed wholesale.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCode.helper"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.clickup"))
+        // Claude's renderer processes ship as `com.anthropic.claudefordesktop.helper`; only the main
+        // app process owns the AX tree that priming targets.
+        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.anthropic.claudefordesktop.helper"))
     }
 
     func testChatGPTCodexUsesEditorRecoveryWithoutBrowserClassification() {
@@ -77,6 +83,8 @@ final class BrowserAppDetectorTests: XCTestCase {
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.microsoft.VSCode"))
         XCTAssertTrue(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "md.obsidian"))
+        XCTAssertTrue(
+            BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.anthropic.claudefordesktop"))
         XCTAssertFalse(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.apple.Safari"))
         XCTAssertFalse(
