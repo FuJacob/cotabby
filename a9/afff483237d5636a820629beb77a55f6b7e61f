@@ -1,0 +1,23 @@
+Cotabby/Services/Presentation/OverlayController.swift
+  s_06b938d10fb9a9::t_d059cc3ecddd75 112-119
+Cotabby/Support/Onboarding/InlinePredictionNudge.swift
+  s_06b938d10fb9a9::t_81b6f88a10a2e5 49-55
+Cotabby/Support/Onboarding/SystemInlinePredictionMonitor.swift
+  s_06b938d10fb9a9::t_b5fe6ab67a426e 33-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9afff483237d5636a820629beb77a55f6b7e61f",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
