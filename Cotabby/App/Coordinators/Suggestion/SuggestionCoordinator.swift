@@ -165,10 +165,20 @@ final class SuggestionCoordinator: ObservableObject {
     /// accept on the last word. See `SuggestionSessionReconciler.isStaleAcceptanceEcho`.
     var lastAcceptedTail: AcceptedSuggestionTail?
 
-    /// Wall-clock moment of the most recent committed acceptance. The stability gate uses its age
-    /// to scope the backward-drift hold: only geometry read shortly after our own insert can be
-    /// the stale-frame kind, so older backward corrections stay re-anchorable.
-    var lastAcceptanceAt: Date?
+    /// `ProcessInfo.systemUptime` of the most recent committed acceptance. Monotonic, so a clock
+    /// change cannot stretch either window keyed on its age. The stability gate uses it to scope
+    /// the backward-drift hold: only geometry read shortly after our own insert can be the
+    /// stale-frame kind, so older backward corrections stay re-anchorable. The post-accept hold
+    /// uses it to defer screen-context retirement while the user is still accepting.
+    var lastAcceptanceAt: TimeInterval?
+
+    /// The pending re-check of a screen-context change deferred by the post-accept hold. Replaced
+    /// by each newer change and cancelled on stop, so at most one retirement is ever owed.
+    var deferredScreenContextRetirement: Task<Void, Never>?
+
+    /// The post-accept hold (`SuggestionAvailabilityEvaluator.postAcceptHoldMilliseconds`). Fixed
+    /// product policy; stored here only so tests can shorten it.
+    var postAcceptHoldMilliseconds = SuggestionAvailabilityEvaluator.postAcceptHoldMilliseconds
 
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
     /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
@@ -354,16 +364,7 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         visualContextCoordinator.onInjectedContextReady = { [weak self] identity in
-            guard let self, self.focusModel.snapshot.context?.identity == identity else { return }
-            // A host may expose identical URL/title/geometry for two chats. Changed screen text
-            // is then our next navigation signal. Retire visible tails as well as cached/async
-            // work; keeping an old tail stable would let it outlive arbitrarily many refreshes.
-            self.suggestionAnchorCache = SuggestionAnchorCache()
-            self.clipboardPrefaceMemo = nil
-            self.cancelPredictionWork()
-            self.clearSuggestion()
-            self.hideOverlay(reason: "Overlay hidden because screen context changed.")
-            self.schedulePredictionForCurrentFocusIfPossible(matching: identity)
+            self?.handleInjectedContextReady(identity)
         }
         visualContextCoordinator.refreshContextProvider = { [weak self] in
             self?.currentVisualRefreshContext()

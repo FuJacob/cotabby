@@ -50,6 +50,23 @@ struct CotabbyApp: App {
             )
         }
         .menuBarExtraStyle(.window)
+        // The app menu is only on screen while Settings makes Cotabby `.regular`
+        // (`SettingsActivationPolicy`), and there users expect the standard "Settings…" ⌘, item.
+        // SwiftUI only generates that item for a `Settings` scene, which Cotabby deliberately does not
+        // use: `SettingsCoordinator` owns the one AppKit window and the activation-policy switch, so a
+        // second, SwiftUI-owned settings window would bypass both. Filling the `.appSettings` slot
+        // routes the standard item to that same coordinator.
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    appDelegate.settingsCoordinator.showSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+            // Cotabby ships no Help Book, so the default "Cotabby Help" item only opens a
+            // "Help isn't available" alert; the wiki is linked from Settings > About instead.
+            CommandGroup(replacing: .help) {}
+        }
     }
 
     /// SwiftUI owns insertion/removal of the status item, while the settings model remains the

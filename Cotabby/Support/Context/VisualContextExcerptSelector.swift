@@ -16,11 +16,16 @@ nonisolated enum VisualContextExcerptSelector {
         lines: [OCRTextHygiene.OCRLine],
         fieldText: String,
         focusBounds: CGRect?,
+        composerBounds: CGRect? = nil,
         maxCharacters: Int
     ) -> String {
         guard maxCharacters > 0 else { return "" }
         var seen = Set<String>()
         let candidates = lines.enumerated().compactMap { index, line -> Candidate? in
+            if let bounds = line.boundingBox, let focus = focusBounds,
+               isComposerLine(bounds, focus: focus, composer: composerBounds) {
+                return nil
+            }
             let cleaned = OCRTextHygiene.clean(lines: [line], fieldText: fieldText, maxChars: maxCharacters)
             // Confidence/line hygiene has already removed corrupt recognition. The legacy
             // token-level OCR filter drops every number and unrecognized English word, erasing
@@ -55,5 +60,26 @@ nonisolated enum VisualContextExcerptSelector {
             }
         }
         return selected.sorted { $0.0 < $1.0 }.map(\.1).joined(separator: "\n")
+    }
+
+    /// Whether an OCR line belongs to the composer: the caret line, the field below it, or the
+    /// field's own chrome directly beneath it, in the field's column (Vision's bottom-left space,
+    /// so "below" is a smaller y). That region holds a copy of the draft read before the latest
+    /// keystrokes (so the field-text strip cannot match it) and the composer's toolbar. Ranked
+    /// first by proximity, it led the excerpt, and a base model continued the draft by copying what
+    /// followed it on screen: "what is in USA" became "what is in USA 4 5.6 Sol", the attachment
+    /// icon and model picker under ChatGPT's composer. The field's text reaches the prompt through
+    /// Accessibility, so nothing is lost.
+    ///
+    /// The drop stops at `composer.minY` (the field's bottom edge plus a chrome band) instead of
+    /// running to the bottom of the window: a reply box can sit above what it answers (YouTube
+    /// comments, top-posted forum replies), and that thread is the context the user is replying to.
+    /// Without composer geometry only the caret line itself is treated as the composer.
+    static func isComposerLine(_ bounds: CGRect, focus: CGRect, composer: CGRect?) -> Bool {
+        let sameColumn = bounds.maxX >= focus.minX && bounds.minX <= focus.maxX
+        // `min` keeps the caret line dropped even when AX reports a field frame that does not
+        // contain the caret (AX geometry is eventually consistent), which would invert the band.
+        let composerBottom = min(composer?.minY ?? focus.minY, focus.minY)
+        return sameColumn && bounds.midY <= focus.maxY && bounds.midY >= composerBottom
     }
 }

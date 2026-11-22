@@ -23,25 +23,80 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
-    /// A refresh that only misreads a letter must keep the excerpt already in the prompt, so the
-    /// prompt stays byte-identical (KV reuse) and no prediction is retired.
-    func test_ocrJitterKeepsPromptTextAndDoesNotNotify() async throws {
+    func test_screenChangeExplainedByTheFieldsOwnEditIsNotReportedAsNavigation() async throws {
+        // Accepting words puts them on screen. A refresh that sees both new field text and new screen
+        // text must not look like navigation, or it retires the suggestion the user is accepting.
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
-        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Draft")
-        coordinator.refreshContextProvider = { snapshot }
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review")
+        coordinator.refreshContextProvider = { live }
         var notifications = 0
         coordinator.onInjectedContextReady = { _ in notifications += 1 }
-        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
         defer { coordinator.cancel(resetState: true) }
-        try await waitUntil { generator.contexts.count >= 1 && coordinator.status == .ready }
-        let original = coordinator.latestExcerpt
-        generator.text = "Project agenda and deadlinc"
-        try await waitUntil { generator.contexts.count >= 2 }
-        try await waitUntil { generator.completedCount >= 2 }
+        try await waitUntil { notifications == 1 }
+
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
+        generator.text = "Please review the attached"
+        try await waitUntil { coordinator.latestExcerpt == "Please review the attached" }
+        XCTAssertEqual(notifications, 1, "The user's own accepted words changed the screen")
+
+        // An edit does not explain the rest of the screen: the same draft carried into another
+        // conversation shows that conversation's lines, and that is still navigation.
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached file")
+        generator.text = "Please review the attached file\nA new message arrived"
+        try await waitUntil { notifications == 2 }
+    }
+
+    func test_acceptLandingMidCaptureIsStillTheFieldsOwnEdit() async throws {
+        // The refresh reads the field, then an accept lands before the screenshot. The pixels show
+        // words the pre-capture text lacks; the text read after OCR must still claim them.
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review")
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        try await waitUntil { notifications == 1 }
+
+        generator.suspendNext = true
+        try await waitUntil { generator.pending != nil }
+        XCTAssertEqual(generator.contexts.last?.precedingText, "Please review")
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
+        generator.text = "Project agenda and deadline\nPlease review the attached"
+        generator.pending?.resume()
+        generator.pending = nil
+        try await waitUntil { coordinator.latestExcerpt == generator.text }
+        XCTAssertEqual(notifications, 1, "Words accepted during the capture are the user's own edit")
+    }
+
+    func test_ocrJitterKeepsTheCurrentExcerptByteIdenticalWithoutNotifying() async throws {
+        let generator = StubVisualContextGenerator()
+        let original = "Investigate screen context sessi\nThe newest message asks about the deadline"
+        generator.text = original
+        let coordinator = makeCoordinator(generator)
+        let live = CotabbyTestFixtures.focusedInputSnapshot()
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+
+        // The same screen read again with a truncated title flickering: the prompt keeps the
+        // exact text it already had, so neither the suggestion nor the KV prefix is reset.
+        generator.text = "Investigate screen context sessic\nThe newest message asks about the deadline"
+        let reads = generator.completedCount
+        try await waitUntil { generator.completedCount >= reads + 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, original)
+        XCTAssertEqual(coordinator.excerpt(for: FocusedInputContext(snapshot: live, generation: 1)), original)
         XCTAssertEqual(notifications, 1)
-        XCTAssertEqual(coordinator.latestExcerpt, original, "OCR noise must not replace the prompt's screen text")
-        XCTAssertEqual(coordinator.status, .ready)
+
+        generator.text = original + "\nCan you send the final numbers by Friday"
+        try await waitUntil { notifications == 2 }
+        XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
     func test_permissionRevocationStopsRefreshAndClearsExcerpt() async throws {
@@ -105,6 +160,29 @@ final class VisualContextCoordinatorTests: XCTestCase {
         try await waitUntil { coordinator.status == .ready }
         try await waitUntil { generator.contexts.count >= 2 }
         XCTAssertTrue(generator.configurations.allSatisfy { $0 == .default })
+    }
+
+    func test_sessionStartedWithUnreadableTitleServesExcerptOnceACaptureReadsIt() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        // The first poll timed out on the title; the same field's later polls read it.
+        let unreadable = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: nil)
+        let readable = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Team chat")
+        var live = unreadable
+        coordinator.refreshContextProvider = { live }
+        coordinator.startSessionIfNeeded(for: unreadable, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+        let readableContext = FocusedInputContext(snapshot: readable, generation: 1)
+        XCTAssertNil(
+            coordinator.excerpt(for: readableContext),
+            "An excerpt captured while the title was unknown must not reach a request that knows it"
+        )
+
+        live = readable
+        let capturesBefore = generator.contexts.count
+        try await waitUntil { generator.contexts.count > capturesBefore && coordinator.excerpt(for: readableContext) != nil }
+        XCTAssertEqual(coordinator.excerpt(for: readableContext), generator.text)
     }
 
     func test_reusedComposerClearsPublishedExcerptDuringNavigationSettleDelay() async throws {
@@ -216,6 +294,28 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(generator.contexts.count, 1)
     }
 
+    /// The Claude desktop composer drops its placeholder a keystroke or two into typing. The same
+    /// field and focus session must keep its ready excerpt instead of re-capturing and re-running
+    /// OCR, which also changed the prompt head and forced a full llama re-prefill.
+    func test_placeholderHiddenByTypingKeepsTheReadySession() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let empty = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Type / for commands.")
+        let typed = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "df", fieldPlaceholder: nil)
+        defer { coordinator.cancel(resetState: true) }
+        coordinator.startSessionIfNeeded(for: empty, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        coordinator.startSessionIfNeeded(for: typed, configuration: .local)
+        XCTAssertEqual(coordinator.status, .ready)
+        XCTAssertEqual(
+            coordinator.excerpt(for: FocusedInputContext(snapshot: typed, generation: 2)), "Project agenda and deadline"
+        )
+        // Outlast the 250 ms settle delay: a restart would have captured a second time by now.
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(generator.contexts.count, 1)
+    }
+
     func test_churningFocusOnlyCapturesTheSettledField() async throws {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
@@ -286,38 +386,6 @@ final class VisualContextCoordinatorTests: XCTestCase {
 
         try await waitUntil { coordinator.status == .ready }
         XCTAssertEqual(generator.configurations, [.local, .default])
-    }
-
-    /// TextEdit or a compose window: the draft fills the capture, and the user keeps typing while
-    /// OCR runs. Words typed after the capture started are on screen but were not in the field when
-    /// it started, so the comparison must use the field as it reads when the result lands.
-    func test_typingIntoAWindowFillingFieldIsNotANavigationSignal() async throws {
-        let generator = StubVisualContextGenerator()
-        let chrome = "Untitled 3 — Edited\nHelvetica Regular 12 B I U S\n"
-        generator.text = chrome + "Hello Martin, thanks for the update on the"
-        let coordinator = makeCoordinator(generator)
-        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello Martin, thanks for the update on the")
-        coordinator.refreshContextProvider = { live }
-        var notifications = 0
-        coordinator.onInjectedContextReady = { _ in notifications += 1 }
-        coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
-        try await waitUntil { coordinator.status == .ready }
-        let original = coordinator.latestExcerpt
-
-        generator.suspendNext = true
-        try await waitUntil { generator.pending != nil }
-        live = CotabbyTestFixtures.focusedInputSnapshot(
-            precedingText: "Hello Martin, thanks for the update on the onboarding project. I wanted to check"
-        )
-        generator.text = chrome + "Hello Martin, thanks for the update on the onboarding project. I wanted to che"
-        let completedBefore = generator.completedCount
-        generator.pending?.resume()
-        generator.pending = nil
-        try await waitUntil { generator.completedCount > completedBefore }
-
-        XCTAssertEqual(notifications, 1, "The user's own typing on screen must not retire the visible suggestion")
-        XCTAssertEqual(coordinator.latestExcerpt, original, "Typing alone must keep the prompt's screen text")
     }
 
     private func makeCoordinator(
