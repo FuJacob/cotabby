@@ -174,7 +174,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertEqual(resolved.runtimeDirectoryURL.path, dir.path)
         XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "gemma-4-E2B.i1-Q6_K.gguf")
         // Known catalog files resolve to their product name rather than the raw filename.
-        XCTAssertEqual(resolved.modelDisplayName, "Cotabby Base")
+        XCTAssertEqual(resolved.modelDisplayName, "tabby-2-base")
     }
 
     func test_emptyRuntimeDirectoryPathFallsBackToDefaultCandidates() {
