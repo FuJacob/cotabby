@@ -542,7 +542,7 @@ extension SuggestionCoordinator {
     /// Composers that report a single-line role but are not chat apps by `AppSurfaceClassifier` nor
     /// named Electron editors by `BrowserAppDetector`.
     static let tabKeepsAcceptingBundleIdentifiers: Set<String> = [
-        "com.anthropic.claudefordesktop",  // Claude desktop: Tab moved focus out of its composer
+        "com.anthropic.claudefordesktop"  // Claude desktop: Tab moved focus out of its composer
     ]
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
