@@ -1,0 +1,37 @@
+AGENTS.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 60-62,316-319,330-333
+RELEASING.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 13-17
+PHRASE_EVAL.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 342-344
+Cotabby/Resources/ThirdPartyLicenses/SOURCES.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 9
+project.yml
+  s_1d69e9a1a758f8::t_ee3645e92d820f 16
+Cotabby.xcodeproj/project.pbxproj
+  s_1d69e9a1a758f8::t_ee3645e92d820f 5333-5334
+scripts/phrase_eval.py
+  s_1d69e9a1a758f8::t_65f5d456234da8 791-792
+CONTRIBUTING.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 75,267-269,275-279
+scripts/prepare_cotabby_workspace.sh
+  s_1d69e9a1a758f8::t_933f6bf598ac00 3-5,13-14,25-27
+README.md
+  s_1d69e9a1a758f8::t_7681fdac1864df 172-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d08cfdd33bae44e3e0919863911710bef761a998",
+  "prompts": {},
+  "sessions": {
+    "s_1d69e9a1a758f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2ffe326-8d28-48c3-b4e2-e7379031b1b4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
