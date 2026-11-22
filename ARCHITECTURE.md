@@ -508,6 +508,9 @@ windows hosting SwiftUI content. Settings and onboarding observe the shared grap
 icon retains a recovery path to Settings. Cotabby launches as an agent app (`LSUIElement`), and
 `SettingsCoordinator` switches the process to `.regular` while Settings is open (Dock tile and
 Command-Tab entry, per `SettingsActivationPolicy`) and back to `.accessory` when it closes.
+While `.regular`, the app menu's standard "Settings…" (⌘,) item comes from a `CommandGroup` in
+`CotabbyApp` that calls the same `showSettings()`; there is no SwiftUI `Settings` scene. Reopen
+handling (Dock click, relaunch) is decided by `MenuBarRecoveryPolicy.reopenAction`.
 
 ## Concurrency and Reliability Rules
 
