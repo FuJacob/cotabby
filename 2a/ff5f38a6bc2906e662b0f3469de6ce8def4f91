@@ -1,0 +1,209 @@
+.github/workflows/release.yml
+  s_06b938d10fb9a9::t_69d9063032ba6a 82,423,432,460,640,648,679,684,840
+AGENTS.md
+  s_06b938d10fb9a9::t_4c8bad27a258c1 60-62,142-145,161-169,328-331,342-345
+ARCHITECTURE.md
+  s_06b938d10fb9a9::t_b46e8770000c7c 306-309,379,391-395,512-517
+CONTRIBUTING.md
+  s_06b938d10fb9a9::t_2b83a59bba6d8d 75,267-269,275-279
+Cotabby.xcodeproj/project.pbxproj
+  s_06b938d10fb9a9::t_1ea910637ab404 46,56,94,170,221,361,494,547,562,653,696,721,731,877,930,945,966,1087,1096,1216,1225,1243,1257,1267,1285,1361,1408,1469,1653,1989,2002,2132,2220,2498,2558,2714,2720,2776,3513,3519,3785,4135,4243,4251,4255,4355,4483,4591,4599,4603,4703,4727,4805,4869,4896,4903,4907,5001,5411-5412
+Cotabby/App/Coordinators/SettingsCoordinator.swift
+  s_06b938d10fb9a9::t_eb7877d93c7f0d 78-83,139-141,154-156,159-168
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_06b938d10fb9a9::t_debaacfa5bd63d 222,478,699-701,715-716,878-879,1102-1111,1177
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_06b938d10fb9a9::t_3dd3c2180ad7a3 272-273,335-336,536-538
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Lifecycle.swift
+  s_06b938d10fb9a9::t_255d8edd992c69 20-21,39-41,62-64
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_06b938d10fb9a9::t_0522c69e7f7f05 924-927,1265,1347-1365,1367-1368,1382-1387,1507-1575
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_06b938d10fb9a9::t_2f17e2ccfc5b8a 168-181,367
+Cotabby/App/Core/AppDelegate.swift
+  s_06b938d10fb9a9::t_cb361595f81e0b 197-199,204,208,210-217,282-284,288
+Cotabby/App/Core/CotabbyApp.swift
+  s_06b938d10fb9a9::t_15a5c85c170062 53-69
+Cotabby/Models/Focus/FocusModels.swift
+  s_06b938d10fb9a9::t_e7b26a6a033597 22-25,32-105,438-444,522,550,581,592-597
+Cotabby/Models/Runtime/LlamaRuntimeModels.swift
+  s_06b938d10fb9a9::t_9248ab99697d17 103,105,107,109
+Cotabby/Models/Suggestion/Request/FocusedInputContext.swift
+  s_06b938d10fb9a9::t_f3e678b2de738a 139
+Cotabby/Models/Suggestion/Session/SuggestionPresentationModels.swift
+  s_06b938d10fb9a9::t_7cb132252b2031 97-101,125-126,150,176-177
+Cotabby/Resources/ThirdPartyLicenses/SOURCES.md
+  s_06b938d10fb9a9::t_23214e21d8ffc0 9
+Cotabby/Services/Focus/FocusTracker.swift
+  s_06b938d10fb9a9::t_df644bc304f42c 265-274,387-391,395
+Cotabby/Services/Focus/Resolution/FocusSnapshotResolver.swift
+  s_06b938d10fb9a9::t_5d03657eec7061 48-51,53-55,58-65,350,389-390,417,428-456,1063,1206,1243-1245,1478-1509,1516,1519,1521-1524,1526-1533,1539-1540,1649-1650,1656,1659,1661,1663,1667,1680,1688-1690,1715,1718-1720,1731-1732
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_06b938d10fb9a9::t_86e2ee907a199c 344-345,347-349
+Cotabby/Services/Presentation/ActivationIndicatorController.swift
+  s_06b938d10fb9a9::t_e9f42fcb1cae26 54,104,132-140
+Cotabby/Services/Presentation/OverlayController.swift
+  s_06b938d10fb9a9::t_2a5289dd7a1b7f 810-812,832-835,845,859-863,891-893,933,938-939,946-949,954-956,959,1004-1008,1010-1014,1017-1020,1027,1031-1042,1044-1046
+Cotabby/Services/Spelling/CurrentWordSpellChecker.swift
+  s_06b938d10fb9a9::t_e5be74d8f8d68c 22-25,27-28,33,47,66,80
+Cotabby/Services/Suggestion/State/ContextBuffer.swift
+  s_06b938d10fb9a9::t_cb477771315526 23-27
+Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift
+  s_06b938d10fb9a9::t_15d0a2b6acd669 99,247
+Cotabby/Services/Visual/ScreenTextExtractor.swift
+  s_06b938d10fb9a9::t_6d290399ae811a 41-42,50-51,56,58-147,149-156,158,160-163,165,167,169-179,188-197,233-239,249-267,271-281,283-300
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_06b938d10fb9a9::t_0e9b363daa08b2 47-49,88-91,94-96,136-138,149-150,152-158,165,168,171,197-201,214-222,229-230,238-243,249-254
+Cotabby/Services/Visual/VisualContextCoordinator.swift
+  s_06b938d10fb9a9::t_1f49e143f5c7f6 80,175,205-208,214,219,226-227,229-238,273-274,312-317,363-364,378-402,404,406,409,411-415
+Cotabby/Services/Visual/WindowScreenshotService.swift
+  s_06b938d10fb9a9::t_57fc33d23ad15b 19-25,67-72,149-173
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_06b938d10fb9a9::t_c721b73b45e60d 810-815,818-819,822-823,1066-1087
+Cotabby/Support/Accessibility/CredentialFieldDetector.swift
+  s_06b938d10fb9a9::t_2d72834c0a6efc 134-136
+Cotabby/Support/Accessibility/SearchFieldDetector.swift
+  s_06b938d10fb9a9::t_e09003331480dc 1-163
+Cotabby/Support/Context/FocusedFieldScreenRegion.swift
+  s_06b938d10fb9a9::t_d29fedef1d20b1 1-120
+Cotabby/Support/Context/OCRTextHygiene.swift
+  s_06b938d10fb9a9::t_1b66c3c826ed2e 255-292
+Cotabby/Support/Context/VisualContextExcerptSelector.swift
+  s_06b938d10fb9a9::t_2abd751ba7d632 19,25-28,64-84
+Cotabby/Support/Context/VisualContextExcerptStability.swift
+  s_06b938d10fb9a9::t_d5b7e13e8a388b 1-47,49-83,85-86,89-93,95-98,101-121,123-246,249-251,253-254,256,258
+Cotabby/Support/Focus/Applications/BrowserAppDetector.swift
+  s_06b938d10fb9a9::t_3686471536afa7 57-66,71,79-80
+Cotabby/Support/Focus/Applications/TerminalAppDetector.swift
+  s_06b938d10fb9a9::t_f9c8312e9e4b26 26-40
+Cotabby/Support/Focus/FocusedInputPollingSignature.swift
+  s_06b938d10fb9a9::t_7f82e0bd5fb4f9 20-22,30-34,36-41,48-67,73-84,87-90,94-134
+Cotabby/Support/Input/MarkerSelectionSynthesizer.swift
+  s_06b938d10fb9a9::t_82dae9b311c59e 12-14
+Cotabby/Support/Presentation/Geometry/MirrorOverlayLayout.swift
+  s_06b938d10fb9a9::t_cf0545bc8ef858 109-114,131,133-136,193-194,217-263
+Cotabby/Support/Presentation/Geometry/TextLayoutCaretEstimator.swift
+  s_06b938d10fb9a9::t_4e6e5d8655ba31 95-97,99-114,291,372-373,390,412,419
+Cotabby/Support/Settings/MenuBarRecoveryPolicy.swift
+  s_06b938d10fb9a9::t_947681be2235cd 3,9-22,32-36,39-43
+Cotabby/Support/Settings/SettingsActivationPolicy.swift
+  s_06b938d10fb9a9::t_311cefcc83369b 1-20
+Cotabby/Support/Suggestion/Output/PromptPrefaceEchoFilter.swift
+  s_06b938d10fb9a9::t_e7195959be36dd 1-72
+Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift
+  s_06b938d10fb9a9::t_0182a35b36144e 76-77,79,100-103,105-107,123-126,150-165,215-218,220,224-230,235-268,270-287,411,413,423,425
+Cotabby/Support/Suggestion/Request/CaretWordContext.swift
+  s_06b938d10fb9a9::t_fc8c056953e4f1 49-50
+Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift
+  s_06b938d10fb9a9::t_db0000142d230e 130-177,194-221
+Cotabby/Support/Suggestion/Session/SpeculativeAcceptanceContext.swift
+  s_06b938d10fb9a9::t_1e73f2aeda07b1 79
+Cotabby/Support/Suggestion/Session/SuggestionContinuationPlan.swift
+  s_06b938d10fb9a9::t_e9f2a7dc812ff5 109
+Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift
+  s_06b938d10fb9a9::t_d219e15639979b 64-66,74-75,77,86,96,163-219,242,247,255,262-263,268,273
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCaretLayoutRepairTests.swift
+  s_06b938d10fb9a9::t_eb31b9f1cc1281 43-79
+CotabbyTests/App/Coordinators/Suggestion/SuggestionConversationIsolationTests.swift
+  s_06b938d10fb9a9::t_d37a9f6d3c9d21 41-43,108-122
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_06b938d10fb9a9::t_36aa968dc60a5c 162-225,256-390
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.swift
+  s_06b938d10fb9a9::t_eb9bc4ac5adbfa 313-330
+CotabbyTests/Models/Focus/FocusModelsTests.swift
+  s_06b938d10fb9a9::t_69c497d785b1ca 94-142,153-159
+CotabbyTests/Models/Suggestion/ModelAndPresentationValueTests.swift
+  s_06b938d10fb9a9::t_73db4d33a7b22e 280-283,305,314,325
+CotabbyTests/Models/Suggestion/Request/FocusedInputContextTests.swift
+  s_06b938d10fb9a9::t_9ef2948792b84a 54-68
+CotabbyTests/Services/Focus/Resolution/FocusSnapshotResolverLiveTests.swift
+  s_06b938d10fb9a9::t_0728059a1f84f5 224,232-233,289,316-346
+CotabbyTests/Services/Focus/Resolution/NativeTextWindowTests.swift
+  s_06b938d10fb9a9::t_6981ba70ddcd89 4-18,21-28,30-32,35-42,44-46,49-58,61-67,70-79
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_06b938d10fb9a9::t_b302769257fe42 362-367
+CotabbyTests/Services/Presentation/ActivationIndicatorCaretTests.swift
+  s_06b938d10fb9a9::t_83de92b752a2df 1-11,13-22
+CotabbyTests/Services/Presentation/OverlayControllerTypefaceTests.swift
+  s_06b938d10fb9a9::t_fd309a6cd34540 46-120
+CotabbyTests/Services/Suggestion/State/ContextBufferNavigationTests.swift
+  s_06b938d10fb9a9::t_9c561570f65be0 26,31-41
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_06b938d10fb9a9::t_c62067272508eb 358-360,363,373-391
+CotabbyTests/Services/Visual/ScreenTextExtractorTests.swift
+  s_06b938d10fb9a9::t_3464b3bc804be8 26-172,207-225
+CotabbyTests/Services/Visual/ScreenshotContextGeneratorTests.swift
+  s_06b938d10fb9a9::t_a76120fe491551 132-232,373,381,385-387,391,398-402,412,430-447
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_06b938d10fb9a9::t_5c3a7074be12a5 26-28,31-32,35,37-94,96-99,165-187,297-318
+CotabbyTests/Support/Accessibility/SearchFieldDetectorTests.swift
+  s_06b938d10fb9a9::t_774bd49636ba7e 1-134
+CotabbyTests/Support/Context/FocusedFieldScreenRegionTests.swift
+  s_06b938d10fb9a9::t_f3b81d5e834b84 1-150
+CotabbyTests/Support/Context/OCRTextHygieneTests.swift
+  s_06b938d10fb9a9::t_5f04fcc1a0d99f 221-251
+CotabbyTests/Support/Context/VisualContextExcerptSelectorTests.swift
+  s_06b938d10fb9a9::t_91e361716b0bb9 4-5,87-138,146
+CotabbyTests/Support/Context/VisualContextExcerptStabilityTests.swift
+  s_06b938d10fb9a9::t_519022f8f3eff2 1-137
+CotabbyTests/Support/Focus/Applications/BrowserAppDetectorTests.swift
+  s_06b938d10fb9a9::t_dc9321c1095a4c 47-52,63-65,89-90
+CotabbyTests/Support/Focus/Applications/TerminalAppDetectorTests.swift
+  s_06b938d10fb9a9::t_6ff432aa0019ab 13,114-124
+CotabbyTests/Support/Focus/FocusedInputPollingSignatureTests.swift
+  s_06b938d10fb9a9::t_fae56e37790b17 16-47,81-82,84-99,101-106,113-235,268-284
+CotabbyTests/Support/Presentation/Geometry/MirrorOverlayLayoutTests.swift
+  s_06b938d10fb9a9::t_1b68a7e434c629 29-30,38-40,70-166
+CotabbyTests/Support/Presentation/Geometry/TextLayoutCaretEstimatorTests.swift
+  s_06b938d10fb9a9::t_cb6f247f74c266 450-501
+CotabbyTests/Support/Runtime/BundledRuntimeLocatorTests.swift
+  s_06b938d10fb9a9::t_5079a798992ad3 177
+CotabbyTests/Support/Settings/MenuBarRecoveryPolicyTests.swift
+  s_06b938d10fb9a9::t_fbc375ccaebab7 6,35-43,47,52
+CotabbyTests/Support/Settings/SettingsActivationPolicyTests.swift
+  s_06b938d10fb9a9::t_7b8926382cdcb6 1-3,5-16
+CotabbyTests/Support/Suggestion/Output/PromptPrefaceEchoFilterTests.swift
+  s_06b938d10fb9a9::t_bfd4db2a37b990 1-2,4-12,14-18,20-22,24,26-29,33-53,58-63,66-87
+CotabbyTests/Support/Suggestion/Output/SuggestionTextNormalizerTests.swift
+  s_06b938d10fb9a9::t_47eb8c72f663ef 113,119,124-260,369
+CotabbyTests/Support/Suggestion/Request/SuggestionAvailabilityEvaluatorTests.swift
+  s_06b938d10fb9a9::t_89b9004ce4a70a 350-408,446-470
+CotabbyTests/Support/Suggestion/Session/SpeculativeAcceptanceContextTests.swift
+  s_06b938d10fb9a9::t_7f3a2af9c1541e 21-26
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionReconciliationTests.swift
+  s_06b938d10fb9a9::t_9429a83a18d293 8-10,12-19,21-23,30-72,572-707
+CotabbyTests/TestSupport/CotabbyTestFixtures.swift
+  s_06b938d10fb9a9::t_9613c0c3dc19e0 27,56,193-194,203-204
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_06b938d10fb9a9::t_21f9c5b203dfca 334-336
+PHRASE_EVAL.md
+  s_06b938d10fb9a9::t_f545f7777a499b 264,266,341-343
+README.md
+  s_06b938d10fb9a9::t_feabbc299366c4 172-173
+RELEASING.md
+  s_06b938d10fb9a9::t_9ceba7d20c707f 13-17,19
+SOURCE_LAYOUT.md
+  s_06b938d10fb9a9::t_ee72a2c0c67203 231-235
+project.yml
+  s_06b938d10fb9a9::t_bd966f763a8559 16
+scripts/phrase_eval.py
+  s_06b938d10fb9a9::t_b514d51958af8e 421,791-792
+scripts/prepare_cotabby_workspace.sh
+  s_06b938d10fb9a9::t_27e776823d478c 3-5,13-14,25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2aff5f38a6bc2906e662b0f3469de6ce8def4f91",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
