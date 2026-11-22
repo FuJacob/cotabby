@@ -57,9 +57,11 @@ struct FocusSnapshotResolver {
     /// often than the 80 ms active poll.
     static let fieldLabelRefreshInterval: TimeInterval = 1
     /// Whether a single-line field sits inside a web page (`AXHelper.isInsideWebArea`), which
-    /// `SearchFieldDetector` needs to tell page content from browser and native UI. An element's
-    /// ancestry cannot change while it stays the same element, and the climb is one AX round trip
-    /// pair per level (~30 levels in web apps), so it is paid once per focus session per field.
+    /// `SearchFieldDetector` needs to tell page content from browser and native UI. Asked only for
+    /// fields that already look like search boxes (see `SearchFieldDetector.isSearchField`). An
+    /// element's ancestry cannot change while it stays the same element, and the climb is one AX
+    /// round trip pair per level (~30 levels in web apps), so it is paid at most once per focus
+    /// session per field.
     private let webAreaAncestryCache = FocusSessionScopedCache<Bool>()
     /// The text margin the caret's paragraph wraps to, which a field's `AXFrame` does not reveal
     /// (Word's frame is the page edge, not the text margin). Up to three AX round trips, so each
@@ -428,20 +430,24 @@ struct FocusSnapshotResolver {
         // since Chrome's omnibox vends a DOM id too.
         if SearchFieldDetector.mightBeSearchField(role: candidate.role) {
             let labelReading = fieldLabelReading(for: candidate, focusChangeSequence: focusChangeSequence)
-            let isInWebPage = webAreaAncestryCache.value(
-                forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
-            ) {
-                AXHelper.isInsideWebArea(candidate.element)
-            }
-            if SearchFieldDetector.isSearchField(
+            let signal = SearchFieldDetector.signal(
                 role: candidate.role,
                 subrole: candidate.subrole,
                 labels: labelReading.labels,
-                domIdentifier: labelReading.domIdentifier,
-                surface: SearchFieldDetector.Surface(
-                    isInWebPage: isInWebPage,
-                    isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
-                )
+                domIdentifier: labelReading.domIdentifier
+            )
+            // The ancestry climb runs inside the closure, so a field with no search signal (every
+            // ordinary form input) pays no AX read for it at all.
+            if SearchFieldDetector.isSearchField(
+                signal: signal,
+                isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier),
+                isInWebPage: {
+                    webAreaAncestryCache.value(
+                        forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+                    ) {
+                        AXHelper.isInsideWebArea(candidate.element)
+                    }
+                }
             ) {
                 return SearchFieldDetector.blockedReason
             }

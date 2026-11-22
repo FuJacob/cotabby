@@ -17,12 +17,41 @@ final class SearchFieldDetectorTests: XCTestCase {
         isBrowser: Bool = false
     ) -> Bool {
         SearchFieldDetector.isSearchField(
-            role: role ?? textField,
-            subrole: subrole,
-            labels: labels,
-            domIdentifier: domIdentifier,
-            surface: SearchFieldDetector.Surface(isInWebPage: isInWebPage, isBrowser: isBrowser)
+            signal: SearchFieldDetector.signal(
+                role: role ?? textField, subrole: subrole, labels: labels, domIdentifier: domIdentifier
+            ),
+            isBrowser: isBrowser,
+            isInWebPage: { isInWebPage }
         )
+    }
+
+    /// How many times deciding `signal` climbs the AX tree for the field's surface.
+    private func ancestryReads(signal: SearchFieldDetector.Signal?, isBrowser: Bool) -> Int {
+        var reads = 0
+        _ = SearchFieldDetector.isSearchField(signal: signal, isBrowser: isBrowser) {
+            reads += 1
+            return true
+        }
+        return reads
+    }
+
+    func test_surfaceIsOnlyAskedWhenItCanChangeTheOutcome() {
+        // Ordinary form inputs (the vast majority of fields) and address bars never pay the climb.
+        let plain = SearchFieldDetector.signal(
+            role: textField, subrole: nil, labels: ["Email", nil, "you@example.com"], domIdentifier: "email"
+        )
+        XCTAssertNil(plain)
+        XCTAssertEqual(ancestryReads(signal: plain, isBrowser: false), 0)
+        XCTAssertEqual(ancestryReads(signal: plain, isBrowser: true), 0)
+        let omnibox = SearchFieldDetector.signal(
+            role: textField, subrole: nil, labels: ["Address and search bar"], domIdentifier: "view_1012"
+        )
+        XCTAssertNil(omnibox)
+        // A search role outside a browser blocks on any surface, so it is not asked either.
+        XCTAssertEqual(ancestryReads(signal: .searchRole, isBrowser: false), 0)
+        // Only a field that already looks like a search box asks, once.
+        XCTAssertEqual(ancestryReads(signal: .searchRole, isBrowser: true), 1)
+        XCTAssertEqual(ancestryReads(signal: .searchLabel, isBrowser: false), 1)
     }
 
     func test_searchRoleOrSubroleIsBlockedWithoutALabel() {

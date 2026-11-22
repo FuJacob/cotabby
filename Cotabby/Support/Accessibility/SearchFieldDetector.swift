@@ -35,7 +35,9 @@ import Foundation
 ///      rule 2 can miss it). Native apps' real search boxes are `NSSearchField`s, caught by rule 4.
 ///
 /// Blocking costs the writer their completions, so every ambiguity resolves toward "not a search
-/// box". Pure: the resolver reads the attributes (once per focus session) and asks here.
+/// box". Pure: the resolver reads the attributes (once per focus session) and asks here, in two
+/// steps (`signal`, then `isSearchField`) so the costly "inside a web page?" read is made only for
+/// a field whose own attributes already point at a search.
 enum SearchFieldDetector {
     static let blockedReason = "Search fields are left to the app."
 
@@ -56,19 +58,12 @@ enum SearchFieldDetector {
     /// search words above: Chrome's Turkish omnibox is "Adres ve arama çubuğu".
     static let addressLabelKeywords: [String] = ["address", "url", "website", "adres"]
 
-    /// Where a field lives, which decides how much of it is trusted (rules 3 to 5).
-    enum Surface: Equatable {
-        /// Inside a web page: an `AXWebArea` ancestor (page content, a web app, a web view inside a
-        /// native app). Every signal is judged.
-        case webPage
-        /// A known browser's own UI, outside any web page. Never judged.
-        case browserChrome
-        /// Any other native control, including an unlisted browser's UI. Judged by role only.
-        case nativeControl
-
-        init(isInWebPage: Bool, isBrowser: Bool) {
-            self = isInWebPage ? .webPage : (isBrowser ? .browserChrome : .nativeControl)
-        }
+    /// What a field's own attributes say, before anything is known about where it lives.
+    enum Signal: Equatable {
+        /// The AX role or subrole is `AXSearchField` (rule 4).
+        case searchRole
+        /// A label or DOM id names a search, trusted only inside a web page (rule 5).
+        case searchLabel
     }
 
     /// Cheap pre-check so labels are only read for single-line fields.
@@ -76,41 +71,57 @@ enum SearchFieldDetector {
         role == kAXTextFieldRole as String || role == kAXComboBoxRole as String || role == searchFieldRole
     }
 
-    static func isSearchField(
+    /// Rules 1, 2 and the matching half of 4 and 5, from attributes the resolver already holds.
+    /// Nil means "not a search box" whatever the field's surface, which is the answer for nearly
+    /// every field, so `isSearchField` never needs to ask where it lives.
+    static func signal(
         role: String,
         subrole: String?,
         labels: [String?],
-        domIdentifier: String?,
-        surface: Surface
-    ) -> Bool {
-        guard mightBeSearchField(role: role) else { return false }
+        domIdentifier: String?
+    ) -> Signal? {
+        guard mightBeSearchField(role: role) else { return nil }
 
         let loweredLabels = labels.compactMap { $0?.lowercased() }.filter { !$0.isEmpty }
         let namesAddress = loweredLabels.contains { label in
             addressLabelKeywords.contains { CredentialFieldDetector.containsWord($0, in: label) }
         }
         if namesAddress {
-            return false
-        }
-
-        if surface == .browserChrome {
-            return false
+            return nil
         }
 
         if role == searchFieldRole || subrole == searchFieldRole {
-            return true
+            return .searchRole
         }
-
-        guard surface == .webPage else { return false }
 
         for label in loweredLabels {
             if labelKeywords.contains(where: { CredentialFieldDetector.containsWord($0, in: label) })
                 || leadingLabelKeywords.contains(where: { startsWithWord($0, label) }) {
-                return true
+                return .searchLabel
             }
         }
 
-        return identifierNamesSearch(domIdentifier)
+        return identifierNamesSearch(domIdentifier) ? .searchLabel : nil
+    }
+
+    /// Rules 3 to 5: whether a field with `signal` is a search box, given where it lives.
+    ///
+    /// `isInWebPage` (an `AXWebArea` ancestor) is a climb up the AX tree, two cross-process reads
+    /// per level and ~30 levels in a web app, each bounded only by the AX messaging timeout. It is
+    /// a closure so it runs only when its answer can change the outcome: never without a signal
+    /// (every ordinary form input), never for a search role in a non-browser (blocked either way),
+    /// and otherwise once, for a field that already looks like a search box.
+    static func isSearchField(signal: Signal?, isBrowser: Bool, isInWebPage: () -> Bool) -> Bool {
+        switch signal {
+        case nil:
+            return false
+        case .searchRole:
+            // Outside a browser a search role blocks on any surface. In a listed browser it blocks
+            // only on a page, so the browser's own UI (rule 3) keeps working.
+            return !isBrowser || isInWebPage()
+        case .searchLabel:
+            return isInWebPage()
+        }
     }
 
     /// `keyword` opens `label` (after any leading spaces or symbols such as "🔍") and is followed
