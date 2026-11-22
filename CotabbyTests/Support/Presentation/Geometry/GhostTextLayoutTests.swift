@@ -44,6 +44,28 @@ final class GhostTextLayoutTests: XCTestCase {
         XCTAssertNil(layout.keycapFrame)
     }
 
+    /// A bold ghost is drawn in the bold face, but the accepted prefix lands in the host's plain
+    /// face, so the remaining text starts where the plain prefix ends, not the wider bold one.
+    func testStyledGhostMeasuresTheConsumedPrefixInTheHostFace() throws {
+        // Proportional faces: Menlo's bold has the regular face's advances, which would hide the bug.
+        let regular = try XCTUnwrap(NSFont(name: "Helvetica", size: 14))
+        let bold = try XCTUnwrap(NSFont(name: "Helvetica-Bold", size: 14))
+        let prefixWidth = (" world" as NSString).size(withAttributes: [.font: regular]).width
+        let boldPrefixWidth = (" world" as NSString).size(withAttributes: [.font: bold]).width
+        XCTAssertGreaterThan(boldPrefixWidth - prefixWidth, 0.5, "the faces must differ for this test to mean anything")
+        let styled = GhostTextLayout.Input(
+            fullText: " world and more", consumedUTF16: 6, font: bold, measuringFont: regular,
+            anchorTopLeft: CGPoint(x: 100, y: 200), boxHeight: 16, baselineOffsetFromTop: 13,
+            linePitch: 16, wrapBand: 100...400
+        )
+
+        let layout = try XCTUnwrap(GhostTextLayout.make(styled))
+
+        XCTAssertEqual(layout.font, bold)
+        XCTAssertEqual(layout.rows[0].text, " and more")
+        XCTAssertEqual(layout.rows[0].penX, 100 + prefixWidth, accuracy: 0.01)
+    }
+
     func testConsumedPrefixKeepsRemainingGlyphsOnTheSamePixels() throws {
         let full = try XCTUnwrap(GhostTextLayout.make(input(text: " world and more")))
         let advanced = try XCTUnwrap(GhostTextLayout.make(input(text: " world and more", consumed: 6)))

@@ -142,6 +142,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `fadeInSuggestions`, so dragging the speed slider takes effect on the next suggestion. Lower is
     /// a faster fade. Like `fadeInSuggestions`, it never reaches generation, only the overlay renderer.
     @Published private(set) var fadeInDurationSeconds: Double
+    /// Whether suggestions are drawn bold and/or italic. Like the fade settings these are read live
+    /// by `OverlayController` when it draws, and never reach generation or the snapshot.
+    @Published private(set) var isGhostTextBold: Bool
+    @Published private(set) var isGhostTextItalic: Bool
     /// When on, the ghost is drawn at exactly the size measured for the host's own text: the size
     /// multiplier and the floor/ceiling are not applied. Read live by `OverlayController`, so it
     /// takes effect on the next suggestion; like the size settings it never reaches generation.
@@ -289,6 +293,8 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
@@ -377,6 +383,8 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
@@ -483,6 +491,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
                 fadeInDurationSeconds: fadeInDurationSeconds,
+                isGhostTextBold: isGhostTextBold,
+                isGhostTextItalic: isGhostTextItalic,
                 matchesHostTextSize: matchesHostTextSize,
                 showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
@@ -1080,6 +1090,22 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         fadeInSuggestions = enabled
         store.saveFadeInSuggestions(enabled)
+    }
+
+    func setGhostTextBold(_ enabled: Bool) {
+        guard isGhostTextBold != enabled else {
+            return
+        }
+        isGhostTextBold = enabled
+        store.saveGhostTextBold(enabled)
+    }
+
+    func setGhostTextItalic(_ enabled: Bool) {
+        guard isGhostTextItalic != enabled else {
+            return
+        }
+        isGhostTextItalic = enabled
+        store.saveGhostTextItalic(enabled)
     }
 
     func setMatchesHostTextSize(_ enabled: Bool) {

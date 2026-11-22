@@ -35,6 +35,12 @@ struct MirrorOverlayLayout: Equatable {
     /// that need to flip secondary chrome (Phase 3 prefix hint will use this).
     let isRightToLeft: Bool
 
+    /// The user's bold/italic suggestion style (Settings → Appearance). Carried here, rather than
+    /// passed to the view separately, because the card's width is measured in the styled face: a
+    /// bold suggestion measured as regular would be cut short by the trailing ellipsis.
+    let isBold: Bool
+    let isItalic: Bool
+
     /// Which trigger surfaced this presentation. Plumbed through purely for diagnostics so the
     /// debug overlay can show why mirror mode is up.
     let reason: CompletionRenderMode.MirrorReason
@@ -84,6 +90,8 @@ struct MirrorOverlayLayout: Equatable {
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
         hostFontSize: CGFloat? = nil,
+        isBold: Bool = false,
+        isItalic: Bool = false,
         reason: CompletionRenderMode.MirrorReason
     ) -> MirrorOverlayLayout {
         let normalizedSuggestion = normalizedDisplayText(suggestion)
@@ -99,7 +107,10 @@ struct MirrorOverlayLayout: Equatable {
         // caret height is what is untrustworthy here, not a size the host states outright).
         let baseFontSize = hostFontSize.flatMap { $0 > 0 && $0.isFinite ? $0 : nil } ?? Metrics.fontSize
         let scaledFontSize = max(Metrics.absoluteMinimumFontSize, baseFontSize * sizeMultiplier)
-        let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: scaledFontSize)
+        let measuredTextWidth = measuredWidth(
+            of: normalizedSuggestion, highlightedPrefix: highlightedPrefix,
+            fontSize: scaledFontSize, isBold: isBold, isItalic: isItalic
+        )
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
         // Reserve the keycap on top of the measured text width so the panel follows the actual
@@ -153,6 +164,8 @@ struct MirrorOverlayLayout: Equatable {
             suggestionText: normalizedSuggestion,
             highlightedPrefix: highlightedPrefix,
             isRightToLeft: geometry.isRightToLeft,
+            isBold: isBold,
+            isItalic: isItalic,
             reason: reason
         )
     }
@@ -324,10 +337,23 @@ struct MirrorOverlayLayout: Equatable {
         return collapsed
     }
 
-    private static func measuredWidth(of text: String, fontSize: CGFloat) -> CGFloat {
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: fontSize)
-        ]
-        return (text as NSString).size(withAttributes: attributes).width
+    /// Width of the card's text drawn the way `MirrorOverlayView` draws it: the system face with the
+    /// user's bold and italic, and the highlighted next-accept prefix a weight heavier (semibold, or
+    /// heavy when the suggestion is bold). Measuring the prefix at the base weight under-reserved the
+    /// card and truncated the end of the suggestion near its width limit.
+    static func measuredWidth(
+        of text: String, highlightedPrefix: String, fontSize: CGFloat, isBold: Bool, isItalic: Bool
+    ) -> CGFloat {
+        let base = GhostFontStyler.styled(NSFont.systemFont(ofSize: fontSize), bold: isBold, italic: isItalic)
+        let highlight = GhostFontStyler.styled(
+            NSFont.systemFont(ofSize: fontSize, weight: isBold ? .heavy : .semibold), bold: false, italic: isItalic
+        )
+        let measured = NSMutableAttributedString(string: text, attributes: [.font: base])
+        if !highlightedPrefix.isEmpty, text.hasPrefix(highlightedPrefix) {
+            measured.addAttribute(
+                .font, value: highlight, range: NSRange(location: 0, length: (highlightedPrefix as NSString).length)
+            )
+        }
+        return measured.size().width
     }
 }

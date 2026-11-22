@@ -178,6 +178,8 @@ struct SuggestionSettingsStore {
     private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
+    private static let ghostTextBoldDefaultsKey = "cotabbyGhostTextBold"
+    private static let ghostTextItalicDefaultsKey = "cotabbyGhostTextItalic"
     private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
     private static let fadeInDurationDefaultRevisionDefaultsKey = "cotabbyFadeInDurationDefaultRevision"
     private static let matchesHostTextSizeDefaultsKey = "cotabbyMatchesHostTextSize"
@@ -264,6 +266,8 @@ struct SuggestionSettingsStore {
         streamWhileGeneratingDefaultsKey,
         predictAheadWhileTypingDefaultsKey,
         fadeInSuggestionsDefaultsKey,
+        ghostTextBoldDefaultsKey,
+        ghostTextItalicDefaultsKey,
         fadeInDurationSecondsDefaultsKey,
         fadeInDurationDefaultRevisionDefaultsKey,
         matchesHostTextSizeDefaultsKey,
@@ -650,6 +654,9 @@ struct SuggestionSettingsStore {
                 mirrorPreference: resolvedMirrorPreference,
                 fadeInSuggestions: resolvedFadeInSuggestions,
                 fadeInDurationSeconds: resolvedFadeInDurationSeconds,
+                // Missing keys read as false: plain suggestions stay the default for every install.
+                isGhostTextBold: userDefaults.bool(forKey: Self.ghostTextBoldDefaultsKey),
+                isGhostTextItalic: userDefaults.bool(forKey: Self.ghostTextItalicDefaultsKey),
                 matchesHostTextSize: userDefaults.bool(forKey: Self.matchesHostTextSizeDefaultsKey),
                 showDevelopmentDebugOverlays: userDefaults.bool(forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
             ),
@@ -732,6 +739,8 @@ struct SuggestionSettingsStore {
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         savePredictAheadWhileTyping(data.predictAheadWhileTyping)
         saveFadeInSuggestions(data.fadeInSuggestions)
+        saveGhostTextBold(data.isGhostTextBold)
+        saveGhostTextItalic(data.isGhostTextItalic)
         saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveMatchesHostTextSize(data.matchesHostTextSize)
         saveAcceptanceKey(
@@ -1066,6 +1075,14 @@ struct SuggestionSettingsStore {
 
     func saveFadeInSuggestions(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.fadeInSuggestionsDefaultsKey)
+    }
+
+    func saveGhostTextBold(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.ghostTextBoldDefaultsKey)
+    }
+
+    func saveGhostTextItalic(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.ghostTextItalicDefaultsKey)
     }
 
     func saveMatchesHostTextSize(_ enabled: Bool) {

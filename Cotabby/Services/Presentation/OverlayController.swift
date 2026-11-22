@@ -1373,11 +1373,21 @@ final class OverlayController: SuggestionOverlayControlling {
             forBundleIdentifier: geometry.bundleIdentifier
         )
         let keycapWidth = acceptanceHintLabel.map(GhostTextPanelView.keycapWidth(for:)) ?? 0
+        // The user's bold/italic style is applied to the drawing face only. The plain host face
+        // still measures what the host will render (the accepted prefix), so a styled ghost keeps
+        // starting at the host's real caret after every accept.
+        let hostFont = session.fontResolution.font
+        let drawingFont = GhostFontStyler.styled(
+            hostFont,
+            bold: suggestionSettings.isGhostTextBold,
+            italic: suggestionSettings.isGhostTextItalic
+        )
         return GhostTextLayout.make(
             GhostTextLayout.Input(
                 fullText: session.fullText,
                 consumedUTF16: session.consumedUTF16,
-                font: session.fontResolution.font,
+                font: drawingFont,
+                measuringFont: drawingFont == hostFont ? nil : hostFont,
                 anchorTopLeft: CGPoint(x: session.anchorCaretRect.minX, y: session.anchorCaretRect.maxY),
                 boxHeight: session.anchorCaretRect.height,
                 baselineOffsetFromTop: session.baselineOffsetFromTop,
@@ -1571,6 +1581,8 @@ final class OverlayController: SuggestionOverlayControlling {
             autoAcceptTrailingPunctuation: suggestionSettings.autoAcceptTrailingPunctuation,
             sizeMultiplier: ghostSizeMultiplier,
             hostFontSize: mirrorHostFontSize(for: geometry),
+            isBold: suggestionSettings.isGhostTextBold,
+            isItalic: suggestionSettings.isGhostTextItalic,
             reason: reason
         )
         let customGhostColor = SuggestionTextColorCodec.color(
