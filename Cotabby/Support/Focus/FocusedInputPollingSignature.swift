@@ -17,6 +17,9 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
     private let fieldAnchor: FieldAnchor
     let windowTitle: String?
     let focusedURLString: String?
+    /// The placeholder this poll read. Hosts hide it while the field has text, which reads as nil and
+    /// so as unreadable (see `continuesField(of:)`); the signature FocusTracker remembers carries the
+    /// last shown value forward, so a field cleared later back to the same placeholder still continues.
     let fieldPlaceholder: String?
 
     init(context: FocusedInputSnapshot) {
@@ -30,7 +33,12 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
             bundleIdentifier: context.bundleIdentifier
         )
         focusedURLString = context.focusedURLString
-        fieldPlaceholder = context.fieldPlaceholder
+        // A host may answer `AXPlaceholderValue` with "" instead of dropping the attribute once text
+        // hides it. An empty placeholder is no placeholder (the prompt side reads it the same way);
+        // kept as "", it would differ from the one this session showed and look like navigation.
+        fieldPlaceholder = context.fieldPlaceholder.flatMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+        }
         fieldAnchor = FieldAnchor(
             inputFrame: context.inputFrameRect,
             fallbackElementIdentifier: context.elementIdentifier
@@ -68,6 +76,12 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
     /// bounded AX read under a 50 ms timeout, and a host busy with a burst of synthetic keystrokes
     /// drops one now and then. Treating that as navigation advanced the focus sequence and retired
     /// the active suggestion in the middle of rapid Tab accepts.
+    ///
+    /// The placeholder needs this rule more than the others, because a host changes it in response
+    /// to the text itself: it is shown only while the field is empty. Chromium composers (the Claude
+    /// desktop composer reports "Type / for commands.") drop `AXPlaceholderValue` a poll or two after
+    /// the first typed character and restore it when the field is cleared. Another conversation that
+    /// reuses the composer with a different placeholder still breaks continuity.
     func continuesField(of previous: FocusedInputPollingSignature) -> Bool {
         guard bundleIdentifier == previous.bundleIdentifier, processIdentifier == previous.processIdentifier,
               role == previous.role, subrole == previous.subrole,
@@ -76,6 +90,26 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
               FocusedInputSessionIdentity.surfaceFactsAgree(fieldPlaceholder, previous.fieldPlaceholder)
         else { return false }
         return fieldAnchor.continues(previous.fieldAnchor)
+    }
+
+    /// Names of the identity facts that broke continuity with `previous`, for logging why a poll
+    /// opened a new focus session. Names only: titles, URLs, and placeholders can identify what the
+    /// user is doing. Uses the same unreadable-agrees rule as `continuesField(of:)`.
+    func changedFacts(since previous: FocusedInputPollingSignature) -> [String] {
+        var facts: [String] = []
+        if bundleIdentifier != previous.bundleIdentifier || processIdentifier != previous.processIdentifier {
+            facts.append("app")
+        }
+        if role != previous.role || subrole != previous.subrole { facts.append("role") }
+        if !FocusedInputSessionIdentity.surfaceFactsAgree(windowTitle, previous.windowTitle) { facts.append("title") }
+        if !FocusedInputSessionIdentity.surfaceFactsAgree(focusedURLString, previous.focusedURLString) {
+            facts.append("url")
+        }
+        if !FocusedInputSessionIdentity.surfaceFactsAgree(fieldPlaceholder, previous.fieldPlaceholder) {
+            facts.append("placeholder")
+        }
+        if !fieldAnchor.continues(previous.fieldAnchor) { facts.append("frame") }
+        return facts
     }
 
     /// This poll's signature with any surface fact it failed to read filled in from `previous`.

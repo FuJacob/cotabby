@@ -19,21 +19,23 @@ nonisolated struct FocusedInputIdentity: Equatable, Sendable {
 /// advances the sequence when it observes navigation; the surface facts also protect consumers
 /// during a direct snapshot refresh. Requests and caches carry this immutable value only in
 /// memory. The full URL distinguishes conversations on one host and is never a prompt field.
+///
+/// The field placeholder is deliberately absent. Hosts show it only while the field is empty, so
+/// its live value flips with the text inside one session; FocusTracker's polling signature
+/// already folds a genuinely different placeholder into a new `focusChangeSequence`.
 nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let processIdentifier: Int32
     let bundleIdentifier: String
     let focusChangeSequence: UInt64
     let focusedURLString: String?
     let windowTitle: String?
-    let fieldPlaceholder: String?
 
     init(
         processIdentifier: Int32,
         bundleIdentifier: String,
         focusChangeSequence: UInt64,
         focusedURLString: String?,
-        windowTitle: String?,
-        fieldPlaceholder: String?
+        windowTitle: String?
     ) {
         self.processIdentifier = processIdentifier
         self.bundleIdentifier = bundleIdentifier
@@ -42,7 +44,6 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
         self.windowTitle = Self.identifyingWindowTitle(
             windowTitle, focusedURLString: focusedURLString, bundleIdentifier: bundleIdentifier
         )
-        self.fieldPlaceholder = fieldPlaceholder
     }
 
     /// The window title only when it is the best conversation signal available. In a browser the
@@ -67,7 +68,7 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     ///
     /// This is the comparison every consumer of a *live* snapshot must use instead of `==`. The
     /// process, bundle and focus sequence are Cotabby's own bookkeeping and always known, so they
-    /// must match exactly. The three surface facts are bounded AX reads repeated on every poll,
+    /// must match exactly. The two surface facts are bounded AX reads repeated on every poll,
     /// each under `AXHelper`'s 50 ms messaging timeout. A host busy processing a burst of synthetic
     /// keystrokes (Chromium during rapid Tab accepts) times one out, and the fact arrives as nil.
     /// Nil is an unreadable fact, not a navigation: navigation is one known value replaced by a
@@ -79,7 +80,6 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
             && focusChangeSequence == previous.focusChangeSequence
             && Self.surfaceFactsAgree(focusedURLString, previous.focusedURLString)
             && Self.surfaceFactsAgree(windowTitle, previous.windowTitle)
-            && Self.surfaceFactsAgree(fieldPlaceholder, previous.fieldPlaceholder)
     }
 
     /// Two reads of one surface fact agree unless both are known and differ. Shared with
@@ -100,8 +100,7 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
             bundleIdentifier: bundleIdentifier,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString ?? observed.focusedURLString,
-            windowTitle: windowTitle ?? observed.windowTitle,
-            fieldPlaceholder: fieldPlaceholder ?? observed.fieldPlaceholder
+            windowTitle: windowTitle ?? observed.windowTitle
         )
     }
 }
@@ -436,6 +435,13 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let observedContentEdges: ObservedContentEdges?
     let precedingText: String
     let trailingText: String
+    /// True when Accessibility answered nothing for the text after the caret, so `trailingText` is
+    /// empty without the field ending at the caret. A Chromium contenteditable answers nothing
+    /// whenever its range text is shorter than the length it reports (see `BlockBreakAlignment`).
+    /// The resolver recovers that text from the value where the two align; otherwise it keeps the
+    /// text empty and sets this, rather than pairing the whole `AXValue` with a caret counted in
+    /// the range space.
+    let trailingTextUnavailable: Bool
     let selection: NSRange
     let isSecure: Bool
 
@@ -513,6 +519,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         observedContentEdges: ObservedContentEdges? = nil,
         precedingText: String,
         trailingText: String,
+        trailingTextUnavailable: Bool = false,
         selection: NSRange,
         isSecure: Bool,
         isIntegratedTerminal: Bool = false,
@@ -540,6 +547,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.observedContentEdges = observedContentEdges
         self.precedingText = precedingText
         self.trailingText = trailingText
+        self.trailingTextUnavailable = trailingTextUnavailable
         self.selection = selection
         self.isSecure = isSecure
         self.isIntegratedTerminal = isIntegratedTerminal
@@ -570,7 +578,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         FocusedInputSessionIdentity(
             processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
             focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
-            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            windowTitle: windowTitle
         )
     }
 
@@ -581,6 +589,12 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// True when capture may have cut the start of `precedingText` to fit that window.
     nonisolated var precedingTextMayBeTruncated: Bool {
         precedingText.utf16.count >= Self.textWindowUTF16
+    }
+
+    /// True when capture may have cut the end of `trailingText` to fit that window, or could not
+    /// read it at all.
+    nonisolated var trailingTextMayBeTruncated: Bool {
+        trailingTextUnavailable || trailingText.utf16.count >= Self.textWindowUTF16
     }
 
     /// The signature lets later pipeline stages detect whether a completion result is stale.

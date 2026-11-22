@@ -347,6 +347,65 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
     }
 
+    // MARK: - shouldKeepVisualContextWhileDisabled
+
+    private static let textSelected = "Text is currently selected."
+
+    private func keepsVisualContext(
+        reason: String = textSelected,
+        globallyEnabled: Bool = true,
+        disabledAppBundleIdentifiers: Set<String> = [],
+        screenRecordingGranted: Bool = true,
+        isFastModeEnabled: Bool = false,
+        focusSnapshot: FocusSnapshot
+    ) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
+            disabledReason: reason,
+            globallyEnabled: globallyEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            inputMonitoringGranted: true,
+            screenRecordingGranted: screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: isFastModeEnabled
+        )
+    }
+
+    /// ⌘A in a chat composer blocks predictions until the next keystroke replaces the selection.
+    /// The field is unchanged, so its screen context must survive instead of being re-captured.
+    func test_keepVisualContext_whenTheFieldsOwnTransientStateDisablesPredictions() {
+        let selected = makeSnapshot(
+            capability: .blocked(Self.textSelected), context: CotabbyTestFixtures.focusedInputSnapshot()
+        )
+        XCTAssertTrue(keepsVisualContext(focusSnapshot: selected))
+        XCTAssertTrue(keepsVisualContext(
+            reason: "Missing caret bounds.",
+            focusSnapshot: makeSnapshot(
+                capability: .unsupported("Missing caret bounds."), context: CotabbyTestFixtures.focusedInputSnapshot()
+            )
+        ))
+    }
+
+    func test_keepVisualContext_endsForEnvironmentReasonsAndUnusableFields() {
+        let field = CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "app.test")
+        let selected = makeSnapshot(capability: .blocked(Self.textSelected), context: field)
+        let cases: [(label: String, keeps: Bool)] = [
+            ("environment reason", keepsVisualContext(reason: Self.turnedOff, focusSnapshot: selected)),
+            ("supported field", keepsVisualContext(focusSnapshot: makeSnapshot(context: field))),
+            ("no field", keepsVisualContext(focusSnapshot: makeSnapshot(capability: .blocked(Self.textSelected)))),
+            ("secure field", keepsVisualContext(focusSnapshot: makeSnapshot(
+                capability: .blocked(Self.textSelected),
+                context: CotabbyTestFixtures.focusedInputSnapshot(isSecure: true)
+            ))),
+            ("turned off", keepsVisualContext(globallyEnabled: false, focusSnapshot: selected)),
+            ("disabled app", keepsVisualContext(disabledAppBundleIdentifiers: ["app.test"], focusSnapshot: selected)),
+            ("no screen recording", keepsVisualContext(screenRecordingGranted: false, focusSnapshot: selected)),
+            ("fast mode", keepsVisualContext(isFastModeEnabled: true, focusSnapshot: selected))
+        ]
+        for (label, keeps) in cases {
+            XCTAssertFalse(keeps, label)
+        }
+    }
+
     // MARK: - shouldSchedulePredictionWhenVisualContextBecomesReady
 
     func test_visualContextReady_schedulesOnlyForTheSameSupportedFocusWithText() {

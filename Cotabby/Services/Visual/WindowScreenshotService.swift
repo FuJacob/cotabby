@@ -20,6 +20,9 @@ struct CapturedWindowScreenshot {
     /// space as `focusBounds`. It bounds how far below the caret the excerpt selector may drop
     /// lines, so content under a reply box that sits above its thread survives.
     var composerBounds: CGRect?
+    /// Where the focused field itself sits in `image`, so its text and pixels can be kept out of
+    /// screen context. Nil when the host reports no frame or the field lies outside the capture.
+    var fieldRegion: FocusedFieldScreenRegion?
 }
 
 /// Test seam for screen capture.
@@ -155,8 +158,20 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
             width: focusBounds.width,
             height: composer.height / sourceRect.height
         )
+        // The element's own frame, not the widened `inputFrameRect`: widening reaches neighbouring
+        // labels and buttons that are screen context, not the user's text.
+        let fieldRegion = context.elementFrameRect.flatMap {
+            FocusedFieldScreenRegion(
+                fieldFrame: convertBetweenAppKitAndCG(rect: $0), caretFrame: caret, captureRect: sourceRect,
+                fieldTextIsComplete: !context.precedingTextMayBeTruncated && !context.trailingTextMayBeTruncated
+            )
+        }
         return CapturedWindowScreenshot(
-            image: image, windowTitle: matchingWindow.title, focusBounds: focusBounds, composerBounds: composerBounds
+            image: image,
+            windowTitle: matchingWindow.title,
+            focusBounds: focusBounds,
+            composerBounds: composerBounds,
+            fieldRegion: fieldRegion
         )
     }
 

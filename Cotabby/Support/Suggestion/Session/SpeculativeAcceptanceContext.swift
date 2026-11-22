@@ -76,6 +76,7 @@ nonisolated enum SpeculativeAcceptanceContext {
             observedContentEdges: snapshot.observedContentEdges,
             precedingText: precedingText,
             trailingText: snapshot.trailingText,
+            trailingTextUnavailable: snapshot.trailingTextUnavailable,
             selection: NSRange(
                 location: selectionLocation,
                 length: 0

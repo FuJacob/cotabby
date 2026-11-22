@@ -347,6 +347,7 @@ struct FocusSnapshotResolver {
             observedContentEdges: observedContentEdges,
             precedingText: nsValue.substring(to: safeSelectionLocation),
             trailingText: nsValue.substring(from: trailingStart),
+            trailingTextUnavailable: resolvedCandidate.trailingTextUnavailable,
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
@@ -1059,7 +1060,7 @@ struct FocusSnapshotResolver {
         // and `textValue` stay consistent; otherwise use a bounded native text window when the host
         // supports `AXStringForRange`, falling back to the full value for older/native controls.
         let textSelection = (markerSelection.map {
-            AXTextSelection(text: $0.text, selection: $0.selection)
+            AXTextSelection(text: $0.text, selection: $0.selection, trailingTextUnavailable: $0.trailingTextUnavailable)
         } ?? nativeTextSelection).map {
             restoringBlockBreaks(
                 in: $0,
@@ -1202,6 +1203,7 @@ struct FocusSnapshotResolver {
             role: role,
             subrole: subrole,
             textValue: textValue,
+            trailingTextUnavailable: textSelection?.trailingTextUnavailable ?? false,
             selection: selection,
             caretRect: caretRect,
             caretQuality: caretQuality,
@@ -1238,7 +1240,9 @@ struct FocusSnapshotResolver {
             markedRange: windowMarkedRange
         )
         guard stripped != window.text else { return window }
-        return AXTextSelection(text: stripped, selection: window.selection)
+        return AXTextSelection(
+            text: stripped, selection: window.selection, trailingTextUnavailable: window.trailingTextUnavailable
+        )
     }
 
     /// One candidate's already-fetched state that the line-margin lookup needs, bundled so the
@@ -1519,17 +1523,21 @@ struct FocusSnapshotResolver {
         else {
             return nil
         }
-        // The text after the caret is optional context: a failed read leaves it out rather than
-        // giving up the window.
-        let trailingText = read(NSRange(location: afterStart, length: afterLength)) ?? ""
+        // A failed trailing read keeps the window rather than falling back to `AXValue`. Chromium
+        // fails it in every multi-block contenteditable (the window is sized from the value's length,
+        // past the range text's end), and the value paired with this range-space caret would put the
+        // caret before the wrong character. `restoringBlockBreaks` fills that text in from the value
+        // where the two align; elsewhere the snapshot says the text after the caret is unknown.
+        let trailingText = read(NSRange(location: afterStart, length: afterLength))
 
-        let text = beforeText + selectedText + trailingText
+        let text = beforeText + selectedText + (trailingText ?? "")
         return AXTextSelection(
             text: text,
             selection: NSRange(
                 location: (beforeText as NSString).length,
                 length: (selectedText as NSString).length
-            )
+            ),
+            trailingTextUnavailable: trailingText == nil
         )
     }
 
@@ -1707,6 +1715,9 @@ private struct FocusedElementReading {
 struct AXTextSelection {
     let text: String
     let selection: NSRange
+    /// See `FocusedInputSnapshot.trailingTextUnavailable`. A selection rebuilt from the field's
+    /// value (`restoringBlockBreaks`) has its trailing text again and drops the flag.
+    var trailingTextUnavailable = false
 }
 
 /// AX data read from one candidate element near the current focus.
@@ -1717,6 +1728,8 @@ private struct AXFocusCandidate {
     let role: String
     let subrole: String?
     let textValue: String?
+    /// See `FocusedInputSnapshot.trailingTextUnavailable`.
+    let trailingTextUnavailable: Bool
     let selection: NSRange?
     let caretRect: CGRect?
     let caretQuality: CaretGeometryQuality?

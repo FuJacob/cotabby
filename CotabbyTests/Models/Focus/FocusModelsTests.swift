@@ -121,8 +121,6 @@ final class FocusModelsTests: XCTestCase {
                 windowTitle: "Chat two", fieldPlaceholder: "Message"), titled),
             ("new url", CotabbyTestFixtures.focusedInputSnapshot(
                 focusedURLString: "https://chat.example/two", fieldPlaceholder: "Message"), located),
-            ("new placeholder", CotabbyTestFixtures.focusedInputSnapshot(
-                focusedURLString: "https://chat.example/one", fieldPlaceholder: "Reply"), located),
             ("new focus sequence", CotabbyTestFixtures.focusedInputSnapshot(
                 focusChangeSequence: 2, focusedURLString: "https://chat.example/one", fieldPlaceholder: "Message"),
              located),
@@ -133,6 +131,13 @@ final class FocusModelsTests: XCTestCase {
         for (label, live, base) in navigated {
             XCTAssertFalse(live.sessionIdentity.continues(base), label)
         }
+        // The placeholder is not a session fact: hosts hide it while the field has text. A different
+        // placeholder reaches consumers as a new focus sequence from the polling signature instead.
+        XCTAssertEqual(
+            CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/one", fieldPlaceholder: "Reply")
+                .sessionIdentity,
+            located
+        )
     }
 
     func test_focusedInputSnapshot_flagsPossibleTruncationAtTheCaptureWindow() {
@@ -145,6 +150,13 @@ final class FocusModelsTests: XCTestCase {
         // The window is measured in UTF-16 units, so a surrogate-pair emoji counts twice.
         let emojiAtWindow = String(repeating: "\u{1F600}", count: window / 2)
         XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(precedingText: emojiAtWindow).precedingTextMayBeTruncated)
+
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingText: underWindow).trailingTextMayBeTruncated)
+        XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingText: atWindow).trailingTextMayBeTruncated)
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(precedingText: atWindow).trailingTextMayBeTruncated)
+        // An empty trailing text the host never delivered is unknown, not the end of the field.
+        XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).trailingTextMayBeTruncated)
+        XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).precedingTextMayBeTruncated)
     }
 
     func test_focusPollingEvent_changeSummaryLabelsReflectFocusChange() {
