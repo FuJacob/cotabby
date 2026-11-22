@@ -169,8 +169,8 @@ scripts/prepare_cotabby_workspace.sh
 open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
 
-Use the **Cotabby Dev** scheme for local work. The workspace temporarily supplies the native
-APIs in our pending CotabbyInference patch; preparation is automatic in CI and release builds.
+Use the **Cotabby Dev** scheme for local work. The workspace pins every package, including
+CotabbyInference, to the exact revisions CI and releases build; preparation is automatic there.
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).
 

@@ -136,7 +136,7 @@ struct FocusedInputContext: Equatable, Sendable {
         FocusedInputSessionIdentity(
             processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
             focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
-            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            windowTitle: windowTitle
         )
     }
 

@@ -73,6 +73,7 @@ nonisolated enum AppSurfaceClassifier {
         "com.hnc.discord",
         "com.apple.mobilesms",
         "ru.keepcoder.telegram",
-        "net.whatsapp.whatsapp"
+        "net.whatsapp.whatsapp",
+        "org.whispersystems.signal-desktop"
     ]
 }

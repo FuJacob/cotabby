@@ -15,10 +15,16 @@ struct KeyRecorderView: View {
     /// When it reports a conflict the recorder refuses to commit and keeps listening, so a shortcut
     /// can never be assigned to two actions at once.
     var conflictChecker: ((CGKeyCode, ShortcutModifierMask) -> String?)?
+    /// A key that may be recorded as a double press instead of a single key: the Accept Word key,
+    /// when recording Accept Entire Suggestion. A single press of it is still a conflict.
+    var doubleTapKey: DoubleTapRecordingKey?
+    var onDoubleTapRecorded: (() -> Void)?
 
     @State private var monitor: Any?
     @State private var liveModifiers: ShortcutModifierMask = []
     @State private var conflictMessage: String?
+    /// Event timestamp of a first press of `doubleTapKey` still waiting for its second press.
+    @State private var pendingFirstTapTimestamp: TimeInterval?
 
     var body: some View {
         Text(promptText)
@@ -30,6 +36,9 @@ struct KeyRecorderView: View {
     private var promptText: String {
         if let conflictMessage {
             return conflictMessage
+        }
+        if pendingFirstTapTimestamp != nil, let doubleTapKey {
+            return "Press \(doubleTapKey.label) again…"
         }
         let glyphs = KeyCodeLabels.modifierGlyphs(liveModifiers)
         return glyphs.isEmpty ? "Press a key…" : "\(glyphs) + key…"
@@ -63,6 +72,12 @@ struct KeyRecorderView: View {
             return nil
         }
 
+        if let doubleTapKey, onDoubleTapRecorded != nil,
+           keyCode == doubleTapKey.keyCode, modifiers == doubleTapKey.modifiers {
+            return handleDoubleTapCandidate(event: event, key: doubleTapKey)
+        }
+        pendingFirstTapTimestamp = nil
+
         // Any other key is fair game. The pipeline is key-agnostic: `InputMonitor.classify`
         // matches the bound shortcut before its behavioral branches, and acceptance only
         // consumes the key while a suggestion is visible (otherwise it passes through and does
@@ -86,6 +101,34 @@ struct KeyRecorderView: View {
         )
         removeMonitor()
         onKeyRecorded(keyCode, modifiers, label)
+        return nil
+    }
+
+    /// The first press waits up to `DoubleTapAcceptanceState.window` for a second one, the same
+    /// window acceptance uses, so a pair that records here is a pair that works while typing. If no
+    /// second press comes, the press is reported as the usual conflict, with a pointer to the
+    /// double tap so the gesture is discoverable from the error.
+    private func handleDoubleTapCandidate(event: NSEvent, key: DoubleTapRecordingKey) -> NSEvent? {
+        // Holding the key auto-repeats; that is one long press, not a double tap.
+        guard !event.isARepeat else { return nil }
+
+        let timestamp = event.timestamp
+        if let first = pendingFirstTapTimestamp, timestamp - first <= DoubleTapAcceptanceState.window {
+            pendingFirstTapTimestamp = nil
+            removeMonitor()
+            onDoubleTapRecorded?()
+            return nil
+        }
+
+        pendingFirstTapTimestamp = timestamp
+        conflictMessage = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + DoubleTapAcceptanceState.window) {
+            // Only the press that scheduled this timeout may turn into an error.
+            guard pendingFirstTapTimestamp == timestamp else { return }
+            pendingFirstTapTimestamp = nil
+            let owner = conflictChecker?(key.keyCode, key.modifiers) ?? "another shortcut"
+            conflictMessage = "Already used by \(owner). Press it twice quickly for a double tap."
+        }
         return nil
     }
 
@@ -116,4 +159,11 @@ extension ShortcutModifierMask {
         if nsEventFlags.contains(.control) { mask.insert(.control) }
         self = mask
     }
+}
+
+/// The key a recorder may accept as a double press, with the label shown while it waits.
+struct DoubleTapRecordingKey: Equatable {
+    let keyCode: CGKeyCode
+    let modifiers: ShortcutModifierMask
+    let label: String
 }

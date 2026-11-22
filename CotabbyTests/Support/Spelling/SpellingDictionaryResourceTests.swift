@@ -82,6 +82,22 @@ final class TurkishMacedonianDictionaryTests: XCTestCase {
         )
     }
 
+    /// The 800-character sample can hold both alphabets; the letters nearest the caret decide, so
+    /// Russian typed after a Macedonian sentence is checked against the Russian dictionary.
+    func test_theMostRecentCyrillicMarkerDecidesBetweenMacedonianAndRussian() {
+        let languages: [SpellingDictionaryLanguage] = [.russian, .macedonian]
+        XCTAssertEqual(
+            resolver.resolve(precedingText: "Ќе дојдам утре. Мы были в этом городе и ", currentWord: "видели",
+                             enabledLanguages: languages),
+            .russian
+        )
+        XCTAssertEqual(
+            resolver.resolve(precedingText: "Мы были в этом городе. Ќе дојдам утре и ", currentWord: "кнјига",
+                             enabledLanguages: languages),
+            .macedonian
+        )
+    }
+
     func test_turkishTextSelectsTurkishOverEnglish() {
         XCTAssertEqual(
             resolver.resolve(precedingText: "Bu cümleyi şimdi Türkçe yazıyorum ve yarın sana ", currentWord: "gönderecğim",
@@ -100,6 +116,21 @@ final class TurkishMacedonianDictionaryTests: XCTestCase {
         corrector.loadForTesting(contents: "ışık 500\nişık 1\n", language: .turkish)
 
         XCTAssertEqual(corrector.bestCorrection(for: "Işk", language: .turkish), "Işık")
+    }
+
+    /// The Turkish list keeps source capitalization (`İstanbul`); entries are lowercased in Turkish
+    /// at load, merging counts, so a lowercased query reaches them.
+    func test_capitalizedDictionaryEntriesAreLowercasedInTheirLanguageAtLoad() {
+        let normalized = SpellingDictionaryCaseNormalizer.lowercased(
+            "İstanbul 900\nIşık 50\nışık 450\nev 300", locale: Locale(identifier: "tr")
+        )
+        XCTAssertEqual(normalized, "istanbul 900\nışık 500\nev 300")
+        XCTAssertEqual(SpellingDictionaryCaseNormalizer.lowercased("ev 3\nev 2", locale: Locale(identifier: "tr")), "ev 3\nev 2",
+                       "an all-lowercase list passes through untouched")
+
+        let corrector = SymSpellCorrector(preloadLanguage: nil)
+        corrector.loadForTesting(contents: "İstanbul 900\nistasyon 100\n", language: .turkish)
+        XCTAssertEqual(corrector.completionCandidates(for: "ista", language: .turkish).map(\.word), ["istanbul", "istasyon"])
     }
 
     func test_turkishPrefixLookupLowercasesDottedCapitalI() {

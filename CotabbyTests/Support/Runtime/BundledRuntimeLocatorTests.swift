@@ -174,7 +174,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertEqual(resolved.runtimeDirectoryURL.path, dir.path)
         XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "gemma-4-E2B.i1-Q6_K.gguf")
         // Known catalog files resolve to their product name rather than the raw filename.
-        XCTAssertEqual(resolved.modelDisplayName, "Cotabby Base")
+        XCTAssertEqual(resolved.modelDisplayName, "tabby-2-base")
     }
 
     func test_emptyRuntimeDirectoryPathFallsBackToDefaultCandidates() {
@@ -467,4 +467,19 @@ final class BundledRuntimeLocatorTests: XCTestCase {
             gpuLayerCount: -1
         )
     }
+
+    func test_discoverFindsModelsThroughASymlinkedModelsFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gguf-link-\(UUID().uuidString)")
+        let real = root.appendingPathComponent("real")
+        let link = root.appendingPathComponent("LlamaRuntime")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("gguf".utf8).write(to: real.appendingPathComponent("model.gguf"))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let found = BundledRuntimeLocator.discoverGGUFModelURLs(in: link)
+
+        XCTAssertEqual(found.map(\.lastPathComponent), ["model.gguf"])
+    }
+
 }

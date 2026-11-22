@@ -28,6 +28,11 @@ struct SuggestionEngineSettings: Equatable {
     var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
     var pluggedInEndpointModelName: String
+    /// When Apple Intelligence rejects a language, retry with the selected Open Source model.
+    var isAppleLanguageFallbackEnabled: Bool
+    /// Keep that fallback model loaded while Apple Intelligence is selected, so the first
+    /// fallback suggestion does not wait for the model to load. Costs the model's memory.
+    var keepsFallbackModelLoaded: Bool
 }
 
 /// Completion length, timing, streaming, and acceptance behavior.
@@ -85,6 +90,13 @@ struct SuggestionPresentationSettings: Equatable {
     var mirrorPreference: MirrorPreference
     var fadeInSuggestions: Bool
     var fadeInDurationSeconds: Double
+    /// Draw suggestions in the bold and/or italic face of the font matched to the host. Styling only:
+    /// the plain matched font still measures the host's text, so caret placement is unaffected.
+    var isGhostTextBold: Bool = false
+    var isGhostTextItalic: Bool = false
+    /// Draws the ghost at exactly the size measured for the host's own text, so the size multiplier
+    /// and the floor/ceiling above are not applied. Off by default, which keeps the user's tuning.
+    var matchesHostTextSize: Bool = false
     /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
     var showDevelopmentDebugOverlays: Bool = false
 }
@@ -111,6 +123,15 @@ struct SuggestionShortcutSettings: Equatable {
     var fullAcceptance: SuggestionShortcutBindingSettings
     var globalToggle: SuggestionShortcutBindingSettings
     var perAppOverrides: [PerAppShortcutOverride]
+    /// When true, Accept Entire Suggestion is bound to a quick double press of the Accept Word key
+    /// instead of a one-press key; the model's setters keep `fullAcceptance` unbound while it is on.
+    /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
+    /// the global Accept Entire Suggestion binding.
+    var doubleTapAcceptsEntireSuggestion: Bool
+    /// When true and Accept Word is plain Tab, Tab in a single-line field (an HTML `<input>`, an
+    /// `NSTextField`) is left to the host, so it moves to the next field as it would without
+    /// Cotabby. Accept Entire Suggestion still accepts there.
+    var tabLeavesSingleLineFields: Bool = false
 }
 
 /// Pure domain representation of every durable suggestion preference.
@@ -183,6 +204,16 @@ extension SuggestionSettingsData {
     var isPowerBasedModelSwitchingEnabled: Bool {
         get { engine.isPowerBasedModelSwitchingEnabled }
         set { engine.isPowerBasedModelSwitchingEnabled = newValue }
+    }
+
+    var isAppleLanguageFallbackEnabled: Bool {
+        get { engine.isAppleLanguageFallbackEnabled }
+        set { engine.isAppleLanguageFallbackEnabled = newValue }
+    }
+
+    var keepsFallbackModelLoaded: Bool {
+        get { engine.keepsFallbackModelLoaded }
+        set { engine.keepsFallbackModelLoaded = newValue }
     }
 
     var batteryEngine: SuggestionEngineKind {
@@ -395,9 +426,24 @@ extension SuggestionSettingsData {
         set { presentation.fadeInSuggestions = newValue }
     }
 
+    var isGhostTextBold: Bool {
+        get { presentation.isGhostTextBold }
+        set { presentation.isGhostTextBold = newValue }
+    }
+
+    var isGhostTextItalic: Bool {
+        get { presentation.isGhostTextItalic }
+        set { presentation.isGhostTextItalic = newValue }
+    }
+
     var fadeInDurationSeconds: Double {
         get { presentation.fadeInDurationSeconds }
         set { presentation.fadeInDurationSeconds = newValue }
+    }
+
+    var matchesHostTextSize: Bool {
+        get { presentation.matchesHostTextSize }
+        set { presentation.matchesHostTextSize = newValue }
     }
 
     var isEmojiPickerEnabled: Bool {
@@ -468,5 +514,15 @@ extension SuggestionSettingsData {
     var perAppShortcutOverrides: [PerAppShortcutOverride] {
         get { shortcuts.perAppOverrides }
         set { shortcuts.perAppOverrides = newValue }
+    }
+
+    var doubleTapAcceptsEntireSuggestion: Bool {
+        get { shortcuts.doubleTapAcceptsEntireSuggestion }
+        set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
+    }
+
+    var tabLeavesSingleLineFields: Bool {
+        get { shortcuts.tabLeavesSingleLineFields }
+        set { shortcuts.tabLeavesSingleLineFields = newValue }
     }
 }

@@ -24,6 +24,7 @@ enum CotabbyTestFixtures {
         observedContentEdges: ObservedContentEdges? = nil,
         precedingText: String = "Hello",
         trailingText: String = "",
+        trailingTextUnavailable: Bool = false,
         selection: NSRange? = nil,
         isSecure: Bool = false,
         isIntegratedTerminal: Bool = false,
@@ -52,6 +53,7 @@ enum CotabbyTestFixtures {
             observedContentEdges: observedContentEdges,
             precedingText: precedingText,
             trailingText: trailingText,
+            trailingTextUnavailable: trailingTextUnavailable,
             selection: resolvedSelection,
             isSecure: isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
@@ -126,6 +128,7 @@ enum CotabbyTestFixtures {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
+        historyExamples: [String] = [],
         isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -155,6 +158,7 @@ enum CotabbyTestFixtures {
             languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
+            historyExamples: historyExamples,
             isMultiLineEnabled: isMultiLineEnabled
         )
     }
@@ -186,7 +190,8 @@ enum CotabbyTestFixtures {
         isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat? = nil,
         isRightToLeft: Bool = false,
-        observedContentEdges: ObservedContentEdges? = nil
+        observedContentEdges: ObservedContentEdges? = nil,
+        isCaretLineVerticallyUncalibrated: Bool = false
     ) -> SuggestionOverlayGeometry {
         SuggestionOverlayGeometry(
             caretRect: caretRect,
@@ -195,7 +200,8 @@ enum CotabbyTestFixtures {
             isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft,
-            observedContentEdges: observedContentEdges
+            observedContentEdges: observedContentEdges,
+            isCaretLineVerticallyUncalibrated: isCaretLineVerticallyUncalibrated
         )
     }
 
@@ -270,7 +276,10 @@ enum CotabbyTestFixtures {
         suppressCompletionsOnTypo: Bool = false,
         offerTypoCorrections: Bool = false,
         enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
-        automaticallyFixTypos: Bool = false
+        automaticallyFixTypos: Bool = false,
+        doubleTapAcceptsEntireSuggestion: Bool = false,
+        tabLeavesSingleLineFields: Bool = false,
+        fullAcceptanceOverrideBundleIdentifiers: Set<String> = []
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -303,7 +312,10 @@ enum CotabbyTestFixtures {
             suppressCompletionsOnTypo: suppressCompletionsOnTypo,
             offerTypoCorrections: offerTypoCorrections,
             enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: automaticallyFixTypos
+            automaticallyFixTypos: automaticallyFixTypos,
+            doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+            tabLeavesSingleLineFields: tabLeavesSingleLineFields,
+            fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrideBundleIdentifiers
         )
     }
 }

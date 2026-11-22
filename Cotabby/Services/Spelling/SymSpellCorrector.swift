@@ -86,6 +86,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         contents: String,
         language: SpellingDictionaryLanguage = .english
     ) {
+        let contents = SpellingDictionaryCaseNormalizer.lowercased(contents, locale: language.caseLocale)
         let symSpell = makeEmptyIndex()
         symSpell.loadDictionary(contents: contents)
         let prefixes = WordPrefixIndex(contents: contents, locale: language.caseLocale)
@@ -144,9 +145,10 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
                 return
             }
 
+            let normalized = SpellingDictionaryCaseNormalizer.lowercased(contents, locale: language.caseLocale)
             let symSpell = makeEmptyIndex()
-            symSpell.loadDictionary(contents: contents)
-            let prefixes = WordPrefixIndex(contents: contents, locale: language.caseLocale)
+            symSpell.loadDictionary(contents: normalized)
+            let prefixes = WordPrefixIndex(contents: normalized, locale: language.caseLocale)
 
             lock.lock()
             publish(symSpell, prefixes: prefixes, for: language)

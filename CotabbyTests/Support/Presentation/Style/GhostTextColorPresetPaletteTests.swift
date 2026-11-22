@@ -6,12 +6,19 @@ import XCTest
 /// Settings swatch grid relies on: Automatic leads, every swatch is distinct, and every stored hex
 /// round-trips back to its own swatch so the active selection highlights correctly.
 final class GhostTextColorPresetPaletteTests: XCTestCase {
-    func test_all_leadsWithAutomaticFollowedByTenDistinctAccents() {
+    func test_all_leadsWithAutomaticFollowedByElevenDistinctColors() {
         XCTAssertEqual(GhostTextColorPreset.all.first, .automatic)
-        XCTAssertEqual(GhostTextColorPreset.all.count, 11)
-        XCTAssertEqual(Set(GhostTextColorPreset.all.map(\.id)).count, 11, "swatch ids must be unique")
-        XCTAssertEqual(Set(GhostTextColorPreset.all.compactMap(\.hex)).count, 10, "accent hexes must be unique")
+        XCTAssertEqual(GhostTextColorPreset.all.count, 12)
+        XCTAssertEqual(Set(GhostTextColorPreset.all.map(\.id)).count, 12, "swatch ids must be unique")
+        XCTAssertEqual(Set(GhostTextColorPreset.all.compactMap(\.hex)).count, 11, "accent hexes must be unique")
         XCTAssertEqual(GhostTextColorPreset.all.filter { $0.hex == nil }, [.automatic])
+    }
+
+    /// White is offered for dark editors, as the last swatch so the hue run stays together.
+    func test_all_endsWithWhite() {
+        XCTAssertEqual(GhostTextColorPreset.all.last?.id, "white")
+        XCTAssertEqual(GhostTextColorPreset.all.last?.hex, "FFFFFF")
+        XCTAssertEqual(GhostTextColorPreset.matching(hex: "ffffff").id, "white")
     }
 
     func test_all_accentHexesUseThePersistedUppercaseSixDigitFormat() {

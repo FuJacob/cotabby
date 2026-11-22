@@ -67,6 +67,10 @@ extension SuggestionCoordinator {
     /// presentation; the hidden buffer still lets a complete answer survive intervening typing.
     func receiveTypingPartial(_ result: SuggestionResult, workID: UInt64, showPartials: Bool) {
         guard workController.isCurrent(workID) else { return }
+        if firstTextRecordedWorkID != workID {
+            firstTextRecordedWorkID = workID
+            recordFirstTextLatency(Int((result.latency * 1_000).rounded()), engine: settingsSnapshot.selectedEngine)
+        }
         if var candidate = typingPrediction {
             guard !candidate.isFinal, result.generation == candidate.context.generation else { return }
             guard candidate.receive(result, final: false) else {

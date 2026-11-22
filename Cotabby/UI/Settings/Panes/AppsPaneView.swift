@@ -171,7 +171,8 @@ struct AppsPaneView: View {
                 override: override,
                 action: .acceptEntireSuggestion,
                 title: "Accept Entire Suggestion",
-                inheritsHelp: "Uses the global shortcut (\(suggestionSettings.fullAcceptanceKeyLabel)). "
+                inheritsHelp: "Uses the global shortcut ("
+                    + "\(suggestionSettings.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: override.bundleIdentifier))). "
                     + "Click Change to set a custom key for \(override.displayName)."
             )
         }
@@ -196,7 +197,7 @@ struct AppsPaneView: View {
                 .frame(width: 180, alignment: .leading)
 
             if inherits {
-                Text("Uses global (\(binding.label))")
+                Text("Uses global (\(inheritedLabel(override: override, action: action, binding: binding)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .help(inheritsHelp)
@@ -259,6 +260,16 @@ struct AppsPaneView: View {
                 )
             }
         }
+    }
+
+    /// The inherited shortcut as this app sees it; for full acceptance that may be a double tap.
+    private func inheritedLabel(
+        override: PerAppShortcutOverride,
+        action: PerAppShortcutAction,
+        binding: ShortcutResolver.ResolvedBinding
+    ) -> String {
+        guard action == .acceptEntireSuggestion else { return binding.label }
+        return suggestionSettings.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: override.bundleIdentifier)
     }
 
     private func recordingBinding(

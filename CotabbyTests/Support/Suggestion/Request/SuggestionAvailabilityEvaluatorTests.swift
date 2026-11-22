@@ -347,6 +347,65 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
     }
 
+    // MARK: - shouldKeepVisualContextWhileDisabled
+
+    private static let textSelected = "Text is currently selected."
+
+    private func keepsVisualContext(
+        reason: String = textSelected,
+        globallyEnabled: Bool = true,
+        disabledAppBundleIdentifiers: Set<String> = [],
+        screenRecordingGranted: Bool = true,
+        isFastModeEnabled: Bool = false,
+        focusSnapshot: FocusSnapshot
+    ) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled(
+            disabledReason: reason,
+            globallyEnabled: globallyEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            inputMonitoringGranted: true,
+            screenRecordingGranted: screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: isFastModeEnabled
+        )
+    }
+
+    /// ⌘A in a chat composer blocks predictions until the next keystroke replaces the selection.
+    /// The field is unchanged, so its screen context must survive instead of being re-captured.
+    func test_keepVisualContext_whenTheFieldsOwnTransientStateDisablesPredictions() {
+        let selected = makeSnapshot(
+            capability: .blocked(Self.textSelected), context: CotabbyTestFixtures.focusedInputSnapshot()
+        )
+        XCTAssertTrue(keepsVisualContext(focusSnapshot: selected))
+        XCTAssertTrue(keepsVisualContext(
+            reason: "Missing caret bounds.",
+            focusSnapshot: makeSnapshot(
+                capability: .unsupported("Missing caret bounds."), context: CotabbyTestFixtures.focusedInputSnapshot()
+            )
+        ))
+    }
+
+    func test_keepVisualContext_endsForEnvironmentReasonsAndUnusableFields() {
+        let field = CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "app.test")
+        let selected = makeSnapshot(capability: .blocked(Self.textSelected), context: field)
+        let cases: [(label: String, keeps: Bool)] = [
+            ("environment reason", keepsVisualContext(reason: Self.turnedOff, focusSnapshot: selected)),
+            ("supported field", keepsVisualContext(focusSnapshot: makeSnapshot(context: field))),
+            ("no field", keepsVisualContext(focusSnapshot: makeSnapshot(capability: .blocked(Self.textSelected)))),
+            ("secure field", keepsVisualContext(focusSnapshot: makeSnapshot(
+                capability: .blocked(Self.textSelected),
+                context: CotabbyTestFixtures.focusedInputSnapshot(isSecure: true)
+            ))),
+            ("turned off", keepsVisualContext(globallyEnabled: false, focusSnapshot: selected)),
+            ("disabled app", keepsVisualContext(disabledAppBundleIdentifiers: ["app.test"], focusSnapshot: selected)),
+            ("no screen recording", keepsVisualContext(screenRecordingGranted: false, focusSnapshot: selected)),
+            ("fast mode", keepsVisualContext(isFastModeEnabled: true, focusSnapshot: selected))
+        ]
+        for (label, keeps) in cases {
+            XCTAssertFalse(keeps, label)
+        }
+    }
+
     // MARK: - shouldSchedulePredictionWhenVisualContextBecomesReady
 
     func test_visualContextReady_schedulesOnlyForTheSameSupportedFocusWithText() {
@@ -378,6 +437,31 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
                 SuggestionAvailabilityEvaluator.shouldSchedulePredictionWhenVisualContextBecomesReady(
                     focusSnapshot: testCase.snapshot,
                     matching: identity
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
+
+    func test_postAcceptanceHoldReportsTheTimeLeftAfterARecentAccept() {
+        let now: TimeInterval = 1_000
+        let cases: [(name: String, lastAcceptanceUptime: TimeInterval?, holdMilliseconds: Int, expected: Int)] = [
+            ("never accepted", nil, 500, 0),
+            ("accepted 370ms ago", now - 0.37, 500, 130),
+            ("accepted exactly at the limit", now - 0.5, 500, 0),
+            ("accepted 1s ago", now - 1, 500, 0),
+            ("hold off", now - 0.01, 0, 0),
+            // Uptime is monotonic, but a caller passing a future instant must not extend the hold.
+            ("acceptance in the future", now + 5, 500, 500)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
+                    lastAcceptanceUptime: testCase.lastAcceptanceUptime,
+                    nowUptime: now,
+                    holdMilliseconds: testCase.holdMilliseconds
                 ),
                 testCase.expected,
                 testCase.name

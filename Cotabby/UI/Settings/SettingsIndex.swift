@@ -37,7 +37,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showMenuBarIcon
     case showKeyHint
     case ghostTextColor
+    case ghostTextStyle
     case ghostTextOpacity
+    case matchHostTextSize
     case ghostTextSize
     case ghostTextSizeFloor
     case ghostTextSizeCeiling
@@ -59,10 +61,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case automaticallyFixTypos
     // Context
     case extendedContext
+    case typingHistory
     case contextLivePreview
     // Engine & Model
     case engine
     case appleIntelligenceAvailability
+    case appleLanguageFallback
+    case keepFallbackModelLoaded
+    case appleLanguageFallbackModel
     case modelStatus
     case selectedModel
     case lowPowerModeAutoDisable
@@ -82,6 +88,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case acceptanceMode
     case acceptWord
     case acceptEntireSuggestion
+    case tabLeavesSingleLineFields
     case toggleTabby
     // Apps
     case disabledApps
@@ -132,7 +139,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
+        case .ghostTextStyle: return "Ghost Text Style"
         case .ghostTextOpacity: return "Ghost Text Opacity"
+        case .matchHostTextSize: return "Match Original Text Size"
         case .ghostTextSize: return "Ghost Text Size"
         case .ghostTextSizeFloor: return "Smallest Ghost Text"
         case .ghostTextSizeCeiling: return "Largest Ghost Text"
@@ -149,9 +158,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Spelling Dictionaries"
         case .automaticallyFixTypos: return "Automatically Fix Typos"
         case .extendedContext: return "Extended Context"
+        case .typingHistory: return "Typing History"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
+        case .appleLanguageFallback: return "Fall Back to Open Source Model"
+        case .keepFallbackModelLoaded: return "Keep Fallback Model Loaded"
+        case .appleLanguageFallbackModel: return "Fallback Model"
         case .modelStatus: return "Model Status"
         case .selectedModel: return "Selected Model"
         case .lowPowerModeAutoDisable: return "Pause in Low Power Mode"
@@ -170,6 +183,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
+        case .tabLeavesSingleLineFields: return "Tab Moves to Next Field"
         case .toggleTabby: return "Toggle Cotabby"
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
@@ -216,7 +230,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "menubar.rectangle"
         case .showKeyHint: return "keyboard"
         case .ghostTextColor: return "paintpalette"
+        case .ghostTextStyle: return "bold.italic.underline"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
+        case .matchHostTextSize: return "equal.square"
         case .ghostTextSize: return "textformat.size"
         case .ghostTextSizeFloor: return "arrow.down.to.line"
         case .ghostTextSizeCeiling: return "arrow.up.to.line"
@@ -233,9 +249,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "character.book.closed"
         case .automaticallyFixTypos: return "checkmark.circle"
         case .extendedContext: return "doc.text"
+        case .typingHistory: return "clock.arrow.circlepath"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
+        case .appleLanguageFallback: return "arrow.triangle.branch"
+        case .keepFallbackModelLoaded: return "memorychip"
+        case .appleLanguageFallbackModel: return "shippingbox"
         case .modelStatus: return "info.circle"
         case .selectedModel: return "shippingbox"
         case .lowPowerModeAutoDisable: return "bolt.slash.circle"
@@ -254,6 +274,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "textformat.abc"
         case .acceptWord: return "arrow.right.to.line"
         case .acceptEntireSuggestion: return "text.insert"
+        case .tabLeavesSingleLineFields: return "arrow.right.to.line.compact"
         case .toggleTabby: return "power.circle"
         case .disabledApps: return "nosign"
         case .suggestInIntegratedTerminals: return "terminal"
@@ -283,22 +304,23 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
-             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
-             .ghostTextOpacity, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
+             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor, .ghostTextStyle,
+             .ghostTextOpacity, .matchHostTextSize, .ghostTextSize, .ghostTextSizeFloor, .ghostTextSizeCeiling:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
         case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
-        case .extendedContext, .contextLivePreview:
+        case .extendedContext, .contextLivePreview, .typingHistory:
             return .context
-        case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
-             .lowPowerModeAutoDisable, .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
+        case .engine, .appleIntelligenceAvailability, .appleLanguageFallback, .keepFallbackModelLoaded,
+             .appleLanguageFallbackModel, .modelStatus, .selectedModel, .lowPowerModeAutoDisable,
+             .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
              .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
-        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
+        case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .tabLeavesSingleLineFields, .toggleTabby:
             return .shortcuts
         case .disabledApps, .suggestInIntegratedTerminals:
             return .apps
@@ -341,7 +363,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
         case .ghostTextColor: return "Pick the color of the inline suggestion."
+        case .ghostTextStyle: return "Draw suggestions bold, italic, or both."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
+        case .matchHostTextSize: return "Draw suggestions at exactly the size of the text you are typing."
         case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
         case .ghostTextSizeFloor:
             return "The smallest point size ghost text may render at."
@@ -360,9 +384,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Dictionaries used to detect typos."
         case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
         case .extendedContext: return "A glossary or notes sent with every suggestion."
+        case .typingHistory: return "Learn from what you type, and import Cotypist history."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
+        case .appleLanguageFallback: return "Use the local model for languages Apple Intelligence doesn't support."
+        case .keepFallbackModelLoaded: return "Preload the fallback model so its first suggestion is fast."
+        case .appleLanguageFallbackModel: return "Which downloaded model the language fallback uses."
         case .modelStatus: return "Whether the local model is loaded and ready."
         case .selectedModel: return "Which downloaded model generates suggestions."
         case .lowPowerModeAutoDisable: return "Pause suggestions while Low Power Mode is active."
@@ -380,7 +408,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointModel: return "The model identifier sent to the configured endpoint."
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
-        case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
+        case .acceptEntireSuggestion: return "The key, or the Accept Word key pressed twice, that inserts the whole suggestion."
+        case .tabLeavesSingleLineFields: return "Let Tab move between form fields instead of accepting in one-line fields."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
@@ -389,7 +418,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .screenRecording: return "Optional visual context from the focused window."
         case .performanceTracking: return "Record timing for every model request."
         case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
-        case .resourceUsage: return "Live CPU and memory graphs for the app."
+        case .resourceUsage: return "Live CPU, memory, and GPU graphs for the app."
         case .recentRequests: return "Latency log of the most recent generations."
         case .checkForUpdates: return "See if a newer Cotabby is available."
         case .support: return "Report bugs, suggest features, or contribute code."
@@ -477,10 +506,16 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "show key"]
         case .ghostTextColor:
             return ["color", "ghost", "theme", "dark", "light", "tint", "appearance",
-                    "highlight", "shade"]
+                    "highlight", "shade", "white"]
+        case .ghostTextStyle:
+            return ["bold", "italic", "style", "font", "weight", "slant", "emphasis",
+                    "ghost", "appearance"]
         case .ghostTextOpacity:
             return ["opacity", "transparency", "fade", "alpha", "translucent", "dim",
                     "brightness", "visibility"]
+        case .matchHostTextSize:
+            return ["match", "same size", "original", "host", "font size", "text size", "exact",
+                    "native", "actual size", "size"]
         case .ghostTextSize:
             return ["size", "font size", "scale", "bigger", "smaller", "larger", "text size",
                     "zoom", "multiplier", "too big", "too small"]
@@ -529,6 +564,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .extendedContext:
             return ["context", "glossary", "reference", "notes", "jargon", "instructions",
                     "memory", "background", "system prompt", "vocabulary"]
+        case .typingHistory:
+            return ["history", "typing history", "personalize", "personalization", "learn", "record",
+                    "cotypist", "import", "phrases", "my writing", "privacy", "delete"]
         case .contextLivePreview:
             return ["live", "preview", "test", "ghost", "try", "playground", "sandbox",
                     "demo", "try it", "test field"]
@@ -537,6 +575,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "provider", "runtime", "foundation models", "oss", "local", "endpoint",
                     "ollama", "openai compatible", "lm studio", "vllm",
                     "on-device", "model engine"]
+        case .appleLanguageFallbackModel:
+            return ["fallback model", "fallback", "model", "gemma", "gguf", "local model", "choose model"]
+        case .appleLanguageFallback:
+            return ["fallback", "fall back", "unsupported language", "language", "macedonian",
+                    "open source", "local model", "gemma", "llama"]
+        case .keepFallbackModelLoaded:
+            return ["keep loaded", "preload", "warm", "memory", "ram", "resident", "fallback",
+                    "first suggestion", "load time"]
         case .appleIntelligenceAvailability:
             return ["apple intelligence", "availability", "available", "supported",
                     "compatibility", "status", "macos", "device support"]
@@ -589,7 +635,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "hotkey", "accept word", "next word"]
         case .acceptEntireSuggestion:
             return ["accept all", "entire", "full", "shortcut", "complete", "all",
-                    "whole", "everything", "keybind", "binding"]
+                    "whole", "everything", "keybind", "binding", "double tap", "double-tap",
+                    "twice", "tab tab", "press twice"]
+        case .tabLeavesSingleLineFields:
+            return ["tab", "form", "forms", "next field", "field navigation", "single line",
+                    "one line", "input", "move focus", "tab order"]
         case .toggleTabby:
             return ["toggle", "global", "on off", "shortcut", "hotkey", "pause",
                     "enable", "disable", "keybind", "binding", "tabby"]
@@ -616,8 +666,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["quality", "acceptance", "accepted", "shown", "suppressed", "withheld",
                     "rate", "stats", "counters", "suggestions"]
         case .resourceUsage:
-            return ["cpu", "memory", "ram", "usage", "resource", "graph", "chart",
-                    "live", "load", "monitor"]
+            return ["cpu", "memory", "ram", "gpu", "graphics", "metal", "usage", "resource", "graph",
+                    "chart", "live", "load", "monitor"]
         case .recentRequests:
             return ["recent", "requests", "history", "log", "completions", "latency",
                     "clear", "list", "past"]

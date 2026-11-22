@@ -142,6 +142,14 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `fadeInSuggestions`, so dragging the speed slider takes effect on the next suggestion. Lower is
     /// a faster fade. Like `fadeInSuggestions`, it never reaches generation, only the overlay renderer.
     @Published private(set) var fadeInDurationSeconds: Double
+    /// Whether suggestions are drawn bold and/or italic. Like the fade settings these are read live
+    /// by `OverlayController` when it draws, and never reach generation or the snapshot.
+    @Published private(set) var isGhostTextBold: Bool
+    @Published private(set) var isGhostTextItalic: Bool
+    /// When on, the ghost is drawn at exactly the size measured for the host's own text: the size
+    /// multiplier and the floor/ceiling are not applied. Read live by `OverlayController`, so it
+    /// takes effect on the next suggestion; like the size settings it never reaches generation.
+    @Published private(set) var matchesHostTextSize: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -156,8 +164,19 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Per-app accept/full-accept overrides. Published so the input monitor's event-time provider
     /// closures (via `ShortcutResolver`) and the Apps settings pane both observe the live list.
     @Published private(set) var perAppShortcutOverrides: [PerAppShortcutOverride]
+    /// Whether Accept Entire Suggestion is bound to a quick double press of the Accept Word key.
+    /// The Accept Entire Suggestion slot holds one shortcut, so while this is true the one-press
+    /// full-accept key is unbound; the setters below keep the two mutually exclusive.
+    @Published private(set) var doubleTapAcceptsEntireSuggestion: Bool
+    /// Whether Tab moves to the next field instead of accepting in single-line fields.
+    @Published private(set) var tabLeavesSingleLineFields: Bool
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
+    /// Retry with the Open Source model when Apple Intelligence rejects the text's language.
+    /// Read live by `SuggestionEngineRouter` at request time.
+    @Published private(set) var isAppleLanguageFallbackEnabled: Bool
+    /// Keep the fallback model loaded while Apple Intelligence is selected (see `AppDelegate`).
+    @Published private(set) var keepsFallbackModelLoaded: Bool
     @Published private(set) var batteryEngine: SuggestionEngineKind
     @Published private(set) var batteryModelFilename: String
     @Published private(set) var batteryEndpointModelName: String
@@ -274,6 +293,9 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
+        matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -284,8 +306,12 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
+        tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
+        keepsFallbackModelLoaded = data.keepsFallbackModelLoaded
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
         batteryEndpointModelName = data.batteryEndpointModelName
@@ -357,6 +383,9 @@ final class SuggestionSettingsModel: ObservableObject {
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
+        isGhostTextBold = data.isGhostTextBold
+        isGhostTextItalic = data.isGhostTextItalic
+        matchesHostTextSize = data.matchesHostTextSize
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -367,8 +396,12 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
+        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
+        tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
+        keepsFallbackModelLoaded = data.keepsFallbackModelLoaded
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
         batteryEndpointModelName = data.batteryEndpointModelName
@@ -410,7 +443,9 @@ final class SuggestionSettingsModel: ObservableObject {
                 batteryEndpointModelName: batteryEndpointModelName,
                 pluggedInEngine: pluggedInEngine,
                 pluggedInModelFilename: pluggedInModelFilename,
-                pluggedInEndpointModelName: pluggedInEndpointModelName
+                pluggedInEndpointModelName: pluggedInEndpointModelName,
+                isAppleLanguageFallbackEnabled: isAppleLanguageFallbackEnabled,
+                keepsFallbackModelLoaded: keepsFallbackModelLoaded
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: selectedWordCountPreset,
@@ -456,6 +491,9 @@ final class SuggestionSettingsModel: ObservableObject {
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
                 fadeInDurationSeconds: fadeInDurationSeconds,
+                isGhostTextBold: isGhostTextBold,
+                isGhostTextItalic: isGhostTextItalic,
+                matchesHostTextSize: matchesHostTextSize,
                 showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
@@ -480,7 +518,9 @@ final class SuggestionSettingsModel: ObservableObject {
                     modifiers: globalToggleKeyModifiers,
                     label: globalToggleKeyLabel
                 ),
-                perAppOverrides: perAppShortcutOverrides
+                perAppOverrides: perAppShortcutOverrides,
+                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                tabLeavesSingleLineFields: tabLeavesSingleLineFields
             )
         )
     }
@@ -521,7 +561,12 @@ final class SuggestionSettingsModel: ObservableObject {
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
+            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
+            tabLeavesSingleLineFields: settings.shortcuts.tabLeavesSingleLineFields,
+            fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
+                in: settings.shortcuts.perAppOverrides
+            )
         )
     }
 
@@ -569,6 +614,50 @@ final class SuggestionSettingsModel: ObservableObject {
     func saveOpenAICompatibleAPIKey(_ apiKey: String?) throws {
         try endpointCredentialStore.saveAPIKey(apiKey)
         endpointCredentialRevision &+= 1
+    }
+
+    func setAppleLanguageFallbackEnabled(_ enabled: Bool) {
+        guard isAppleLanguageFallbackEnabled != enabled else { return }
+        isAppleLanguageFallbackEnabled = enabled
+        store.saveAppleLanguageFallbackEnabled(enabled)
+    }
+
+    func setKeepsFallbackModelLoaded(_ enabled: Bool) {
+        guard keepsFallbackModelLoaded != enabled else { return }
+        keepsFallbackModelLoaded = enabled
+        store.saveKeepsFallbackModelLoaded(enabled)
+    }
+
+    /// Whether the local runtime should keep its model loaded under the current settings. Read
+    /// this outside a `@Published` sink; inside one, use `localRuntimeResidencyPublisher`.
+    var keepsLocalRuntimeLoaded: Bool {
+        LocalRuntimeResidencyPolicy.keepsModelLoaded(
+            engine: selectedEngine,
+            isAppleLanguageFallbackEnabled: isAppleLanguageFallbackEnabled,
+            keepsFallbackModelLoaded: keepsFallbackModelLoaded
+        )
+    }
+
+    /// Emits the residency decision whenever the engine or either fallback switch changes, starting
+    /// with the current value. The decision is computed from the *emitted* values on purpose:
+    /// `@Published` publishes from the property's `willSet`, so a subscriber that read
+    /// `selectedEngine` back would still see the previous engine and start or stop the wrong way.
+    /// Equal decisions are not collapsed: switching from Apple Intelligence to the endpoint emits
+    /// `false` again, and that repeat is what releases a model the fallback loaded on demand.
+    var localRuntimeResidencyPublisher: AnyPublisher<Bool, Never> {
+        Publishers.CombineLatest3(
+            $selectedEngine.removeDuplicates(),
+            $isAppleLanguageFallbackEnabled.removeDuplicates(),
+            $keepsFallbackModelLoaded.removeDuplicates()
+        )
+        .map { engine, isFallbackEnabled, keepsFallbackLoaded in
+            LocalRuntimeResidencyPolicy.keepsModelLoaded(
+                engine: engine,
+                isAppleLanguageFallbackEnabled: isFallbackEnabled,
+                keepsFallbackModelLoaded: keepsFallbackLoaded
+            )
+        }
+        .eraseToAnyPublisher()
     }
 
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
@@ -903,6 +992,68 @@ final class SuggestionSettingsModel: ObservableObject {
         )
     }
 
+    func setTabLeavesSingleLineFields(_ enabled: Bool) {
+        guard tabLeavesSingleLineFields != enabled else {
+            return
+        }
+        tabLeavesSingleLineFields = enabled
+        store.saveTabLeavesSingleLineFields(enabled)
+    }
+
+    private func setDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
+        guard doubleTapAcceptsEntireSuggestion != enabled else {
+            return
+        }
+        doubleTapAcceptsEntireSuggestion = enabled
+        store.saveDoubleTapAcceptsEntireSuggestion(enabled)
+    }
+
+    /// Binds Accept Entire Suggestion to a double press of the Accept Word key, replacing any
+    /// one-press key in that slot. Ignored while Accept Word is unbound, since there is no key to
+    /// press twice.
+    func setDoubleTapFullAcceptance() {
+        guard acceptanceKeyCode != Self.disabledKeyCode else { return }
+        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+        setDoubleTapAcceptsEntireSuggestion(true)
+    }
+
+    /// True when the double-tap binding can actually fire. It rides on the Accept Word key, so it
+    /// is inert while that key is unbound.
+    var isDoubleTapFullAcceptanceActive: Bool {
+        doubleTapAcceptsEntireSuggestion && acceptanceKeyCode != Self.disabledKeyCode
+    }
+
+    /// The Accept Entire Suggestion shortcut as users should read it: the one-press key, or the
+    /// Accept Word key written twice ("Tab Tab").
+    var fullAcceptanceDisplayLabel: String {
+        isDoubleTapFullAcceptanceActive ? "\(acceptanceKeyLabel) \(acceptanceKeyLabel)" : fullAcceptanceKeyLabel
+    }
+
+    /// What accepts the whole suggestion in one app when it inherits the global shortcut. The
+    /// double tap is a double press of that app's own Accept Word key, so a per-app Accept Word
+    /// override changes it too, and disabling Accept Word there leaves no double tap at all.
+    func inheritedFullAcceptanceDisplayLabel(forBundleIdentifier bundleIdentifier: String?) -> String {
+        let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard doubleTapAcceptsEntireSuggestion, fullAccept.keyCode == Self.disabledKeyCode else {
+            return fullAccept.label
+        }
+        let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
+        guard accept.keyCode != Self.disabledKeyCode else { return fullAccept.label }
+        return "\(accept.label) \(accept.label)"
+    }
+
+    /// Whether any shortcut accepts the whole suggestion, so views can offer Clear.
+    var hasFullAcceptanceShortcut: Bool {
+        isDoubleTapFullAcceptanceActive || fullAcceptanceKeyCode != Self.disabledKeyCode
+    }
+
+    /// Whether the slot still holds the factory one-press key, so views can hide Reset.
+    var isFullAcceptanceShortcutDefault: Bool {
+        !isDoubleTapFullAcceptanceActive
+            && fullAcceptanceKeyCode == Self.defaultFullAcceptanceKeyCode
+            && fullAcceptanceKeyModifiers.isEmpty
+    }
+
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
         guard autoAcceptTrailingPunctuation != enabled else {
             return
@@ -939,6 +1090,30 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         fadeInSuggestions = enabled
         store.saveFadeInSuggestions(enabled)
+    }
+
+    func setGhostTextBold(_ enabled: Bool) {
+        guard isGhostTextBold != enabled else {
+            return
+        }
+        isGhostTextBold = enabled
+        store.saveGhostTextBold(enabled)
+    }
+
+    func setGhostTextItalic(_ enabled: Bool) {
+        guard isGhostTextItalic != enabled else {
+            return
+        }
+        isGhostTextItalic = enabled
+        store.saveGhostTextItalic(enabled)
+    }
+
+    func setMatchesHostTextSize(_ enabled: Bool) {
+        guard matchesHostTextSize != enabled else {
+            return
+        }
+        matchesHostTextSize = enabled
+        store.saveMatchesHostTextSize(enabled)
     }
 
     func setFadeInDurationSeconds(_ seconds: Double) {
@@ -1328,10 +1503,18 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func clearAcceptanceKey() {
+        // The double-tap binding is a double press of this key, so it goes away with it rather than
+        // reappearing unexpectedly when a new Accept Word key is recorded later.
+        setDoubleTapAcceptsEntireSuggestion(false)
         setAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
     func setFullAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
+        // A real key takes the slot over from a double tap. Unbinding leaves the flag alone so
+        // `setDoubleTapFullAcceptance` can clear the key without undoing itself.
+        if keyCode != Self.disabledKeyCode {
+            setDoubleTapAcceptsEntireSuggestion(false)
+        }
         let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
         guard fullAcceptanceKeyCode != keyCode
             || fullAcceptanceKeyModifiers != normalizedModifiers
@@ -1353,6 +1536,7 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func clearFullAcceptanceKey() {
+        setDoubleTapAcceptsEntireSuggestion(false)
         setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
@@ -1652,10 +1836,18 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $customWordCountLowWords,
             $customWordCountHighWords
         )
+        // What a press of an accept key does: how much one press takes, whether a double tap takes
+        // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
+        let acceptance = Publishers.CombineLatest4(
+            $acceptanceGranularity,
+            $doubleTapAcceptsEntireSuggestion,
+            $perAppShortcutOverrides,
+            $tabLeavesSingleLineFields
+        )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
             primary,
-            $acceptanceGranularity,
+            acceptance,
             Publishers.CombineLatest4(
                 $extendedContext,
                 $suggestInIntegratedTerminals,
@@ -1664,7 +1856,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             ),
             customRange
         )
-            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, acceptanceTuple, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1675,6 +1867,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides, tabLeavesSingleLineFields) =
+                    acceptanceTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1708,7 +1902,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos
+                    automaticallyFixTypos: automaticallyFixTypos,
+                    doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                    tabLeavesSingleLineFields: tabLeavesSingleLineFields,
+                    fullAcceptanceOverrideBundleIdentifiers:
+                        PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides)
                 )
             }
             .removeDuplicates()

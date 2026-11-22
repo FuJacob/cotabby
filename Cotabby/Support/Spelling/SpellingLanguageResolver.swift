@@ -64,15 +64,19 @@ nonisolated struct SpellingLanguageResolver: Sendable {
     /// (it labels Macedonian text Bulgarian). Letters that exist in only one of the two alphabets
     /// settle it without guessing: ѓ ќ ѕ ј љ њ џ are Macedonian, ы э ё щ ъ й are Russian. Only used
     /// when Macedonian is enabled, so every other combination keeps its existing detection.
+    ///
+    /// The letter closest to the caret decides. The sample spans up to 800 characters, so a
+    /// Macedonian sentence followed by Russian prose holds both sets; the word being typed belongs to
+    /// the text around it, not to whichever language merely appeared somewhere earlier.
     static func cyrillicLanguageByLetters(
         in sample: String,
         enabledLanguages: [SpellingDictionaryLanguage]
     ) -> SpellingDictionaryLanguage? {
         guard enabledLanguages.contains(.macedonian) else { return nil }
-        let lowered = sample.lowercased()
-        if lowered.contains(where: { macedonianOnlyLetters.contains($0) }) { return .macedonian }
-        if enabledLanguages.contains(.russian), lowered.contains(where: { russianOnlyLetters.contains($0) }) {
-            return .russian
+        let russianEnabled = enabledLanguages.contains(.russian)
+        for character in sample.lowercased().reversed() {
+            if macedonianOnlyLetters.contains(character) { return .macedonian }
+            if russianEnabled, russianOnlyLetters.contains(character) { return .russian }
         }
         return nil
     }
