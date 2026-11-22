@@ -111,6 +111,54 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
         }
     }
 
+    /// Reuse is decided from the token prefix, not from the caller's byte hint. A request without a
+    /// hint (the tracker had no record, e.g. after a cancelled request) must still keep the shared
+    /// prompt and produce exactly the fresh result. With a sliding-window model this is the case
+    /// `swa_full` enables: the trim lands inside the window instead of rebuilding.
+    func testHintlessEditReusesPromptAndMatchesFreshRequest() throws {
+        let core = try makeCore()
+        defer { core.shutdown() }
+        let original = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
+        for edited in [original + " feedback", String(original.dropLast(2)) + "our feedback"] {
+            core.resetPromptCache()
+            _ = try core.generate(prompt: original, options: options)
+            let reused = try core.generate(prompt: edited, options: options)
+            XCTAssertGreaterThan(core.lastReusedPromptTokens, 0, "A shared token prefix must be kept without a hint: \(edited)")
+            core.resetPromptCache()
+            let fresh = try core.generate(prompt: edited, options: options)
+            XCTAssertEqual(core.lastReusedPromptTokens, 0)
+            XCTAssertEqual(reused.text, fresh.text, "Hintless reuse changed the completion for: \(edited)")
+        }
+    }
+
+    /// A different output budget or sampler setting must not discard the cached prompt: the budget
+    /// lives in the Swift loop and the sampler chain is swapped in place. The reused request must
+    /// still sample exactly like a fresh sequence built with the new settings.
+    func testSamplingChangeKeepsPromptAndMatchesFreshRequest() throws {
+        let core = try makeCore()
+        defer { core.shutdown() }
+        let prompt = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
+        for configuration in sampledConfigurations {
+            core.resetPromptCache()
+            _ = try core.generate(prompt: prompt, options: options)
+            let changed = LlamaGenerationOptions(
+                maxPredictionTokens: configuration.options.maxPredictionTokens - 4,
+                temperature: configuration.options.temperature,
+                topK: configuration.options.topK,
+                topP: configuration.options.topP,
+                minP: configuration.options.minP,
+                repetitionPenalty: configuration.options.repetitionPenalty,
+                seed: configuration.options.seed,
+                stopAtArgmaxEOG: false
+            )
+            let reused = try core.generate(prompt: prompt, options: changed)
+            XCTAssertGreaterThan(core.lastReusedPromptTokens, 0, "\(configuration.label): sampling change must keep the prompt")
+            core.resetPromptCache()
+            let fresh = try core.generate(prompt: prompt, options: changed)
+            XCTAssertEqual(reused.text, fresh.text, "\(configuration.label): swapped sampler diverged from a fresh one")
+        }
+    }
+
     func testCancelledRetainedTailCanBeRestoredByNextRequest() throws {
         let core = try makeCore()
         defer { core.shutdown() }

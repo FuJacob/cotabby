@@ -11,7 +11,7 @@ mkdir -p "$workspace_root"
 workspace_root="$(cd "$workspace_root" && pwd)"
 native_dir="$workspace_root/CotabbyInference"
 # Keep in sync with the CotabbyInference revision in project.yml (and the generated project.pbxproj).
-revision=0db6b1f293e9c9e3fcc96a1ae26ebedc7745b239
+revision=dc67ef298ef1ac32876876001f2ff4828b111685
 if [[ ! -d "$native_dir/.git" ]]; then
     git clone https://github.com/FuJacob/cotabbyinference.git "$native_dir"
     git -C "$native_dir" checkout --detach "$revision"

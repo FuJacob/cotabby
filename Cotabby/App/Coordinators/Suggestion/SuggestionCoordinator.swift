@@ -77,6 +77,24 @@ final class SuggestionCoordinator: ObservableObject {
     /// a slow HTTP backend retain an appropriate debounce without leaking that latency into the
     /// in-process engines.
     var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
+    /// Latency to the first streamed text of the most recent requests per backend: what starting a
+    /// request costs once the KV prefix is warm. `DebouncePolicy` prefers it, because a superseded
+    /// request stops at its next token while a debounce delays every keystroke. Recorded once per
+    /// work item (`firstTextRecordedWorkID`), only for the request that is still current, and read
+    /// as the median of the last few so one cache miss (a context refresh re-decoding a whole
+    /// section) cannot put the next keystroke behind the slow tier.
+    var recentFirstTextLatenciesByEngine: [SuggestionEngineKind: [Int]] = [:]
+    var firstTextRecordedWorkID: UInt64?
+
+    func recordFirstTextLatency(_ milliseconds: Int, engine: SuggestionEngineKind) {
+        recentFirstTextLatenciesByEngine[engine, default: []].append(milliseconds)
+        recentFirstTextLatenciesByEngine[engine] = Array(recentFirstTextLatenciesByEngine[engine, default: []].suffix(3))
+    }
+
+    func typicalFirstTextLatency(engine: SuggestionEngineKind) -> Int? {
+        let recent = recentFirstTextLatenciesByEngine[engine, default: []].sorted()
+        return recent.isEmpty ? nil : recent[recent.count / 2]
+    }
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
@@ -172,7 +190,17 @@ final class SuggestionCoordinator: ObservableObject {
     /// Expected post-acceptance context. A speculative result may predate the live generation
     /// only when both its writing session and exact text match. A matching draft in a different
     /// conversation must never receive this exemption. The host-publish poll shares that rule.
-    var pendingSpeculativeContext: FocusedInputContext?
+    var pendingSpeculativeContext: FocusedInputContext? {
+        // A parked result belongs to exactly one bet; a new bet, a validated one, or a reschedule
+        // that abandons it must never let it be replayed later.
+        didSet { parkedSpeculativeResult = nil }
+    }
+
+    /// A speculative result that finished before the host published the text it was built for.
+    /// `apply` cannot show it yet (the live text still lacks the keystroke) and must not drop it:
+    /// once the publish matches, the poll stands down instead of requesting again, so a dropped
+    /// result would leave that keystroke with no suggestion. The publish poll replays it.
+    var parkedSpeculativeResult: (result: SuggestionResult, workID: UInt64)?
 
     /// One bounded next-word request can outlive consumption of its source word. It has its own
     /// work identity so accepting a correction does not cancel the answer being prepared for it.

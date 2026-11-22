@@ -294,4 +294,14 @@ final class InputMonitorTests: XCTestCase {
         XCTAssertEqual(monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: Self.tab)), .consume)
         XCTAssertEqual(monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 125)), .notHandled)
     }
+
+    /// The accept tap switches off only after input has been quiet for two seconds, measured from
+    /// the last keystroke rather than from the overlay hide.
+    func test_acceptTapIdleRemainingIsMeasuredFromTheLastKeystroke() {
+        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: nil, nowUptime: 100), 0)
+        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 99.5, nowUptime: 100), 1.5, accuracy: 1e-9)
+        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 97, nowUptime: 100), 0)
+        // A keystroke stamped after `now` (clock read order) still waits the full period, never longer.
+        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 100.2, nowUptime: 100), 2, accuracy: 1e-9)
+    }
 }
