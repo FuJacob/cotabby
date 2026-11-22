@@ -194,33 +194,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Launch Services sends a reopen event when the user opens Cotabby while this accessory app is
-    /// already running. When the status item is hidden, Settings is the app's only visible recovery
-    /// surface, so reopening must reveal it instead of leaving the user with no apparent response.
+    /// Launch Services sends a reopen event when the user opens Cotabby while it is already running,
+    /// and, while Settings is open, when the user clicks its Dock tile. `MenuBarRecoveryPolicy` owns
+    /// the decision so the whole reopen rule stays in one testable place.
     func applicationShouldHandleReopen(
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
-        // While Settings is open Cotabby has a Dock tile, so clicking it lands here too. AppKit does
-        // not reliably restore a minimized window on reopen, so bring the existing window forward
-        // ourselves (`showSettings` reuses it; it never creates a second one).
-        if settingsCoordinator.isSettingsWindowOpen {
+        switch MenuBarRecoveryPolicy.reopenAction(
+            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
+            isSettingsWindowOpen: settingsCoordinator.isSettingsWindowOpen
+        ) {
+        case .letAppKitHandle:
+            return true
+        case .focusExistingSettings:
+            // `showSettings` reuses and deminiaturizes the existing window; it never creates a second.
+            settingsCoordinator.showSettings()
+            return false
+        case .openSettingsForRecovery:
+            CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
             settingsCoordinator.showSettings()
             return false
         }
-
-        if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
-            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
-            hasVisibleWindows: flag,
-            isSettingsWindowOpen: settingsCoordinator.isSettingsWindowOpen
-        ) {
-            // Let AppKit activate the app and bring the existing Settings window forward.
-            return true
-        }
-
-        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
-        settingsCoordinator.showSettings()
-        return false
     }
 
     /// One-time default: enable Open at Login for every user (new and existing) the first time this
