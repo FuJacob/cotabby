@@ -1,0 +1,19 @@
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_06b938d10fb9a9::t_db610f322c83c4 545
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f4deda0f5e15a470a0d348e27435d02311a1eb0",
+  "prompts": {},
+  "sessions": {
+    "s_06b938d10fb9a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f586376-e95f-4563-aa31-d389afd117c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
