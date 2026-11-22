@@ -47,8 +47,8 @@ struct FocusSnapshotResolver {
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
     /// The label and DOM-id reads behind `CredentialFieldDetector` and `SearchFieldDetector`: up to
     /// four AX round trips that would otherwise repeat on every poll of every single-line field,
-    /// for values that rarely change while focus stays in one field. A navigation that reuses the element changes the URL,
-    /// title or placeholder, which starts a new focus session and so a fresh read. A field
+    /// for values that rarely change while focus stays in one field. A navigation that reuses the
+    /// element changes the URL, title or placeholder, which starts a new focus session and so a fresh read. A field
     /// relabelled in place (a reused input whose aria-label turns it into a code box) changes none
     /// of those, so a reading is also refreshed after `fieldLabelRefreshInterval`.
     private let fieldLabelCache = FocusSessionScopedCache<FieldLabelReading>()
@@ -56,6 +56,11 @@ struct FocusSnapshotResolver {
     /// how long an in-place relabel goes unnoticed, while the reads run about a dozen times less
     /// often than the 80 ms active poll.
     static let fieldLabelRefreshInterval: TimeInterval = 1
+    /// Whether a single-line field sits inside a web page (`AXHelper.isInsideWebArea`), which
+    /// `SearchFieldDetector` needs to tell page content from browser and native UI. An element's
+    /// ancestry cannot change while it stays the same element, and the climb is one AX round trip
+    /// pair per level (~30 levels in web apps), so it is paid once per focus session per field.
+    private let webAreaAncestryCache = FocusSessionScopedCache<Bool>()
     /// The text margin the caret's paragraph wraps to, which a field's `AXFrame` does not reveal
     /// (Word's frame is the page edge, not the text margin). Up to three AX round trips, so each
     /// result is cached per focus session *and* per paragraph: the margin changes between an indented
@@ -417,19 +422,26 @@ struct FocusSnapshotResolver {
             }
         }
 
-        // Search boxes take a query, not prose. Same cached label reading as above, so a text field
-        // pays no extra AX read. A browser's address bar is browser chrome (no DOM attributes) and
-        // stays supported even though it searches.
-        let isBrowserChrome = BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
-            && !candidate.vendsDOMAttributes
-        if SearchFieldDetector.mightBeSearchField(role: candidate.role, isBrowserChrome: isBrowserChrome) {
+        // Search boxes take a query, not prose. Same cached label reading as above. Whether the
+        // field is inside a web page is what keeps every browser's address bar supported, listed
+        // browser or not (see `SearchFieldDetector`); `vendsDOMAttributes` cannot answer that,
+        // since Chrome's omnibox vends a DOM id too.
+        if SearchFieldDetector.mightBeSearchField(role: candidate.role) {
             let labelReading = fieldLabelReading(for: candidate, focusChangeSequence: focusChangeSequence)
+            let isInWebPage = webAreaAncestryCache.value(
+                forKey: candidate.elementIdentifier, focusChangeSequence: focusChangeSequence
+            ) {
+                AXHelper.isInsideWebArea(candidate.element)
+            }
             if SearchFieldDetector.isSearchField(
                 role: candidate.role,
                 subrole: candidate.subrole,
                 labels: labelReading.labels,
                 domIdentifier: labelReading.domIdentifier,
-                isBrowserChrome: isBrowserChrome
+                surface: SearchFieldDetector.Surface(
+                    isInWebPage: isInWebPage,
+                    isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
+                )
             ) {
                 return SearchFieldDetector.blockedReason
             }

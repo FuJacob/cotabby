@@ -314,11 +314,13 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         XCTAssertEqual(capability(of: element, focusChangeSequence: 3, resolver: resolver), credentialBlock)
     }
 
-    func test_searchPlaceholderBlocksAPlainTextField() throws {
-        // Teams' search box: a plain input whose placeholder is the only sign it searches.
-        let element = try makeFieldElement(placeholder: "Look for people, messages, files, and more.", text: "san")
+    func test_searchPlaceholderAloneDoesNotBlockANativeField() throws {
+        // A native field outside any web area is judged by role only: an unlisted browser's native
+        // address bar looks exactly like this one and must stay supported. A web page's placeholder
+        // (Teams' search box) is covered by `SearchFieldDetectorTests`.
+        let element = try makeFieldElement(placeholder: "Search or ask anything", text: "san")
 
-        XCTAssertEqual(
+        XCTAssertNotEqual(
             capability(of: element, focusChangeSequence: 4, resolver: FocusSnapshotResolver()),
             .blocked(SearchFieldDetector.blockedReason)
         )
