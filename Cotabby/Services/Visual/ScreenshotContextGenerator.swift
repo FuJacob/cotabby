@@ -149,6 +149,7 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
                 lines: extracted.lines,
                 fieldText: context.precedingText + " " + context.trailingText,
                 focusBounds: screenshot.focusBounds,
+                composerBounds: screenshot.composerBounds,
                 maxCharacters: configuration.maxSummaryCharacters
             ) : OCRTextHygiene.clean(
                 lines: extracted.lines,
