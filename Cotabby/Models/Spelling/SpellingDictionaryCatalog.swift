@@ -13,6 +13,8 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
     case hebrew = "he"
     case italian = "it"
     case russian = "ru"
+    case turkish = "tr"
+    case macedonian = "mk"
 
     var id: String { rawValue }
 
@@ -26,6 +28,8 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
         case .hebrew: return "Hebrew"
         case .italian: return "Italian"
         case .russian: return "Russian"
+        case .turkish: return "Turkish"
+        case .macedonian: return "Macedonian"
         }
     }
 
@@ -39,6 +43,8 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
         case .hebrew: return "עברית (Hebrew)"
         case .italian: return "Italiano (Italian)"
         case .russian: return "Русский (Russian)"
+        case .turkish: return "Türkçe (Turkish)"
+        case .macedonian: return "Македонски (Macedonian)"
         }
     }
 
@@ -54,7 +60,18 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
         case .hebrew: return "he-100k"
         case .italian: return "it-100k"
         case .russian: return "ru-100k"
+        // Not from SymSpell (it publishes no Turkish or Macedonian list): built from OpenSubtitles
+        // frequencies filtered through Hunspell, as documented in SpellingDictionaries/NOTICE.md.
+        case .turkish: return "tr-100k"
+        case .macedonian: return "mk-100k"
         }
+    }
+
+    /// Locale for case conversion. Turkish pairs dotted and dotless i differently from every
+    /// other bundled language (I ↔ ı, İ ↔ i), so locale-free `lowercased()` would turn a
+    /// capitalized Turkish word into one the dictionary does not contain.
+    var caseLocale: Locale {
+        Locale(identifier: rawValue)
     }
 }
 

@@ -10,8 +10,11 @@ nonisolated struct WordPrefixIndex: Sendable {
     }
 
     private let words: [Candidate]
+    /// The dictionary's case rules, so a typed "İst" matches the lowercase entry "ist..." in Turkish.
+    private let locale: Locale?
 
-    init(contents: String) {
+    init(contents: String, locale: Locale? = nil) {
+        self.locale = locale
         words = contents.split(separator: "\n").compactMap { line in
             let fields = line.split(whereSeparator: { $0.isWhitespace })
             guard fields.count >= 2, let count = Int64(fields[1]), count > 0,
@@ -21,7 +24,7 @@ nonisolated struct WordPrefixIndex: Sendable {
     }
 
     func candidates(for prefix: String) -> [Candidate] {
-        let prefix = prefix.lowercased()
+        let prefix = prefix.lowercased(with: locale)
         guard prefix.count >= 3 else { return [] }
         var low = 0
         var high = words.count
@@ -61,13 +64,15 @@ nonisolated enum WordCompletionFallback {
     /// Unique document/glossary matches take precedence. Corpus candidates need a clear frequency
     /// margin; frequency is a fallback ranking signal, never permission to change typed letters.
     static func suffix(
-        for prefix: String, references: Set<String>, dictionaryCandidates: [WordPrefixIndex.Candidate]
+        for prefix: String, references: Set<String>, dictionaryCandidates: [WordPrefixIndex.Candidate],
+        locale: Locale? = nil
     ) -> String? {
         guard prefix.count >= 3, prefix.allSatisfy({ $0.isLetter }) else { return nil }
+        let loweredPrefix = prefix.lowercased(with: locale)
         let matches = references.filter {
-            $0.count > prefix.count && $0.lowercased().hasPrefix(prefix.lowercased())
+            $0.count > prefix.count && $0.lowercased(with: locale).hasPrefix(loweredPrefix)
         }
-        let uniqueSpellings = Set(matches.map { $0.lowercased() })
+        let uniqueSpellings = Set(matches.map { $0.lowercased(with: locale) })
         let word: String
         if uniqueSpellings.count == 1, let match = matches.sorted().first {
             word = match
@@ -80,8 +85,8 @@ nonisolated enum WordCompletionFallback {
             word = first.word
         }
         guard word.count > prefix.count,
-              String(word.prefix(prefix.count)).lowercased() == prefix.lowercased() else { return nil }
+              String(word.prefix(prefix.count)).lowercased(with: locale) == loweredPrefix else { return nil }
         let suffix = String(word.dropFirst(prefix.count))
-        return prefix.allSatisfy({ $0.isUppercase }) ? suffix.uppercased() : suffix
+        return prefix.allSatisfy({ $0.isUppercase }) ? suffix.uppercased(with: locale) : suffix
     }
 }

@@ -9,17 +9,20 @@ nonisolated enum TypoCaseTransfer {
     ///  - source is all uppercase (more than one letter) -> uppercased correction (`HTE` -> `THE`),
     ///  - source starts with a capital -> capitalize the correction's first letter (`Teh` -> `The`),
     ///  - otherwise the correction is returned unchanged (lowercase dictionary form).
-    static func applying(caseOf source: String, to correction: String) -> String {
+    ///
+    /// `locale` selects language-specific case rules (Turkish "i" uppercases to "İ"); nil keeps the
+    /// locale-independent behavior `NSSpellChecker` corrections rely on.
+    static func applying(caseOf source: String, to correction: String, locale: Locale? = nil) -> String {
         guard !correction.isEmpty else { return correction }
         let sourceLetters = source.filter { $0.isLetter }
         guard !sourceLetters.isEmpty else { return correction }
 
         if sourceLetters.count > 1, sourceLetters.allSatisfy({ $0.isUppercase }) {
-            return correction.uppercased()
+            return correction.uppercased(with: locale)
         }
 
         if let first = sourceLetters.first, first.isUppercase {
-            return correction.prefix(1).uppercased() + correction.dropFirst()
+            return String(correction.prefix(1)).uppercased(with: locale) + correction.dropFirst()
         }
 
         return correction

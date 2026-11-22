@@ -38,7 +38,32 @@ latest repository revision before SymSpell published these derived files.
 | Italian | GPL-3.0 | `Licenses/it.txt` |
 | Russian | Package metadata: LGPL-3.0; source notice contains additional redistribution terms | `Licenses/ru.txt` |
 
-Complete GPL-3.0, LGPL-3.0, AGPL-3.0, and MPL-2.0 texts are included in `Licenses/`.
+Complete GPL-3.0, LGPL-3.0, AGPL-3.0, MPL-2.0, and CC BY-SA 4.0 texts are included in `Licenses/`.
+
+## Turkish and Macedonian
+
+SymSpell publishes no Turkish or Macedonian dictionary, so these two files were built with the same
+method SymSpell used (corpus frequencies intersected with a Hunspell word list) by
+`scripts/build_hunspell_frequency_dictionary.py`, which reproduces them byte for byte:
+
+| File | Language | SHA-256 |
+| --- | --- | --- |
+| `tr-100k.txt` | Turkish | `6c927006c2b3330bbb73675970f2ef21b8f36e19c9750d9989e47253dd7366f3` |
+| `mk-100k.txt` | Macedonian | `034f5022fb98c9bbd1b3951c95fb58501fcac0fe07ea6a07ea5cf3e43a6f963d` |
+
+- **Frequencies:** `hermitdave/FrequencyWords` commit `525f9b560de45753a5ea01069454e72e9aa541c6`,
+  `content/2018/{tr,mk}/*_full.txt`, generated from the OpenSubtitles 2018 corpus
+  (P. Lison and J. Tiedemann, 2016, "OpenSubtitles2016: Extracting Large Parallel Corpora from Movie
+  and TV Subtitles", http://opus.nlpl.eu/OpenSubtitles2018.php; http://www.opensubtitles.org/).
+  FrequencyWords licenses its content under CC BY-SA 4.0 (`Licenses/CC-BY-SA-4.0.txt`); the two
+  derived files are distributed under the same license.
+- **Spelling validation:** `wooorm/dictionaries` commit `8cfea406b505e4d7df52d5a19bce525df98c54ab`,
+  checked with Hunspell 1.7.4. Only words Hunspell accepts are kept.
+
+| Language | Hunspell dictionary license | Bundled notice |
+| --- | --- | --- |
+| Turkish | MIT (Harun Reşit Zafer) | `Licenses/tr.txt` |
+| Macedonian | GPL-3.0-or-later (Dimitrij Mijoski) | `Licenses/mk.txt` |
 
 Google Books Ngram data is licensed under
 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
