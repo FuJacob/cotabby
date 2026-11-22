@@ -127,6 +127,54 @@ enum SuggestionAvailabilityEvaluator {
         ) == nil
     }
 
+    /// Whether a prediction teardown should leave the focused field's visual-context session alive.
+    ///
+    /// Predictions stop for transient states of a field the user is still in: ⌘A in a chat composer
+    /// publishes "Text is currently selected." until the next keystroke replaces the selection. The
+    /// screen context belongs to the field, not to one prediction cycle, so tearing it down there
+    /// cost a fresh screenshot and OCR on that keystroke and changed the prompt head. It survives
+    /// only when `disabledReason` is the field's own capability state and capture would still be
+    /// allowed for it; a missing or secure field and every environment reason (off, paused,
+    /// disabled app or site, permissions, fast mode) end it.
+    static func shouldKeepVisualContextWhileDisabled(
+        disabledReason: String,
+        globallyEnabled: Bool = true,
+        temporarilyPaused: Bool = false,
+        isLowPowerModeActive: Bool = false,
+        isLowPowerModeAutoDisableEnabled: Bool = false,
+        disabledAppBundleIdentifiers: Set<String> = [],
+        disabledDomains: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
+        inputMonitoringGranted: Bool,
+        screenRecordingGranted: Bool,
+        focusSnapshot: FocusSnapshot,
+        isFastModeEnabled: Bool = false
+    ) -> Bool {
+        switch focusSnapshot.capability {
+        case .supported:
+            return false
+        case let .blocked(reason), let .unsupported(reason):
+            guard reason == disabledReason else { return false }
+        }
+        guard let context = focusSnapshot.context, !context.isSecure else {
+            return false
+        }
+
+        return shouldCaptureVisualContext(
+            globallyEnabled: globallyEnabled,
+            temporarilyPaused: temporarilyPaused,
+            isLowPowerModeActive: isLowPowerModeActive,
+            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            disabledDomains: disabledDomains,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            inputMonitoringGranted: inputMonitoringGranted,
+            screenRecordingGranted: screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: isFastModeEnabled
+        )
+    }
+
     static func shouldSchedulePredictionWhenVisualContextBecomesReady(
         focusSnapshot: FocusSnapshot,
         matching identity: FocusedInputIdentity
@@ -142,6 +190,12 @@ enum SuggestionAvailabilityEvaluator {
             for: context.precedingText, trailingText: context.trailingText
         )
     }
+
+    /// How long after an accept a changed screen-context excerpt may not retire the suggestion. 500 ms
+    /// covers the gap between Tab presses in a normal accept burst (measured 150-370 ms in a Gmail
+    /// repro) without keeping a stale tail much past it. A fixed policy rather than a setting: it is a
+    /// timing detail of the accept pipeline, not a preference users can reason about.
+    static let postAcceptHoldMilliseconds = 500
 
     /// How many milliseconds a changed screen-context excerpt must wait before it may retire the
     /// suggestion, because the user accepted within the last `holdMilliseconds`. 0 means act now.

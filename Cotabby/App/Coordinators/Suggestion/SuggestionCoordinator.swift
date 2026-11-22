@@ -158,6 +158,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// by each newer change and cancelled on stop, so at most one retirement is ever owed.
     var deferredScreenContextRetirement: Task<Void, Never>?
 
+    /// The post-accept hold (`SuggestionAvailabilityEvaluator.postAcceptHoldMilliseconds`). Fixed
+    /// product policy; stored here only so tests can shorten it.
+    var postAcceptHoldMilliseconds = SuggestionAvailabilityEvaluator.postAcceptHoldMilliseconds
+
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
     /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
     var suggestionAnchorCache = SuggestionAnchorCache()

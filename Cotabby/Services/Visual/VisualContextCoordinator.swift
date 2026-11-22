@@ -77,7 +77,7 @@ final class VisualContextCoordinator {
         // Surface facts can change even when an app reuses its composer and AX handle. Drop the
         // old excerpt synchronously; the settle delay below must never expose another chat's text.
         if let previous = activeSessionIdentity ?? pendingStartContext?.sessionIdentity,
-           previous != snapshotContext.sessionIdentity {
+           !snapshotContext.sessionIdentity.continues(previous) {
             cancel(resetState: true)
         }
         // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
@@ -172,7 +172,7 @@ final class VisualContextCoordinator {
             guard !Task.isCancelled, activeAugmentationSession?.sessionID == session.sessionID else { return }
             guard screenRecordingPermissionProvider(), let currentContext,
                   currentContext.identity == snapshotContext.identity,
-                  currentContext.sessionIdentity == snapshotContext.sessionIdentity, !currentContext.isSecure else {
+                  currentContext.sessionIdentity.continues(snapshotContext.sessionIdentity), !currentContext.isSecure else {
                 cancel(resetState: true)
                 return
             }
@@ -211,7 +211,7 @@ final class VisualContextCoordinator {
                     guard activeAugmentationSession?.sessionID == session.sessionID else { return }
                     guard screenRecordingPermissionProvider(), let liveContext,
                           liveContext.identity == snapshotContext.identity,
-                          liveContext.sessionIdentity == snapshotContext.sessionIdentity,
+                          liveContext.sessionIdentity.continues(snapshotContext.sessionIdentity),
                           !liveContext.isSecure else {
                         cancel(resetState: true)
                         return
@@ -226,6 +226,16 @@ final class VisualContextCoordinator {
                     capturedAt: capturedAt,
                     fieldTexts: fieldTexts
                 )
+                // Learn surface facts the session started without, but only from the context this
+                // capture was taken under. The new excerpt's pixels belong to that read, so exposing
+                // it to a request carrying the now-known title or URL cannot leak an earlier chat's
+                // text. An excerpt captured while a fact was unknown never gains that fact.
+                if activeAugmentationSession?.sessionID == session.sessionID,
+                   activeAugmentationSession?.excerpt == excerpt,
+                   let activeSessionIdentity,
+                   snapshotContext.sessionIdentity.continues(activeSessionIdentity) {
+                    self.activeSessionIdentity = activeSessionIdentity.filled(from: snapshotContext.sessionIdentity)
+                }
             } catch is CancellationError {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
                 return
@@ -260,7 +270,8 @@ final class VisualContextCoordinator {
                   let context = liveContext,
                   context.elementIdentifier == session.elementIdentifier,
                   context.focusChangeSequence == session.focusChangeSequence,
-                  context.sessionIdentity == self.activeSessionIdentity,
+                  let activeSessionIdentity = self.activeSessionIdentity,
+                  context.sessionIdentity.continues(activeSessionIdentity),
                   !context.isSecure else {
                 self.cancel(resetState: true)
                 return
@@ -298,6 +309,12 @@ final class VisualContextCoordinator {
     /// visual-context session still belongs to that same field.
     func excerpt(for context: FocusedInputContext) -> String? {
         expireExcerptIfNeeded()
+        // Exact identity here, unlike the session-keeping checks above. Those tolerate a surface
+        // fact the poll failed to read so a busy host does not cancel the capture; this call hands
+        // screen text to a prompt, and a chat switch that reuses the composer, frame and URL while
+        // its new title is momentarily unreadable would otherwise condition the new chat's request
+        // on the previous chat's excerpt. Withholding the excerpt for that one poll costs a request
+        // its screen context; the session and its capture survive for the next readable poll.
         guard let activeAugmentationSession,
             activeSessionIdentity == context.sessionIdentity,
             activeAugmentationSession.elementIdentifier == context.elementIdentifier,
@@ -358,25 +375,38 @@ final class VisualContextCoordinator {
             return
         }
 
-        let previousExcerptText = activeAugmentationSession?.excerpt?.text
-        let changed = previousExcerptText != excerpt.text
-        // A changed excerpt is reported as possible navigation so the coordinator retires the
-        // visible tail. Only a change that shows text the old screen and the field's own text do not
-        // account for qualifies: accepted words landing on screen and OCR wobble are not navigation,
-        // and reporting them replaced the suggestion mid-accept whenever the user paused between
-        // Tabs. An edit cannot hide a navigation that brings lines of its own. The excerpt is stored
-        // either way, so the next request uses it. A first excerpt is always reported: it is new
-        // context, not a comparison.
-        let isNavigation = previousExcerptText.map {
-            OCRTextHygiene.showsUnexplainedText(excerpt.text, previous: $0, fieldTexts: fieldTexts)
-        } ?? true
+        // OCR reads an unchanged screen a little differently on every refresh. When the new reading
+        // is the same screen as far as `VisualContextExcerptStability` can tell, keep the excerpt in
+        // use byte-identical: no navigation signal, and the llama prompt head (and its KV prefix)
+        // stays put. The kept text takes the new capture's age, since it still describes the screen.
+        let current = activeAugmentationSession?.excerpt
+        let adopted: VisualContextExcerpt
+        if let current, !VisualContextExcerptStability.isMaterialChange(from: current.text, to: excerpt.text) {
+            adopted = current
+            if current.text != excerpt.text {
+                CotabbyLogger.app.debug("Visual context refresh kept the current excerpt; only OCR jitter changed")
+            }
+        } else {
+            adopted = excerpt
+        }
+        let changed = current?.text != adopted.text
+        // A material change is reported as possible navigation so the coordinator retires the
+        // visible tail, but only when it shows text the old screen and the field's own text do not
+        // account for: accepted words landing on screen are not navigation, and reporting them
+        // replaced the suggestion mid-accept whenever the user paused between Tabs. An edit cannot
+        // hide a navigation that brings lines of its own. The excerpt is stored either way, so the
+        // next request uses it. A first excerpt is always reported: it is new context, not a
+        // comparison.
+        let isNavigation = changed && (current.map {
+            OCRTextHygiene.showsUnexplainedText(adopted.text, previous: $0.text, fieldTexts: fieldTexts)
+        } ?? true)
         activeAugmentationSession?.status = .ready
-        activeAugmentationSession?.excerpt = excerpt
+        activeAugmentationSession?.excerpt = adopted
         status = .ready
-        latestExcerpt = excerpt.text
+        latestExcerpt = adopted.text
         excerptCapturedAt = capturedAt
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
-        CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
+        CotabbyLogger.app.debug("Visual context ready: \(adopted.text.count) chars")
         publishState()
         if isNavigation {
             onInjectedContextReady?(identity)

@@ -50,7 +50,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case length
     case acceptPunctuation
     case addSpaceAfterAccept
-    case keepSuggestionAfterAccepting
     case name
     case languages
     case customRules
@@ -123,7 +122,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showFollowingWords: return "Show following words"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
-        case .keepSuggestionAfterAccepting: return "Keep Suggestion After Accepting"
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
         case .resetAllSettings: return "Reset All Settings"
@@ -212,7 +210,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showFollowingWords: return "text.word.spacing"
         case .acceptPunctuation: return "textformat.abc"
         case .addSpaceAfterAccept: return "space"
-        case .keepSuggestionAfterAccepting: return "timer"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
         case .resetAllSettings: return "arrow.counterclockwise"
@@ -303,8 +300,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
-        case .length, .acceptPunctuation, .addSpaceAfterAccept, .keepSuggestionAfterAccepting, .name,
-             .languages, .customRules, .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
+        case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
+             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
         case .extendedContext, .contextLivePreview, .typingHistory:
             return .context
@@ -343,7 +340,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
-        case .keepSuggestionAfterAccepting: return "Wait after an accept before a screen change can replace the suggestion."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
         case .resetAllSettings: return "Restore every Cotabby setting to its original default."
@@ -462,9 +458,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept:
             return ["space", "spacebar", "trailing space", "auto space", "add space",
                     "accept", "after accept", "whitespace", "gap", "separator"]
-        case .keepSuggestionAfterAccepting:
-            return ["hold", "keep", "delay", "pause", "regenerate", "regeneration", "tab", "accept",
-                    "after accept", "lost", "replaced", "milliseconds", "screen context"]
         case .inlineMacros:
             return ["macro", "macros", "math", "convert", "currency", "date", "random",
                     "expansion", "slash", "snippet", "shortcut", "formula", "calculator"]

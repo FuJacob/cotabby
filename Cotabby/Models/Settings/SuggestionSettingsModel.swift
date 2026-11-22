@@ -131,10 +131,6 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
-    /// How long after an accept a screen-context change waits before it may replace the suggestion.
-    /// Read live by the coordinator; not part of `snapshot`, because each snapshot change resets the
-    /// pipeline (KV cache, OCR session) and the slider would emit one per tick while dragged.
-    @Published private(set) var postAcceptHoldMilliseconds: Int
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
     /// The store owns durability; snapshots carry this live choice to the coordinator.
     @Published private(set) var predictAheadWhileTyping: Bool
@@ -199,12 +195,6 @@ final class SuggestionSettingsModel: ObservableObject {
     static let minimumGhostTextOpacity = SuggestionSettingsStore.minimumGhostTextOpacity
     static let maximumGhostTextOpacity = SuggestionSettingsStore.maximumGhostTextOpacity
     static let ghostTextOpacityStep = SuggestionSettingsStore.ghostTextOpacityStep
-    static let minimumPostAcceptHoldMilliseconds =
-        SuggestionSettingsStore.minimumPostAcceptHoldMilliseconds
-    static let maximumPostAcceptHoldMilliseconds =
-        SuggestionSettingsStore.maximumPostAcceptHoldMilliseconds
-    static let postAcceptHoldStepMilliseconds =
-        SuggestionSettingsStore.postAcceptHoldStepMilliseconds
     static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
@@ -289,7 +279,6 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
-        postAcceptHoldMilliseconds = data.postAcceptHoldMilliseconds
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
@@ -376,7 +365,6 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
-        postAcceptHoldMilliseconds = data.postAcceptHoldMilliseconds
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
@@ -453,7 +441,6 @@ final class SuggestionSettingsModel: ObservableObject {
                 showFollowingWords: showFollowingWords,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: addSpaceAfterAccept,
-                postAcceptHoldMilliseconds: postAcceptHoldMilliseconds,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
                 predictAheadWhileTyping: predictAheadWhileTyping,
                 acceptanceGranularity: acceptanceGranularity
@@ -1050,13 +1037,6 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         addSpaceAfterAccept = enabled
         store.saveAddSpaceAfterAccept(enabled)
-    }
-
-    func setPostAcceptHoldMilliseconds(_ milliseconds: Int) {
-        let clamped = SuggestionSettingsStore.clampedPostAcceptHoldMilliseconds(milliseconds)
-        guard postAcceptHoldMilliseconds != clamped else { return }
-        postAcceptHoldMilliseconds = clamped
-        store.savePostAcceptHoldMilliseconds(clamped)
     }
 
     func setPredictAheadWhileTyping(_ enabled: Bool) {
