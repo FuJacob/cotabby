@@ -10,11 +10,11 @@ The existing secret names, environments, appcast signing key, update feed, bundl
 and tag-derived version / workflow-run build number remain unchanged. `Cotabby Dev` uses its
 own identity and disables Sparkle in every build configuration.
 
-The build stage first runs `scripts/prepare_cotabby_workspace.sh` to supply the pending
-CotabbyInference APIs. This is the only native dependency preparation added to the release flow;
-all functional app changes compile against the same package and patch as local builds and tests.
-Once those APIs land upstream, the workspace override can be retired together with the patch.
-Do not remove the patch before a compatible package revision is available.
+The build stage first runs `scripts/prepare_cotabby_workspace.sh`, which checks out the
+CotabbyInference revision pinned in `project.yml` and pins every other package from
+`Config/Package.resolved`. Releases therefore compile against exactly the same packages as local
+builds and CI tests. Cotabby carries no native patch: a needed CotabbyInference API lands upstream
+first, then both pins move together.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local builds and evaluations. Historical CoHamster
 release notes describe past fork binaries and do not control Cotabby's release configuration.

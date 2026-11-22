@@ -870,7 +870,8 @@ extension SuggestionCoordinator {
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun,
-            observedContentEdges: context.observedContentEdges
+            observedContentEdges: context.observedContentEdges,
+            isCaretLineVerticallyUncalibrated: anchor.isCaretLineVerticallyUncalibrated
         )
         let presentationMessage = overlayPresenter.present(
             text: text,
@@ -1093,6 +1094,16 @@ extension SuggestionCoordinator {
         /// came from trusted AX and repair stood down" is distinguishable from "this field never
         /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
         let skipReason: LayoutRepairSkipReason?
+
+        /// Whether the anchor is a layout estimate whose line was placed from default insets, not
+        /// host measurements. Only an estimate that replaced the AX rect counts: a kept AX rect
+        /// carries the host's own line, whatever the estimate it was checked against measured.
+        var isCaretLineVerticallyUncalibrated: Bool {
+            guard quality == .layoutEstimated, case .estimate(let estimate)? = outcome else {
+                return false
+            }
+            return !estimate.isVerticallyCalibrated
+        }
     }
 
     /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
@@ -1158,6 +1169,7 @@ extension SuggestionCoordinator {
             metadata["line_height"] = .stringConvertible(Double(estimate.lineHeight))
             metadata["used_observed_line_height"] = .stringConvertible(estimate.usedObservedLineHeight)
             metadata["used_observed_content_edges"] = .stringConvertible(estimate.usedObservedContentEdges)
+            metadata["vertically_calibrated"] = .stringConvertible(estimate.isVerticallyCalibrated)
             metadata["layout_font_point_size"] = .stringConvertible(Double(estimate.layoutFontPointSize))
             CotabbyLogger.suggestion.debug(
                 substituted

@@ -788,8 +788,8 @@ def main():
         command.add_argument("--seed", type=int, help="Fixed test sampling seed (1–4294967294); default: 42")
         if name == "run":
             command.add_argument("--model", type=pathlib.Path, help="Local GGUF; defaults to app runtime model")
-            # The app needs the pinned, patched CotabbyInference; the bare project resolves the remote
-            # package, which lacks those APIs until the pending upstream change lands.
+            # Default to the prepared workspace so evals build against the same exactly pinned
+            # packages as CI and releases; pass another workspace to test a local native checkout.
             command.add_argument("--workspace", type=pathlib.Path,
                                  default=ROOT / "build/cotabby-dependencies/Cotabby.xcworkspace",
                                  help="Workspace with the matching CotabbyInference checkout "
