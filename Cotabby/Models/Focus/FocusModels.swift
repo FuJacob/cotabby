@@ -54,6 +54,21 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
         guard let lhs, let rhs else { return true }
         return lhs == rhs
     }
+
+    /// This identity with each unreadable surface fact filled from `observed`, a read of the same
+    /// session. A session that starts while a fact times out would otherwise keep that nil for its
+    /// whole life, and every exact comparison against a later readable poll would fail. Known facts
+    /// are never overwritten: `continues(_:)` already rejects a known value replaced by another.
+    func filled(from observed: FocusedInputSessionIdentity) -> FocusedInputSessionIdentity {
+        FocusedInputSessionIdentity(
+            processIdentifier: processIdentifier,
+            bundleIdentifier: bundleIdentifier,
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: focusedURLString ?? observed.focusedURLString,
+            windowTitle: windowTitle ?? observed.windowTitle,
+            fieldPlaceholder: fieldPlaceholder ?? observed.fieldPlaceholder
+        )
+    }
 }
 
 /// Describes how trustworthy the resolved caret rect is.

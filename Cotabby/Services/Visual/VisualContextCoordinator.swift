@@ -220,6 +220,16 @@ final class VisualContextCoordinator {
                     identity: snapshotContext.identity,
                     capturedAt: capturedAt
                 )
+                // Learn surface facts the session started without, but only from the context this
+                // capture was taken under. The new excerpt's pixels belong to that read, so exposing
+                // it to a request carrying the now-known title or URL cannot leak an earlier chat's
+                // text. An excerpt captured while a fact was unknown never gains that fact.
+                if activeAugmentationSession?.sessionID == session.sessionID,
+                   activeAugmentationSession?.excerpt == excerpt,
+                   let activeSessionIdentity,
+                   snapshotContext.sessionIdentity.continues(activeSessionIdentity) {
+                    self.activeSessionIdentity = activeSessionIdentity.filled(from: snapshotContext.sessionIdentity)
+                }
             } catch is CancellationError {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
                 return
