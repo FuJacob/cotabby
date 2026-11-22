@@ -1,0 +1,21 @@
+Cotabby/Support/Presentation/Geometry/MirrorOverlayLayout.swift
+  s_6acd44f7eb20eb::t_9d7f2ce4891884 109-114,131,133-136,193-194,217-263
+CotabbyTests/Support/Presentation/Geometry/MirrorOverlayLayoutTests.swift
+  s_6acd44f7eb20eb::t_8691997058998f 29,38,107-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d98ac74b69010b28c70aa14b057e9176d98baba",
+  "prompts": {},
+  "sessions": {
+    "s_6acd44f7eb20eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac476f55-819f-47a6-b830-ca7fbc55bae3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <jjacobfu@gmail.com>"
+    }
+  }
+}
