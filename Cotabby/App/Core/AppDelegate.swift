@@ -171,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inlineCommandCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
+        InlinePredictionNudge.recordStartIfNeeded()
         didStartServices = true
         CotabbyLogger.app.info("All services started")
 

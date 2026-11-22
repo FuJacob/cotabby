@@ -8,10 +8,14 @@ import SwiftUI
 ///
 /// Only one row can record at a time (`recordingAction` is a single optional rather than per-row
 /// flags), which prevents two recorders from competing for the same keystroke.
+///
+/// When macOS inline predictive text is on, a callout under the rows explains that the system's own
+/// gray predictions also take Tab and links to Keyboard settings (see `SystemInlinePredictionMonitor`).
 struct WelcomeKeybindStepView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
     @State private var recordingAction: ShortcutAction?
+    @StateObject private var inlinePrediction = SystemInlinePredictionMonitor()
 
     var body: some View {
         VStack(spacing: 24) {
@@ -105,6 +109,11 @@ struct WelcomeKeybindStepView: View {
                         ? { suggestionSettings.clearGlobalToggleKey() } : nil
                 )
                 .onboardingReveal(4)
+
+                if inlinePrediction.isEnabled {
+                    InlinePredictionCallout(onOpenSettings: inlinePrediction.openKeyboardSettings)
+                        .onboardingReveal(5)
+                }
             }
             .frame(maxWidth: 480)
         }
@@ -221,5 +230,45 @@ private struct OnboardingKeycapHero: View {
                 }
             }
             .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Inline prediction callout
+
+/// Shown on the keys step only while macOS inline predictive text is on. It disappears by itself once
+/// the user turns the system switch off and comes back, because the monitor re-reads it on activation.
+struct InlinePredictionCallout: View {
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "text.badge.xmark")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.orange)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Turn off Apple's inline predictions")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+
+                Text(
+                    "macOS shows its own gray word predictions and accepts them with Tab too. "
+                        + SystemKeyboardSettingsLabels.current.turnOffInstruction
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Button("Open Keyboard Settings") {
+                    onOpenSettings()
+                }
+                .controlSize(.small)
+                .padding(.top, 2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .onboardingCard(cornerRadius: 12)
     }
 }
