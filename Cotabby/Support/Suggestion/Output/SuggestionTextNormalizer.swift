@@ -97,6 +97,9 @@ enum SuggestionTextNormalizer {
         // template so instructions never read as content in the first place.
         normalized = stripLeadingScaffoldingLabels(normalized)
         normalized = normalized.trimmingCharacters(in: .newlines)
+        // A base model can also write out a whole preface sentence of the prompt after a real start
+        // ("4 5.6 Sol\nThe user usually writes in"); keep only what came before it.
+        normalized = PromptPrefaceEchoFilter.truncated(normalized)
 
         if request.isMultiLineEnabled {
             // Multi-line mode: keep content up to the first blank-line boundary (double newline)
