@@ -6,7 +6,7 @@ The table lists the dependencies still bundled in this checkout.
 | Component | Source version | License file |
 | --- | --- | --- |
 | Sparkle | `2.9.1` | `Sparkle-LICENSE.txt` |
-| CotabbyInference | `7574a21516c65fc31f5cf8ef7380a03412eed480` plus the repository patch | `CotabbyInference-MIT.txt` |
+| CotabbyInference | `0db6b1f293e9c9e3fcc96a1ae26ebedc7745b239` | `CotabbyInference-MIT.txt` |
 | llama.cpp | `b9310` | `Llama.cpp-MIT.txt` |
 | swift-log | `9c6fb14227f55d8f711ce3847dc2f419fb0ecacb` (1.15.1) | `SwiftLog-Apache-2.0.txt` |
 | LaunchAtLogin-Modern | `a04ec1c363be3627734f6dad757d82f5d4fa8fcc` (1.1.0) | `LaunchAtLogin-MIT.txt` |
