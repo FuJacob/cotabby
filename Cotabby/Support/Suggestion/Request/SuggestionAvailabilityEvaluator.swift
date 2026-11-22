@@ -191,6 +191,34 @@ enum SuggestionAvailabilityEvaluator {
         )
     }
 
+    /// How long after an accept a changed screen-context excerpt may not retire the suggestion. 500 ms
+    /// covers the gap between Tab presses in a normal accept burst (measured 150-370 ms in a Gmail
+    /// repro) without keeping a stale tail much past it. A fixed policy rather than a setting: it is a
+    /// timing detail of the accept pipeline, not a preference users can reason about.
+    static let postAcceptHoldMilliseconds = 500
+
+    /// How many milliseconds a changed screen-context excerpt must wait before it may retire the
+    /// suggestion, because the user accepted within the last `holdMilliseconds`. 0 means act now.
+    ///
+    /// A changed excerpt normally retires the visible tail and regenerates: on a host that exposes
+    /// identical field identity for two conversations, it is the only navigation signal. But
+    /// accepting words changes the screen too, so the ~3s OCR refresh read a Tab burst as navigation
+    /// and replaced the suggestion between presses (and the next Tab, finding no ghost or armed
+    /// post-exhaustion window, reached the host). The caller defers the retirement by the returned
+    /// amount instead of dropping it, so a real navigation is still acted on once accepting stops.
+    ///
+    /// Both instants are `ProcessInfo.systemUptime` seconds: a wall-clock step backwards would
+    /// otherwise make the elapsed time negative and hold the navigation signal for that long.
+    static func postAcceptanceHoldRemainingMilliseconds(
+        lastAcceptanceUptime: TimeInterval?,
+        nowUptime: TimeInterval,
+        holdMilliseconds: Int
+    ) -> Int {
+        guard let lastAcceptanceUptime, holdMilliseconds > 0 else { return 0 }
+        let elapsedMilliseconds = Int(((nowUptime - lastAcceptanceUptime) * 1_000).rounded(.down))
+        return max(0, holdMilliseconds - max(0, elapsedMilliseconds))
+    }
+
     /// Returns the first app, domain, or terminal rule that disables the focused field.
     private static func locationDisabledReason(
         disabledAppBundleIdentifiers: Set<String>,

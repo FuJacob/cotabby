@@ -23,6 +23,55 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.latestExcerpt, generator.text)
     }
 
+    func test_screenChangeExplainedByTheFieldsOwnEditIsNotReportedAsNavigation() async throws {
+        // Accepting words puts them on screen. A refresh that sees both new field text and new screen
+        // text must not look like navigation, or it retires the suggestion the user is accepting.
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review")
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { notifications == 1 }
+
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
+        generator.text = "Please review the attached"
+        try await waitUntil { coordinator.latestExcerpt == "Please review the attached" }
+        XCTAssertEqual(notifications, 1, "The user's own accepted words changed the screen")
+
+        // An edit does not explain the rest of the screen: the same draft carried into another
+        // conversation shows that conversation's lines, and that is still navigation.
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached file")
+        generator.text = "Please review the attached file\nA new message arrived"
+        try await waitUntil { notifications == 2 }
+    }
+
+    func test_acceptLandingMidCaptureIsStillTheFieldsOwnEdit() async throws {
+        // The refresh reads the field, then an accept lands before the screenshot. The pixels show
+        // words the pre-capture text lacks; the text read after OCR must still claim them.
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review")
+        coordinator.refreshContextProvider = { live }
+        var notifications = 0
+        coordinator.onInjectedContextReady = { _ in notifications += 1 }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        try await waitUntil { notifications == 1 }
+
+        generator.suspendNext = true
+        try await waitUntil { generator.pending != nil }
+        XCTAssertEqual(generator.contexts.last?.precedingText, "Please review")
+        live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
+        generator.text = "Project agenda and deadline\nPlease review the attached"
+        generator.pending?.resume()
+        generator.pending = nil
+        try await waitUntil { coordinator.latestExcerpt == generator.text }
+        XCTAssertEqual(notifications, 1, "Words accepted during the capture are the user's own edit")
+    }
+
     func test_ocrJitterKeepsTheCurrentExcerptByteIdenticalWithoutNotifying() async throws {
         let generator = StubVisualContextGenerator()
         let original = "Investigate screen context sessi\nThe newest message asks about the deadline"

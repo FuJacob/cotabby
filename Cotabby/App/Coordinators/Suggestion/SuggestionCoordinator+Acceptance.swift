@@ -219,7 +219,7 @@ extension SuggestionCoordinator {
         // hosts would otherwise map the published caret into pre-insert run frames for up to a
         // throttle window. Stamp the acceptance so the stability gate can scope its
         // backward-drift hold to the frames-catching-up window.
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
 
         if preparedContinuation == nil, sessionForAcceptance.advancing(by: acceptedChunk.count).isExhausted {
@@ -475,7 +475,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
         cancelPredictionWork(preservingContinuation: true)
@@ -696,6 +696,9 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)
         state = .idle
+        // The tail a deferred screen-context change was waiting to retire is gone, and the caller
+        // decides whether to predict; left pending, it would cancel that newer work on waking.
+        settleDeferredScreenContextChange()
     }
 
     func completeActiveSuggestion(
@@ -709,6 +712,8 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         hideOverlay(reason: reason)
         state = .idle
+        // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
+        settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
 
         if scheduleNextPrediction {

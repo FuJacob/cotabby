@@ -202,6 +202,10 @@ final class VisualContextCoordinator {
                 guard !Task.isCancelled else {
                     return
                 }
+                // The field's text on both sides of the screenshot: an accept can land after the
+                // read above and before the pixels are taken, and its words must still read as the
+                // user's own edit rather than new screen text.
+                var fieldTexts = [snapshotContext.precedingText + snapshotContext.trailingText]
                 if let provider = refreshContextProvider {
                     let liveContext = provider()
                     guard activeAugmentationSession?.sessionID == session.sessionID else { return }
@@ -212,13 +216,15 @@ final class VisualContextCoordinator {
                         cancel(resetState: true)
                         return
                     }
+                    fieldTexts.append(liveContext.precedingText + liveContext.trailingText)
                 }
 
                 applyExcerpt(
                     excerpt,
                     for: session.sessionID,
                     identity: snapshotContext.identity,
-                    capturedAt: capturedAt
+                    capturedAt: capturedAt,
+                    fieldTexts: fieldTexts
                 )
                 // Learn surface facts the session started without, but only from the context this
                 // capture was taken under. The new excerpt's pixels belong to that read, so exposing
@@ -354,7 +360,8 @@ final class VisualContextCoordinator {
         _ excerpt: VisualContextExcerpt,
         for sessionID: UUID,
         identity: FocusedInputIdentity,
-        capturedAt: TimeInterval
+        capturedAt: TimeInterval,
+        fieldTexts: [String]
     ) {
         guard activeAugmentationSession?.sessionID == sessionID,
             activeAugmentationSession?.elementIdentifier == identity.elementIdentifier,
@@ -383,6 +390,16 @@ final class VisualContextCoordinator {
             adopted = excerpt
         }
         let changed = current?.text != adopted.text
+        // A material change is reported as possible navigation so the coordinator retires the
+        // visible tail, but only when it shows text the old screen and the field's own text do not
+        // account for: accepted words landing on screen are not navigation, and reporting them
+        // replaced the suggestion mid-accept whenever the user paused between Tabs. An edit cannot
+        // hide a navigation that brings lines of its own. The excerpt is stored either way, so the
+        // next request uses it. A first excerpt is always reported: it is new context, not a
+        // comparison.
+        let isNavigation = changed && (current.map {
+            OCRTextHygiene.showsUnexplainedText(adopted.text, previous: $0.text, fieldTexts: fieldTexts)
+        } ?? true)
         activeAugmentationSession?.status = .ready
         activeAugmentationSession?.excerpt = adopted
         status = .ready
@@ -391,7 +408,11 @@ final class VisualContextCoordinator {
         scheduleExpiry(sessionID: sessionID, capturedAt: capturedAt)
         CotabbyLogger.app.debug("Visual context ready: \(adopted.text.count) chars")
         publishState()
-        if changed { onInjectedContextReady?(identity) }
+        if isNavigation {
+            onInjectedContextReady?(identity)
+        } else if changed {
+            CotabbyLogger.app.debug("Visual context changed only by the field's own text or OCR noise; not navigation")
+        }
     }
 
     /// Timer-driven expiry updates the UI and request-driven expiry covers a delayed timer. Both
