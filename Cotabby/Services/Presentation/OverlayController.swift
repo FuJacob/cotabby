@@ -807,7 +807,9 @@ final class OverlayController: SuggestionOverlayControlling {
     ///     match flash Georgia in the middle of an otherwise settled field;
     ///   - a size-only field that keeps producing new, different width samples, judged by
     ///     `TypefaceEvidence` (see the measured Gemini sequence there).
-    private func applyingTypefaceEvidence(
+    ///
+    /// Internal rather than private so tests can drive the per-field state it keeps.
+    func applyingTypefaceEvidence(
         _ resolution: GhostFontResolver.Resolution,
         for geometry: SuggestionOverlayGeometry
     ) -> GhostFontResolver.Resolution {

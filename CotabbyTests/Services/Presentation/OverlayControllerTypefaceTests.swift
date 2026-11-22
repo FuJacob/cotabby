@@ -74,6 +74,50 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         XCTAssertEqual(undecided.font.pointSize, 15.7 * 0.6, accuracy: 0.02)
     }
 
+    /// The same rule through a live controller (`applyingTypefaceEvidence`): the resolver's
+    /// resolution arrives already scaled (12 for a host's 15 at 80%), so where the host reports no
+    /// size its size is recovered by dividing the multiplier back out, and each face rebuilt from it
+    /// is scaled exactly once.
+    func testTypefaceEvidenceRecoversTheHostsSizeAndScalesTheGhostOnce() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "OverlayControllerTypefaceTests-\(UUID().uuidString)"))
+        let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
+        settings.setGhostTextSizeMultiplier(0.8)
+        XCTAssertEqual(settings.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
+        let overlay = OverlayController(suggestionSettings: settings)
+        let resolved = resolution(NSFont.systemFont(ofSize: 12), .hostSizeSystem)
+
+        // A host naming a face this Mac lacks, with no size and no sample yet: the system face at the
+        // recovered host size 15, scaled to 12 (not 15, and not 12 scaled again to 9.6).
+        let namedFace = SuggestionOverlayGeometry(
+            caretRect: CGRect(x: 0, y: 0, width: 2, height: 18),
+            inputFrameRect: nil,
+            caretQuality: .exact,
+            observedCharWidth: nil,
+            isRightToLeft: false,
+            focusedInputIdentityKey: 1,
+            resolvedFieldStyle: ResolvedFieldStyle(fontName: "CotabbyMissingFace-Regular", fontPointSize: nil, colorHex: nil)
+        )
+        XCTAssertEqual(overlay.applyingTypefaceEvidence(resolved, for: namedFace).font.pointSize, 12, accuracy: 0.01)
+
+        // A size-only field whose adopted sample measures the host at 15.7: the ghost is 15.7 at 80%.
+        let text = "I was thinking that"
+        let sampled = SuggestionOverlayGeometry(
+            caretRect: CGRect(x: 0, y: 0, width: 2, height: 18),
+            inputFrameRect: nil,
+            caretQuality: .exact,
+            observedCharWidth: nil,
+            isRightToLeft: false,
+            focusedInputIdentityKey: 2,
+            hostTextMetrics: HostTextMetrics(
+                sampleText: text,
+                sampleWidth: GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 15.7))
+            )
+        )
+        let ghost = overlay.applyingTypefaceEvidence(resolved, for: sampled)
+        XCTAssertEqual(ghost.font.pointSize, 15.7 * 0.8, accuracy: 0.02)
+        XCTAssertEqual(ghost.provenance, .hostSizeScaledSystem)
+    }
+
     func testAMatchWhoseAdvanceDisagreesWithTheHostsSampleIsRefused() {
         // Claude's composer: the caret travelled the width of Georgia 15.4 over this text; the
         // system face at 16.15 scored well on the shapes but is five percent wider than that.
