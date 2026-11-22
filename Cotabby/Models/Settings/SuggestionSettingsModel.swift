@@ -164,6 +164,8 @@ final class SuggestionSettingsModel: ObservableObject {
     /// The Accept Entire Suggestion slot holds one shortcut, so while this is true the one-press
     /// full-accept key is unbound; the setters below keep the two mutually exclusive.
     @Published private(set) var doubleTapAcceptsEntireSuggestion: Bool
+    /// Whether Tab moves to the next field instead of accepting in single-line fields.
+    @Published private(set) var tabLeavesSingleLineFields: Bool
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
     /// Retry with the Open Source model when Apple Intelligence rejects the text's language.
@@ -299,6 +301,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
         doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
+        tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
@@ -386,6 +389,7 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyLabel = data.globalToggleKeyLabel
         perAppShortcutOverrides = data.perAppShortcutOverrides
         doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
+        tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         isAppleLanguageFallbackEnabled = data.isAppleLanguageFallbackEnabled
@@ -505,7 +509,8 @@ final class SuggestionSettingsModel: ObservableObject {
                     label: globalToggleKeyLabel
                 ),
                 perAppOverrides: perAppShortcutOverrides,
-                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion
+                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                tabLeavesSingleLineFields: tabLeavesSingleLineFields
             )
         )
     }
@@ -548,6 +553,7 @@ final class SuggestionSettingsModel: ObservableObject {
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
             automaticallyFixTypos: settings.correction.automaticallyFixTypos,
             doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
+            tabLeavesSingleLineFields: settings.shortcuts.tabLeavesSingleLineFields,
             fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
                 in: settings.shortcuts.perAppOverrides
             )
@@ -974,6 +980,14 @@ final class SuggestionSettingsModel: ObservableObject {
             skinTone: preferredEmojiSkinTone,
             gender: preferredEmojiGender
         )
+    }
+
+    func setTabLeavesSingleLineFields(_ enabled: Bool) {
+        guard tabLeavesSingleLineFields != enabled else {
+            return
+        }
+        tabLeavesSingleLineFields = enabled
+        store.saveTabLeavesSingleLineFields(enabled)
     }
 
     private func setDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
@@ -1798,10 +1812,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
         // What a press of an accept key does: how much one press takes, whether a double tap takes
         // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
-        let acceptance = Publishers.CombineLatest3(
+        let acceptance = Publishers.CombineLatest4(
             $acceptanceGranularity,
             $doubleTapAcceptsEntireSuggestion,
-            $perAppShortcutOverrides
+            $perAppShortcutOverrides,
+            $tabLeavesSingleLineFields
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
         return Publishers.CombineLatest4(
@@ -1826,7 +1841,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
-                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides) = acceptanceTuple
+                let (granularity, doubleTapAcceptsEntireSuggestion, perAppOverrides, tabLeavesSingleLineFields) =
+                    acceptanceTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1862,6 +1878,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
                     automaticallyFixTypos: automaticallyFixTypos,
                     doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                    tabLeavesSingleLineFields: tabLeavesSingleLineFields,
                     fullAcceptanceOverrideBundleIdentifiers:
                         PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(in: perAppOverrides)
                 )

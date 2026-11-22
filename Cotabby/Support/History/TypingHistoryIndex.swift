@@ -16,9 +16,20 @@ nonisolated struct TypingHistoryQuery: Equatable, Sendable {
     /// in that head. Querying on every keystroke would change the examples, and with them the cached
     /// prefix, on nearly every request. Rounding to blocks of `wordsPerBlock` words keeps the
     /// examples fixed while a few words are typed and refreshes them as the topic moves on.
-    static func stableText(from precedingText: String, wordsPerBlock: Int = 8, maxWords: Int = 48) -> String {
+    ///
+    /// Short blocks apply until `laterWordsPerBlock` words so a brief message still gets examples
+    /// early; after that the query moves in `laterWordsPerBlock` steps (8, 16, 24, 48, ...). Each
+    /// step re-decodes the examples section and everything
+    /// after it (~100 ms on a 4B-class model), so refreshing every 8 words throughout a long text
+    /// was the most frequent cache miss left while typing.
+    static func stableText(
+        from precedingText: String, wordsPerBlock: Int = 8, laterWordsPerBlock: Int = 24, maxWords: Int = 48
+    ) -> String {
         let words = precedingText.split(whereSeparator: \.isWhitespace)
-        let completeBlocks = (words.count / wordsPerBlock) * wordsPerBlock
+        let step = max(wordsPerBlock, laterWordsPerBlock)
+        let completeBlocks = words.count < step
+            ? (words.count / wordsPerBlock) * wordsPerBlock
+            : (words.count / step) * step
         guard completeBlocks > 0 else { return "" }
         let window = words[..<completeBlocks].suffix(maxWords)
         return window.joined(separator: " ")

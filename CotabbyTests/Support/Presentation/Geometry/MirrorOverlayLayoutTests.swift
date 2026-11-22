@@ -27,6 +27,8 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         autoAcceptTrailingPunctuation: Bool = true,
         sizeMultiplier: CGFloat = 1,
         hostFontSize: CGFloat? = nil,
+        caretQuality: CaretGeometryQuality = .exact,
+        isCaretLineVerticallyUncalibrated: Bool = false,
         reason: CompletionRenderMode.MirrorReason = .userPreference
     ) -> MirrorOverlayLayout {
         MirrorOverlayLayout.make(
@@ -34,7 +36,9 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             geometry: CotabbyTestFixtures.overlayGeometry(
                 caretRect: caret,
                 inputFrameRect: inputFrame,
-                isRightToLeft: isRightToLeft
+                caretQuality: caretQuality,
+                isRightToLeft: isRightToLeft,
+                isCaretLineVerticallyUncalibrated: isCaretLineVerticallyUncalibrated
             ),
             visibleFrame: visibleFrame ?? screen,
             showsAcceptanceHint: showsHint,
@@ -63,6 +67,103 @@ final class MirrorOverlayLayoutTests: XCTestCase {
                 XCTAssertEqual(layout.reason, reason, label)
             }
         }
+    }
+
+    /// A layout estimate whose line was placed from a guessed top inset says nothing reliable
+    /// about where the text is drawn: in a Claude desktop textarea it put the line 12pt above the
+    /// real text, and the card under it landed on the text. The card drops below the field, which
+    /// it can never cover, while keeping the caret's x.
+    func test_make_uncalibratedLayoutEstimateSitsBelowTheFieldNotTheGuessedLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let inputFrame = CGRect(x: 400, y: 400, width: 640, height: 200)
+        let layout = makeLayout(
+            caret: caret, inputFrame: inputFrame, isCaretLineVerticallyUncalibrated: true,
+            reason: .caretLayoutEstimated
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 399)
+        XCTAssertEqual(layout.panelFrame.minX, 710)
+    }
+
+    /// A calibrated estimate keeps tracking its caret line, and the flag only governs layout
+    /// estimates: trusted carets already measured their line.
+    func test_make_uncalibratedFlagLeavesCalibratedAndTrustedCaretsUnderTheirLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let calibrated = makeLayout(caret: caret, reason: .caretLayoutEstimated)
+        let trusted = makeLayout(caret: caret, isCaretLineVerticallyUncalibrated: true, reason: .caretMidLine)
+
+        XCTAssertEqual(calibrated.panelFrame.maxY, 583)
+        XCTAssertEqual(trusted.panelFrame.maxY, 583)
+    }
+
+    /// Without a field frame there is nothing safer to sit under than the caret line itself.
+    func test_make_uncalibratedEstimateWithoutAFieldKeepsTheCaretLine() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let layout = makeLayout(
+            caret: caret, inputFrame: nil, isCaretLineVerticallyUncalibrated: true, reason: .caretLayoutEstimated
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 583)
+    }
+
+    /// The popup reason says why the card is up, not how good the caret is: "Always Popup" (and a
+    /// per-app override, or an inline layout that did not fit) shows the card for a layout-estimated
+    /// caret too. A guessed line covers the typed text whichever reason surfaced the card.
+    func test_make_uncalibratedLayoutEstimateSitsBelowTheFieldForEveryReason() {
+        let caret = CGRect(x: 720, y: 584, width: 2, height: 16)
+        let reasons = Self.allReasons + [.inlineLayoutUnavailable]
+        for reason in reasons {
+            let layout = makeLayout(
+                caret: caret, caretQuality: .layoutEstimated, isCaretLineVerticallyUncalibrated: true, reason: reason
+            )
+
+            XCTAssertEqual(layout.panelFrame.maxY, 399, "reason: \(reason)")
+            XCTAssertEqual(layout.panelFrame.minX, 710, "reason: \(reason)")
+        }
+    }
+
+    /// A field whose bottom sits on the screen's margin leaves no room below it, and clamping the
+    /// card back onto the screen would lift it into the field over the text it was moved off. The
+    /// card goes above the field instead.
+    func test_make_uncalibratedEstimateGoesAboveTheFieldWhenBelowIsOffScreen() {
+        let inputFrame = CGRect(x: 400, y: 30, width: 640, height: 200)
+        let layout = makeLayout(
+            caret: CGRect(x: 720, y: 214, width: 2, height: 16), inputFrame: inputFrame,
+            caretQuality: .layoutEstimated, isCaretLineVerticallyUncalibrated: true, reason: .caretLayoutEstimated
+        )
+
+        XCTAssertEqual(layout.panelFrame.minY, 231)
+        XCTAssertFalse(layout.panelFrame.intersects(inputFrame))
+    }
+
+    /// A field nearly as tall as the screen fits the card on neither side, so some overlap is
+    /// unavoidable; the card takes the side that covers less of the field. Here 21pt below vs 16pt
+    /// above (859 is the top clamp, 900 - 12 - 29).
+    func test_make_uncalibratedEstimateTakesTheSideThatCoversLessWhenNeitherFits() {
+        let caret = CGRect(x: 720, y: 859, width: 2, height: 16)
+        let above = makeLayout(
+            caret: caret, inputFrame: CGRect(x: 400, y: 20, width: 640, height: 855),
+            caretQuality: .layoutEstimated, isCaretLineVerticallyUncalibrated: true, reason: .caretLayoutEstimated
+        )
+        XCTAssertEqual(above.panelFrame.minY, 859)
+
+        let below = makeLayout(
+            caret: caret, inputFrame: CGRect(x: 400, y: 25, width: 640, height: 860),
+            caretQuality: .layoutEstimated, isCaretLineVerticallyUncalibrated: true, reason: .caretLayoutEstimated
+        )
+        XCTAssertEqual(below.panelFrame.minY, 12)
+    }
+
+    /// Trusted carets keep the plain clamp: their line is real, so near the screen's bottom they
+    /// stay pinned to the margin under it rather than jumping above the field.
+    func test_make_trustedCaretNearTheScreenBottomKeepsThePlainClamp() {
+        let layout = makeLayout(
+            caret: CGRect(x: 720, y: 32, width: 2, height: 16),
+            inputFrame: CGRect(x: 400, y: 30, width: 640, height: 200),
+            reason: .userPreference
+        )
+
+        XCTAssertEqual(layout.panelFrame.minY, 12)
     }
 
     func test_make_emptyCaretAnchorsBelowAndCentersOnTheInputFrameForEveryReason() {

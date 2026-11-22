@@ -807,17 +807,20 @@ enum AXHelper {
 
         let selectedText = stringForMarkerRange(selectionRange, on: element) ?? ""
 
-        // After-caret context is nice-to-have, not required for offset correctness.
-        var afterText = ""
-        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element),
-            let trailing = stringForMarkerRange(postRange, on: element) {
-            afterText = trailing
+        // After-caret context is nice-to-have, not required for offset correctness. A failed read
+        // still yields a selection, marked so nothing downstream takes the empty text as the end of
+        // the document.
+        var afterText: String?
+        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element) {
+            afterText = stringForMarkerRange(postRange, on: element)
         }
 
-        return MarkerSelectionSynthesizer.make(
-            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText,
+        var selection = MarkerSelectionSynthesizer.make(
+            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText ?? "",
             normalizeNonBreakingSpaces: normalizeNonBreakingSpaces
         )
+        selection.trailingTextUnavailable = afterText == nil
+        return selection
     }
 
     /// Reads endpoints locally from the opaque CF range returned by the host. WebKit (including
@@ -1058,6 +1061,28 @@ enum AXHelper {
         // Same Core Foundation bridging rule as `parentElement(of:)`.
         let window = unsafeBitCast(value, to: AXUIElement.self)
         return stringValue(for: kAXTitleAttribute as CFString, on: window)
+    }
+
+    /// Whether `element` sits inside a web page: an ancestor is an `AXWebArea`, which Chromium,
+    /// WebKit and Gecko all put at the root of a document (page content, an Electron app's UI, a
+    /// web view inside a native app), while a browser's own toolbar and any native control climb
+    /// to their `AXWindow` without passing one. The climb stops at the window, the application, a
+    /// missing parent, or `maxClimb` levels (web apps nest inputs ~20-40 levels deep), and any of
+    /// those answers false, the "native control" side. Never mutates AX state.
+    static func isInsideWebArea(_ element: AXUIElement, maxClimb: Int = 128) -> Bool {
+        var current = element
+        for _ in 0..<maxClimb {
+            guard let parent = parentElement(of: current) else { return false }
+            switch stringValue(for: kAXRoleAttribute as CFString, on: parent) {
+            case "AXWebArea":
+                return true
+            case kAXWindowRole as String, kAXApplicationRole as String:
+                return false
+            default:
+                current = parent
+            }
+        }
+        return false
     }
 
     /// Best-effort read of the page URL for local navigation identity and per-site rules.

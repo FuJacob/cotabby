@@ -359,7 +359,12 @@ final class TypingHistoryStoreTests: XCTestCase {
                             app: "com.googlecode.iterm2")) { true }
         store.observe(focus("git push origin main and then open the pull request", element: "vs", sequence: 2,
                             app: "com.microsoft.VSCode", isIntegratedTerminal: true)) { true }
-        store.observe(focus("", element: "x", sequence: 3)) { true }
+        // Terminal screen fields get suggestions, but their field is the whole screen, output included.
+        store.observe(focus("deploy finished, token printed above, now tag the release", element: "g", sequence: 3,
+                            app: "com.mitchellh.ghostty")) { true }
+        store.observe(focus("agent output scrolls by while the next command is typed", element: "h", sequence: 4,
+                            app: "dev.bybee.herdrm")) { true }
+        store.observe(focus("", element: "x", sequence: 5)) { true }
 
         XCTAssertEqual(store.recordCount, 0)
     }
@@ -609,6 +614,50 @@ final class TypingHistoryStoreTests: XCTestCase {
 
         XCTAssertEqual(store.historyExamples(for: later, engine: .llamaOpenSource), [],
                        "The field now contains that writing; showing it would make the model echo the draft")
+    }
+
+    /// Examples already in the prompt survive a new query block while the new ranking still rates
+    /// them among its top few, so the prompt (and its KV cache) does not change on every block. A
+    /// fresh store answers the same later query with a different top example, which proves the
+    /// first store kept its examples on purpose rather than by coincidence.
+    func test_shownExamplesStayWhileTheyRemainHighlyRanked() async throws {
+        let rows: [[String: Any]] = [
+            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "The Imperum connector plan review moved to Monday with the steering group."],
+            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "Connector plan notes are ready for the Imperum steering group on Monday."],
+            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "Detections rollout for the SOC analysts starts after the dashboard migration."]
+        ]
+        // Exactly 8 words, then exactly 16: each is one whole query block. The second block's new
+        // words all belong to the third passage, so a fresh ranking puts it first.
+        let opening = "Notes for Monday about the Imperum connector plan "
+        let later = opening + "SOC analysts detections rollout after the dashboard migration "
+
+        let sticky = makeStore()
+        sticky.setUsingHistory(true)
+        await sticky.importCotypistExport(from: try writeExport(rows))
+        let first = CotabbyTestFixtures.focusedInputContext(precedingText: opening)
+        await waitUntil { !sticky.historyExamples(for: first, engine: .llamaOpenSource).isEmpty }
+        let shown = sticky.historyExamples(for: first, engine: .llamaOpenSource)
+        XCTAssertFalse(shown.contains { $0.contains("Detections rollout") })
+
+        let laterContext = CotabbyTestFixtures.focusedInputContext(precedingText: later)
+        XCTAssertEqual(sticky.historyExamples(for: laterContext, engine: .llamaOpenSource), shown)
+
+        let fresh = makeStore()
+        fresh.setUsingHistory(true)
+        await fresh.importCotypistExport(from: try writeExport(rows))
+        await waitUntil { !fresh.historyExamples(for: laterContext, engine: .llamaOpenSource).isEmpty }
+        XCTAssertNotEqual(fresh.historyExamples(for: laterContext, engine: .llamaOpenSource), shown,
+                          "Without shown examples the later query must rank differently, or this test proves nothing")
+    }
+
+    /// A dropped example is replaced in its own slot; survivors keep their positions, so the prompt
+    /// diverges as late as possible.
+    func test_stableExamplesReplaceOnlyDroppedSlots() {
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["b", "a", "c"], fresh: ["b", "c"]), ["a", "b"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["b", "c"], fresh: ["c", "b"]), ["c", "b"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: ["a", "c"], fresh: ["c", "a"]), ["a", "c"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a"], ranked: ["a", "c"], fresh: ["c", "a"]), ["a", "c"])
+        XCTAssertEqual(TypingHistoryStore.stableExamples(shown: ["a", "b"], ranked: [], fresh: []), [])
     }
 
     func test_anExampleHiddenByTheFieldsLatestWordsComesBackWhenTheWordingMovesOn() async throws {

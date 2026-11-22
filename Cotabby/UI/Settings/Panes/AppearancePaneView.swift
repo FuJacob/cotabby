@@ -138,7 +138,9 @@ struct AppearancePaneView: View {
                 GhostTextPreview(
                     ghostColor: resolvedGhostTextColor,
                     opacity: suggestionSettings.ghostTextOpacity,
-                    fontSize: GhostTextPreview.baseFontSize * CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+                    // The overlay sets the multiplier aside while matching the host's size; so does this.
+                    fontSize: GhostTextPreview.baseFontSize
+                        * (suggestionSettings.matchesHostTextSize ? 1 : CGFloat(suggestionSettings.ghostTextSizeMultiplier))
                 )
 
                 LabeledContent {

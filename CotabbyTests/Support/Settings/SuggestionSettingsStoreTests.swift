@@ -30,6 +30,19 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
     }
 
+    func test_tabLeavesSingleLineFields_defaultsOffPersistsChoiceAndResets() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        XCTAssertFalse(store.load(configuration: .standard).tabLeavesSingleLineFields)
+
+        store.saveTabLeavesSingleLineFields(true)
+        XCTAssertTrue(store.load(configuration: .standard).tabLeavesSingleLineFields)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyTabLeavesSingleLineFields") as? Bool, true)
+
+        XCTAssertFalse(store.resetToDefaults(configuration: .standard).tabLeavesSingleLineFields)
+        XCTAssertNotEqual(defaults.object(forKey: "cotabbyTabLeavesSingleLineFields") as? Bool, true)
+    }
+
     // MARK: - Suggestion timing
 
     func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {

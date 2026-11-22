@@ -117,6 +117,7 @@ struct SuggestionSettingsStore {
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
     private static let doubleTapFullAcceptanceDefaultsKey = "cotabbyDoubleTapAcceptsEntireSuggestion"
+    private static let tabLeavesSingleLineFieldsDefaultsKey = "cotabbyTabLeavesSingleLineFields"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
@@ -214,6 +215,7 @@ struct SuggestionSettingsStore {
         disabledAppRulesDefaultsKey,
         perAppShortcutOverridesDefaultsKey,
         doubleTapFullAcceptanceDefaultsKey,
+        tabLeavesSingleLineFieldsDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
@@ -306,6 +308,9 @@ struct SuggestionSettingsStore {
         // whole-suggestion accept is an opt-in change to that muscle memory.
         let resolvedDoubleTapAcceptsEntireSuggestion =
             userDefaults.object(forKey: Self.doubleTapFullAcceptanceDefaultsKey) as? Bool ?? false
+        // Off by default: Tab has always accepted wherever a suggestion shows.
+        let resolvedTabLeavesSingleLineFields =
+            userDefaults.object(forKey: Self.tabLeavesSingleLineFieldsDefaultsKey) as? Bool ?? false
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
@@ -671,7 +676,8 @@ struct SuggestionSettingsStore {
                     label: resolvedGlobalToggleKeyLabel
                 ),
                 perAppOverrides: resolvedPerAppShortcutOverrides,
-                doubleTapAcceptsEntireSuggestion: resolvedDoubleTapAcceptsEntireSuggestion
+                doubleTapAcceptsEntireSuggestion: resolvedDoubleTapAcceptsEntireSuggestion,
+                tabLeavesSingleLineFields: resolvedTabLeavesSingleLineFields
             )
         )
 
@@ -745,6 +751,7 @@ struct SuggestionSettingsStore {
         )
         savePerAppShortcutOverrides(data.perAppShortcutOverrides)
         saveDoubleTapAcceptsEntireSuggestion(data.doubleTapAcceptsEntireSuggestion)
+        saveTabLeavesSingleLineFields(data.tabLeavesSingleLineFields)
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
         saveAppleLanguageFallbackEnabled(data.isAppleLanguageFallbackEnabled)
@@ -812,6 +819,10 @@ struct SuggestionSettingsStore {
 
     func saveDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.doubleTapFullAcceptanceDefaultsKey)
+    }
+
+    func saveTabLeavesSingleLineFields(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.tabLeavesSingleLineFieldsDefaultsKey)
     }
 
     /// Removing the key for an empty list keeps reset state identical to a fresh install.

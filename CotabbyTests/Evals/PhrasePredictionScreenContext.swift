@@ -62,7 +62,10 @@ enum PhrasePredictionScreenContext {
             languageInstruction: promptVariant == "compact-language" ? compactLanguage : request.languageInstruction,
             clipboardContext: request.clipboardContext, visualContextSummary: request.visualContextSummary,
             surfaceContext: request.surfaceContext, usesCompactSurfaceContext: promptVariant == "compact-surface",
-            tokenBudget: configuration.llamaPromptTokenBudget
+            tokenBudget: SuggestionRequestFactory.promptTokenBudget(
+                configuredBudget: configuration.llamaPromptTokenBudget,
+                maxPredictionTokens: request.maxPredictionTokens
+            )
         )
         return SuggestionRequest(
             context: request.context, prefixText: request.prefixText, prompt: prompt,

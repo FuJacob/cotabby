@@ -40,12 +40,13 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
 
     func testAppleIntelligenceStillCarriesTierBehaviorFlags() {
         let quick = OnboardingTemplateRecommender.resolvePlan(for: .quick, engine: .appleIntelligence)
-        XCTAssertEqual(quick.wordCountPreset, .fourToSeven)
+        XCTAssertEqual(quick.wordCountPreset, .twoToFour)
         XCTAssertFalse(quick.enablesFastMode)
         XCTAssertFalse(quick.enablesMultiLine)
         XCTAssertFalse(quick.enablesClipboardContext)
 
         let everyday = OnboardingTemplateRecommender.resolvePlan(for: .everyday, engine: .appleIntelligence)
+        XCTAssertEqual(everyday.wordCountPreset, .fourToSeven)
         XCTAssertFalse(everyday.enablesFastMode)
         XCTAssertFalse(everyday.enablesMultiLine)
         XCTAssertTrue(everyday.enablesClipboardContext)

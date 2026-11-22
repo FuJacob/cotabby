@@ -77,6 +77,20 @@ final class TypingHistoryIndexTests: XCTestCase {
         XCTAssertEqual(examples, ["Pipeline status for the Imperum connector build is green again today!"])
     }
 
+    /// After the first short block the query moves in larger steps, so long texts refresh their
+    /// examples (and re-decode that prompt section) less often.
+    func test_stableTextUsesLargerBlocksAfterTheFirst() {
+        let words = (1...60).map { "w\($0)" }
+        let text = { (count: Int) in words.prefix(count).joined(separator: " ") }
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(7)), "")
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(8)), text(8))
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(15)), text(8))
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(23)), text(16))
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(24)), text(24))
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(47)), text(24))
+        XCTAssertEqual(TypingHistoryQuery.stableText(from: text(48)), text(48))
+    }
+
     func test_stableTextOnlyChangesOnWholeWordBlocks() {
         XCTAssertEqual(TypingHistoryQuery.stableText(from: "one two three", wordsPerBlock: 4), "")
         XCTAssertEqual(TypingHistoryQuery.stableText(from: "a b c d e f", wordsPerBlock: 4), "a b c d")
