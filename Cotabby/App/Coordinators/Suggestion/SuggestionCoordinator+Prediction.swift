@@ -1462,6 +1462,12 @@ extension SuggestionCoordinator {
     /// deferral that outlived its field into a no-op.
     func handleInjectedContextReady(_ identity: FocusedInputIdentity) {
         guard focusModel.snapshot.context?.identity == identity else { return }
+        // A terminal screen field (HerdrM, Ghostty) redraws its status line and agent output every
+        // few seconds, so its screen text changes without any navigation, and each pane is its own
+        // field, so a switch already arrives as a focus change. The new text simply feeds the next
+        // request; retiring the visible suggestion here hid it every 2-3 seconds.
+        guard !TerminalAppDetector.isTerminalScreenField(bundleIdentifier: focusModel.snapshot.context?.bundleIdentifier)
+        else { return }
 
         let remainingMilliseconds = SuggestionAvailabilityEvaluator.postAcceptanceHoldRemainingMilliseconds(
             lastAcceptanceUptime: lastAcceptanceAt,
