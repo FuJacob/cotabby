@@ -16,6 +16,10 @@ struct CapturedWindowScreenshot {
     let image: CGImage
     let windowTitle: String?
     var focusBounds: CGRect?
+    /// The focused field's frame extended down by its chrome band, in the same normalized Vision
+    /// space as `focusBounds`. It bounds how far below the caret the excerpt selector may drop
+    /// lines, so content under a reply box that sits above its thread survives.
+    var composerBounds: CGRect?
     /// Where the focused field itself sits in `image`, so its text and pixels can be kept out of
     /// screen context. Nil when the host reports no frame or the field lies outside the capture.
     var fieldRegion: FocusedFieldScreenRegion?
@@ -60,6 +64,12 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         /// Capture a taller band above the input so OCR can see nearby labels, messages, and
         /// surrounding page content instead of only the field chrome.
         static let verticalContextHeight: CGFloat = 800
+
+        /// Height in display points below the field's frame still treated as the composer's own
+        /// chrome (send/attach buttons, model picker, Cancel/Comment). Points rather than a capture
+        /// fraction so the band does not grow with window height and swallow content under a
+        /// top-placed reply box. Sized for one toolbar row plus its padding.
+        static let composerChromeHeight: CGFloat = 56
     }
 
     /// Finds the most relevant visible window for the focused process and captures an expanded
@@ -138,6 +148,16 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
             width: field.width / sourceRect.width,
             height: caret.height / sourceRect.height
         )
+        // CG space is top-left, so the field's bottom edge is `maxY`; extending it adds the chrome band.
+        let composer = CGRect(
+            x: field.minX, y: field.minY, width: field.width, height: field.height + CaptureMetrics.composerChromeHeight
+        )
+        let composerBounds = CGRect(
+            x: focusBounds.minX,
+            y: 1 - (composer.maxY - sourceRect.minY) / sourceRect.height,
+            width: focusBounds.width,
+            height: composer.height / sourceRect.height
+        )
         // The element's own frame, not the widened `inputFrameRect`: widening reaches neighbouring
         // labels and buttons that are screen context, not the user's text.
         let fieldRegion = context.elementFrameRect.flatMap {
@@ -150,6 +170,7 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
             image: image,
             windowTitle: matchingWindow.title,
             focusBounds: focusBounds,
+            composerBounds: composerBounds,
             fieldRegion: fieldRegion
         )
     }

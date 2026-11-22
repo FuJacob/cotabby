@@ -190,7 +190,8 @@ enum CotabbyTestFixtures {
         isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat? = nil,
         isRightToLeft: Bool = false,
-        observedContentEdges: ObservedContentEdges? = nil
+        observedContentEdges: ObservedContentEdges? = nil,
+        isCaretLineVerticallyUncalibrated: Bool = false
     ) -> SuggestionOverlayGeometry {
         SuggestionOverlayGeometry(
             caretRect: caretRect,
@@ -199,7 +200,8 @@ enum CotabbyTestFixtures {
             isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft,
-            observedContentEdges: observedContentEdges
+            observedContentEdges: observedContentEdges,
+            isCaretLineVerticallyUncalibrated: isCaretLineVerticallyUncalibrated
         )
     }
 

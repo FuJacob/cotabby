@@ -261,10 +261,9 @@ use matching one-worker runs for interactive latency comparisons. More workers a
 model/context memory and do not guarantee proportional speedup. The production autocomplete
 runtime remains single-sequence; these independent engines exist only inside the opt-in test.
 
-## Bounded improvement experiments
+## Sampling experiments
 
-`IMPROVEMENT_BRAINSTORMING.md` records the current experiment hypotheses, checklist, time window,
-and adoption criteria. Keep the model and corpus fixed while comparing sampling configurations.
+Keep the model and corpus fixed while comparing sampling configurations.
 The CLI supports explicit test-only overrides without changing product defaults or saved settings:
 
 ```sh
@@ -339,5 +338,6 @@ xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platfor
 python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
 ```
 
-Cotabby builds require the patched native package. Run `scripts/prepare_cotabby_workspace.sh`
-first; benchmark build commands use `build/cotabby-dependencies/Cotabby.xcworkspace` by default. The package's pinned revision and patch are shared with release packaging.
+Run `scripts/prepare_cotabby_workspace.sh` first; benchmark build commands use
+`build/cotabby-dependencies/Cotabby.xcworkspace` by default. Its pinned package revisions are shared
+with release packaging.

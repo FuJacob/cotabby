@@ -57,8 +57,9 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 - `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
   testing pure `Support/` and `Models/` logic when possible.
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
-  (`github.com/FuJacob/cotabbyinference`). The build workspace pins a revision and applies
-  `patches/cotabbyinference-upstream-pending.patch` until those APIs are accepted upstream.
+  (`github.com/FuJacob/cotabbyinference`) pinned to an exact upstream revision in `project.yml`.
+  `scripts/prepare_cotabby_workspace.sh` checks out that same revision and must be bumped with it.
+  Native API changes land upstream first; Cotabby carries no local patch.
 
 Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
 Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
@@ -324,8 +325,10 @@ symptom → category map. Do not ask the user to re-explain symptoms before chec
 ## Builds And Validation
 
 Build, run, and test with Xcode as documented in
-[`CONTRIBUTING.md`](CONTRIBUTING.md). Prepare the pinned inference workspace with
-`scripts/prepare_cotabby_workspace.sh` first. Local launches use the developer's own signing
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Prepare the pinned dependency workspace with
+`scripts/prepare_cotabby_workspace.sh` first; it pins every package exactly, as CI and releases do.
+A plain `-project Cotabby.xcodeproj` build also compiles, but resolves non-native packages from a
+local, unpinned `Package.resolved`. Local launches use the developer's own signing
 team configured through `scripts/dev-setup.sh` and the isolated `Cotabby Dev` scheme; production
 uses `Cotabby`, its upstream bundle identity, and Sparkle updates. Shared CI uses unsigned compile checks and
 app-hosted tests.
@@ -336,10 +339,10 @@ it after validation. Verify cleanup before reporting completion.
 Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/Cotabby-*`.
 
 ```bash
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
-  -derivedDataPath build/DerivedData
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
-  -derivedDataPath build/DerivedData
+xcodebuild -workspace build/cotabby-dependencies/Cotabby.xcworkspace -scheme Cotabby \
+  -destination 'platform=macOS' build -derivedDataPath build/DerivedData
+xcodebuild -workspace build/cotabby-dependencies/Cotabby.xcworkspace -scheme Cotabby \
+  -destination 'platform=macOS' build-for-testing -derivedDataPath build/DerivedData
 ```
 
 Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`

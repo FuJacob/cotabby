@@ -303,6 +303,10 @@ the setup. Both were doubled together after the recall eval showed facts stated 
 tokens before the caret were invisible to the model.
 The request window and section allocator preserve the prefix's spaces, line breaks, and indentation.
 Multiline output cleanup also preserves the leading space needed to join a new word at the caret.
+Single-line cleanup preserves a removed leading newline as a word separator where the existing
+spacing rules require one, before a word, an opening bracket or quote, or a symbol, but never
+before attaching punctuation or between recognized spaceless-script characters. Output without a
+leading newline keeps its original word boundary.
 Bounded right-of-caret text is descriptive reference material before the prefix, not invented
 fill-in-the-middle control tokens. This added suffix section is local-only: the endpoint renderer
 does not receive it. Optional user-authored notes retain their existing budgets and settings; no
@@ -505,7 +509,12 @@ focus change or incompatible input. They do not call a language model.
 [SettingsCoordinator.swift](Cotabby/App/Coordinators/SettingsCoordinator.swift) and
 [WelcomeCoordinator.swift](Cotabby/App/Coordinators/WelcomeCoordinator.swift) own app-lifetime AppKit
 windows hosting SwiftUI content. Settings and onboarding observe the shared graph. Hiding the menu bar
-icon retains a recovery path to Settings.
+icon retains a recovery path to Settings. Cotabby launches as an agent app (`LSUIElement`), and
+`SettingsCoordinator` switches the process to `.regular` while Settings is open (Dock tile and
+Command-Tab entry, per `SettingsActivationPolicy`) and back to `.accessory` when it closes.
+While `.regular`, the app menu's standard "Settings…" (⌘,) item comes from a `CommandGroup` in
+`CotabbyApp` that calls the same `showSettings()`; there is no SwiftUI `Settings` scene. Reopen
+handling (Dock click, relaunch) is decided by `MenuBarRecoveryPolicy.reopenAction`.
 
 ## Concurrency and Reliability Rules
 

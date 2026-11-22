@@ -29,6 +29,80 @@ nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
     let focusChangeSequence: UInt64
     let focusedURLString: String?
     let windowTitle: String?
+
+    init(
+        processIdentifier: Int32,
+        bundleIdentifier: String,
+        focusChangeSequence: UInt64,
+        focusedURLString: String?,
+        windowTitle: String?
+    ) {
+        self.processIdentifier = processIdentifier
+        self.bundleIdentifier = bundleIdentifier
+        self.focusChangeSequence = focusChangeSequence
+        self.focusedURLString = focusedURLString
+        self.windowTitle = Self.identifyingWindowTitle(
+            windowTitle, focusedURLString: focusedURLString, bundleIdentifier: bundleIdentifier
+        )
+    }
+
+    /// The window title only when it is the best conversation signal available. In a browser the
+    /// title is just the tab title, which web apps rewrite on their own: Google Chat alternates it
+    /// with "X messaged you" every ~2s while a notification is unread, and Gmail prefixes unread
+    /// counts. Counting those flashes as navigation tore the suggestion down and restarted screen
+    /// capture every time. A browser field's URL names the conversation when Accessibility exposes
+    /// one (Google Chat's composer sits too deep for the bounded URL climb, so the browser check is
+    /// needed too), and a host that keeps one URL across conversations is still caught by the
+    /// changed-screen-text signal. Native fields outside browsers keep the title as their signal.
+    static func identifyingWindowTitle(
+        _ windowTitle: String?, focusedURLString: String?, bundleIdentifier: String
+    ) -> String? {
+        guard focusedURLString == nil, !BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier) else {
+            return nil
+        }
+        return windowTitle
+    }
+
+    /// True when this identity, read from a live poll, still describes the writing session
+    /// `previous` was captured in.
+    ///
+    /// This is the comparison every consumer of a *live* snapshot must use instead of `==`. The
+    /// process, bundle and focus sequence are Cotabby's own bookkeeping and always known, so they
+    /// must match exactly. The two surface facts are bounded AX reads repeated on every poll,
+    /// each under `AXHelper`'s 50 ms messaging timeout. A host busy processing a burst of synthetic
+    /// keystrokes (Chromium during rapid Tab accepts) times one out, and the fact arrives as nil.
+    /// Nil is an unreadable fact, not a navigation: navigation is one known value replaced by a
+    /// different known value. Reading nil as "changed" tore the active suggestion down mid-burst as
+    /// a "focused field" change, and the next Tab reached the page as a real Tab.
+    func continues(_ previous: FocusedInputSessionIdentity) -> Bool {
+        processIdentifier == previous.processIdentifier
+            && bundleIdentifier == previous.bundleIdentifier
+            && focusChangeSequence == previous.focusChangeSequence
+            && Self.surfaceFactsAgree(focusedURLString, previous.focusedURLString)
+            && Self.surfaceFactsAgree(windowTitle, previous.windowTitle)
+    }
+
+    /// Two reads of one surface fact agree unless both are known and differ. Shared with
+    /// `FocusedInputPollingSignature` so the tracker's navigation signal and the session identity
+    /// consumers rely on cannot drift apart on what an unreadable fact means.
+    static func surfaceFactsAgree(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs else { return true }
+        return lhs == rhs
+    }
+
+    /// This identity with each unreadable surface fact filled from `observed`, a read of the same
+    /// session. A session that starts while a fact times out would otherwise keep that nil for its
+    /// whole life, and every exact comparison against a later readable poll would fail. Known facts
+    /// are never overwritten: `continues(_:)` already rejects a known value replaced by another.
+    func filled(from observed: FocusedInputSessionIdentity) -> FocusedInputSessionIdentity {
+        FocusedInputSessionIdentity(
+            processIdentifier: processIdentifier,
+            bundleIdentifier: bundleIdentifier,
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: focusedURLString ?? observed.focusedURLString,
+            windowTitle: windowTitle ?? observed.windowTitle
+        )
+    }
 }
 
 /// Describes how trustworthy the resolved caret rect is.

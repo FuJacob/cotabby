@@ -60,16 +60,10 @@ nonisolated enum VisualContextExcerptStability {
             return !lines(candidate).isEmpty
         }
 
-        // Exact key matches cancel out as a multiset, so reordered lines cost nothing.
-        var unmatchedCurrent = currentLines
-        var unmatchedCandidate: [Line] = []
-        for line in lines(candidate) {
-            if let index = unmatchedCurrent.firstIndex(where: { $0.words == line.words }) {
-                unmatchedCurrent.remove(at: index)
-            } else {
-                unmatchedCandidate.append(line)
-            }
-        }
+        let candidateLines = lines(candidate)
+        let exactlyCancelled = cancellingExactMatches(currentLines, candidateLines)
+        var unmatchedCurrent = exactlyCancelled.current
+        let unmatchedCandidate = exactlyCancelled.candidate
         guard unmatchedCurrent.count <= maximumUnmatchedLines, unmatchedCandidate.count <= maximumUnmatchedLines else {
             return true
         }
@@ -93,7 +87,9 @@ nonisolated enum VisualContextExcerptStability {
                 }
             }
             if let best {
-                if grewIntoRealLine(line, from: unmatchedCurrent[best.index], changedLines: changedCurrent) {
+                if grewIntoRealLine(
+                    line, from: unmatchedCurrent[best.index], changedLines: changedCurrent, candidateLines: candidateLines
+                ) {
                     return true
                 }
                 unmatchedCurrent.remove(at: best.index)
@@ -109,6 +105,23 @@ nonisolated enum VisualContextExcerptStability {
         }
         difference += leftover.reduce(0) { $0 + $1.scalars.count }
         return difference > max(40, current.count / 20)
+    }
+
+    /// The lines of each side left after exact key matches cancel out as a multiset, so reordered
+    /// lines cost nothing.
+    private static func cancellingExactMatches(
+        _ current: [Line], _ candidate: [Line]
+    ) -> (current: [Line], candidate: [Line]) {
+        var unmatchedCurrent = current
+        var unmatchedCandidate: [Line] = []
+        for line in candidate {
+            if let index = unmatchedCurrent.firstIndex(where: { $0.words == line.words }) {
+                unmatchedCurrent.remove(at: index)
+            } else {
+                unmatchedCandidate.append(line)
+            }
+        }
+        return (unmatchedCurrent, unmatchedCandidate)
     }
 
     /// One key per line: lowercased words with digits removed, keeping only words that still have
@@ -147,14 +160,26 @@ nonisolated enum VisualContextExcerptStability {
     /// a split OCR made inside one visual line: it rejoined ("Opus Extra" and "Auto" -> "Opus Extra
     /// Auto") or split at the next word instead ("Error saving" and "Draft note" -> "Error saving
     /// draft" and "note"). Either way the added word began one of `changedLines`, the old lines this
-    /// refresh did not reproduce exactly.
-    private static func grewIntoRealLine(_ candidate: Line, from current: Line, changedLines: [Line]) -> Bool {
+    /// refresh did not reproduce exactly, and the rest of that line is accounted for: nothing (the
+    /// word was the whole line) or a line of `candidateLines` (the split moved to the next word).
+    /// Without that check an unrelated changed line that merely starts with the word ("Draft note"
+    /// becoming "Draft saved") would excuse real new text.
+    private static func grewIntoRealLine(
+        _ candidate: Line, from current: Line, changedLines: [Line], candidateLines: [Line]
+    ) -> Bool {
         guard candidate.words.count == current.words.count + 1, candidate.words.starts(with: current.words),
               isRealLine(candidate.words), !isRealLine(current.words), let added = candidate.words.last
         else {
             return false
         }
-        return !changedLines.contains { $0.words.first == added }
+        let wordMoved = changedLines.contains { source in
+            guard source.words != current.words, source.words.first == added else {
+                return false
+            }
+            let remainder = Array(source.words.dropFirst())
+            return remainder.isEmpty || candidateLines.contains { $0.words == remainder }
+        }
+        return !wordMoved
     }
 
     private static func isSpacelessScript(_ character: Character) -> Bool {

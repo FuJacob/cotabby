@@ -77,7 +77,7 @@ final class VisualContextCoordinator {
         // Surface facts can change even when an app reuses its composer and AX handle. Drop the
         // old excerpt synchronously; the settle delay below must never expose another chat's text.
         if let previous = activeSessionIdentity ?? pendingStartContext?.sessionIdentity,
-           previous != snapshotContext.sessionIdentity {
+           !snapshotContext.sessionIdentity.continues(previous) {
             cancel(resetState: true)
         }
         // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
@@ -172,7 +172,7 @@ final class VisualContextCoordinator {
             guard !Task.isCancelled, activeAugmentationSession?.sessionID == session.sessionID else { return }
             guard screenRecordingPermissionProvider(), let currentContext,
                   currentContext.identity == snapshotContext.identity,
-                  currentContext.sessionIdentity == snapshotContext.sessionIdentity, !currentContext.isSecure else {
+                  currentContext.sessionIdentity.continues(snapshotContext.sessionIdentity), !currentContext.isSecure else {
                 cancel(resetState: true)
                 return
             }
@@ -205,9 +205,10 @@ final class VisualContextCoordinator {
                 if let provider = refreshContextProvider {
                     let liveContext = provider()
                     guard activeAugmentationSession?.sessionID == session.sessionID else { return }
-                    guard screenRecordingPermissionProvider(), liveContext?.identity == snapshotContext.identity,
-                          liveContext?.sessionIdentity == snapshotContext.sessionIdentity,
-                          liveContext?.isSecure == false else {
+                    guard screenRecordingPermissionProvider(), let liveContext,
+                          liveContext.identity == snapshotContext.identity,
+                          liveContext.sessionIdentity.continues(snapshotContext.sessionIdentity),
+                          !liveContext.isSecure else {
                         cancel(resetState: true)
                         return
                     }
@@ -219,6 +220,16 @@ final class VisualContextCoordinator {
                     identity: snapshotContext.identity,
                     capturedAt: capturedAt
                 )
+                // Learn surface facts the session started without, but only from the context this
+                // capture was taken under. The new excerpt's pixels belong to that read, so exposing
+                // it to a request carrying the now-known title or URL cannot leak an earlier chat's
+                // text. An excerpt captured while a fact was unknown never gains that fact.
+                if activeAugmentationSession?.sessionID == session.sessionID,
+                   activeAugmentationSession?.excerpt == excerpt,
+                   let activeSessionIdentity,
+                   snapshotContext.sessionIdentity.continues(activeSessionIdentity) {
+                    self.activeSessionIdentity = activeSessionIdentity.filled(from: snapshotContext.sessionIdentity)
+                }
             } catch is CancellationError {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
                 return
@@ -253,7 +264,8 @@ final class VisualContextCoordinator {
                   let context = liveContext,
                   context.elementIdentifier == session.elementIdentifier,
                   context.focusChangeSequence == session.focusChangeSequence,
-                  context.sessionIdentity == self.activeSessionIdentity,
+                  let activeSessionIdentity = self.activeSessionIdentity,
+                  context.sessionIdentity.continues(activeSessionIdentity),
                   !context.isSecure else {
                 self.cancel(resetState: true)
                 return
@@ -291,6 +303,12 @@ final class VisualContextCoordinator {
     /// visual-context session still belongs to that same field.
     func excerpt(for context: FocusedInputContext) -> String? {
         expireExcerptIfNeeded()
+        // Exact identity here, unlike the session-keeping checks above. Those tolerate a surface
+        // fact the poll failed to read so a busy host does not cancel the capture; this call hands
+        // screen text to a prompt, and a chat switch that reuses the composer, frame and URL while
+        // its new title is momentarily unreadable would otherwise condition the new chat's request
+        // on the previous chat's excerpt. Withholding the excerpt for that one poll costs a request
+        // its screen context; the session and its capture survive for the next readable poll.
         guard let activeAugmentationSession,
             activeSessionIdentity == context.sessionIdentity,
             activeAugmentationSession.elementIdentifier == context.elementIdentifier,

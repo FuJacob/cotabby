@@ -262,6 +262,16 @@ final class FocusTracker {
         return (appFocused, frontmost)
     }
 
+    /// Every consumer keyed on the focus session (visual context, prediction memory, the KV-cache
+    /// prefix) restarts when a poll opens a new one, so name the fact that broke continuity.
+    private func logNewFocusSession(_ nextSignature: FocusedInputPollingSignature, application: NSRunningApplication) {
+        guard let lastFocusedInputSignature else { return }
+        let facts = nextSignature.changedFacts(since: lastFocusedInputSignature)
+        CotabbyLogger.focus.debug(
+            "New focus session: app=\(application.localizedName ?? "?") changed=\(facts.joined(separator: ","))"
+        )
+    }
+
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.
     private func captureSnapshot() -> FocusCaptureResult {
         guard permissionProvider() else {
@@ -372,23 +382,17 @@ final class FocusTracker {
         }
 
         let nextSignature = FocusedInputPollingSignature(context: context)
-        if let lastFocusedInputSignature,
-           let continued = nextSignature.continuation(of: lastFocusedInputSignature) {
-            // Same field, possibly resized in place. Remember its latest frame so later growth is
-            // compared with the current edges, plus the placeholder it last showed (hidden while
-            // the field has text), without opening a new writing session.
-            self.lastFocusedInputSignature = continued
+        if let lastFocusedInputSignature, nextSignature.continuesField(of: lastFocusedInputSignature) {
+            // Same field, possibly resized in place. Track its latest frame so later growth is
+            // compared with the current edges, without opening a new writing session. A surface
+            // fact this poll failed to read (a title or URL query that hit the AX timeout while the
+            // host was busy, or a placeholder hidden by typed text) keeps its last known value, so a later genuinely different value is
+            // still recognized as navigation rather than compared against a blank.
+            self.lastFocusedInputSignature = nextSignature.carryingKnownSurfaceFacts(from: lastFocusedInputSignature)
             return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
         }
 
-        if let lastFocusedInputSignature {
-            // Every consumer keyed on the focus session (visual context, prediction memory, the
-            // KV-cache prefix) restarts here, so name the fact that broke continuity.
-            let facts = nextSignature.changedFacts(since: lastFocusedInputSignature)
-            CotabbyLogger.focus.debug(
-                "New focus session: app=\(application.localizedName ?? "?") changed=\(facts.joined(separator: ","))"
-            )
-        }
+        logNewFocusSession(nextSignature, application: application)
         lastFocusedInputSignature = nextSignature
         focusChangeSequence += 1
 

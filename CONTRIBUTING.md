@@ -72,8 +72,7 @@ Accessibility grant survives rebuilds. See [Run](#run).
 ## The Xcode Project Is Generated
 
 `Cotabby.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-It is committed to the repo; the prepared workspace supplies the pending native APIs,
-but **`project.yml` is the source of truth**.
+It is committed to the repo, but **`project.yml` is the source of truth**.
 
 Source files under `Cotabby/` and `CotabbyTests/` are auto-discovered by folder, so adding a new
 file (including a new test) needs no project edit — just create it and regenerate. Only structural
@@ -265,17 +264,19 @@ as documented in [AGENTS.md](AGENTS.md). No new background writing-history colle
 
 ### Paired CotabbyInference Changes
 
-Cotabby currently uses the pinned CotabbyInference source plus
-`patches/cotabbyinference-upstream-pending.patch`. The plain remote package does not yet expose all the
-APIs used by the app. Prepare the matching dependency and workspace before building:
+`project.yml` pins CotabbyInference to an exact upstream revision, so `Cotabby.xcodeproj` builds on
+its own. The build commands above use the prepared workspace instead because it also copies
+`Config/Package.resolved`, which pins every other package to the versions CI and releases use:
 
 ```sh
 scripts/prepare_cotabby_workspace.sh
 ```
 
-The build commands above use this workspace to resolve the patched package.
-`scripts/build_and_run.sh` does this preparation automatically. The helper verifies the existing checkout and
-fails on drift instead of overwriting edits. For intentional native development, use
+`scripts/build_and_run.sh` does this preparation automatically. The helper checks out the same
+revision as `project.yml` and fails on drift (a different revision or local edits) instead of
+overwriting your work. To move to a newer CotabbyInference, land the change upstream first, then
+update the revision in `project.yml` and `scripts/prepare_cotabby_workspace.sh` together and
+regenerate the project. For intentional native development, use
 `python3 scripts/create-inference-workspace.py /absolute/path/to/CotabbyInference` to create a
 separate local workspace. Keep generated workspaces and machine-specific paths out of commits.
 

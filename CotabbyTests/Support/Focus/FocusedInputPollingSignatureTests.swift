@@ -13,6 +13,38 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         }
     }
 
+    func test_aFlashingTitleOnTheSameURLIsNotNavigationButANativeTitleChangeIs() {
+        // Google Chat alternates its tab title with "X messaged you" while a notification is unread;
+        // the URL, not the title, names a browser conversation.
+        let url = "https://chat.example.com/dm/conversation-one"
+        let chat = CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: url, windowTitle: "Alex Example - Chat")
+        let flashed = CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: url, windowTitle: "Sam Sample messaged you - Chat"
+        )
+        XCTAssertTrue(FocusedInputPollingSignature(context: flashed)
+            .continuesField(of: FocusedInputPollingSignature(context: chat)))
+        XCTAssertEqual(flashed.sessionIdentity, chat.sessionIdentity)
+
+        // Google Chat's composer sits too deep for the bounded URL climb, so in a browser the title
+        // is ignored even when no URL was read.
+        let urlless = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: "com.google.Chrome", windowTitle: "Alex Example - Chat"
+        )
+        let urllessFlashed = CotabbyTestFixtures.focusedInputSnapshot(
+            bundleIdentifier: "com.google.Chrome", windowTitle: "Sam Sample messaged you - Chat"
+        )
+        XCTAssertTrue(FocusedInputPollingSignature(context: urllessFlashed)
+            .continuesField(of: FocusedInputPollingSignature(context: urlless)))
+        XCTAssertEqual(urllessFlashed.sessionIdentity, urlless.sessionIdentity)
+
+        // A native field has no URL, so its title is still the conversation signal.
+        let native = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Morgan")
+        let otherNative = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Riley")
+        XCTAssertFalse(FocusedInputPollingSignature(context: otherNative)
+            .continuesField(of: FocusedInputPollingSignature(context: native)))
+        XCTAssertNotEqual(otherNative.sessionIdentity, native.sessionIdentity)
+    }
+
     func test_typingAndAXWrapperChurnDoNotSignalNavigation() {
         let first = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
         let typed = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
@@ -46,22 +78,81 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
 
     /// Every identity fact must match for continuity, even when the composer geometry is reused
     /// verbatim (a chat app swapping conversations inside one window is the motivating case).
+    /// The original's surface facts are known values: a fact that changes from one known value to
+    /// another is navigation, whereas a fact that merely failed to read is covered separately below.
     func test_identityFactsDistinguishReusedComposerAndBreakContinuity() {
-        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let url = "https://chat.example/conversation/one"
+        let title = "Conversation one"
+        let placeholder = "Message #channel"
+        let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: url, windowTitle: title, fieldPlaceholder: placeholder
+        ))
+        func snapshot(
+            processIdentifier: Int32 = 123, bundleIdentifier: String = "com.example.TestApp",
+            role: String = "AXTextField", subrole: String? = nil,
+            focusedURLString: String = url, windowTitle: String = title, fieldPlaceholder: String = placeholder
+        ) -> FocusedInputSnapshot {
+            CotabbyTestFixtures.focusedInputSnapshot(
+                bundleIdentifier: bundleIdentifier, processIdentifier: processIdentifier, role: role, subrole: subrole,
+                focusedURLString: focusedURLString, windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+            )
+        }
         let changes: [(label: String, snapshot: FocusedInputSnapshot)] = [
-            ("url", CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: "https://chat.example/conversation/two")),
-            ("window title", CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Another conversation")),
-            ("placeholder", CotabbyTestFixtures.focusedInputSnapshot(fieldPlaceholder: "Message #another-channel")),
-            ("pid", CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456)),
-            ("bundle", CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "com.example.Other")),
-            ("role", CotabbyTestFixtures.focusedInputSnapshot(role: "AXTextArea")),
-            ("subrole", CotabbyTestFixtures.focusedInputSnapshot(subrole: "AXSearchField"))
+            ("url", snapshot(focusedURLString: "https://chat.example/conversation/two")),
+            ("placeholder", snapshot(fieldPlaceholder: "Message #another-channel")),
+            ("pid", snapshot(processIdentifier: 456)),
+            ("bundle", snapshot(bundleIdentifier: "com.example.Other")),
+            ("role", snapshot(role: "AXTextArea")),
+            ("subrole", snapshot(subrole: "AXSearchField"))
         ]
         for (label, snapshot) in changes {
             let changed = FocusedInputPollingSignature(context: snapshot)
             XCTAssertNotEqual(original, changed, label)
             XCTAssertFalse(changed.continuesField(of: original), label)
         }
+        // These fields carry a URL, so the title is not part of their identity (a flashing browser tab
+        // title); the native-field title case is covered by the flashing-title test above.
+        XCTAssertTrue(FocusedInputPollingSignature(context: snapshot(windowTitle: "Another conversation"))
+            .continuesField(of: original))
+    }
+
+    /// A surface fact that fails to read on one poll (the host was busy and the AX call hit its
+    /// timeout) arrives as nil. That poll still observes the same field: treating it as navigation
+    /// advanced the focus sequence and retired the active suggestion mid-way through rapid accepts.
+    func test_unreadableSurfaceFactsContinueTheField() {
+        let known = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/conversation/one", windowTitle: "Conversation one",
+            fieldPlaceholder: "Message"
+        ))
+        let blankPolls: [(label: String, snapshot: FocusedInputSnapshot)] = [
+            ("title", CotabbyTestFixtures.focusedInputSnapshot(
+                focusedURLString: "https://chat.example/conversation/one", fieldPlaceholder: "Message")),
+            ("url", CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Conversation one", fieldPlaceholder: "Message")),
+            ("all facts", CotabbyTestFixtures.focusedInputSnapshot())
+        ]
+        for (label, snapshot) in blankPolls {
+            let blank = FocusedInputPollingSignature(context: snapshot)
+            XCTAssertTrue(blank.continuesField(of: known), label)
+            XCTAssertTrue(known.continuesField(of: blank), "\(label): the facts coming back is not navigation either")
+        }
+    }
+
+    /// The tracker stores each continuing poll with unreadable facts filled from the previous one,
+    /// so a navigation that straddles a blank poll (A, nil, B) is still caught on the B poll.
+    func test_carriedKnownFactsStillCatchNavigationAfterAnUnreadablePoll() {
+        let first = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            windowTitle: "Conversation one"
+        ))
+        let blank = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let second = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            windowTitle: "Conversation two"
+        ))
+
+        XCTAssertTrue(second.continuesField(of: blank), "Against the raw blank poll the switch is invisible")
+        let carried = blank.carryingKnownSurfaceFacts(from: first)
+        XCTAssertEqual(carried, first, "Nothing but the unreadable title was inherited")
+        XCTAssertFalse(second.continuesField(of: carried), "Against the carried signature it is navigation")
+        XCTAssertEqual(blank.carryingKnownSurfaceFacts(from: nil), blank)
     }
 
     /// Replays the Claude desktop composer as logged: it reports "Type / for commands." while empty,
@@ -99,7 +190,8 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         let typed = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "Hello", fieldPlaceholder: nil
         ))
-        XCTAssertEqual(typed.continuation(of: empty)?.fieldPlaceholder, "Message #general")
+        XCTAssertTrue(typed.continuesField(of: empty))
+        XCTAssertEqual(typed.carryingKnownSurfaceFacts(from: empty).fieldPlaceholder, "Message #general")
     }
 
     /// A reused composer whose placeholder names another channel or chat is still a new field, even
@@ -113,25 +205,28 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         XCTAssertEqual(sessionBoundaries(polls), [0, 2])
     }
 
-    /// With no placeholder seen yet, one appearing is treated as a possible different field. This
-    /// keeps detecting navigation from a drafted field to an empty one that reuses the geometry, at
-    /// the cost of one new session when a field first observed with text is cleared.
-    func test_placeholderAppearingWhereNoneWasShownIsNavigation() {
+    /// With no placeholder seen yet, one appearing is the fact becoming readable, not navigation: the
+    /// same rule as a title or URL whose first read timed out. A drafted field replaced by an empty
+    /// one at the same geometry, title and URL goes unnoticed; restarting every field first observed
+    /// with text (or whose first placeholder read timed out) when it is cleared would cost more.
+    func test_placeholderAppearingWhereNoneWasShownContinuesTheField() {
         let drafted = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "Draft", fieldPlaceholder: nil
         ))
         let cleared = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "", fieldPlaceholder: "Reply"
         ))
-        XCTAssertNil(cleared.continuation(of: drafted))
-        XCTAssertEqual(cleared.changedFacts(since: drafted), ["placeholder"])
+        XCTAssertTrue(cleared.continuesField(of: drafted))
+        XCTAssertEqual(cleared.changedFacts(since: drafted), [])
     }
 
     func test_changedFactsNamesOnlyTheFactsThatBrokeContinuity() {
         let original = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
-            fieldPlaceholder: "Reply"
+            windowTitle: "A conversation", fieldPlaceholder: "Reply"
         ))
-        let hidden = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot())
+        let hidden = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
+            windowTitle: "A conversation"
+        ))
         XCTAssertEqual(hidden.changedFacts(since: original), [], "A hidden placeholder is not a changed fact")
         let moved = FocusedInputPollingSignature(context: CotabbyTestFixtures.focusedInputSnapshot(
             inputFrameRect: CGRect(x: 40, y: 0, width: 240, height: 32),
@@ -178,8 +273,8 @@ final class FocusedInputPollingSignatureTests: XCTestCase {
         var boundaries: [Int] = []
         for (index, poll) in polls.enumerated() {
             let next = FocusedInputPollingSignature(context: poll)
-            if let previous = remembered, let continued = next.continuation(of: previous) {
-                remembered = continued
+            if let previous = remembered, next.continuesField(of: previous) {
+                remembered = next.carryingKnownSurfaceFacts(from: previous)
             } else {
                 boundaries.append(index)
                 remembered = next

@@ -79,6 +79,9 @@ final class VisualContextExcerptStabilityTests: XCTestCase {
     func test_aShortLineGrowingIntoARealLineIsMaterial() {
         let current = Self.screen + "\nError saving"
         XCTAssertTrue(isMaterial(current, Self.screen + "\nError saving draft"))
+        // A changed line that merely starts with the added word is not where it came from: the rest
+        // of "Draft note" is nowhere in the new excerpt, so "draft" is new text, not a moved split.
+        XCTAssertTrue(isMaterial(current + "\nDraft note", Self.screen + "\nError saving draft\nDraft saved"))
         // A word misread inside the line, or one more word on a line that was already real, is
         // still the same line.
         XCTAssertFalse(isMaterial(current, Self.screen + "\nError savng"))
