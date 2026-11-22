@@ -355,10 +355,12 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
 
     func test_hasFocusedElementChanged_tracksSessionIdentityNotAXWrapperChurn() {
         let state = makeState()
-        _ = state.materializeContext(from: CotabbyTestFixtures.focusedInputSnapshot())
+        // The field's title was readable when the context was materialized, so a *different* title
+        // later is a conversation switch (a nil one would only be an unreadable poll).
+        _ = state.materializeContext(from: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This chat"))
 
         let cases: [(FocusedInputSnapshot, Bool, String)] = [
-            (CotabbyTestFixtures.focusedInputSnapshot(), false, "same field"),
+            (CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This chat"), false, "same field"),
             (CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "new-wrapper"), false, "wrapper refresh"),
             (CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), true, "real focus change"),
             (CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Other chat"), true, "reused composer, new chat")
@@ -366,6 +368,24 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         for (snapshot, expected, label) in cases {
             XCTAssertEqual(state.hasFocusedElementChanged(comparedTo: snapshot), expected, label)
         }
+    }
+
+    /// A poll whose title or URL read timed out (nil) is the same field; only a different known
+    /// value is a conversation switch. Reading nil as a switch tore the session down mid-accept.
+    func test_hasFocusedElementChanged_ignoresSurfaceFactsThatFailedToRead() {
+        let state = makeState()
+        _ = state.materializeContext(from: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/one", windowTitle: "Chat one"
+        ))
+
+        XCTAssertFalse(state.hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/one", windowTitle: nil
+        )), "title read timed out")
+        XCTAssertFalse(state.hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot()),
+                       "every surface read timed out")
+        XCTAssertTrue(state.hasFocusedElementChanged(comparedTo: CotabbyTestFixtures.focusedInputSnapshot(
+            focusedURLString: "https://chat.example/one", windowTitle: "Chat two"
+        )), "a different known title is still a switch")
     }
 
     /// A session started from a context that never went through the buffer still anchors the

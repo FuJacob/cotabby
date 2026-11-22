@@ -23,9 +23,20 @@ final class ContextBufferNavigationTests: XCTestCase {
 
     func test_surfaceChangeRejectsStaleGenerationEvenBeforeSequenceChanges() {
         let buffer = makeBuffer()
-        let first = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot())
+        let first = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This chat"))
         let navigated = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Other chat"))
         XCTAssertGreaterThan(navigated.generation, first.generation)
+    }
+
+    /// A poll whose title read timed out is the same session: bumping the generation for it would
+    /// retire an in-flight suggestion for text that never changed.
+    func test_unreadableSurfaceFactKeepsGeneration() {
+        let buffer = makeBuffer()
+        let first = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This chat"))
+        let blankRead = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot())
+        let readable = buffer.materialize(from: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This chat"))
+        XCTAssertEqual(first.generation, blankRead.generation)
+        XCTAssertEqual(first.generation, readable.generation)
     }
 
     func test_wrapperChurnAloneKeepsGeneration() {

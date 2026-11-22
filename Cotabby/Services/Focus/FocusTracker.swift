@@ -374,8 +374,11 @@ final class FocusTracker {
         let nextSignature = FocusedInputPollingSignature(context: context)
         if let lastFocusedInputSignature, nextSignature.continuesField(of: lastFocusedInputSignature) {
             // Same field, possibly resized in place. Track its latest frame so later growth is
-            // compared with the current edges, without opening a new writing session.
-            self.lastFocusedInputSignature = nextSignature
+            // compared with the current edges, without opening a new writing session. A surface
+            // fact this poll failed to read (a title or URL query that hit the AX timeout while the
+            // host was busy) keeps its last known value, so a later genuinely different value is
+            // still recognized as navigation rather than compared against a blank.
+            self.lastFocusedInputSignature = nextSignature.carryingKnownSurfaceFacts(from: lastFocusedInputSignature)
             return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
         }
 

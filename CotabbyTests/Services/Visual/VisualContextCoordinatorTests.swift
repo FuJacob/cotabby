@@ -86,6 +86,29 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertTrue(generator.configurations.allSatisfy { $0 == .default })
     }
 
+    func test_sessionStartedWithUnreadableTitleServesExcerptOnceACaptureReadsIt() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        // The first poll timed out on the title; the same field's later polls read it.
+        let unreadable = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: nil)
+        let readable = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Team chat")
+        var live = unreadable
+        coordinator.refreshContextProvider = { live }
+        coordinator.startSessionIfNeeded(for: unreadable, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+        let readableContext = FocusedInputContext(snapshot: readable, generation: 1)
+        XCTAssertNil(
+            coordinator.excerpt(for: readableContext),
+            "An excerpt captured while the title was unknown must not reach a request that knows it"
+        )
+
+        live = readable
+        let capturesBefore = generator.contexts.count
+        try await waitUntil { generator.contexts.count > capturesBefore && coordinator.excerpt(for: readableContext) != nil }
+        XCTAssertEqual(coordinator.excerpt(for: readableContext), generator.text)
+    }
+
     func test_reusedComposerClearsPublishedExcerptDuringNavigationSettleDelay() async throws {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
