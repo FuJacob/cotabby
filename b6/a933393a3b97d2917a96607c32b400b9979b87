@@ -1,0 +1,23 @@
+CotabbyTests/Models/Suggestion/ModelAndPresentationValueTests.swift
+  s_1d69e9a1a758f8::t_214ba6d94f5bb0 280-283,305,314,325
+Cotabby/Models/Runtime/LlamaRuntimeModels.swift
+  s_1d69e9a1a758f8::t_214ba6d94f5bb0 103,105,107,109
+CotabbyTests/Support/Runtime/BundledRuntimeLocatorTests.swift
+  s_1d69e9a1a758f8::t_214ba6d94f5bb0 177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b6a933393a3b97d2917a96607c32b400b9979b87",
+  "prompts": {},
+  "sessions": {
+    "s_1d69e9a1a758f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2ffe326-8d28-48c3-b4e2-e7379031b1b4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
