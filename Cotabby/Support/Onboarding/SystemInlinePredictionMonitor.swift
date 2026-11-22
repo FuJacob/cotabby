@@ -30,6 +30,13 @@ final class SystemInlinePredictionMonitor: ObservableObject {
     private let readIsEnabled: () -> Bool
     private var activationObserver: AnyCancellable?
 
+    /// `@MainActor` with stored properties, so without this Swift routes the deinit through the
+    /// back-deployed `swift_task_deinitOnExecutorMainActorBackDeploy` shim, whose
+    /// `TaskLocal::StopLookupScope` frees a pointer it never allocated on macOS 15 and aborts the
+    /// process (CI's test host crashed on every release of one). Releasing the reader closure
+    /// and Combine subscription needs no main-actor hop.
+    nonisolated deinit {}
+
     init(
         readIsEnabled: @escaping () -> Bool = { NSSpellChecker.isAutomaticInlinePredictionEnabled },
         notificationCenter: NotificationCenter = .default
