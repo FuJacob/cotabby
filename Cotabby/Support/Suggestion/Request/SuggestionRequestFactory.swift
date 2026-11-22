@@ -297,7 +297,7 @@ enum SuggestionRequestFactory {
     /// The prompt's token budget for one request. The configured budget holds back
     /// `llamaPromptOutputCeilingTokens` of the context window for output, but a request can ask for
     /// more: a 50-word range reaches 100 tokens in a 2-tokens-per-word language, and multi-line
-    /// doubles budgets up to 120 (the default 12-20 range becomes 52). `LlamaRuntimeCore` reserves
+    /// doubles budgets up to 120 (the 12-20 range becomes 52). `LlamaRuntimeCore` reserves
     /// the whole decode before admitting the prompt, so an overflowing prompt loses its oldest raw
     /// tokens there: the preface is cut mid-section and the request forfeits KV prefix reuse.
     /// Taking the excess out of the budget here lets the renderer trim by section priority instead.

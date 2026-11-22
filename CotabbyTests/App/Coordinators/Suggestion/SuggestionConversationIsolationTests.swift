@@ -38,7 +38,9 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_speculativeTextMatchCannotOverrideConversationMismatch() async {
-        let rig = makeCoordinatorRig()
+        // The speculation was built while the title was readable; a different known title is
+        // another conversation (a nil one would only be a timed-out read of the same field).
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This conversation"))
         defer { rig.coordinator.stop() }
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
         rig.coordinator.pendingSpeculativeContext = source
@@ -101,6 +103,21 @@ final class SuggestionConversationIsolationTests: XCTestCase {
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         XCTAssertNil(rig.interactionState.activeSession)
         await waitUntil { rig.engine.requests.count == 2 && rig.coordinator.overlayState.isVisible }
+    }
+
+    func test_changedScreenTextKeepsTheVisiblePredictionInATerminalScreenField() async {
+        // HerdrM's status line redraws every few seconds; each pane is its own field, so changed
+        // screen text there is not a navigation signal and must not retire the visible suggestion.
+        let rig = makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "dev.bybee.herdrm", precedingText: "Hello")
+        )
+        defer { rig.coordinator.stop() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.coordinator.overlayState.isVisible }
+        rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
+        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertNotNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.engine.requests.count, 1)
     }
 
     private func publish(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {

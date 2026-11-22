@@ -143,7 +143,14 @@ nonisolated enum CompletionSeamGuard {
         }
         if !isFinal {
             switch leadingWordProbe(precedingText: precedingText, completion: completion) {
-            case .incomplete, .candidate(_, isComplete: false): return .wait
+            case .incomplete: return .wait
+            case let .candidate(word, isComplete: false):
+                // Same early show as a mid-word ending: a first word that is already a known
+                // dictionary word need not wait a decode step to prove it ended. A trailing
+                // apostrophe or hyphen (`does'`) may still join more letters, so it keeps waiting,
+                // and only a known word is ever shown early; nothing is suppressed on a prefix.
+                guard !CaretWordContext.isConnector(completion.last ?? " "),
+                      word.count >= minimumSeamWordLength, spellingAssessment(word) == .known else { return .wait }
             case .notApplicable, .candidate: break
             }
         }
@@ -163,7 +170,13 @@ nonisolated enum CompletionSeamGuard {
         let following = completion.dropFirst(ending.count).first
         guard following?.isNumber != true, following != "_" else { return nil }
         if !isFinal && (ending.count == completion.count || ending.last.map(CaretWordContext.isConnector) == true) {
-            return .wait
+            // The word may still be arriving. Waiting for the next token to prove it ended costs a
+            // whole decode step (~15-20 ms) before anything is visible, so a stream whose word is
+            // already a known dictionary word shows now; a longer word it turns into later
+            // (`Monday` -> `Mondays`) only extends the ghost. Fragments and connector endings wait.
+            guard ending.count == completion.count, !CaretWordContext.isConnector(ending.last ?? " "),
+                  (prefix + ending).count >= minimumSeamWordLength,
+                  spellingAssessment(prefix + ending) == .known else { return .wait }
         }
         let word = prefix + ending
         let assessment = spellingAssessment(word)

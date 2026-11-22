@@ -230,7 +230,7 @@ extension SuggestionCoordinator {
         // hosts would otherwise map the published caret into pre-insert run frames for up to a
         // throttle window. Stamp the acceptance so the stability gate can scope its
         // backward-drift hold to the frames-catching-up window.
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
 
         if preparedContinuation == nil, sessionForAcceptance.advancing(by: acceptedChunk.count).isExhausted {
@@ -486,7 +486,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        lastAcceptanceAt = Date()
+        lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
         cancelPredictionWork(preservingContinuation: true)
@@ -737,6 +737,9 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)
         state = .idle
+        // The tail a deferred screen-context change was waiting to retire is gone, and the caller
+        // decides whether to predict; left pending, it would cancel that newer work on waking.
+        settleDeferredScreenContextChange()
     }
 
     func completeActiveSuggestion(
@@ -750,6 +753,8 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         hideOverlay(reason: reason)
         state = .idle
+        // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
+        settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
 
         if scheduleNextPrediction {
@@ -911,7 +916,8 @@ extension SuggestionCoordinator {
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun,
-            observedContentEdges: context.observedContentEdges
+            observedContentEdges: context.observedContentEdges,
+            isCaretLineVerticallyUncalibrated: anchor.isCaretLineVerticallyUncalibrated
         )
         let presentationMessage = overlayPresenter.present(
             text: text,
@@ -1134,6 +1140,16 @@ extension SuggestionCoordinator {
         /// came from trusted AX and repair stood down" is distinguishable from "this field never
         /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
         let skipReason: LayoutRepairSkipReason?
+
+        /// Whether the anchor is a layout estimate whose line was placed from default insets, not
+        /// host measurements. Only an estimate that replaced the AX rect counts: a kept AX rect
+        /// carries the host's own line, whatever the estimate it was checked against measured.
+        var isCaretLineVerticallyUncalibrated: Bool {
+            guard quality == .layoutEstimated, case .estimate(let estimate)? = outcome else {
+                return false
+            }
+            return !estimate.isVerticallyCalibrated
+        }
     }
 
     /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
@@ -1199,6 +1215,7 @@ extension SuggestionCoordinator {
             metadata["line_height"] = .stringConvertible(Double(estimate.lineHeight))
             metadata["used_observed_line_height"] = .stringConvertible(estimate.usedObservedLineHeight)
             metadata["used_observed_content_edges"] = .stringConvertible(estimate.usedObservedContentEdges)
+            metadata["vertically_calibrated"] = .stringConvertible(estimate.isVerticallyCalibrated)
             metadata["layout_font_point_size"] = .stringConvertible(Double(estimate.layoutFontPointSize))
             CotabbyLogger.suggestion.debug(
                 substituted

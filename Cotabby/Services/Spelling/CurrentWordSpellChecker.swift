@@ -19,13 +19,18 @@ final class CurrentWordSpellChecker {
     /// Document tag identifies our "spell session" inside `NSSpellChecker.shared`. A unique tag
     /// avoids cross-contamination with whatever spellcheck state other apps have armed.
     private let documentTag: Int
+    /// Spelling language passed to every `NSSpellChecker` call. `nil` (the app's value) follows the
+    /// user's system spelling preference. Tests pin a language so typo detection and ranked guesses
+    /// do not depend on the machine's locale (on a German system, `recieve` ranks `Recife` first).
+    private let language: String?
 
-    init() {
+    init(language: String? = nil) {
+        self.language = language
         documentTag = NSSpellChecker.uniqueSpellDocumentTag()
         // We deliberately do not mutate `NSSpellChecker.shared` (e.g. forcing
         // `automaticallyIdentifiesLanguages`): that flag is app-global shared state, and overriding
         // it here would silently change behavior for any future text-checking context. We pass
-        // `language: nil` on every call instead, which respects the shared checker's existing
+        // no language (the default `nil`) instead, which respects the shared checker's existing
         // language configuration (the user's system spelling preference, which already enables
         // automatic-by-language detection by default on modern macOS).
     }
@@ -39,7 +44,7 @@ final class CurrentWordSpellChecker {
         let misspelledRange = NSSpellChecker.shared.checkSpelling(
             of: word,
             startingAt: 0,
-            language: nil,
+            language: language,
             wrap: false,
             inSpellDocumentWithTag: documentTag,
             wordCount: nil
@@ -58,7 +63,7 @@ final class CurrentWordSpellChecker {
         let completions = NSSpellChecker.shared.completions(
             forPartialWordRange: fullRange,
             in: partialWord,
-            language: nil,
+            language: language,
             inSpellDocumentWithTag: documentTag
         ) ?? []
         let lowered = partialWord.lowercased()
@@ -72,7 +77,7 @@ final class CurrentWordSpellChecker {
         let guesses = NSSpellChecker.shared.guesses(
             forWordRange: fullRange,
             in: word,
-            language: nil,
+            language: language,
             inSpellDocumentWithTag: documentTag
         )
         return guesses ?? []
