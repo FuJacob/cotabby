@@ -339,5 +339,6 @@ xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platfor
 python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
 ```
 
-Cotabby builds require the patched native package. Run `scripts/prepare_cotabby_workspace.sh`
-first; benchmark build commands use `build/cotabby-dependencies/Cotabby.xcworkspace` by default. The package's pinned revision and patch are shared with release packaging.
+Run `scripts/prepare_cotabby_workspace.sh` first; benchmark build commands use
+`build/cotabby-dependencies/Cotabby.xcworkspace` by default. Its pinned package revisions are shared
+with release packaging.
