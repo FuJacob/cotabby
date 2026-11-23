@@ -136,8 +136,14 @@ final class OCRWorkGate: @unchecked Sendable {
 /// cancellation) and a checked continuation must resume exactly once, so the first outcome wins
 /// and later ones are dropped. Cancellation can also fire before the continuation is installed;
 /// the outcome is then held and delivered on install.
-private final class GatedCall<T: Sendable>: @unchecked Sendable {
-    nonisolated private enum State {
+///
+/// `nonisolated` because the GCD queue, the timer task and the cancellation handler all call it off
+/// the main actor; under the target's default MainActor isolation it would otherwise be main-actor
+/// isolated. Isolating it that way also crashes the Release optimizer (Swift 6.3.3, Xcode 26.6) in
+/// `EarlyPerfInliner` on this class's deinit, which broke `xcodebuild archive` while Debug (-Onone)
+/// builds and tests stayed green.
+nonisolated private final class GatedCall<T: Sendable>: @unchecked Sendable {
+    private enum State {
         /// Neither an outcome nor a waiting caller yet.
         case pending
         /// The caller is suspended on this continuation.
