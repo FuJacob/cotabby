@@ -251,21 +251,6 @@ final class SystemMetricsStoreTests: XCTestCase {
         }
     }
 
-    func test_clear_dropsTheWindowWithoutStoppingSampling() {
-        let probe = SamplerProbe()
-        let store = makeStore(probe: probe)
-
-        runOnMainActor {
-            store.beginSampling()
-            XCTAssertEqual(store.samples.count, 1)
-
-            store.clear()
-            XCTAssertTrue(store.samples.isEmpty)
-
-            store.endSampling()
-        }
-    }
-
     // MARK: - Timer-driven capture
 
     func test_timer_appendsContiguousSamplesWhileActive() {

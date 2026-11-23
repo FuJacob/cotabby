@@ -543,6 +543,36 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertEqual(connection.state.failureDetail, "Keychain unavailable")
     }
 
+    /// A re-query keeps listing the last catalog until it answers, and a refresh superseded by
+    /// `invalidate` can no longer change what is published.
+    func test_connectionModel_keepsThePreviousCatalogWhileRefreshing() async throws {
+        let client = makeClient()
+        let connection = OpenAICompatibleConnectionModel(client: client)
+        TestLifetime.retain(connection)
+        let endpoint = try configuration()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, body: #"{"data":[{"id":"a"}]}"#)
+        }
+        await connection.refresh(configuration: endpoint, apiKey: nil)
+
+        let started = expectation(description: "refresh request started")
+        EndpointStubURLProtocol.holdRequests = true
+        EndpointStubURLProtocol.onStart = { started.fulfill() }
+        let refresh = Task { @MainActor in
+            await connection.refresh(configuration: endpoint, apiKey: nil)
+        }
+        await fulfillment(of: [started], timeout: 1)
+
+        XCTAssertEqual(connection.state, .connecting)
+        XCTAssertEqual(connection.models.map(\.id), ["a"], "The picker must not empty out while re-querying")
+
+        connection.invalidate()
+        refresh.cancel()
+        await refresh.value
+        XCTAssertEqual(connection.state, .idle)
+        XCTAssertTrue(connection.models.isEmpty)
+    }
+
     private func makeClient() -> OpenAICompatibleAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [EndpointStubURLProtocol.self]

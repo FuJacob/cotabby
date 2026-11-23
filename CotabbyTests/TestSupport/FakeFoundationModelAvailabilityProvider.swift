@@ -22,10 +22,7 @@ final class FakeFoundationModelAvailabilityProvider: FoundationModelAvailability
         return refreshResult
     }
 
-    func observe(
-        onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void
-    ) -> Task<Void, Never>? {
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) {
         self.onChange = onChange
-        return nil
     }
 }

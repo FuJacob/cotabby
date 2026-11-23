@@ -160,8 +160,40 @@ final class OpenAICompatibleAPIClient {
 /// A refresh generation prevents a slow response for an old URL from replacing a newer catalog.
 @MainActor
 final class OpenAICompatibleConnectionModel: ObservableObject {
-    @Published private(set) var models: [OpenAICompatibleModelOption] = []
-    @Published private(set) var state: OpenAICompatibleConnectionState = .idle
+    /// The catalog lives inside the phase that produced it, so a published model list can never
+    /// disagree with the connection state's model count or outlive a failure.
+    private enum Phase {
+        case idle
+        /// A refresh keeps listing the previous catalog until its answer arrives, so the model
+        /// picker does not empty out while the endpoint is re-queried.
+        case connecting(retained: [OpenAICompatibleModelOption])
+        case ready([OpenAICompatibleModelOption])
+        case failed(String)
+    }
+
+    @Published private var phase: Phase = .idle
+
+    var models: [OpenAICompatibleModelOption] {
+        switch phase {
+        case .connecting(let models), .ready(let models):
+            return models
+        case .idle, .failed:
+            return []
+        }
+    }
+
+    var state: OpenAICompatibleConnectionState {
+        switch phase {
+        case .idle:
+            return .idle
+        case .connecting:
+            return .connecting
+        case .ready(let models):
+            return .ready(modelCount: models.count)
+        case .failed(let message):
+            return .failed(message)
+        }
+    }
 
     private let client: OpenAICompatibleAPIClient
     private var refreshGeneration: UInt64 = 0
@@ -172,14 +204,12 @@ final class OpenAICompatibleConnectionModel: ObservableObject {
 
     func invalidate() {
         refreshGeneration &+= 1
-        models = []
-        state = .idle
+        phase = .idle
     }
 
     func setFailure(_ message: String) {
         refreshGeneration &+= 1
-        models = []
-        state = .failed(message)
+        phase = .failed(message)
     }
 
     func refresh(
@@ -188,18 +218,16 @@ final class OpenAICompatibleConnectionModel: ObservableObject {
     ) async {
         refreshGeneration &+= 1
         let generation = refreshGeneration
-        state = .connecting
+        phase = .connecting(retained: models)
         do {
             let fetched = try await client.fetchModels(configuration: configuration, apiKey: apiKey)
             guard refreshGeneration == generation else { return }
-            models = fetched
-            state = .ready(modelCount: fetched.count)
+            phase = .ready(fetched)
         } catch is CancellationError {
             return
         } catch {
             guard refreshGeneration == generation else { return }
-            models = []
-            state = .failed(error.localizedDescription)
+            phase = .failed(error.localizedDescription)
         }
     }
 }

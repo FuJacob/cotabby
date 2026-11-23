@@ -49,10 +49,15 @@ final class SystemMetricsStore: ObservableObject {
     /// The previous GPU reading and when it was taken, the baseline the next sample's `gpuPercent`
     /// is measured from. Reset with the window so a new session never spans a gap.
     private var previousGPUReading: (nanoseconds: UInt64?, uptime: TimeInterval)?
-    private var timer: Timer?
     private var nextSampleID: UInt64 = 0
-    /// How many live views currently want sampling. Polling runs only while this is positive.
-    private var activeRequests = 0
+    private var sampling: Sampling = .stopped
+
+    /// The polling timer exists exactly while at least one view is watching, so the viewer count
+    /// and the timer share one case instead of two fields that must be kept in step.
+    private enum Sampling {
+        case stopped
+        case running(viewers: Int, timer: Timer)
+    }
 
     init(
         sampleInterval: TimeInterval = SystemMetricsStore.defaultInterval,
@@ -71,7 +76,7 @@ final class SystemMetricsStore: ObservableObject {
     nonisolated deinit {
         // This store is `@MainActor` with stored properties, so a `nonisolated deinit` avoids the
         // macOS 14 isolated-deinit double-free. It deliberately does no cleanup: it cannot touch the
-        // MainActor-isolated `timer`, and it does not need to. `RunLoop.main` retains a scheduled
+        // MainActor-isolated timer, and it does not need to. `RunLoop.main` retains a scheduled
         // repeating timer, so it would otherwise outlive the store, but the timer captures `self`
         // weakly and invalidates itself on its first tick after the store is gone (see `startTimer`).
     }
@@ -79,18 +84,27 @@ final class SystemMetricsStore: ObservableObject {
     /// Register interest in live sampling. The first caller starts the timer and takes an immediate
     /// reading so the graph shows a point right away instead of waiting a full interval.
     func beginSampling() {
-        activeRequests += 1
-        guard timer == nil else { return }
-        captureSample()
-        startTimer()
+        switch sampling {
+        case .running(let viewers, let timer):
+            sampling = .running(viewers: viewers + 1, timer: timer)
+        case .stopped:
+            captureSample()
+            sampling = .running(viewers: 1, timer: startTimer())
+        }
     }
 
     /// Balance a prior `beginSampling`. Sampling pauses (and the timer is released) once the last
-    /// interested view goes away, so a backgrounded Settings window costs nothing.
+    /// interested view goes away, so a backgrounded Settings window costs nothing. An unbalanced
+    /// call finds nothing running and leaves the store stopped.
     func endSampling() {
-        activeRequests = max(0, activeRequests - 1)
-        guard activeRequests == 0 else { return }
-        stopTimer()
+        if case .running(let viewers, let timer) = sampling {
+            guard viewers == 1 else {
+                sampling = .running(viewers: viewers - 1, timer: timer)
+                return
+            }
+            timer.invalidate()
+        }
+        sampling = .stopped
         // The rolling window is only meaningful while you are watching it, so drop it when the last
         // viewer leaves. Otherwise re-opening the pane would stitch fresh points onto a stale cluster
         // separated by a visible time gap (the chart plots by wall-clock `Date`), looking broken.
@@ -99,13 +113,13 @@ final class SystemMetricsStore: ObservableObject {
 
     /// Drop the rolling window and reset sample identity. Resetting `nextSampleID` keeps a later
     /// sampling session starting from a clean, contiguous timeline rather than continuing the old one.
-    func clear() {
+    private func clear() {
         samples = []
         nextSampleID = 0
         previousGPUReading = nil
     }
 
-    private func startTimer() {
+    private func startTimer() -> Timer {
         // `.common` mode keeps the timer firing while the user scrolls or drags the Settings window;
         // the default mode would stall the graph during exactly the interactions a debugger uses.
         let timer = Timer(timeInterval: sampleInterval, repeats: true) { [weak self] firedTimer in
@@ -123,12 +137,7 @@ final class SystemMetricsStore: ObservableObject {
             }
         }
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
+        return timer
     }
 
     private func captureSample() {
