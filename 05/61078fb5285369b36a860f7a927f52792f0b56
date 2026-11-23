@@ -1,0 +1,23 @@
+Cotabby/Support/Logging/CotabbyDebugOptions.swift
+  s_b9af9eb54478c8::t_26dd55fda3e1da 30-35,135-141,162
+Cotabby/Support/Logging/FileLogHandler.swift
+  s_b9af9eb54478c8::t_7078e2024a04aa 12-13,247
+CotabbyTests/Support/Logging/FileLogHandlerTests.swift
+  s_b9af9eb54478c8::t_a6ff9fd2f7fbfb 117-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0561078fb5285369b36a860f7a927f52792f0b56",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

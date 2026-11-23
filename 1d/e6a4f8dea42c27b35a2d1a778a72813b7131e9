@@ -1,0 +1,25 @@
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_b9af9eb54478c8::t_75eac23dd4b154 464,468
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_b9af9eb54478c8::t_da54f86636cf35 79-80
+  s_b9af9eb54478c8::t_f0981d4070b6ea 78
+  s_b9af9eb54478c8::t_0ccbfb2fbf29ed 35,49-50,71-72,74,83
+CotabbyTests/Services/Visual/ScreenshotContextGeneratorTests.swift
+  s_b9af9eb54478c8::t_60a05011006bd2 38,40,61,64-67,79,93,96-97,106,111,171,173,175-178,186,188,205,207,209,221,223,225,240,292,339,342,349,360,375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1de6a4f8dea42c27b35a2d1a778a72813b7131e9",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

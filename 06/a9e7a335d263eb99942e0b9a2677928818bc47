@@ -1,0 +1,19 @@
+Cotabby/Services/Permission/PermissionManager.swift
+  s_b9af9eb54478c8::t_c9300c7b58975f 120-123,129,132,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06a9e7a335d263eb99942e0b9a2677928818bc47",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

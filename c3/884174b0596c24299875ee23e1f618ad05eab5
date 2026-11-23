@@ -1,0 +1,20 @@
+Cotabby/Services/Visual/ScreenTextExtractor.swift
+  s_b9af9eb54478c8::t_2998e2a3af985a 258-259
+  s_b9af9eb54478c8::t_2f3066f1c9d651 140-148,150-151,156-157,162,167,173-175,178-181,183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3884174b0596c24299875ee23e1f618ad05eab5",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
