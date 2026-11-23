@@ -344,6 +344,42 @@ final class AXHelperTests: XCTestCase {
             AXHelper.cocoaRect(fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 0, width: 10, height: 10)),
             .zero
         )
+        // A NaN text rect must collapse to .zero too, never propagate toward NSWindow.setFrame.
+        XCTAssertEqual(
+            AXHelper.validatedCocoaTextRect(
+                fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14), anchorFrame: nil
+            ),
+            .zero
+        )
+    }
+
+    /// The accept window is the anchor grown by an 80pt halo, tested directly rather than through a
+    /// live element that would have to return a controllable rect.
+    func test_isRectNearAnchor_acceptsMidpointsInsideTheHalo() {
+        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
+        // Midpoint (160, 112) is inside the anchor itself.
+        XCTAssertTrue(AXHelper.isRect(CGRect(x: 150, y: 105, width: 20, height: 14), nearAnchor: anchor))
+        // Just outside the anchor but within the halo (midpoint x = 360, anchor maxX = 300).
+        XCTAssertTrue(AXHelper.isRect(CGRect(x: 355, y: 105, width: 10, height: 14), nearAnchor: anchor))
+        // A foreign element's rect far away.
+        XCTAssertFalse(AXHelper.isRect(CGRect(x: 900, y: 900, width: 20, height: 14), nearAnchor: anchor))
+    }
+
+    /// The halo applies vertically too: a caret one line off a single-line field is plausible, a
+    /// rect well past 80pt below it belongs to some other element.
+    func test_isRectNearAnchor_haloAppliesVertically() {
+        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
+        // Midpoint y = 47, 53pt below the anchor's minY but inside the halo.
+        XCTAssertTrue(AXHelper.isRect(CGRect(x: 150, y: 40, width: 2, height: 14), nearAnchor: anchor))
+        // Midpoint y = 237, 113pt past the anchor's maxY of 124.
+        XCTAssertFalse(AXHelper.isRect(CGRect(x: 150, y: 230, width: 2, height: 14), nearAnchor: anchor))
+    }
+
+    /// With no anchor there is nothing to validate against, so every rect is accepted.
+    func test_isRectNearAnchor_acceptsWhenTheAnchorIsMissingOrEmpty() {
+        let rect = CGRect(x: 900, y: 900, width: 20, height: 14)
+        XCTAssertTrue(AXHelper.isRect(rect, nearAnchor: nil))
+        XCTAssertTrue(AXHelper.isRect(rect, nearAnchor: .zero))
     }
 
     func test_cocoaRect_preservesSizeAndFlipsWithinThePrimaryDisplay() throws {

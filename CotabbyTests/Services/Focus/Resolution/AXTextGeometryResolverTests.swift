@@ -124,58 +124,6 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertEqual(caret, CGRect(x: 120, y: 200, width: 2, height: 8))
     }
 
-    // MARK: - rectIsNearAnchor (the optimistic-BoundsForRange safety check)
-
-    /// The anchor-rejection boundary is the whole point of dropping the `supportsBoundsForRange`
-    /// gate, so test it directly rather than relying on a live element returning a controllable
-    /// rect. The accept window is the anchor expanded by the 80pt halo.
-    func test_rectIsNearAnchor_acceptsRectInsideHalo() {
-        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
-        // Midpoint (160, 112) is inside the anchor itself.
-        XCTAssertTrue(resolver.rectIsNearAnchor(CGRect(x: 150, y: 105, width: 20, height: 14), anchor: anchor))
-        // Just outside the anchor but within the 80pt halo (midpoint x = 360, anchor maxX = 300).
-        XCTAssertTrue(resolver.rectIsNearAnchor(CGRect(x: 355, y: 105, width: 10, height: 14), anchor: anchor))
-    }
-
-    func test_rectIsNearAnchor_rejectsRectOutsideHalo() {
-        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
-        // Midpoint far away (a foreign element's rect) — outside anchor + 80pt halo.
-        XCTAssertFalse(resolver.rectIsNearAnchor(CGRect(x: 900, y: 900, width: 20, height: 14), anchor: anchor))
-    }
-
-    /// The halo applies vertically too: a caret one line above a single-line field is plausible,
-    /// a rect well past 80pt below it belongs to some other element.
-    func test_rectIsNearAnchor_haloAppliesVertically() {
-        let anchor = CGRect(x: 100, y: 100, width: 200, height: 24)
-        // Midpoint y = 47, 53pt below the anchor's minY but inside the halo.
-        XCTAssertTrue(resolver.rectIsNearAnchor(CGRect(x: 150, y: 40, width: 2, height: 14), anchor: anchor))
-        // Midpoint y = 237, 113pt past the anchor's maxY of 124.
-        XCTAssertFalse(resolver.rectIsNearAnchor(CGRect(x: 150, y: 230, width: 2, height: 14), anchor: anchor))
-    }
-
-    /// No anchor means we cannot validate, so the resolver preserves legacy behavior and accepts.
-    func test_rectIsNearAnchor_acceptsWhenAnchorMissingOrEmpty() {
-        let rect = CGRect(x: 900, y: 900, width: 20, height: 14)
-        XCTAssertTrue(resolver.rectIsNearAnchor(rect, anchor: nil))
-        XCTAssertTrue(resolver.rectIsNearAnchor(rect, anchor: .zero))
-    }
-
-    // MARK: - Non-finite AX rect rejection (crash guard)
-
-    func test_rectHasFiniteComponents_rejectsNaNAndInfinity() {
-        XCTAssertTrue(AXHelper.rectHasFiniteComponents(CGRect(x: 1, y: 2, width: 3, height: 4)))
-        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: CGFloat.nan, y: 0, width: 10, height: 10)))
-        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 10)))
-        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 0, y: CGFloat.nan, width: 10, height: CGFloat.nan)))
-    }
-
-    func test_validatedCocoaTextRect_collapsesNonFiniteRectToZero() {
-        // A NaN/Inf AX rect must collapse to .zero, never propagate toward NSWindow.setFrame (a crash).
-        let nan = CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14)
-        XCTAssertEqual(AXHelper.validatedCocoaTextRect(fromAccessibilityRect: nan, anchorFrame: nil), .zero)
-        XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: nan), .zero)
-    }
-
     // MARK: - Line-content edges
 
     /// A scripted host for the three line queries that records every call, so the tests can assert

@@ -36,13 +36,13 @@ enum HostTextMetricsProbe {
         /// markers trusted for the line box. CodeMirror (Obsidian) answers the same marker queries
         /// with a box 15.5pt tall starting 43pt left of its text, which derailed its pixel caret
         /// (2026-09-10); Chromium's contenteditables answer with the text's own line.
-        var allowsTextMarkerLine = false
+        let allowsTextMarkerLine: Bool
         /// This poll's caret box in Cocoa coordinates: a text-marker line box must hold it.
-        var caretRect: CGRect?
+        let caretRect: CGRect?
         /// A browser page: a one-line paragraph's own box may stand for the pitch (see
         /// `paragraphLinePitch`), since a page's style is remembered only while the app runs and
         /// every page's first wrap otherwise steps by the caret box. Apps keep the pitch they measure.
-        var isBrowser = false
+        let isBrowser: Bool
     }
 
     /// Longest sample measured before the caret. Long enough to average out per-glyph rounding,
@@ -67,13 +67,15 @@ enum HostTextMetricsProbe {
         let usable = sample.flatMap { $0.isUsable ? $0 : nil }
         let knownPitch = line?.pitch ?? markerLine?.pitch
         let scannedPitch = knownPitch == nil && answersIndexBounds ? scannedPitch(input) : nil
+        // A marker line is only read when the index-based line query found none, so whenever it
+        // exists both the line box and any pitch are its own.
         let metrics = HostTextMetrics(
             sampleText: usable?.text,
             sampleWidth: usable?.width,
             lineRect: line?.rect ?? markerLine?.rect,
             linePitch: knownPitch ?? scannedPitch,
-            lineRectIsFromTextMarkers: line == nil && markerLine != nil,
-            linePitchIsFromParagraphBox: line?.pitch == nil && markerLine?.pitch != nil && markerLine?.pitchFromParagraph == true
+            lineRectIsFromTextMarkers: markerLine != nil,
+            linePitchIsFromParagraphBox: markerLine?.pitchFromParagraph == true
         )
         if CotabbyLogger.focus.logLevel <= .debug {
             // Typed pieces first: Xcode 26.3 could not type-check the literal with the optional
@@ -248,11 +250,7 @@ enum HostTextMetricsProbe {
     private static func cocoaRect(fromAccessibility raw: CGRect, _ input: Input) -> CGRect? {
         guard raw.height > 0, AXHelper.rectHasFiniteComponents(raw) else { return nil }
         let cocoa = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: input.anchorFrame)
-        if let anchor = input.anchorFrame, !anchor.isEmpty {
-            let halo = anchor.insetBy(dx: -80, dy: -80)
-            guard halo.contains(CGPoint(x: cocoa.midX, y: cocoa.midY)) else { return nil }
-        }
-        return cocoa
+        return AXHelper.isRect(cocoa, nearAnchor: input.anchorFrame) ? cocoa : nil
     }
 
     private static func describe(_ rect: CGRect) -> String {
@@ -290,10 +288,7 @@ enum HostTextMetricsProbe {
         if line.index > 0,
            let previousRange = queries.rangeForLine(line.index - 1),
            let previousRect = cocoaBounds(for: previousRange, input) {
-            let delta = previousRect.minY - lineRect.minY
-            if delta > 2, delta < 200 {
-                pitch = delta
-            }
+            pitch = plausiblePitch(previousRect.minY - lineRect.minY)
         }
         return LineGeometry(range: line.range, rect: lineRect, pitch: pitch)
     }
@@ -396,10 +391,6 @@ enum HostTextMetricsProbe {
             return nil
         }
         let cocoa = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: input.anchorFrame)
-        if let anchor = input.anchorFrame, !anchor.isEmpty {
-            let halo = anchor.insetBy(dx: -80, dy: -80)
-            guard halo.contains(CGPoint(x: cocoa.midX, y: cocoa.midY)) else { return nil }
-        }
-        return cocoa
+        return AXHelper.isRect(cocoa, nearAnchor: input.anchorFrame) ? cocoa : nil
     }
 }

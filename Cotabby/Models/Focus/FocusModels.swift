@@ -491,12 +491,9 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// host exposes no measurable text geometry.
     let hostTextMetrics: HostTextMetrics?
 
-    /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
-    /// memberwise-call ergonomics for tests that do not care about focus identity.
-    ///
-    /// Swift omits `let` properties with inline defaults from the synthesized memberwise
-    /// initializer. Writing the initializer ourselves gives production code a way to pass the real
-    /// focus sequence, and keeps existing call sites working through the default value.
+    /// Written out because a synthesized memberwise initializer gives `let` properties no defaults:
+    /// the defaults here let tests and fixtures that do not care about focus identity, styling or
+    /// host metrics leave them out, while every property stays immutable.
     init(
         applicationName: String,
         bundleIdentifier: String,

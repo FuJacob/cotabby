@@ -86,13 +86,36 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
     /// Characters of the previous text that must still precede the new ones.
     private static let continuityLength = 24
 
+    /// Which half of a keystroke the polls have seen without the other (see the file overview). A
+    /// host publishes the text and moves the caret box in either order, never both ahead at once:
+    /// whichever half arrives second settles the first.
+    private enum Lag: Equatable, Sendable {
+        /// Text and caret agree.
+        case inStep
+        /// Characters typed whose advance the caret has not shown yet; never empty.
+        case textAhead(String)
+        /// Caret movement seen before the text it belongs to, always positive: at most one poll's
+        /// worth, claimed by the next text that arrives.
+        case caretAhead(CGFloat)
+
+        /// The chunk a keystroke settles into when `typed` arrives with the caret `advance` further
+        /// on: held text joins it, and a caret that moved ahead of it already showed (part of) its
+        /// advance.
+        func settling(typed: String, advance: CGFloat) -> Sample {
+            switch self {
+            case .inStep:
+                return Sample(text: typed, width: advance)
+            case .textAhead(let held):
+                return Sample(text: held + typed, width: advance)
+            case .caretAhead(let early):
+                return Sample(text: typed, width: advance + early)
+            }
+        }
+    }
+
     private var last: Observation?
     private var chunks: [Sample] = []
-    /// Characters typed whose advance the caret has not shown yet (see the file overview).
-    private var pendingText = ""
-    /// Caret movement seen before the text it belongs to (see the file overview); at most one
-    /// poll's worth, claimed by the next text that arrives.
-    private var unclaimedAdvance: CGFloat = 0
+    private var lag = Lag.inStep
 
     /// The current sample, or nil until enough same-line typing has been seen. Chunks that end in
     /// whitespace are left off its end (their advance may still be pending), never off its front.
@@ -104,7 +127,10 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
     }
 
     /// Characters typed so far that no chunk accounts for yet, for diagnostics.
-    var pendingCharacterCount: Int { pendingText.count }
+    var pendingCharacterCount: Int {
+        guard case .textAhead(let text) = lag else { return 0 }
+        return text.count
+    }
 
     /// Feeds one poll. Returns the sample after it, for callers that merge it into metrics.
     @discardableResult
@@ -125,23 +151,7 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
                 startOver()
                 return nil
             }
-            // The caret caught up with text already counted: its advance belongs to that text.
-            if advance > 0, !pendingText.isEmpty {
-                chunks.append(Sample(text: pendingText, width: advance))
-                pendingText = ""
-                return sample
-            }
-            // The caret moved ahead of its text: the text that arrives next claims the movement.
-            // A second such move before any text is not the host's lag; start over.
-            if advance > 0, unclaimedAdvance == 0 {
-                unclaimedAdvance = advance
-                return sample
-            }
-            guard abs(advance) < 0.01 else {
-                startOver()
-                return nil
-            }
-            return sample
+            return observeCaretMove(advance)
         }
         let next = Self.spaceNormalized(observation.precedingText)
         let typed = String(next.suffix(max(step, 0)))
@@ -155,27 +165,51 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
             startOver()
             return nil
         }
-        // A caret that moved ahead of this text already showed (part of) its advance.
-        let travelled = advance + unclaimedAdvance
-        unclaimedAdvance = 0
+        let chunk = lag.settling(typed: typed, advance: advance)
         // A zero advance is a space hanging at the line's end, or a caret box the host has not
         // moved yet; either way the next movement carries it, so the text waits for it.
-        guard travelled > 0 else {
-            pendingText += typed
+        guard chunk.width > 0 else {
+            lag = .textAhead(chunk.text)
             return sample
         }
-        chunks.append(Sample(text: pendingText + typed, width: travelled))
-        pendingText = ""
+        chunks.append(chunk)
+        lag = .inStep
         while chunks.count > 1, chunks.map(\.text.count).reduce(0, +) > Self.maximumLength {
             chunks.removeFirst()
         }
         return sample
     }
 
+    /// A poll whose text is unchanged: nothing happened, or the caret box moved for text
+    /// published earlier or still to come.
+    private mutating func observeCaretMove(_ advance: CGFloat) -> Sample? {
+        if advance > 0 {
+            switch lag {
+            case .textAhead(let text):
+                // The caret caught up with text already counted: its advance belongs to that text.
+                chunks.append(Sample(text: text, width: advance))
+                lag = .inStep
+                return sample
+            case .inStep:
+                // The caret moved ahead of its text: the text that arrives next claims the movement.
+                lag = .caretAhead(advance)
+                return sample
+            case .caretAhead:
+                // A second such move before any text is not the host's lag; past rounding, the
+                // check below starts over.
+                break
+            }
+        }
+        guard abs(advance) < 0.01 else {
+            startOver()
+            return nil
+        }
+        return sample
+    }
+
     private mutating func startOver() {
         chunks.removeAll()
-        pendingText = ""
-        unclaimedAdvance = 0
+        lag = .inStep
     }
 
     /// Whether `next` is `previous` plus `typed`, judged on their tails so a text window that slid

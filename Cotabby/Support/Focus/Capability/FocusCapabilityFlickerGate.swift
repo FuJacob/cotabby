@@ -13,9 +13,9 @@ import Foundation
 /// `disablePredictions` → `OverlayController.hide` → `panel.orderOut(nil)`,
 /// which the user sees as the overlay opening and closing several times per second.
 ///
-/// The gate is intentionally tiny and pure: it tracks the most recently delivered Supported element
-/// identity and a consecutive-Blocked counter, and tells the caller whether to apply the new
-/// snapshot or keep treating the field as Supported for now. A persistent loss of capability (the
+/// The gate is intentionally tiny and pure: it remembers the element last delivered as Supported
+/// and how many Blocked reads of it were swallowed since, and tells the caller whether to apply the
+/// new snapshot or keep treating the field as Supported for now. A persistent loss of capability (the
 /// real "field went away" case) clears the gate after `requiredConsecutiveBlockedReads` so the
 /// downgrade still propagates promptly — at the observed ~80–150 ms poll cadence that is roughly
 /// 160–300 ms of suppression, well above the ~13 ms flicker pairs seen in the logs but short enough
@@ -35,43 +35,48 @@ struct FocusCapabilityFlickerGate {
         case suppress(pendingBlockedReadCount: Int)
     }
 
-    private var lastDeliveredSupportedElementID: String?
-    private var consecutiveBlockedReadCount: Int = 0
+    /// What the gate is protecting between snapshots.
+    private enum State {
+        /// No Supported element to protect: the next Blocked snapshot applies at once.
+        case disarmed
+        /// `elementID` was last delivered Supported, and `swallowedBlockedReads` consecutive Blocked
+        /// reads of it have been suppressed since; always below `requiredConsecutiveBlockedReads`.
+        case armed(elementID: String, swallowedBlockedReads: Int)
+    }
+
+    private var state = State.disarmed
 
     /// Feed every snapshot through here before letting it drive coordinator state.
     mutating func evaluate(_ snapshot: FocusSnapshot) -> Decision {
         switch snapshot.capability {
         case .supported:
-            lastDeliveredSupportedElementID = snapshot.context?.elementIdentifier
-            consecutiveBlockedReadCount = 0
+            state = snapshot.context.map { State.armed(elementID: $0.elementIdentifier, swallowedBlockedReads: 0) }
+                ?? .disarmed
             return .apply
 
         case .blocked:
             // Only debounce when we are still observing the same element that was just Supported.
             // A different (or missing) element identifier is a genuine focus change and must
             // propagate immediately.
-            guard let lastID = lastDeliveredSupportedElementID,
-                  let currentID = snapshot.context?.elementIdentifier,
-                  currentID == lastID
+            guard case .armed(let elementID, let swallowedBlockedReads) = state,
+                  snapshot.context?.elementIdentifier == elementID
             else {
-                lastDeliveredSupportedElementID = nil
-                consecutiveBlockedReadCount = 0
+                state = .disarmed
                 return .apply
             }
 
-            consecutiveBlockedReadCount += 1
-            if consecutiveBlockedReadCount >= Self.requiredConsecutiveBlockedReads {
-                lastDeliveredSupportedElementID = nil
-                consecutiveBlockedReadCount = 0
+            let blockedReads = swallowedBlockedReads + 1
+            if blockedReads >= Self.requiredConsecutiveBlockedReads {
+                state = .disarmed
                 return .apply
             }
-            return .suppress(pendingBlockedReadCount: consecutiveBlockedReadCount)
+            state = .armed(elementID: elementID, swallowedBlockedReads: blockedReads)
+            return .suppress(pendingBlockedReadCount: blockedReads)
 
         case .unsupported:
             // Unsupported is "no focused text input at all" — never debounce; the user has left the
             // field and the overlay must hide immediately.
-            lastDeliveredSupportedElementID = nil
-            consecutiveBlockedReadCount = 0
+            state = .disarmed
             return .apply
         }
     }
