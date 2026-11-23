@@ -275,11 +275,30 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
 
     func test_generateContext_screenshotErrorSurfacesAsUnavailableAndSkipsOCR() async {
         let capture = RecordingScreenshotCapture(image: makeImage())
+        capture.error = WindowScreenshotError.captureFailed("no bounds")
+        let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
+
+        await assertUnavailable(generator, containing: "Unable to capture the frontmost window screenshot: no bounds")
+        XCTAssertEqual(extractor.extractionCount, 0)
+    }
+
+    func test_generateContext_missingScreenRecordingPermissionIsItsOwnError() async {
+        // The coordinator parks a session on this case and restarts it on a grant, so it must not
+        // be folded into the generic "unavailable" outcome.
+        let capture = RecordingScreenshotCapture(image: makeImage())
         capture.error = WindowScreenshotError.screenRecordingPermissionMissing
         let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
         let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
-        await assertUnavailable(generator, containing: "Screen Recording permission is required")
+        do {
+            _ = try await generator.generateContext(for: makeSnapshot())
+            XCTFail("Expected a permission error")
+        } catch ScreenshotContextGenerationError.permissionMissing(let message) {
+            XCTAssertEqual(message, "Screen Recording permission is required to capture screenshot context.")
+        } catch {
+            XCTFail("Expected .permissionMissing, got \(error)")
+        }
         XCTAssertEqual(extractor.extractionCount, 0)
     }
 

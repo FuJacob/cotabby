@@ -5,18 +5,18 @@ import XCTest
 /// This is the #280 fix: focus flapping (Chrome losing and re-acquiring the AX field) must not
 /// restart the screenshot -> OCR -> cleanup pipeline on every flap.
 final class VisualContextStartCoalescerTests: XCTestCase {
-    private func id(_ element: String, _ sequence: UInt64) -> VisualContextFieldIdentity {
-        VisualContextFieldIdentity(elementIdentifier: element, focusChangeSequence: sequence)
+    private func id(_ element: String, _ sequence: UInt64) -> FocusedInputIdentity {
+        FocusedInputIdentity(elementIdentifier: element, focusChangeSequence: sequence)
     }
 
     func test_decide_matrix() {
         let cases: [(
             name: String,
-            incoming: VisualContextFieldIdentity,
-            active: VisualContextFieldIdentity?,
+            incoming: FocusedInputIdentity,
+            active: FocusedInputIdentity?,
             blocked: Bool,
             permission: Bool,
-            pending: VisualContextFieldIdentity?,
+            pending: FocusedInputIdentity?,
             expected: VisualContextStartDecision
         )] = [
             ("nothing active or pending", id("field", 1), nil, false, true, nil, .start),

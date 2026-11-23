@@ -1,13 +1,5 @@
 import Foundation
 
-/// A focused field's identity for visual-context coalescing: the AX element plus the monotonic
-/// focus-change counter the tracker assigns. `elementIdentifier` alone is unreliable (macOS recycles
-/// `CFHash` values across unrelated elements), so both are compared together.
-nonisolated struct VisualContextFieldIdentity: Equatable {
-    let elementIdentifier: String
-    let focusChangeSequence: UInt64
-}
-
 /// What `VisualContextCoordinator.startSessionIfNeeded` should do for an incoming focus.
 nonisolated enum VisualContextStartDecision: Equatable {
     /// Same field is already capturing or already waiting out its settle window — do nothing.
@@ -26,11 +18,11 @@ nonisolated enum VisualContextStartDecision: Equatable {
 /// instead of once per flap (the #280 retrigger storm). Kept pure so the invariants are unit-testable.
 enum VisualContextStartCoalescer {
     static func decide(
-        incoming: VisualContextFieldIdentity,
-        active: VisualContextFieldIdentity?,
+        incoming: FocusedInputIdentity,
+        active: FocusedInputIdentity?,
         activeIsBlockedOnScreenRecording: Bool,
         hasScreenRecordingPermission: Bool,
-        pending: VisualContextFieldIdentity?
+        pending: FocusedInputIdentity?
     ) -> VisualContextStartDecision {
         if active == incoming {
             return activeIsBlockedOnScreenRecording && hasScreenRecordingPermission ? .start : .ignore

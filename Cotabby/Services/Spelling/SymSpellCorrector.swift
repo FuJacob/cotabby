@@ -8,14 +8,16 @@ import Logging
 /// falls back to `NSSpellChecker`.
 ///
 /// `nonisolated` + `@unchecked Sendable` (mirroring `LlamaRuntimeCore`/`JSONLFileWriter`) because the
-/// builds run off the main actor while `bestCorrection` is called from it. The lock protects cache
-/// publication, loading state, and LRU metadata. Each `SymSpell` becomes immutable before entering
-/// the cache, so readers can safely query a retained instance after releasing the lock.
+/// builds run off the main actor while `bestCorrection` is called from it. The lock protects the
+/// index cache, whose per-language load state and LRU order live in `BoundedLoadCache`. Each
+/// `SymSpell` becomes immutable before entering the cache, so readers can safely query a retained
+/// instance after releasing the lock.
 nonisolated final class SymSpellCorrector: @unchecked Sendable {
-    private struct CacheEntry {
+    /// Both indexes built from one dictionary, published together so a language is never ready
+    /// for corrections but not for completions.
+    private struct Indexes {
         let symSpell: SymSpell
         let prefixes: WordPrefixIndex
-        var lastAccessSequence: UInt64
     }
 
     typealias ResourceLoader = @Sendable (SpellingDictionaryLanguage) -> String?
@@ -23,12 +25,9 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     private let lock = NSLock()
     private let maxEditDistance: Int
     private let prefixLength: Int
-    private let cacheLimit: Int
     private let resourceLoader: ResourceLoader
-    /// All mutable fields below are guarded by `lock`.
-    private var cache: [SpellingDictionaryLanguage: CacheEntry] = [:]
-    private var loadingLanguages = Set<SpellingDictionaryLanguage>()
-    private var accessSequence: UInt64 = 0
+    /// Guarded by `lock`.
+    private var indexes: BoundedLoadCache<SpellingDictionaryLanguage, Indexes>
 
     /// `preloadLanguage` preserves the existing fast English startup by default. Production may
     /// pass another sole-enabled language, or nil when the user disabled every bundled dictionary.
@@ -41,11 +40,11 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     ) {
         self.maxEditDistance = maxEditDistance
         self.prefixLength = prefixLength
-        self.cacheLimit = max(1, cacheLimit)
+        self.indexes = BoundedLoadCache(limit: cacheLimit)
         self.resourceLoader = resourceLoader ?? Self.bundledContents(for:)
 
         if let preloadLanguage {
-            requestLoad(for: preloadLanguage)
+            _ = indexesOrRequestLoad(for: preloadLanguage)
         }
     }
 
@@ -56,7 +55,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         for word: String,
         language: SpellingDictionaryLanguage = .english
     ) -> String? {
-        guard let symSpell = cachedIndexOrRequestLoad(for: language) else {
+        guard let symSpell = indexesOrRequestLoad(for: language)?.symSpell else {
             return nil
         }
 
@@ -74,11 +73,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     /// Returns no candidates while the language is cold. Index construction shares the existing
     /// background load, and the immutable value is retained outside the lock for fast lookups.
     func completionCandidates(for prefix: String, language: SpellingDictionaryLanguage) -> [WordPrefixIndex.Candidate] {
-        _ = cachedIndexOrRequestLoad(for: language)
-        lock.lock()
-        let index = cache[language]?.prefixes
-        lock.unlock()
-        return index?.candidates(for: prefix) ?? []
+        indexesOrRequestLoad(for: language)?.prefixes.candidates(for: prefix) ?? []
     }
 
     /// Test seam: synchronously publishes a small in-memory dictionary without touching the bundle.
@@ -86,50 +81,35 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         contents: String,
         language: SpellingDictionaryLanguage = .english
     ) {
-        let contents = SpellingDictionaryCaseNormalizer.lowercased(contents, locale: language.caseLocale)
-        let symSpell = makeEmptyIndex()
-        symSpell.loadDictionary(contents: contents)
-        let prefixes = WordPrefixIndex(contents: contents, locale: language.caseLocale)
-
+        let built = buildIndexes(contents: contents, language: language)
         lock.lock()
-        publish(symSpell, prefixes: prefixes, for: language)
-        loadingLanguages.remove(language)
+        indexes.publish(built, for: language)
         lock.unlock()
     }
 
     /// Test-only visibility into the bounded cache. The sorted result avoids exposing LRU order.
     var cachedLanguagesForTesting: [SpellingDictionaryLanguage] {
         lock.lock()
-        let languages = cache.keys.sorted { $0.rawValue < $1.rawValue }
+        let languages = indexes.readyKeys.sorted { $0.rawValue < $1.rawValue }
         lock.unlock()
         return languages
     }
 
-    private func cachedIndexOrRequestLoad(for language: SpellingDictionaryLanguage) -> SymSpell? {
+    /// Returns the language's indexes when they are ready. A cold language starts its background
+    /// load (once) and returns nil, so the caller falls back for now.
+    private func indexesOrRequestLoad(for language: SpellingDictionaryLanguage) -> Indexes? {
         lock.lock()
-        if var entry = cache[language] {
-            accessSequence &+= 1
-            entry.lastAccessSequence = accessSequence
-            cache[language] = entry
-            lock.unlock()
-            return entry.symSpell
-        }
-        let shouldLoad = loadingLanguages.insert(language).inserted
+        let lookup = indexes.lookup(language)
         lock.unlock()
 
-        if shouldLoad {
+        switch lookup {
+        case .ready(let ready):
+            return ready
+        case .startLoad:
             loadInBackground(language)
-        }
-        return nil
-    }
-
-    private func requestLoad(for language: SpellingDictionaryLanguage) {
-        lock.lock()
-        let shouldLoad = cache[language] == nil
-            && loadingLanguages.insert(language).inserted
-        lock.unlock()
-        if shouldLoad {
-            loadInBackground(language)
+            return nil
+        case .loading:
+            return nil
         }
     }
 
@@ -137,7 +117,7 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         DispatchQueue.global(qos: .utility).async { [self] in
             guard let contents = resourceLoader(language) else {
                 lock.lock()
-                loadingLanguages.remove(language)
+                indexes.loadFailed(for: language)
                 lock.unlock()
                 CotabbyLogger.app.error(
                     "SymSpell dictionary resource \(language.resourceName).txt not found in bundle"
@@ -145,37 +125,24 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
                 return
             }
 
-            let normalized = SpellingDictionaryCaseNormalizer.lowercased(contents, locale: language.caseLocale)
-            let symSpell = makeEmptyIndex()
-            symSpell.loadDictionary(contents: normalized)
-            let prefixes = WordPrefixIndex(contents: normalized, locale: language.caseLocale)
-
+            let built = buildIndexes(contents: contents, language: language)
             lock.lock()
-            publish(symSpell, prefixes: prefixes, for: language)
-            loadingLanguages.remove(language)
+            indexes.publish(built, for: language)
             lock.unlock()
             CotabbyLogger.app.info(
-                "SymSpell loaded \(symSpell.wordCount) \(language.displayName) words for correction"
+                "SymSpell loaded \(built.symSpell.wordCount) \(language.displayName) words for correction"
             )
         }
     }
 
-    /// Must be called with `lock` held. The newly loaded index is newest, so eviction removes the
-    /// least recently used older language and keeps memory bounded even for multilingual users.
-    private func publish(_ symSpell: SymSpell, prefixes: WordPrefixIndex, for language: SpellingDictionaryLanguage) {
-        accessSequence &+= 1
-        cache[language] = CacheEntry(
-            symSpell: symSpell,
-            prefixes: prefixes,
-            lastAccessSequence: accessSequence
-        )
-
-        while cache.count > cacheLimit,
-              let leastRecentlyUsed = cache.min(by: {
-                  $0.value.lastAccessSequence < $1.value.lastAccessSequence
-              })?.key {
-            cache.removeValue(forKey: leastRecentlyUsed)
-        }
+    /// The one build sequence for both the background load and the test seam: the dictionary is
+    /// lowercased in its own locale before either index reads it, so the two can never disagree
+    /// on case.
+    private func buildIndexes(contents: String, language: SpellingDictionaryLanguage) -> Indexes {
+        let normalized = SpellingDictionaryCaseNormalizer.lowercased(contents, locale: language.caseLocale)
+        let symSpell = makeEmptyIndex()
+        symSpell.loadDictionary(contents: normalized)
+        return Indexes(symSpell: symSpell, prefixes: WordPrefixIndex(contents: normalized, locale: language.caseLocale))
     }
 
     private func makeEmptyIndex() -> SymSpell {

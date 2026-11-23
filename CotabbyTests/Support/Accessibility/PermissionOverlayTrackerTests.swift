@@ -8,65 +8,58 @@ final class PermissionOverlayTrackerTests: XCTestCase {
     private let frameA = CGRect(x: 100, y: 100, width: 800, height: 600)
     private let frameB = CGRect(x: 140, y: 120, width: 800, height: 600)
 
-    func test_noSettingsWindow_whileHidden_isNoOp() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: nil, hasPresented: false, isVisible: false, lastFrame: nil),
-            .none
-        )
-        // Already presented earlier but currently hidden — still a no-op, not a redundant hide.
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: nil, hasPresented: true, isVisible: false, lastFrame: nil),
-            .none
-        )
+    private func assertTransition(
+        settingsFrame: CGRect?,
+        from phase: PermissionOverlayPhase,
+        is expectedTransition: PermissionOverlayTracker.Transition,
+        to expectedPhase: PermissionOverlayPhase,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let result = PermissionOverlayTracker.transition(settingsFrame: settingsFrame, phase: phase)
+        XCTAssertEqual(result.transition, expectedTransition, file: file, line: line)
+        XCTAssertEqual(result.next, expectedPhase, file: file, line: line)
+    }
+
+    func test_noSettingsWindow_beforeFirstAppearance_isNoOp() {
+        assertTransition(settingsFrame: nil, from: .notPresented, is: .none, to: .notPresented)
+    }
+
+    func test_noSettingsWindow_whileHidden_isNoOpNotARedundantHide() {
+        assertTransition(settingsFrame: nil, from: .hidden, is: .none, to: .hidden)
     }
 
     func test_noSettingsWindow_whileVisible_hides() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: nil, hasPresented: true, isVisible: true, lastFrame: frameA),
-            .hide
-        )
+        assertTransition(settingsFrame: nil, from: .visible(at: frameA), is: .hide, to: .hidden)
     }
 
-    func test_firstAppearance_presents() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: false, isVisible: false, lastFrame: nil),
-            .present
-        )
-    }
-
-    func test_firstAppearance_presentsEvenIfVisibilityStateIsStale() {
-        // `hasPresented` alone gates the fly-in; the visibility flag cannot suppress it.
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: false, isVisible: true, lastFrame: frameA),
-            .present
-        )
-    }
-
-    func test_visibleWithNoRecordedFrame_repositions() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: true, isVisible: true, lastFrame: nil),
-            .reposition
-        )
+    func test_firstAppearance_presentsAtTheSettingsFrame() {
+        assertTransition(settingsFrame: frameA, from: .notPresented, is: .present, to: .visible(at: frameA))
     }
 
     func test_alreadyParkedAtSameFrame_isNoOp() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: true, isVisible: true, lastFrame: frameA),
-            .none
-        )
+        assertTransition(settingsFrame: frameA, from: .visible(at: frameA), is: .none, to: .visible(at: frameA))
     }
 
-    func test_settingsWindowMoved_repositions() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameB, hasPresented: true, isVisible: true, lastFrame: frameA),
-            .reposition
-        )
+    func test_settingsWindowMoved_repositionsAndRemembersTheNewFrame() {
+        assertTransition(settingsFrame: frameB, from: .visible(at: frameA), is: .reposition, to: .visible(at: frameB))
     }
 
     func test_reshowAfterHide_repositionsWithoutReanimating() {
-        XCTAssertEqual(
-            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: true, isVisible: false, lastFrame: nil),
-            .reposition
-        )
+        assertTransition(settingsFrame: frameA, from: .hidden, is: .reposition, to: .visible(at: frameA))
+    }
+
+    func test_aFullGrantingFlowAnimatesOnlyOnce() {
+        // Settings opens, the macOS permission dialog takes focus, Settings comes back moved.
+        var phase = PermissionOverlayPhase.notPresented
+        var transitions: [PermissionOverlayTracker.Transition] = []
+        for frame in [frameA, frameA, nil, nil, frameB, frameB] {
+            let result = PermissionOverlayTracker.transition(settingsFrame: frame, phase: phase)
+            transitions.append(result.transition)
+            phase = result.next
+        }
+
+        XCTAssertEqual(transitions, [.present, .none, .hide, .none, .reposition, .none])
+        XCTAssertEqual(phase, .visible(at: frameB))
     }
 }

@@ -47,17 +47,17 @@ struct TypingHistorySectionView: View {
                 HStack(spacing: 8) {
                     Button("Exclude an App…") { chooseAppToExclude() }
                     Button("Import Cotypist Export…") { chooseExportToImport() }
-                        .disabled(store.status != .ready || store.isImporting)
+                        .disabled(!store.canImport)
                     Button("Delete All…", role: .destructive) { isConfirmingDeleteAll = true }
-                        .disabled(!canDeleteAll)
+                        .disabled(!store.canDeleteAll)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entryCountLabel)
-                    if let message = statusMessage {
-                        Text(message.text)
+                    if let notice = store.notice {
+                        Text(notice.text)
                             .font(.caption)
-                            .foregroundStyle(message.isError ? Color.red : Color.secondary)
+                            .foregroundStyle(notice.isError ? Color.red : Color.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -73,15 +73,6 @@ struct TypingHistorySectionView: View {
         }
     }
 
-    /// Delete All also clears an archive that can no longer be opened (its entries can't be
-    /// counted, so the count reads zero) and stays available after a failed deletion so it can be
-    /// retried. Never during an import, which would add entries back.
-    private var canDeleteAll: Bool {
-        guard !store.isImporting else { return false }
-        if case .unavailable = store.status { return true }
-        return store.recordCount > 0 || store.deletionError != nil
-    }
-
     private var deleteAllConfirmationTitle: String {
         store.recordCount > 0 ? "Delete All \(store.recordCount) Entries" : "Delete Typing History"
     }
@@ -92,13 +83,6 @@ struct TypingHistorySectionView: View {
         case .unavailable: return "Stored history can't be read"
         case .ready: return store.recordCount == 1 ? "1 entry stored" : "\(store.recordCount) entries stored"
         }
-    }
-
-    private var statusMessage: (text: String, isError: Bool)? {
-        if let deletionError = store.deletionError { return (deletionError, true) }
-        if case let .unavailable(message) = store.status { return (message, true) }
-        if store.isImporting { return ("Importing…", false) }
-        return store.lastImportMessage.map { ($0, false) }
     }
 
     /// Asks for the `user_inputs.json` file from a decrypted Cotypist export.

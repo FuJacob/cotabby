@@ -10,17 +10,13 @@ import QuartzCore
 /// floating AppKit UI in `Services/Presentation`. The rest of the app can ask for "present / update / hide"
 /// behavior without learning anything about `NSPanel` configuration or animation timing.
 final class PermissionOverlayWindowController: NSWindowController {
-    private let windowSize = NSSize(width: 540, height: 112)
-    private let launchAnimationDuration: TimeInterval = 0.72
-    private let launchAnimationResponse: Double = 0.72
-    private let launchAnimationDampingFraction: Double = 1.0
-    private let initialAlpha: CGFloat = 0.9
+    /// Shared with the content view so the panel and its content cannot disagree on size.
+    fileprivate static let windowSize = NSSize(width: 540, height: 112)
 
-    private var launchDisplayLink: CADisplayLink?
-    private var launchStartTime: CFTimeInterval = 0
-    private var launchFromFrame = NSRect.zero
-    private var launchToFrame = NSRect.zero
-    private var isAnimatingLaunch = false
+    /// The fly-in in progress and the display link driving it, or `nil` when the overlay is at
+    /// rest. One optional for both, so a running link always has an animation to step and a
+    /// finished animation never leaves a link behind.
+    private var launch: (animation: PermissionOverlayLaunchAnimation, displayLink: CADisplayLink)?
 
     init(
         hostApp: PermissionHostApp,
@@ -28,7 +24,7 @@ final class PermissionOverlayWindowController: NSWindowController {
         onDismiss: @escaping () -> Void
     ) {
         let window = PermissionOverlayPanel(
-            contentRect: NSRect(origin: .zero, size: windowSize),
+            contentRect: NSRect(origin: .zero, size: PermissionOverlayWindowController.windowSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -48,41 +44,42 @@ final class PermissionOverlayWindowController: NSWindowController {
     }
 
     override func close() {
-        stopLaunchAnimation()
+        endLaunch()
         window?.orderOut(nil)
         super.close()
     }
 
     func present(from sourceFrameInScreen: CGRect?, settingsFrame: CGRect, visibleFrame: CGRect) {
-        stopLaunchAnimation()
+        endLaunch()
         guard let window else {
             return
         }
 
         let targetOrigin = anchoredOrigin(for: settingsFrame, visibleFrame: visibleFrame)
-        let targetFrame = NSRect(origin: targetOrigin, size: windowSize)
+        let targetFrame = NSRect(origin: targetOrigin, size: Self.windowSize)
 
         guard let sourceFrameInScreen, !sourceFrameInScreen.isEmpty else {
-            isAnimatingLaunch = false
             window.alphaValue = 1
             window.setFrame(targetFrame, display: false)
             window.orderFrontRegardless()
             return
         }
 
-        isAnimatingLaunch = true
-        launchFromFrame = sourceFrameInScreen
-        launchToFrame = targetFrame
-        launchStartTime = CACurrentMediaTime()
-
-        window.alphaValue = initialAlpha
+        window.alphaValue = PermissionOverlayLaunchAnimation.initialAlpha
         window.setFrame(sourceFrameInScreen, display: false)
         window.orderFrontRegardless()
-        stepLaunchAnimation()
 
         let displayLink = window.displayLink(target: self, selector: #selector(displayLinkDidFire(_:)))
         displayLink.add(to: .main, forMode: .common)
-        launchDisplayLink = displayLink
+        launch = (
+            animation: PermissionOverlayLaunchAnimation(
+                startTime: CACurrentMediaTime(),
+                fromFrame: sourceFrameInScreen,
+                toFrame: targetFrame
+            ),
+            displayLink: displayLink
+        )
+        stepLaunchAnimation()
     }
 
     func updatePosition(with settingsFrame: CGRect, visibleFrame: CGRect) {
@@ -91,8 +88,9 @@ final class PermissionOverlayWindowController: NSWindowController {
         }
 
         let origin = anchoredOrigin(for: settingsFrame, visibleFrame: visibleFrame)
-        launchToFrame.origin = origin
-        guard !isAnimatingLaunch else {
+        // Mid-flight the animation owns the window's frame; retarget it and let it land there.
+        if launch != nil {
+            launch?.animation.toFrame.origin = origin
             return
         }
 
@@ -101,8 +99,7 @@ final class PermissionOverlayWindowController: NSWindowController {
     }
 
     func hide() {
-        isAnimatingLaunch = false
-        stopLaunchAnimation()
+        endLaunch()
         window?.orderOut(nil)
     }
 
@@ -117,23 +114,23 @@ final class PermissionOverlayWindowController: NSWindowController {
     }
 
     private func stepLaunchAnimation() {
+        guard let launch else {
+            return
+        }
         guard let window else {
-            stopLaunchAnimation()
+            endLaunch()
             return
         }
 
-        let elapsed = max(0, CACurrentMediaTime() - launchStartTime)
-        if elapsed >= launchAnimationDuration {
-            isAnimatingLaunch = false
-            stopLaunchAnimation()
+        switch launch.animation.step(at: CACurrentMediaTime()) {
+        case .inFlight(let alpha, let frame):
+            window.alphaValue = alpha
+            window.setFrame(frame, display: true)
+        case .finished(let frame):
+            endLaunch()
             window.alphaValue = 1
-            window.setFrame(launchToFrame, display: true)
-            return
+            window.setFrame(frame, display: true)
         }
-
-        let progress = springProgress(at: elapsed)
-        window.alphaValue = initialAlpha + ((1 - initialAlpha) * progress)
-        window.setFrame(curvedFrame(from: launchFromFrame, to: launchToFrame, progress: progress), display: true)
     }
 
     @objc
@@ -141,62 +138,16 @@ final class PermissionOverlayWindowController: NSWindowController {
         stepLaunchAnimation()
     }
 
-    private func stopLaunchAnimation() {
-        launchDisplayLink?.invalidate()
-        launchDisplayLink = nil
-    }
-
-    /// Matches the timing constants from the original helper and approximates a critically damped
-    /// spring so the overlay feels deliberate rather than floaty.
-    private func springProgress(at elapsed: TimeInterval) -> CGFloat {
-        let omega = (2 * Double.pi) / launchAnimationResponse
-        let time = max(0, elapsed)
-        let progress: Double
-
-        if Swift.abs(launchAnimationDampingFraction - 1) < 0.0001 {
-            progress = 1 - exp(-omega * time) * (1 + (omega * time))
-        } else {
-            progress = min(1, time / launchAnimationDuration)
-        }
-
-        return min(max(progress, 0), 1)
-    }
-
-    /// Uses a quadratic Bezier path so the helper appears to travel from the onboarding control
-    /// into the destination settings pane, rather than simply scaling in place.
-    private func curvedFrame(from: NSRect, to: NSRect, progress: CGFloat) -> NSRect {
-        let size = NSSize(
-            width: from.size.width + ((to.size.width - from.size.width) * progress),
-            height: from.size.height + ((to.size.height - from.size.height) * progress)
-        )
-
-        let startCenter = CGPoint(x: from.midX, y: from.midY)
-        let endCenter = CGPoint(x: to.midX, y: to.midY)
-        let midPoint = CGPoint(
-            x: (startCenter.x + endCenter.x) * 0.5,
-            y: max(startCenter.y, endCenter.y)
-        )
-        let distance = hypot(endCenter.x - startCenter.x, endCenter.y - startCenter.y)
-        let lift = min(140, max(44, distance * 0.18))
-        let controlPoint = CGPoint(x: midPoint.x, y: midPoint.y + lift)
-        let inverse = 1 - progress
-        let center = CGPoint(
-            x: (inverse * inverse * startCenter.x) + (2 * inverse * progress * controlPoint.x) + (progress * progress * endCenter.x),
-            y: (inverse * inverse * startCenter.y) + (2 * inverse * progress * controlPoint.y) + (progress * progress * endCenter.y)
-        )
-
-        return NSRect(
-            x: center.x - (size.width * 0.5),
-            y: center.y - (size.height * 0.5),
-            width: size.width,
-            height: size.height
-        )
+    private func endLaunch() {
+        launch?.displayLink.invalidate()
+        launch = nil
     }
 
     /// Anchors the helper over the content area of the Privacy pane rather than the sidebar.
     private func anchoredOrigin(for settingsFrame: CGRect, visibleFrame: CGRect) -> NSPoint {
         let sidebarWidth: CGFloat = 170
         let contentMinX = settingsFrame.minX + sidebarWidth
+        let windowSize = Self.windowSize
         let contentWidth = max(settingsFrame.width - sidebarWidth, windowSize.width)
         let preferredX = contentMinX + ((contentWidth - windowSize.width) / 2) - 8
         let preferredY = settingsFrame.minY + 14
@@ -226,7 +177,7 @@ private final class PermissionOverlayContentView: NSView {
         onDismiss: @escaping () -> Void
     ) {
         self.onDismiss = onDismiss
-        super.init(frame: NSRect(x: 0, y: 0, width: 540, height: 112))
+        super.init(frame: NSRect(origin: .zero, size: PermissionOverlayWindowController.windowSize))
         translatesAutoresizingMaskIntoConstraints = false
         setup(hostApp: hostApp, permission: permission)
     }
@@ -291,8 +242,8 @@ private final class PermissionOverlayContentView: NSView {
         materialView.addSubview(dragSource)
 
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 540),
-            heightAnchor.constraint(equalToConstant: 112),
+            widthAnchor.constraint(equalToConstant: PermissionOverlayWindowController.windowSize.width),
+            heightAnchor.constraint(equalToConstant: PermissionOverlayWindowController.windowSize.height),
 
             materialView.leadingAnchor.constraint(equalTo: leadingAnchor),
             materialView.trailingAnchor.constraint(equalTo: trailingAnchor),
