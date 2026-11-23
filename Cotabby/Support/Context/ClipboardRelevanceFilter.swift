@@ -10,11 +10,10 @@ import Foundation
 /// app as the "source" granted same-app shortcuts in apps where the user merely typed,
 /// bypassing the overlap guard for unrelated clipboard content.
 ///
-/// Why a sentinel baseline: `NSPasteboard.changeCount` is a non-zero cumulative counter, so
-/// initializing to `0` made every first observation look like a fresh copy event and reset
-/// the staleness clock to "now" — granting up to five minutes of injection for content
-/// copied hours before Cotabby launched. The first observation now records the baseline
-/// without stamping a date, gating injection until an actual change is detected.
+/// Why a baseline: `NSPasteboard.changeCount` is a non-zero cumulative counter, so treating the
+/// first observation as a copy would reset the staleness clock to "now" and grant up to five
+/// minutes of injection for content copied hours before Cotabby launched. The first observation
+/// only records the baseline, so injection waits for an actual change.
 ///
 /// The filter never reads `NSPasteboard` directly — the caller passes in a plain `Int` change
 /// count and the raw clipboard string, keeping this type fully testable without AppKit.
@@ -23,8 +22,17 @@ final class ClipboardRelevanceFilter: ClipboardRelevanceFiltering {
     static let staleThresholdSeconds: TimeInterval = 300
     private static let minimumTokenLength = 3
 
-    private var lastKnownChangeCount: Int?
-    private var lastChangeDate: Date?
+    /// What the filter knows about the clipboard's history this session.
+    private enum Observation {
+        /// No change count seen yet.
+        case none
+        /// The clipboard as first seen. It has not changed since, so how old it is is unknown.
+        case baseline(changeCount: Int)
+        /// The clipboard changed while Cotabby was running, which dates the current content.
+        case changed(changeCount: Int, at: Date)
+    }
+
+    private var observation = Observation.none
     private let dateProvider: () -> Date
 
     init(dateProvider: @escaping () -> Date = { Date() }) {
@@ -39,20 +47,19 @@ final class ClipboardRelevanceFilter: ClipboardRelevanceFiltering {
     ) -> String? {
         guard let clipboard else { return nil }
 
-        guard let baselineChangeCount = lastKnownChangeCount else {
-            // First observation: record the baseline so we can detect *new* copies, but leave
-            // the staleness clock unset. Pre-existing clipboard content is not injected until
-            // the user actually copies again while Cotabby is running.
-            lastKnownChangeCount = pasteboardChangeCount
+        switch observation {
+        case .none:
+            // Pre-existing clipboard content is not injected until the user actually copies again
+            // while Cotabby is running.
+            observation = .baseline(changeCount: pasteboardChangeCount)
             return nil
+        case .baseline(let changeCount), .changed(let changeCount, _):
+            if pasteboardChangeCount != changeCount {
+                observation = .changed(changeCount: pasteboardChangeCount, at: dateProvider())
+            }
         }
 
-        if pasteboardChangeCount != baselineChangeCount {
-            lastKnownChangeCount = pasteboardChangeCount
-            lastChangeDate = dateProvider()
-        }
-
-        guard let lastChangeDate,
+        guard case .changed(_, let lastChangeDate) = observation,
               dateProvider().timeIntervalSince(lastChangeDate) < Self.staleThresholdSeconds
         else {
             return nil
