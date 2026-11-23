@@ -1,0 +1,29 @@
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_9990f9098df800::t_6cf33ec0e261c0 264-272,274-283,285-286
+CotabbyTests/Support/Suggestion/Request/SuggestionAvailabilityEvaluatorTests.swift
+  s_9990f9098df800::t_295660d0cb206a 431-434
+  s_9990f9098df800::t_391226d8a0cbdb 276-319
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_9990f9098df800::t_63ff81e08c1b34 62-66
+  s_9990f9098df800::t_f5b7b474b7057b 67-71
+ARCHITECTURE.md
+  s_9990f9098df800::t_023392a9c753ed 398-403
+Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift
+  s_9990f9098df800::t_1f8553d91ef105 62-65,94-97,112-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "480537a8defb5b8feb5be6431a1e154a187304d9",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
