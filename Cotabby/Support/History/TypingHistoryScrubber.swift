@@ -6,7 +6,10 @@ import Foundation
 /// card number must not survive into it, even though the archive is encrypted and only on-device
 /// engines read it.
 /// The rules are deliberately conservative about prose: ordinary words, names, and short numbers
-/// pass through untouched, and only shapes that are almost never written by hand are replaced.
+/// pass through untouched. Only shapes that are almost never written by hand are replaced, plus a
+/// value that its own label marks as secret ("password: …", "token=…", "verification code 123456").
+/// A secret typed with no label or recognizable shape (a short password on a line of its own) still
+/// passes; that is the cost of not redacting ordinary writing.
 nonisolated enum TypingHistoryScrubber {
     static let redaction = "[redacted]"
 
@@ -17,11 +20,45 @@ nonisolated enum TypingHistoryScrubber {
     private static let privateKeyBlock = try? NSRegularExpression(
         pattern: "-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)"
     )
-    /// Known credential prefixes followed by a run of key characters (OpenAI/Anthropic `sk-`,
-    /// GitHub `ghp_`/`gho_`/`github_pat_`, Slack `xox?-`, AWS access key ids).
+    /// Known credential prefixes followed by a run of key characters. The prefix is distinctive
+    /// enough that the run can be shorter than `longMixedToken`'s 24 characters, and need not mix
+    /// in digits: OpenAI/Anthropic `sk-` (`sk-proj-`, `sk-ant-`), GitHub `gh?_`/`github_pat_`,
+    /// GitLab `glpat-`, Slack `xox?-`/`xapp-`, AWS `AKIA`/`ASIA` key ids, Google `AIza`, Hugging
+    /// Face `hf_`, npm `npm_`, PyPI `pypi-AgE`, Shopify `shp??_`, and Stripe secret and restricted
+    /// keys. `ASIA` must end the token, since an all-caps word can start with it; `pypi-` is only
+    /// matched with the `AgE` every PyPI token starts with, so package names like `pypi-server` stay.
     private static let prefixedCredential = try? NSRegularExpression(
-        pattern: "\\b(sk-[A-Za-z0-9_\\-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-            + "|xox[abprs]-[A-Za-z0-9\\-]{10,}|AKIA[0-9A-Z]{16})"
+        pattern: #"\b(sk-[A-Za-z0-9_\-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"#
+            + #"|glpat-[A-Za-z0-9_\-]{20,}|xox[abprs]-[A-Za-z0-9\-]{10,}|xapp-[A-Za-z0-9\-]{10,}"#
+            + #"|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}\b|AIza[0-9A-Za-z_\-]{35}|hf_[A-Za-z0-9]{30,}"#
+            + #"|npm_[A-Za-z0-9]{36}|pypi-AgE[A-Za-z0-9_\-]{16,}|shp(?:at|ca|pa|ss)_[A-Fa-f0-9]{32}"#
+            + #"|[rs]k_(?:live|test)_[A-Za-z0-9]{16,})"#
+    )
+    /// US Social Security numbers in their written form. The dashes are required: nine bare digits
+    /// are far more often an order or account reference.
+    private static let socialSecurityNumber = try? NSRegularExpression(pattern: #"\b\d{3}-\d{2}-\d{4}\b"#)
+    /// A secret written next to its label ("password: hunter2", "DB_PASSWORD=…", `"token": "…"`).
+    /// Only the value (capture group 1) is replaced, so the sentence around it still reads. The
+    /// label must be followed by ":" or "=", which prose rarely puts straight after these words
+    /// ("I forgot my password" stays). The label may follow `_` or `-` (`GITHUB_TOKEN=`), but not a
+    /// letter or digit, and the value ends at whitespace unless it is quoted.
+    private static let labelledSecret = try? NSRegularExpression(
+        pattern: #"(?<![A-Za-z0-9])(?:pass(?:word|wd|code|phrase)|pwd|secret|client[_-]?secret|secret[_-]?key"#
+            + #"|(?:access|refresh|auth|api|bearer)?[_-]?token|api[_-]?key|private[_-]?key)"#
+            + #"["']?[ \t]*[:=][ \t]*("[^"\n]*"|'[^'\n]*'|[^\s"']+)"#,
+        options: [.caseInsensitive]
+    )
+    /// A one-time or verification code, only where a label says it is one: "OTP 123456", "your
+    /// verification code is 482913", "code: 123456", "PIN: 4821". A bare number is never touched,
+    /// since six digits are an order number, amount, or postcode far more often than a code. Plain
+    /// "code" and "pin" need ":" , "=" or "is" before the digits ("error code 404" stays). Only the
+    /// digits (capture group 1) are replaced.
+    private static let labelledCode = try? NSRegularExpression(
+        pattern: #"(?<![A-Za-z0-9])(?:(?:otp|totp|2fa|mfa|one[- ]time (?:pass)?code|one[- ]time password"#
+            + #"|verification code|security code|confirmation code|login code|sign[- ]in code"#
+            + #"|auth(?:entication)? code)(?:[ \t]+code)?(?:[ \t]+is|[ \t]*[:=#-])?"#
+            + #"|(?:code|pin)[ \t]*(?:[:=]|is\b))[ \t]*(\d{3}[ -]\d{3}|\d{3,8})\b"#,
+        options: [.caseInsensitive]
     )
     /// Card-number-length digit runs (13 to 19 digits, optionally grouped by single spaces or
     /// dashes). Payment fields on websites are ordinary text fields, not secure ones, so a typed
@@ -65,11 +102,15 @@ nonisolated enum TypingHistoryScrubber {
     /// lands in the result.
     private static func redact(_ text: String, boundary: Int) -> (text: String, boundary: Int) {
         var result = (text: text, boundary: boundary)
-        for expression in [privateKeyBlock, prefixedCredential, longDigitRun].compactMap({ $0 }) {
-            result = replaceMatches(of: expression, in: result.text, boundary: result.boundary) { _ in redaction }
+        for expression in [privateKeyBlock, prefixedCredential, longDigitRun, socialSecurityNumber].compactMap({ $0 }) {
+            result = replaceMatches(of: expression, in: result.text, boundary: result.boundary) { _, _ in redaction }
+        }
+        // After the whole-token rules, so a value they already replaced is left as it is.
+        for expression in [labelledSecret, labelledCode].compactMap({ $0 }) {
+            result = replaceMatches(of: expression, in: result.text, boundary: result.boundary, transform: redactingValue)
         }
         if let longMixedToken {
-            result = replaceMatches(of: longMixedToken, in: result.text, boundary: result.boundary) { token in
+            result = replaceMatches(of: longMixedToken, in: result.text, boundary: result.boundary) { _, token in
                 // Long all-letter runs are real words in agglutinative languages (Turkish, German
                 // compounds); only runs carrying digits look like generated secrets.
                 token.contains(where: \.isNumber) && token.contains(where: \.isLetter) ? redaction : token
@@ -78,14 +119,23 @@ nonisolated enum TypingHistoryScrubber {
         return result
     }
 
-    /// Rewrites each match with `transform` and carries `boundary` (UTF-16) across the edits. A
-    /// boundary inside a match that is replaced moves to the end of the replacement, so the secret
-    /// is never split; inside a match that is kept, it keeps its place.
+    /// A labelled match with only its value (capture group 1) replaced, so "password: hunter2"
+    /// becomes "password: [redacted]" rather than losing the label too.
+    private static func redactingValue(_ match: NSTextCheckingResult, token: String) -> String {
+        let value = match.range(at: 1)
+        guard value.location != NSNotFound else { return redaction }
+        let local = NSRange(location: value.location - match.range.location, length: value.length)
+        return (token as NSString).replacingCharacters(in: local, with: redaction)
+    }
+
+    /// Rewrites each match with `transform` (given the match and its text) and carries `boundary`
+    /// (UTF-16) across the edits. A boundary inside a match that is replaced moves to the end of
+    /// the replacement, so the secret is never split; inside a match that is kept, it keeps its place.
     private static func replaceMatches(
         of expression: NSRegularExpression,
         in text: String,
         boundary: Int,
-        transform: (String) -> String
+        transform: (NSTextCheckingResult, String) -> String
     ) -> (text: String, boundary: Int) {
         let nsText = text as NSString
         var output = ""
@@ -95,7 +145,7 @@ nonisolated enum TypingHistoryScrubber {
         for match in expression.matches(in: text, range: NSRange(location: 0, length: nsText.length)) {
             let range = match.range
             let token = nsText.substring(with: range)
-            let replacement = transform(token)
+            let replacement = transform(match, token)
             let unchangedLength = range.location - cursor
             if mappedBoundary == nil, boundary < range.location + range.length {
                 mappedBoundary = boundary <= range.location || replacement == token
