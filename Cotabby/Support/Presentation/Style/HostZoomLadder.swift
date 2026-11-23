@@ -15,7 +15,7 @@ import Foundation
 /// a long ghost. A measured size within `tolerance` of the reported size times a factor on the
 /// host's ladder is that product; anything else keeps its measurement.
 ///
-/// Pure, so `OverlayController` asks it with the numbers it already has and the rule is tested on
+/// Pure, so `HostTypefaceResolver` asks it with the numbers it already has and the rule is tested on
 /// its own; which ladder a host uses is decided by `HostZoomLadderResolver`.
 nonisolated enum HostZoomLadder {
     enum Kind: String, Equatable, Sendable {

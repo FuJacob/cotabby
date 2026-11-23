@@ -22,7 +22,7 @@ import AppKit
 /// much replaces it, at most `maximumRefinements` times, so the ghost is resized a few times per
 /// field and each time by less.
 ///
-/// A value type owned per field by `OverlayController`; the captures come from `PixelCaretLocator`.
+/// A value type owned per field by `HostTypefaceResolver`; the captures come from `PixelCaretLocator`.
 nonisolated struct HostAdvanceFit: Equatable {
     /// One capture: the paragraph's text before the caret and where the caret was measured.
     struct Capture: Equatable {

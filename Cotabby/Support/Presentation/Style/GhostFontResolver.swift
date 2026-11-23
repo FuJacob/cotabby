@@ -377,7 +377,7 @@ enum GhostFontResolver {
     /// Scales `font` so its width of `sample` matches the host's measurement. Iterated because the
     /// system font applies size-dependent tracking, so advances do not scale linearly with point
     /// size; two refinement passes land within a fraction of a percent. Also how a face the pixels
-    /// named takes its size from the host's own advance (`OverlayController.applyingMatchedTypeface`).
+    /// named takes its size from the host's own advance (`HostTypefaceResolver.applyingMatchedTypeface`).
     static func scaled(_ font: NSFont, toSample sample: String, width: CGFloat) -> NSFont {
         var current = font
         for _ in 0..<3 {

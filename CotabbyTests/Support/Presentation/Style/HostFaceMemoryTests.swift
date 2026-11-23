@@ -178,7 +178,7 @@ final class HostFaceMemoryTests: XCTestCase {
     }
 
     /// A size measured from the host's own caret advance keeps that mark across a launch, so the next
-    /// field's short-strip match does not replace it (see `OverlayController.applyingHostAdvance`).
+    /// field's short-strip match does not replace it (see `HostTypefaceResolver.applyingHostAdvance`).
     func testAnAdvanceMeasuredSizeKeepsItsMarkAcrossALaunch() throws {
         var memory = HostFaceMemory()
         let claude = try XCTUnwrap(key(size: nil, caret: 19))

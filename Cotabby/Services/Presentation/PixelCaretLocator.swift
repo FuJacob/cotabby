@@ -64,7 +64,7 @@ final class PixelCaretLocator {
         var font: NSFont?
         /// Whether a fresh capture for this request feeds its field's advance fit (see
         /// `HostAdvanceFit`): set by the caller for a web field that reports no size, in a face its
-        /// pixels named or, in a single-line field, its stand-in (`OverlayController.takesHostAdvance`).
+        /// pixels named or, in a single-line field, its stand-in (`HostTypefaceResolver.takesHostAdvance`).
         var recordsAdvance = false
         /// True when text follows the caret on its line, so the caret is not where the line's ink
         /// ends: it is found among the painted lines from the text before it (see
@@ -383,7 +383,7 @@ final class PixelCaretLocator {
     /// that can be a pitch, else from sibling runs. Failing both, lines the pixels show share the
     /// frame evenly, which puts the caret on its line within a point or two; that share is not
     /// reported as the pitch, so the ghost's rows take the one the host style measured before
-    /// (`OverlayController.linePitch(for:fontSize:)`). Without it the frame itself was taken for the
+    /// (`HostTypefaceResolver.linePitch(for:fontSize:)`). Without it the frame itself was taken for the
     /// caret's line box, two lines tall after a wrap. With one painted line and no pitch the frame is
     /// the one line.
     ///
