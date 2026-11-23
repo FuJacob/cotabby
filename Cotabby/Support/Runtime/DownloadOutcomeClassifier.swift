@@ -1,42 +1,44 @@
 import Foundation
 
 /// File overview:
-/// Classifies download errors into "user pressed cancel" vs "something genuinely
-/// went wrong." Used by `ModelDownloadManager` to decide whether a failed
-/// download should restore the prior state (cancel) or surface as `.failed`.
+/// Classifies why a download stopped: the user paused it, the user cancelled it, or something
+/// genuinely went wrong. `ModelDownloadManager` uses the answer to decide whether a stopped
+/// download keeps its partial data (pause), restores the prior state (cancel), or surfaces as
+/// `.failed`.
 ///
 /// Why this is its own type:
-/// Swift's `Task.cancel()` triggers two distinct error shapes by the time we
-/// catch them downstream:
+/// User cancellation reaches the manager in three shapes:
 ///
-///   1. `CancellationError` — when `Task.checkCancellation()` runs *before* the
-///      URLSession download even starts.
-///   2. `URLError(.cancelled)` — when the URLSession download is in flight and
-///      our `withTaskCancellationHandler` aborts it via
-///      `URLSessionDownloadTask.cancel()`.
+///   1. `DownloadInterruption.cancelled` when a backend observed the cancel request itself.
+///   2. `CancellationError` when `Task.checkCancellation()` runs before a backend started.
+///   3. `URLError(.cancelled)` when the URLSession download is in flight and
+///      `withTaskCancellationHandler` aborts it via `URLSessionDownloadTask.cancel()`.
 ///
-/// Without this classification, case (2) would route through the catch-all
-/// failure path and the user would see "The operation couldn't be completed"
-/// despite having pressed Cancel themselves. This helper makes the
-/// distinction testable in isolation, with no URLSession or Task setup.
+/// Without this classification, case (3) would route through the catch-all failure path and the
+/// user would see "The operation couldn't be completed" despite having pressed Cancel themselves.
+/// This helper makes the distinction testable in isolation, with no URLSession or Task setup.
 nonisolated enum DownloadOutcomeClassifier {
-    static func isUserCancellation(_ error: Error) -> Bool {
-        if error is CancellationError {
-            return true
-        }
-        if let urlError = error as? URLError, urlError.code == .cancelled {
-            return true
-        }
-        if let aria2Error = error as? Aria2DownloadError, aria2Error == .cancelled {
-            return true
-        }
-        return false
+    nonisolated enum Stop: Equatable {
+        case paused(resumeData: Data?)
+        case cancelled
+        case failed
     }
 
-    static func isUserPause(_ error: Error) -> Bool {
-        if let aria2Error = error as? Aria2DownloadError, aria2Error == .paused {
-            return true
+    static func classify(_ error: Error) -> Stop {
+        if let interruption = error as? DownloadInterruption {
+            switch interruption {
+            case .paused(let resumeData):
+                return .paused(resumeData: resumeData)
+            case .cancelled:
+                return .cancelled
+            }
         }
-        return false
+        if error is CancellationError {
+            return .cancelled
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return .cancelled
+        }
+        return .failed
     }
 }

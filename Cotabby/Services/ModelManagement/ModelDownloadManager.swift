@@ -71,35 +71,46 @@ enum ModelDownloadState: Equatable {
     }
 }
 
+/// What is doing the work for a running transfer. One case at a time, so a transfer can never be
+/// signalled through both backends.
+private enum LiveTransferBackend {
+    /// Still choosing between aria2 and URLSession (aria2 may be provisioning).
+    case resolving
+    case aria2(Aria2DownloadService)
+    case urlSession(ModelDownloadSessionDelegate)
+}
+
 /// Downloads model files on demand into a user-writable runtime directory.
 /// This decouples app shipping from model shipping so model updates do not require app updates.
 ///
 /// Uses `aria2c` for segmented, resumable transfers when available and falls back to URLSession.
 @MainActor
 final class ModelDownloadManager: ObservableObject {
-    @Published private(set) var modelStates: [String: ModelDownloadState] = [:]
+    /// Every transfer's lifecycle. Transfer state is keyed by source URL rather than destination
+    /// filename so equal leaf names from different repositories never alias.
+    @Published private var transferTable = ModelTransferTable()
+
+    /// The per-model state views render, derived from the transfer table.
+    var modelStates: [String: ModelDownloadState] {
+        transferTable.displayStates
+    }
 
     var onModelDirectoryChanged: (() -> Void)?
 
     private let runtimeDirectoryURL: URL
     private var runtimeSearchDirectories: [URL]
     /// GGUF filenames discovered across every search directory, recomputed whenever the search set
-    /// or on-disk contents change. Cached so the per-catalog-model install check in
+    /// or on-disk contents change. Cached so the per-model install check in
     /// `refreshModelStates` does not re-walk the (recursively scanned) directories once per model.
     private var installedModelFilenames: Set<String> = []
-    private var downloadTasks: [String: Task<Void, Never>] = [:]
-    /// Metadata retained for dynamic Hugging Face rows after their task finishes. Transfer state is
-    /// keyed by source URL rather than destination filename so equal leaf names never alias.
-    private var trackedModelsByID: [String: DownloadableRuntimeModel] = [:]
-    private var activeAria2Services: [String: Aria2DownloadService] = [:]
-    private var activeSessionDelegates: [String: ModelDownloadSessionDelegate] = [:]
-    private var urlSessionResumeDataByID: [String: Data] = [:]
+    /// The task and backend of each transfer the table reports as running. An entry is added
+    /// when a transfer starts and removed when it finishes; nothing else writes this dictionary.
+    private var liveTransfers: [String: LiveTransfer] = [:]
 
-    private enum RequestedOutcome: Equatable {
-        case paused
-        case cancelled
+    private struct LiveTransfer {
+        let task: Task<Void, Never>
+        var backend: LiveTransferBackend = .resolving
     }
-    private var requestedOutcomes: [String: RequestedOutcome] = [:]
 
     init(runtimeDirectoryURL: URL? = nil) {
         let primaryDirectoryURL =
@@ -135,61 +146,14 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func state(for model: DownloadableRuntimeModel) -> ModelDownloadState {
-        modelStates[model.id] ?? (isInstalled(model: model) ? .downloaded : .idle)
+        transferTable.displayState(for: model.id) ?? (isInstalled(model: model) ? .downloaded : .idle)
     }
 
     /// Re-reads installed models from all active search directories and updates `@Published` state.
     /// Preserves in-flight `.downloading` and `.paused` states so a refresh during transfer never drops the progress bar.
     func refreshModelStates() {
         recomputeInstalledModelFilenames()
-        refreshCatalogModelStates()
-        refreshDynamicModelStates(excluding: Set(models.map(\.id)))
-    }
-
-    private func refreshCatalogModelStates() {
-        for model in models {
-            let currentState = modelStates[model.id]
-            if case .downloading = currentState {
-                continue
-            }
-            if case .paused = currentState {
-                continue
-            }
-
-            if isInstalled(model: model) {
-                modelStates[model.id] = .downloaded
-            } else if currentState == .downloaded {
-                modelStates[model.id] = .idle
-            }
-        }
-    }
-
-    private func refreshDynamicModelStates(excluding catalogIDs: Set<String>) {
-        // HuggingFace models are created dynamically rather than appearing in the curated catalog.
-        // Reconcile those keys too, or a deleted dynamic model remains stuck in `.downloaded`.
-        let dynamicIDs = modelStates.keys.filter { !catalogIDs.contains($0) }
-        for downloadID in dynamicIDs {
-            guard let model = trackedModelsByID[downloadID] else {
-                modelStates.removeValue(forKey: downloadID)
-                continue
-            }
-
-            switch modelStates[downloadID] {
-            case .downloading, .paused:
-                continue
-            case .failed:
-                if isInstalled(model: model) {
-                    modelStates[downloadID] = .downloaded
-                }
-            case .idle, .downloaded, nil:
-                if isInstalled(model: model) {
-                    modelStates[downloadID] = .downloaded
-                } else {
-                    modelStates.removeValue(forKey: downloadID)
-                    trackedModelsByID.removeValue(forKey: downloadID)
-                }
-            }
-        }
+        transferTable.refresh(catalog: models, isInstalled: isInstalled(filename:))
     }
 
     /// True when any configured directory holds a file named `filename`.
@@ -233,25 +197,15 @@ final class ModelDownloadManager: ObservableObject {
         }
     }
 
+    /// Starts a download, or resumes it when the model is paused.
     func download(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
-        guard downloadTasks[downloadID] == nil else {
+        switch transferTable.start(model, isInstalled: isInstalled(model: model)) {
+        case .alreadyRunning:
             CotabbyLogger.models.debug("Download already in progress for \(model.filename)")
-            return
-        }
-
-        if isInstalled(model: model) {
+        case .alreadyInstalled:
             CotabbyLogger.models.debug("Model \(model.filename) already installed, skipping download")
-            modelStates[downloadID] = .downloaded
-            return
-        }
-
-        trackedModelsByID[downloadID] = model
-        if let conflictingModel = conflictingTransfer(for: model) {
-            modelStates[downloadID] = .failed(
-                "Another source is already downloading \(model.filename). "
-                    + "Cancel that transfer before downloading this file."
-            )
+        case .blocked(let conflictingModel):
             CotabbyLogger.models.info(
                 "Blocked a conflicting model download",
                 metadata: [
@@ -259,63 +213,58 @@ final class ModelDownloadManager: ObservableObject {
                     "destination": .string(model.filename)
                 ]
             )
-            return
-        }
+        case .started:
+            CotabbyLogger.models.info("Starting download for \(model.filename)")
+            let task = Task { [weak self] in
+                guard let self else {
+                    return
+                }
 
-        requestedOutcomes.removeValue(forKey: downloadID)
-        let initialProgress = modelStates[downloadID]?.progressFraction
-        CotabbyLogger.models.info("Starting download for \(model.filename)")
-        modelStates[downloadID] = .downloading(progress: initialProgress)
-        let task = Task { [weak self] in
-            guard let self else {
-                return
+                await self.performDownload(model)
             }
-
-            await self.performDownload(model)
+            liveTransfers[downloadID] = LiveTransfer(task: task)
         }
-        downloadTasks[downloadID] = task
     }
 
     /// Pauses an in-flight download, keeping its partial data so a later `download(_:)` resumes it.
     func pause(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
-        guard downloadTasks[downloadID] != nil else {
+        guard transferTable.requestPause(downloadID), let live = liveTransfers[downloadID] else {
             return
         }
-        requestedOutcomes[downloadID] = .paused
-        if let aria2Service = activeAria2Services[downloadID] {
-            aria2Service.pause()
-        } else if let delegate = activeSessionDelegates[downloadID] {
+        switch live.backend {
+        case .aria2(let service):
+            service.pause()
+        case .urlSession(let delegate):
             delegate.pause()
-        } else if let task = downloadTasks[downloadID] {
-            task.cancel()
+        case .resolving:
+            // No backend exists to signal yet. Cancelling the task ends the wait for aria2, and
+            // `performDownload` then publishes the recorded intent instead of starting a backend.
+            live.task.cancel()
         }
     }
 
     /// User-initiated cancel of an in-flight or paused model download.
     func cancel(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
-        requestedOutcomes[downloadID] = .cancelled
-        if let aria2Service = activeAria2Services[downloadID] {
-            aria2Service.cancel()
-        } else if let delegate = activeSessionDelegates[downloadID] {
+        guard transferTable.requestCancel(downloadID), let live = liveTransfers[downloadID] else {
+            removeStagingDirectory(for: model)
+            transferTable.cancelInactive(model, isInstalled: isInstalled(model: model))
+            return
+        }
+
+        switch live.backend {
+        case .aria2(let service):
+            service.cancel()
+        case .urlSession(let delegate):
             delegate.cancel()
+        case .resolving:
+            break
         }
-
-        urlSessionResumeDataByID.removeValue(forKey: downloadID)
-
-        if let task = downloadTasks[downloadID] {
-            // Let the backend stop before deleting its files. Removing a staging directory while
-            // aria2c is still flushing its control file can recreate debris or corrupt the pause.
-            task.cancel()
-        } else {
-            removeResumeArtifacts(for: model)
-            requestedOutcomes.removeValue(forKey: downloadID)
-            modelStates[downloadID] = isInstalled(model: model) ? .downloaded : .idle
-            if modelStates[downloadID] == .idle {
-                trackedModelsByID.removeValue(forKey: downloadID)
-            }
-        }
+        // Let the backend stop before deleting its files. Removing a staging directory while
+        // aria2c is still flushing its control file can recreate debris or corrupt the pause.
+        // `performDownload` removes them once the transfer has actually ended.
+        live.task.cancel()
     }
 
     func openModelsDirectory() {
@@ -428,27 +377,20 @@ final class ModelDownloadManager: ObservableObject {
 
     private func performDownload(_ model: DownloadableRuntimeModel) async {
         let downloadID = model.id
-        defer {
-            downloadTasks[downloadID] = nil
-            activeAria2Services.removeValue(forKey: downloadID)
-            activeSessionDelegates.removeValue(forKey: downloadID)
-            requestedOutcomes.removeValue(forKey: downloadID)
-            switch modelStates[downloadID] {
-            case .paused, .downloaded, .failed:
-                break
-            case .idle, .downloading, nil:
-                trackedModelsByID.removeValue(forKey: downloadID)
-            }
-        }
+        let outcome: ModelTransferTable.Outcome
 
         do {
             let aria2ExecutableURL = await resolveAria2Executable()
 
-            if requestedOutcomes[downloadID] == .paused {
-                throw Aria2DownloadError.paused
-            }
-            if requestedOutcomes[downloadID] == .cancelled || Task.isCancelled {
-                throw CancellationError()
+            // A pause or cancel that arrived while no backend existed could only cancel the task.
+            // Publish the user's recorded intent rather than starting a backend just to stop it.
+            switch transferTable.stopIntent(for: downloadID) {
+            case .pause:
+                throw DownloadInterruption.paused(resumeData: nil)
+            case .cancel:
+                throw DownloadInterruption.cancelled
+            case nil:
+                try Task.checkCancellation()
             }
 
             if let aria2ExecutableURL {
@@ -461,21 +403,26 @@ final class ModelDownloadManager: ObservableObject {
             // Keep the discovered-filename cache in step with the new file on disk so an immediate
             // re-`download(_:)` of the same model is recognized as installed instead of re-fetched.
             recomputeInstalledModelFilenames()
-            modelStates[downloadID] = .downloaded
-            onModelDirectoryChanged?()
+            outcome = .completed
         } catch {
-            if DownloadOutcomeClassifier.isUserPause(error) {
+            switch DownloadOutcomeClassifier.classify(error) {
+            case .paused(let resumeData):
                 CotabbyLogger.models.info("Download paused by user for \(model.filename)")
-                let currentProgress = modelStates[downloadID]?.progressFraction
-                modelStates[downloadID] = .paused(progress: currentProgress)
-            } else if DownloadOutcomeClassifier.isUserCancellation(error) {
+                outcome = .paused(resumeData: resumeData)
+            case .cancelled:
                 CotabbyLogger.models.info("Download cancelled by user for \(model.filename)")
-                removeResumeArtifacts(for: model)
-                modelStates[downloadID] = isInstalled(model: model) ? .downloaded : .idle
-            } else {
+                removeStagingDirectory(for: model)
+                outcome = .cancelled
+            case .failed:
                 CotabbyLogger.models.error("Download failed for \(model.filename): \(error.localizedDescription)")
-                modelStates[downloadID] = .failed(error.localizedDescription)
+                outcome = .failed(error.localizedDescription)
             }
+        }
+
+        liveTransfers[downloadID] = nil
+        transferTable.finish(downloadID, outcome, isInstalled: isInstalled(model: model))
+        if outcome == .completed {
+            onModelDirectoryChanged?()
         }
     }
 
@@ -510,15 +457,15 @@ final class ModelDownloadManager: ObservableObject {
 
         let service = Aria2DownloadService { [weak self] progress in
             Task { @MainActor [weak self] in
-                guard let self, self.downloadTasks[downloadID] != nil else { return }
-                self.modelStates[downloadID] = .downloading(
+                self?.transferTable.updateProgress(
+                    downloadID,
                     progress: progress.progressFraction,
                     speedFormatted: progress.speedFormatted,
                     etaFormatted: progress.etaFormatted
                 )
             }
         }
-        activeAria2Services[downloadID] = service
+        liveTransfers[downloadID]?.backend = .aria2(service)
 
         let downloadedFile = try await service.download(
             from: model.downloadURL,
@@ -550,36 +497,17 @@ final class ModelDownloadManager: ObservableObject {
         let destinationURL = modelFileURL(filename: model.filename)
         let delegate = ModelDownloadSessionDelegate { [weak self] progress in
             Task { @MainActor [weak self] in
-                guard let self, self.downloadTasks[downloadID] != nil else { return }
-                self.modelStates[downloadID] = .downloading(progress: progress)
+                self?.transferTable.updateProgress(downloadID, progress: progress)
             }
         }
-        activeSessionDelegates[downloadID] = delegate
+        liveTransfers[downloadID]?.backend = .urlSession(delegate)
 
-        let resumeData = urlSessionResumeDataByID[downloadID]
-        let downloadResult: ModelDownloadSessionDelegate.DownloadResult
-        do {
-            downloadResult = try await delegate.download(
-                from: model.downloadURL,
-                resumeData: resumeData
-            )
-        } catch let interruption as URLSessionDownloadInterruption {
-            switch interruption {
-            case .paused(let newResumeData):
-                if let newResumeData {
-                    urlSessionResumeDataByID[downloadID] = newResumeData
-                }
-                throw Aria2DownloadError.paused
-            }
-        } catch {
-            // Invalid or stale resume data must not poison every subsequent Retry attempt.
-            urlSessionResumeDataByID.removeValue(forKey: downloadID)
-            throw error
-        }
+        let downloadResult = try await delegate.download(
+            from: model.downloadURL,
+            resumeData: transferTable.resumeData(for: downloadID)
+        )
         let fileManager = FileManager.default
         let temporaryURL = downloadResult.temporaryURL
-
-        urlSessionResumeDataByID.removeValue(forKey: downloadID)
 
         do {
             try Task.checkCancellation()
@@ -692,36 +620,15 @@ final class ModelDownloadManager: ObservableObject {
         )
     }
 
-    /// Removes only the active source's resume state after its backend has stopped.
+    /// Removes only this source's aria2 resume state, after its backend has stopped.
     /// Filename-only directories from development builds are intentionally left untouched because
     /// they contain no source identity and therefore cannot be deleted safely on this model's behalf.
-    private func removeResumeArtifacts(for model: DownloadableRuntimeModel) {
-        urlSessionResumeDataByID.removeValue(forKey: model.id)
+    private func removeStagingDirectory(for model: DownloadableRuntimeModel) {
         try? FileManager.default.removeItem(at: aria2StagingDirectoryURL(for: model))
     }
 
     private func isInstalled(model: DownloadableRuntimeModel) -> Bool {
         isInstalled(filename: model.filename)
-    }
-
-    /// The runtime directory is a flat namespace. A second source may not claim a destination
-    /// while the first source is active or paused; the user must cancel the retained transfer first.
-    private func conflictingTransfer(
-        for model: DownloadableRuntimeModel
-    ) -> DownloadableRuntimeModel? {
-        let destinationKey = model.filename.precomposedStringWithCanonicalMapping.lowercased()
-        for (downloadID, trackedModel) in trackedModelsByID where downloadID != model.id {
-            let trackedDestinationKey = trackedModel.filename
-                .precomposedStringWithCanonicalMapping
-                .lowercased()
-            guard trackedDestinationKey == destinationKey else {
-                continue
-            }
-            if downloadTasks[downloadID] != nil || modelStates[downloadID]?.isPaused == true {
-                return trackedModel
-            }
-        }
-        return nil
     }
 
     private func isInstalled(filename: String) -> Bool {
