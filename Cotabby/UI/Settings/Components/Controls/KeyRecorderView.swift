@@ -21,115 +21,84 @@ struct KeyRecorderView: View {
     var onDoubleTapRecorded: (() -> Void)?
 
     @State private var monitor: Any?
-    @State private var liveModifiers: ShortcutModifierMask = []
-    @State private var conflictMessage: String?
-    /// Event timestamp of a first press of `doubleTapKey` still waiting for its second press.
-    @State private var pendingFirstTapTimestamp: TimeInterval?
+    @State private var recorder = KeyRecorderState()
 
     var body: some View {
-        Text(promptText)
-            .foregroundStyle(conflictMessage == nil ? .secondary : Color.red)
+        Text(recorder.prompt(doubleTapKey: doubleTapKey))
+            .foregroundStyle(recorder.isRejected ? Color.red : .secondary)
             .onAppear { installMonitor() }
             .onDisappear { removeMonitor() }
     }
 
-    private var promptText: String {
-        if let conflictMessage {
-            return conflictMessage
-        }
-        if pendingFirstTapTimestamp != nil, let doubleTapKey {
-            return "Press \(doubleTapKey.label) again…"
-        }
-        let glyphs = KeyCodeLabels.modifierGlyphs(liveModifiers)
-        return glyphs.isEmpty ? "Press a key…" : "\(glyphs) + key…"
+    /// The double tap is only on offer when the caller can also store it.
+    private var recordableDoubleTapKey: DoubleTapRecordingKey? {
+        onDoubleTapRecorded == nil ? nil : doubleTapKey
     }
 
     private func installMonitor() {
         removeMonitor()
-        liveModifiers = []
+        send(.modifiersChanged([]))
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
             handle(event: event)
         }
     }
 
+    /// Every event the monitor matches is swallowed while recording, so a press being recorded
+    /// never also types into, or triggers a shortcut in, the window behind the recorder.
     private func handle(event: NSEvent) -> NSEvent? {
-        if event.type == .flagsChanged {
-            liveModifiers = ShortcutModifierMask(nsEventFlags: event.modifierFlags)
-            return nil
+        switch event.type {
+        case .flagsChanged:
+            send(.modifiersChanged(ShortcutModifierMask(nsEventFlags: event.modifierFlags)))
+        case .keyDown:
+            let press = KeyRecorderState.KeyPress(
+                keyCode: CGKeyCode(event.keyCode),
+                modifiers: ShortcutModifierMask(nsEventFlags: event.modifierFlags),
+                isRepeat: event.isARepeat,
+                timestamp: event.timestamp
+            )
+            perform(send(.keyDown(press)), for: event)
+        default:
+            return event
         }
-
-        guard event.type == .keyDown else { return event }
-
-        let keyCode = CGKeyCode(event.keyCode)
-        let modifiers = ShortcutModifierMask(nsEventFlags: event.modifierFlags)
-
-        // Plain Escape stays the universal "get me out" affordance. With any modifier held,
-        // Escape becomes a bindable shortcut (e.g. `⌘Escape`) instead of cancelling — so users
-        // who want it can still reach it.
-        if keyCode == 53, modifiers.isEmpty {
-            removeMonitor()
-            onCancelled?()
-            return nil
-        }
-
-        if let doubleTapKey, onDoubleTapRecorded != nil,
-           keyCode == doubleTapKey.keyCode, modifiers == doubleTapKey.modifiers {
-            return handleDoubleTapCandidate(event: event, key: doubleTapKey)
-        }
-        pendingFirstTapTimestamp = nil
-
-        // Any other key is fair game. The pipeline is key-agnostic: `InputMonitor.classify`
-        // matches the bound shortcut before its behavioral branches, and acceptance only
-        // consumes the key while a suggestion is visible (otherwise it passes through and does
-        // its normal job). So even Return/Delete or `⌘V` are safe to bind — they only intercept
-        // in the moment a suggestion is showing.
-        // Reject a combo that another action already owns. Staying in recording mode (rather than
-        // committing or cancelling) lets the user immediately try a different key, and the red
-        // prompt explains why the press was ignored.
-        if let conflict = conflictChecker?(keyCode, modifiers) {
-            conflictMessage = "Already used by \(conflict). Try another key."
-            return nil
-        }
-
-        let label = KeyCodeLabels.label(
-            for: keyCode,
-            modifiers: modifiers,
-            // Use `characters` ahead of `charactersIgnoringModifiers` so we still get a readable
-            // glyph for keys whose first level is a dead key (e.g. `^` on German QWERTZ). When
-            // both are empty, `KeyCodeLabels` falls back to a physical-position description.
-            fallback: bestCharacterFallback(for: event)
-        )
-        removeMonitor()
-        onKeyRecorded(keyCode, modifiers, label)
         return nil
     }
 
-    /// The first press waits up to `DoubleTapAcceptanceState.window` for a second one, the same
-    /// window acceptance uses, so a pair that records here is a pair that works while typing. If no
-    /// second press comes, the press is reported as the usual conflict, with a pointer to the
-    /// double tap so the gesture is discoverable from the error.
-    private func handleDoubleTapCandidate(event: NSEvent, key: DoubleTapRecordingKey) -> NSEvent? {
-        // Holding the key auto-repeats; that is one long press, not a double tap.
-        guard !event.isARepeat else { return nil }
+    @discardableResult
+    private func send(_ input: KeyRecorderState.Input) -> KeyRecorderState.Effect? {
+        recorder.handle(
+            input,
+            doubleTapKey: recordableDoubleTapKey,
+            conflictOwner: { keyCode, modifiers in conflictChecker?(keyCode, modifiers) }
+        )
+    }
 
-        let timestamp = event.timestamp
-        if let first = pendingFirstTapTimestamp, timestamp - first <= DoubleTapAcceptanceState.window {
-            pendingFirstTapTimestamp = nil
+    private func perform(_ effect: KeyRecorderState.Effect?, for event: NSEvent) {
+        guard let effect else {
+            return
+        }
+        switch effect {
+        case .cancel:
+            removeMonitor()
+            onCancelled?()
+        case .commit(let keyCode, let modifiers):
+            let label = KeyCodeLabels.label(
+                for: keyCode,
+                modifiers: modifiers,
+                // Use `characters` ahead of `charactersIgnoringModifiers` so we still get a readable
+                // glyph for keys whose first level is a dead key (e.g. `^` on German QWERTZ). When
+                // both are empty, `KeyCodeLabels` falls back to a physical-position description.
+                fallback: bestCharacterFallback(for: event)
+            )
+            removeMonitor()
+            onKeyRecorded(keyCode, modifiers, label)
+        case .commitDoubleTap:
             removeMonitor()
             onDoubleTapRecorded?()
-            return nil
+        case .scheduleSecondTapTimeout(let firstTapTimestamp):
+            DispatchQueue.main.asyncAfter(deadline: .now() + DoubleTapAcceptanceState.window) {
+                send(.secondTapTimedOut(firstTapTimestamp: firstTapTimestamp))
+            }
         }
-
-        pendingFirstTapTimestamp = timestamp
-        conflictMessage = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + DoubleTapAcceptanceState.window) {
-            // Only the press that scheduled this timeout may turn into an error.
-            guard pendingFirstTapTimestamp == timestamp else { return }
-            pendingFirstTapTimestamp = nil
-            let owner = conflictChecker?(key.keyCode, key.modifiers) ?? "another shortcut"
-            conflictMessage = "Already used by \(owner). Press it twice quickly for a double tap."
-        }
-        return nil
     }
 
     private func bestCharacterFallback(for event: NSEvent) -> String? {
@@ -159,11 +128,4 @@ extension ShortcutModifierMask {
         if nsEventFlags.contains(.control) { mask.insert(.control) }
         self = mask
     }
-}
-
-/// The key a recorder may accept as a double press, with the label shown while it waits.
-struct DoubleTapRecordingKey: Equatable {
-    let keyCode: CGKeyCode
-    let modifiers: ShortcutModifierMask
-    let label: String
 }

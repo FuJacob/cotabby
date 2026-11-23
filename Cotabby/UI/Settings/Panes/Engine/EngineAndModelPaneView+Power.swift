@@ -46,14 +46,14 @@ extension EngineAndModelPaneView {
                 powerProfilePicker(
                     title: "On Battery",
                     systemImage: "battery.25",
-                    selection: batteryProfileBinding
+                    selection: powerProfileBinding(for: .battery)
                 )
                 .settingsItem(.batteryModel)
 
                 powerProfilePicker(
                     title: "Plugged In",
                     systemImage: "powerplug",
-                    selection: pluggedInProfileBinding
+                    selection: powerProfileBinding(for: .pluggedIn)
                 )
                 .settingsItem(.pluggedInModel)
             }
@@ -90,17 +90,10 @@ extension EngineAndModelPaneView {
         .pickerStyle(.menu)
     }
 
-    var batteryProfileBinding: Binding<PowerProfile> {
+    func powerProfileBinding(for source: PowerSource) -> Binding<PowerProfile> {
         Binding(
-            get: { powerProfileForDisplay(suggestionSettings.batteryProfile) },
-            set: { suggestionSettings.setBatteryProfile($0) }
-        )
-    }
-
-    var pluggedInProfileBinding: Binding<PowerProfile> {
-        Binding(
-            get: { powerProfileForDisplay(suggestionSettings.pluggedInProfile) },
-            set: { suggestionSettings.setPluggedInProfile($0) }
+            get: { powerProfileForDisplay(suggestionSettings.powerProfile(for: source)) },
+            set: { suggestionSettings.setPowerProfile($0, for: source) }
         )
     }
 

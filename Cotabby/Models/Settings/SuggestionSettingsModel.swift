@@ -151,24 +151,19 @@ final class SuggestionSettingsModel: ObservableObject {
     /// multiplier and the floor/ceiling are not applied. Read live by `OverlayController`, so it
     /// takes effect on the next suggestion; like the size settings it never reaches generation.
     @Published private(set) var matchesHostTextSize: Bool
-    @Published private(set) var acceptanceKeyCode: CGKeyCode
-    @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
-    @Published private(set) var acceptanceKeyLabel: String
-    @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
-    @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
-    @Published private(set) var fullAcceptanceKeyLabel: String
+    /// Each shortcut is published as one binding, so observers never see a key code paired with
+    /// the previous binding's modifiers or label.
+    @Published private(set) var acceptanceBinding: SuggestionShortcutBindingSettings
+    /// The Accept Entire Suggestion slot: unbound, a one-press key, or a double press of the Accept
+    /// Word key. Edited only through `AcceptanceShortcuts` transitions, which keep it consistent
+    /// with `acceptanceBinding`.
+    @Published private(set) var fullAcceptanceShortcut: FullAcceptanceShortcut
     /// User-configurable hotkey that flips `isGloballyEnabled`. Defaults to unbound so the user has
     /// to opt in; without a binding the listener tap for this hotkey is never installed.
-    @Published private(set) var globalToggleKeyCode: CGKeyCode
-    @Published private(set) var globalToggleKeyModifiers: ShortcutModifierMask
-    @Published private(set) var globalToggleKeyLabel: String
+    @Published private(set) var globalToggleBinding: SuggestionShortcutBindingSettings
     /// Per-app accept/full-accept overrides. Published so the input monitor's event-time provider
     /// closures (via `ShortcutResolver`) and the Apps settings pane both observe the live list.
     @Published private(set) var perAppShortcutOverrides: [PerAppShortcutOverride]
-    /// Whether Accept Entire Suggestion is bound to a quick double press of the Accept Word key.
-    /// The Accept Entire Suggestion slot holds one shortcut, so while this is true the one-press
-    /// full-accept key is unbound; the setters below keep the two mutually exclusive.
-    @Published private(set) var doubleTapAcceptsEntireSuggestion: Bool
     /// Whether Tab moves to the next field instead of accepting in single-line fields.
     @Published private(set) var tabLeavesSingleLineFields: Bool
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
@@ -295,17 +290,13 @@ final class SuggestionSettingsModel: ObservableObject {
         isGhostTextBold = data.isGhostTextBold
         isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
-        acceptanceKeyCode = data.acceptanceKeyCode
-        acceptanceKeyModifiers = data.acceptanceKeyModifiers
-        acceptanceKeyLabel = data.acceptanceKeyLabel
-        fullAcceptanceKeyCode = data.fullAcceptanceKeyCode
-        fullAcceptanceKeyModifiers = data.fullAcceptanceKeyModifiers
-        fullAcceptanceKeyLabel = data.fullAcceptanceKeyLabel
-        globalToggleKeyCode = data.globalToggleKeyCode
-        globalToggleKeyModifiers = data.globalToggleKeyModifiers
-        globalToggleKeyLabel = data.globalToggleKeyLabel
+        acceptanceBinding = data.shortcuts.acceptance
+        fullAcceptanceShortcut = FullAcceptanceShortcut(
+            keyBinding: data.shortcuts.fullAcceptance,
+            doubleTap: data.shortcuts.doubleTapAcceptsEntireSuggestion
+        )
+        globalToggleBinding = data.shortcuts.globalToggle
         perAppShortcutOverrides = data.perAppShortcutOverrides
-        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
@@ -386,17 +377,13 @@ final class SuggestionSettingsModel: ObservableObject {
         isGhostTextBold = data.isGhostTextBold
         isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
-        acceptanceKeyCode = data.acceptanceKeyCode
-        acceptanceKeyModifiers = data.acceptanceKeyModifiers
-        acceptanceKeyLabel = data.acceptanceKeyLabel
-        fullAcceptanceKeyCode = data.fullAcceptanceKeyCode
-        fullAcceptanceKeyModifiers = data.fullAcceptanceKeyModifiers
-        fullAcceptanceKeyLabel = data.fullAcceptanceKeyLabel
-        globalToggleKeyCode = data.globalToggleKeyCode
-        globalToggleKeyModifiers = data.globalToggleKeyModifiers
-        globalToggleKeyLabel = data.globalToggleKeyLabel
+        acceptanceBinding = data.shortcuts.acceptance
+        fullAcceptanceShortcut = FullAcceptanceShortcut(
+            keyBinding: data.shortcuts.fullAcceptance,
+            doubleTap: data.shortcuts.doubleTapAcceptsEntireSuggestion
+        )
+        globalToggleBinding = data.shortcuts.globalToggle
         perAppShortcutOverrides = data.perAppShortcutOverrides
-        doubleTapAcceptsEntireSuggestion = data.doubleTapAcceptsEntireSuggestion
         tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
@@ -503,23 +490,11 @@ final class SuggestionSettingsModel: ObservableObject {
                 preferredEmojiGender: preferredEmojiGender
             ),
             shortcuts: SuggestionShortcutSettings(
-                acceptance: SuggestionShortcutBindingSettings(
-                    keyCode: acceptanceKeyCode,
-                    modifiers: acceptanceKeyModifiers,
-                    label: acceptanceKeyLabel
-                ),
-                fullAcceptance: SuggestionShortcutBindingSettings(
-                    keyCode: fullAcceptanceKeyCode,
-                    modifiers: fullAcceptanceKeyModifiers,
-                    label: fullAcceptanceKeyLabel
-                ),
-                globalToggle: SuggestionShortcutBindingSettings(
-                    keyCode: globalToggleKeyCode,
-                    modifiers: globalToggleKeyModifiers,
-                    label: globalToggleKeyLabel
-                ),
+                acceptance: acceptanceBinding,
+                fullAcceptance: fullAcceptanceShortcut.keyBinding,
+                globalToggle: globalToggleBinding,
                 perAppOverrides: perAppShortcutOverrides,
-                doubleTapAcceptsEntireSuggestion: doubleTapAcceptsEntireSuggestion,
+                doubleTapAcceptsEntireSuggestion: fullAcceptanceShortcut.isDoubleTap,
                 tabLeavesSingleLineFields: tabLeavesSingleLineFields
             )
         )
@@ -683,116 +658,95 @@ final class SuggestionSettingsModel: ObservableObject {
         store.savePowerBasedModelSwitchingEnabled(enabled)
     }
 
-    func setBatteryEngine(_ engine: SuggestionEngineKind) {
-        guard batteryEngine != engine else {
-            return
-        }
+    // MARK: - Power profiles
 
-        batteryEngine = engine
-        store.saveBatteryEngine(engine)
-    }
-
-    func setBatteryModelFilename(_ filename: String) {
-        guard batteryModelFilename != filename else {
-            return
-        }
-
-        batteryModelFilename = filename
-        store.saveBatteryModelFilename(filename)
-    }
-
-    func setBatteryEndpointModelName(_ modelName: String) {
-        guard batteryEndpointModelName != modelName else { return }
-        batteryEndpointModelName = modelName
-        store.saveBatteryEndpointModelName(modelName)
-    }
-
-    func setPluggedInEngine(_ engine: SuggestionEngineKind) {
-        guard pluggedInEngine != engine else {
-            return
-        }
-
-        pluggedInEngine = engine
-        store.savePluggedInEngine(engine)
-    }
-
-    func setPluggedInModelFilename(_ filename: String) {
-        guard pluggedInModelFilename != filename else {
-            return
-        }
-
-        pluggedInModelFilename = filename
-        store.savePluggedInModelFilename(filename)
-    }
-
-    func setPluggedInEndpointModelName(_ modelName: String) {
-        guard pluggedInEndpointModelName != modelName else { return }
-        pluggedInEndpointModelName = modelName
-        store.savePluggedInEndpointModelName(modelName)
-    }
-
-    /// The profile applied while on battery, assembled from the stored engine + model filename.
-    var batteryProfile: PowerProfile {
-        switch batteryEngine {
-        case .appleIntelligence: return .appleIntelligence
-        case .llamaOpenSource: return .llama(filename: batteryModelFilename)
-        case .openAICompatible: return .openAICompatible(modelName: batteryEndpointModelName)
+    /// The profile applied on one power source, assembled from its three stored fields.
+    func powerProfile(for source: PowerSource) -> PowerProfile {
+        switch source {
+        case .battery:
+            return PowerProfile(
+                engine: batteryEngine,
+                modelFilename: batteryModelFilename,
+                endpointModelName: batteryEndpointModelName
+            )
+        case .pluggedIn:
+            return PowerProfile(
+                engine: pluggedInEngine,
+                modelFilename: pluggedInModelFilename,
+                endpointModelName: pluggedInEndpointModelName
+            )
         }
     }
 
-    /// The profile applied while plugged in, assembled from the stored engine + model filename.
-    var pluggedInProfile: PowerProfile {
-        switch pluggedInEngine {
-        case .appleIntelligence: return .appleIntelligence
-        case .llamaOpenSource: return .llama(filename: pluggedInModelFilename)
-        case .openAICompatible: return .openAICompatible(modelName: pluggedInEndpointModelName)
-        }
-    }
-
-    func setBatteryProfile(_ profile: PowerProfile) {
-        setBatteryEngine(profile.engine)
+    /// Stores the engine first and then the model that engine uses. The other engine's model is
+    /// left as it was, so it is still there if the source switches back.
+    func setPowerProfile(_ profile: PowerProfile, for source: PowerSource) {
+        setPowerProfileEngine(profile.engine, for: source)
         if case .llama(let filename) = profile {
-            setBatteryModelFilename(filename)
+            setPowerProfileModelFilename(filename, for: source)
         }
         if case .openAICompatible(let modelName) = profile {
-            setBatteryEndpointModelName(modelName)
+            setPowerProfileEndpointModelName(modelName, for: source)
         }
     }
 
-    func setPluggedInProfile(_ profile: PowerProfile) {
-        setPluggedInEngine(profile.engine)
-        if case .llama(let filename) = profile {
-            setPluggedInModelFilename(filename)
+    func setPowerProfileEngine(_ engine: SuggestionEngineKind, for source: PowerSource) {
+        switch source {
+        case .battery:
+            setPowerProfileField(\.batteryEngine, to: engine) { store.saveBatteryEngine($0) }
+        case .pluggedIn:
+            setPowerProfileField(\.pluggedInEngine, to: engine) { store.savePluggedInEngine($0) }
         }
-        if case .openAICompatible(let modelName) = profile {
-            setPluggedInEndpointModelName(modelName)
+    }
+
+    func setPowerProfileModelFilename(_ filename: String, for source: PowerSource) {
+        switch source {
+        case .battery:
+            setPowerProfileField(\.batteryModelFilename, to: filename) { store.saveBatteryModelFilename($0) }
+        case .pluggedIn:
+            setPowerProfileField(\.pluggedInModelFilename, to: filename) { store.savePluggedInModelFilename($0) }
         }
+    }
+
+    func setPowerProfileEndpointModelName(_ modelName: String, for source: PowerSource) {
+        switch source {
+        case .battery:
+            setPowerProfileField(\.batteryEndpointModelName, to: modelName) { store.saveBatteryEndpointModelName($0) }
+        case .pluggedIn:
+            setPowerProfileField(\.pluggedInEndpointModelName, to: modelName) { store.savePluggedInEndpointModelName($0) }
+        }
+    }
+
+    /// Publishes and persists one stored profile field, skipping a write that would not change it
+    /// so observers of the per-source fields are not woken by a no-op.
+    private func setPowerProfileField<Value: Equatable>(
+        _ field: ReferenceWritableKeyPath<SuggestionSettingsModel, Value>,
+        to value: Value,
+        save: (Value) -> Void
+    ) {
+        guard self[keyPath: field] != value else {
+            return
+        }
+
+        self[keyPath: field] = value
+        save(value)
     }
 
     /// Seeds each per-power-source profile from the active engine + model the first time the feature
     /// is configured, so the pickers default to something valid instead of an empty selection. Only
-    /// seeds a profile still at its pristine default (Open Source with no model chosen), so an
-    /// explicit Apple Intelligence or model choice is never overwritten on a later appearance.
+    /// an unconfigured profile is seeded, so an explicit Apple Intelligence or model choice is never
+    /// overwritten on a later appearance.
     func initializePowerProfiles(
         currentEngine: SuggestionEngineKind,
         currentModelFilename: String?,
         currentEndpointModelName: String? = nil
     ) {
-        if batteryEngine == .llamaOpenSource, batteryModelFilename.isEmpty {
-            setBatteryEngine(currentEngine)
+        for source in PowerSource.allCases where powerProfile(for: source).isUnconfigured {
+            setPowerProfileEngine(currentEngine, for: source)
             if currentEngine == .llamaOpenSource, let currentModelFilename {
-                setBatteryModelFilename(currentModelFilename)
+                setPowerProfileModelFilename(currentModelFilename, for: source)
             } else if currentEngine == .openAICompatible, let currentEndpointModelName {
-                setBatteryEndpointModelName(currentEndpointModelName)
-            }
-        }
-
-        if pluggedInEngine == .llamaOpenSource, pluggedInModelFilename.isEmpty {
-            setPluggedInEngine(currentEngine)
-            if currentEngine == .llamaOpenSource, let currentModelFilename {
-                setPluggedInModelFilename(currentModelFilename)
-            } else if currentEngine == .openAICompatible, let currentEndpointModelName {
-                setPluggedInEndpointModelName(currentEndpointModelName)
+                setPowerProfileEndpointModelName(currentEndpointModelName, for: source)
             }
         }
     }
@@ -1014,33 +968,66 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveTabLeavesSingleLineFields(enabled)
     }
 
-    private func setDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
-        guard doubleTapAcceptsEntireSuggestion != enabled else {
-            return
+    // MARK: - Accept shortcuts
+
+    var acceptanceKeyCode: CGKeyCode { acceptanceBinding.keyCode }
+    var acceptanceKeyModifiers: ShortcutModifierMask { acceptanceBinding.modifiers }
+    var acceptanceKeyLabel: String { acceptanceBinding.label }
+
+    /// The one-press Accept Entire Suggestion key, unbound while the slot is empty or holds the
+    /// double tap.
+    var fullAcceptanceKeyCode: CGKeyCode { fullAcceptanceShortcut.keyBinding.keyCode }
+    var fullAcceptanceKeyModifiers: ShortcutModifierMask { fullAcceptanceShortcut.keyBinding.modifiers }
+    var fullAcceptanceKeyLabel: String { fullAcceptanceShortcut.keyBinding.label }
+
+    /// Whether Accept Entire Suggestion is bound to a quick double press of the Accept Word key.
+    var doubleTapAcceptsEntireSuggestion: Bool { fullAcceptanceShortcut.isDoubleTap }
+
+    var globalToggleKeyCode: CGKeyCode { globalToggleBinding.keyCode }
+    var globalToggleKeyModifiers: ShortcutModifierMask { globalToggleBinding.modifiers }
+    var globalToggleKeyLabel: String { globalToggleBinding.label }
+
+    private var acceptanceShortcuts: AcceptanceShortcuts {
+        AcceptanceShortcuts(acceptWord: acceptanceBinding, acceptEntireSuggestion: fullAcceptanceShortcut)
+    }
+
+    /// Runs one transition over both accept shortcuts, then publishes and persists whichever side
+    /// it changed. Routing every edit through here is what keeps the pair from being saved in a
+    /// combination the transitions do not allow.
+    private func updateAcceptanceShortcuts(_ transition: (inout AcceptanceShortcuts) -> Void) {
+        var updated = acceptanceShortcuts
+        transition(&updated)
+
+        if fullAcceptanceShortcut != updated.acceptEntireSuggestion {
+            fullAcceptanceShortcut = updated.acceptEntireSuggestion
+            let key = updated.acceptEntireSuggestion.keyBinding
+            store.saveFullAcceptanceKey(keyCode: key.keyCode, modifiers: key.modifiers, label: key.label)
+            store.saveDoubleTapAcceptsEntireSuggestion(updated.acceptEntireSuggestion.isDoubleTap)
         }
-        doubleTapAcceptsEntireSuggestion = enabled
-        store.saveDoubleTapAcceptsEntireSuggestion(enabled)
+        if acceptanceBinding != updated.acceptWord {
+            acceptanceBinding = updated.acceptWord
+            let key = updated.acceptWord
+            store.saveAcceptanceKey(keyCode: key.keyCode, modifiers: key.modifiers, label: key.label)
+        }
     }
 
     /// Binds Accept Entire Suggestion to a double press of the Accept Word key, replacing any
     /// one-press key in that slot. Ignored while Accept Word is unbound, since there is no key to
     /// press twice.
     func setDoubleTapFullAcceptance() {
-        guard acceptanceKeyCode != Self.disabledKeyCode else { return }
-        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
-        setDoubleTapAcceptsEntireSuggestion(true)
+        updateAcceptanceShortcuts { $0.recordDoubleTap() }
     }
 
     /// True when the double-tap binding can actually fire. It rides on the Accept Word key, so it
     /// is inert while that key is unbound.
     var isDoubleTapFullAcceptanceActive: Bool {
-        doubleTapAcceptsEntireSuggestion && acceptanceKeyCode != Self.disabledKeyCode
+        acceptanceShortcuts.isDoubleTapActive
     }
 
     /// The Accept Entire Suggestion shortcut as users should read it: the one-press key, or the
     /// Accept Word key written twice ("Tab Tab").
     var fullAcceptanceDisplayLabel: String {
-        isDoubleTapFullAcceptanceActive ? "\(acceptanceKeyLabel) \(acceptanceKeyLabel)" : fullAcceptanceKeyLabel
+        acceptanceShortcuts.acceptEntireSuggestionDisplayLabel
     }
 
     /// What accepts the whole suggestion in one app when it inherits the global shortcut. The
@@ -1048,7 +1035,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// override changes it too, and disabling Accept Word there leaves no double tap at all.
     func inheritedFullAcceptanceDisplayLabel(forBundleIdentifier bundleIdentifier: String?) -> String {
         let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        guard doubleTapAcceptsEntireSuggestion, fullAccept.keyCode == Self.disabledKeyCode else {
+        guard fullAcceptanceShortcut.isDoubleTap, fullAccept.keyCode == Self.disabledKeyCode else {
             return fullAccept.label
         }
         let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
@@ -1058,14 +1045,12 @@ final class SuggestionSettingsModel: ObservableObject {
 
     /// Whether any shortcut accepts the whole suggestion, so views can offer Clear.
     var hasFullAcceptanceShortcut: Bool {
-        isDoubleTapFullAcceptanceActive || fullAcceptanceKeyCode != Self.disabledKeyCode
+        acceptanceShortcuts.hasAcceptEntireSuggestionShortcut
     }
 
     /// Whether the slot still holds the factory one-press key, so views can hide Reset.
     var isFullAcceptanceShortcutDefault: Bool {
-        !isDoubleTapFullAcceptanceActive
-            && fullAcceptanceKeyCode == Self.defaultFullAcceptanceKeyCode
-            && fullAcceptanceKeyModifiers.isEmpty
+        acceptanceShortcuts.isAcceptEntireSuggestionFactoryDefault
     }
 
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
@@ -1469,84 +1454,31 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func setAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
-        guard acceptanceKeyCode != keyCode
-            || acceptanceKeyModifiers != normalizedModifiers
-            || acceptanceKeyLabel != label
-        else {
-            return
-        }
-
-        // Two bindings on the same `(keyCode, modifiers)` would both fire on the same press,
-        // so clear the other side to keep classification unambiguous. We only treat it as a
-        // conflict when both the key and the modifier set match — `Tab` and `⇧Tab` are now
-        // distinct bindings and may coexist.
-        if keyCode != Self.disabledKeyCode,
-           keyCode == fullAcceptanceKeyCode,
-           normalizedModifiers == fullAcceptanceKeyModifiers {
-            clearFullAcceptanceKey()
-        }
-
-        acceptanceKeyCode = keyCode
-        acceptanceKeyModifiers = normalizedModifiers
-        acceptanceKeyLabel = label
-        store.saveAcceptanceKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
+        let binding = SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
+        updateAcceptanceShortcuts { $0.recordAcceptWord(binding) }
     }
 
     func clearAcceptanceKey() {
-        // The double-tap binding is a double press of this key, so it goes away with it rather than
-        // reappearing unexpectedly when a new Accept Word key is recorded later.
-        setDoubleTapAcceptsEntireSuggestion(false)
-        setAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+        updateAcceptanceShortcuts { $0.clearAcceptWord() }
     }
 
     func setFullAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        // A real key takes the slot over from a double tap. Unbinding leaves the flag alone so
-        // `setDoubleTapFullAcceptance` can clear the key without undoing itself.
-        if keyCode != Self.disabledKeyCode {
-            setDoubleTapAcceptsEntireSuggestion(false)
-        }
-        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
-        guard fullAcceptanceKeyCode != keyCode
-            || fullAcceptanceKeyModifiers != normalizedModifiers
-            || fullAcceptanceKeyLabel != label
-        else {
-            return
-        }
-
-        if keyCode != Self.disabledKeyCode,
-           keyCode == acceptanceKeyCode,
-           normalizedModifiers == acceptanceKeyModifiers {
-            clearAcceptanceKey()
-        }
-
-        fullAcceptanceKeyCode = keyCode
-        fullAcceptanceKeyModifiers = normalizedModifiers
-        fullAcceptanceKeyLabel = label
-        store.saveFullAcceptanceKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
+        let binding = SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
+        updateAcceptanceShortcuts { $0.recordAcceptEntireSuggestion(binding) }
     }
 
     func clearFullAcceptanceKey() {
-        setDoubleTapAcceptsEntireSuggestion(false)
-        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+        updateAcceptanceShortcuts { $0.clearAcceptEntireSuggestion() }
     }
 
-    /// Persists a new global-toggle hotkey. Modifiers are normalized to empty when the key code is
-    /// `disabledKeyCode` so the listener tap can rely on `(disabled, [])` meaning "do not install
-    /// the tap at all" without inspecting the modifier set separately.
     func setGlobalToggleKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
-        guard globalToggleKeyCode != keyCode
-            || globalToggleKeyModifiers != normalizedModifiers
-            || globalToggleKeyLabel != label
-        else {
+        let binding = SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
+        guard globalToggleBinding != binding else {
             return
         }
 
-        globalToggleKeyCode = keyCode
-        globalToggleKeyModifiers = normalizedModifiers
-        globalToggleKeyLabel = label
-        store.saveGlobalToggleKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
+        globalToggleBinding = binding
+        store.saveGlobalToggleKey(keyCode: binding.keyCode, modifiers: binding.modifiers, label: binding.label)
     }
 
     func clearGlobalToggleKey() {
@@ -1571,26 +1503,16 @@ final class SuggestionSettingsModel: ObservableObject {
         modifiers: ShortcutModifierMask,
         label: String
     ) {
-        guard var override = perAppOverrideForMutation(
+        setPerAppBinding(
+            \.acceptance,
+            to: SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label),
             bundleIdentifier: bundleIdentifier,
             displayName: displayName
-        ) else { return }
-        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
-        override.acceptance = SuggestionShortcutBindingSettings(
-            keyCode: keyCode,
-            modifiers: normalizedModifiers,
-            label: label
         )
-        upsertPerAppOverride(override)
     }
 
     func clearPerAppAcceptKey(bundleIdentifier: String) {
-        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier),
-              var override = existingPerAppOverride(bundleIdentifier: normalizedBundleIdentifier) else {
-            return
-        }
-        override.acceptance = nil
-        upsertPerAppOverride(override)
+        clearPerAppBinding(\.acceptance, bundleIdentifier: bundleIdentifier)
     }
 
     func setPerAppFullAcceptKey(
@@ -1600,25 +1522,43 @@ final class SuggestionSettingsModel: ObservableObject {
         modifiers: ShortcutModifierMask,
         label: String
     ) {
+        setPerAppBinding(
+            \.fullAcceptance,
+            to: SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label),
+            bundleIdentifier: bundleIdentifier,
+            displayName: displayName
+        )
+    }
+
+    func clearPerAppFullAcceptKey(bundleIdentifier: String) {
+        clearPerAppBinding(\.fullAcceptance, bundleIdentifier: bundleIdentifier)
+    }
+
+    private typealias PerAppBindingSlot = WritableKeyPath<PerAppShortcutOverride, SuggestionShortcutBindingSettings?>
+
+    /// Pins one action for one app, tracking the app first if it is not tracked yet. An unbound
+    /// binding is an explicit "no key here" and differs from clearing the slot, which inherits.
+    private func setPerAppBinding(
+        _ slot: PerAppBindingSlot,
+        to binding: SuggestionShortcutBindingSettings,
+        bundleIdentifier: String,
+        displayName: String
+    ) {
         guard var override = perAppOverrideForMutation(
             bundleIdentifier: bundleIdentifier,
             displayName: displayName
         ) else { return }
-        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
-        override.fullAcceptance = SuggestionShortcutBindingSettings(
-            keyCode: keyCode,
-            modifiers: normalizedModifiers,
-            label: label
-        )
+        override[keyPath: slot] = binding
         upsertPerAppOverride(override)
     }
 
-    func clearPerAppFullAcceptKey(bundleIdentifier: String) {
+    /// Returns one action to inheriting the global shortcut. Does nothing for an untracked app.
+    private func clearPerAppBinding(_ slot: PerAppBindingSlot, bundleIdentifier: String) {
         guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier),
               var override = existingPerAppOverride(bundleIdentifier: normalizedBundleIdentifier) else {
             return
         }
-        override.fullAcceptance = nil
+        override[keyPath: slot] = nil
         upsertPerAppOverride(override)
     }
 
@@ -1715,8 +1655,7 @@ final class SuggestionSettingsModel: ObservableObject {
         guard keyCode != Self.disabledKeyCode else { return nil }
 
         for other in ShortcutAction.allCases where other != action {
-            let binding = shortcutBinding(for: other)
-            if binding.keyCode == keyCode, binding.modifiers == modifiers {
+            if shortcutBinding(for: other).matches(keyCode: keyCode, modifiers: modifiers) {
                 return other.displayName
             }
         }
@@ -1747,20 +1686,20 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         // The global toggle tap would consume a matching per-app accept key first.
-        if globalToggleKeyCode == keyCode, globalToggleKeyModifiers == modifiers {
+        if globalToggleBinding.matches(keyCode: keyCode, modifiers: modifiers) {
             return ShortcutAction.toggleTabby.displayName
         }
         return nil
     }
 
-    private func shortcutBinding(for action: ShortcutAction) -> (keyCode: CGKeyCode, modifiers: ShortcutModifierMask) {
+    private func shortcutBinding(for action: ShortcutAction) -> SuggestionShortcutBindingSettings {
         switch action {
         case .acceptWord:
-            return (acceptanceKeyCode, acceptanceKeyModifiers)
+            return acceptanceBinding
         case .acceptEntireSuggestion:
-            return (fullAcceptanceKeyCode, fullAcceptanceKeyModifiers)
+            return fullAcceptanceShortcut.keyBinding
         case .toggleTabby:
-            return (globalToggleKeyCode, globalToggleKeyModifiers)
+            return globalToggleBinding
         }
     }
 }
@@ -1823,7 +1762,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // the rest, and which apps keep their own Accept Entire Suggestion binding instead.
         let acceptance = Publishers.CombineLatest4(
             $acceptanceGranularity,
-            $doubleTapAcceptsEntireSuggestion,
+            $fullAcceptanceShortcut.map { $0.isDoubleTap },
             $perAppShortcutOverrides,
             $tabLeavesSingleLineFields
         )

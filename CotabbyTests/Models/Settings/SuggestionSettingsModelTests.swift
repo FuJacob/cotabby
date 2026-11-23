@@ -118,12 +118,12 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setGhostTextSizeMultiplier(0.8)
             model.setCustomSuggestionTextColorHex("#a1b2c3")
             model.setPowerBasedModelSwitchingEnabled(true)
-            model.setBatteryEngine(.appleIntelligence)
-            model.setBatteryModelFilename("small.gguf")
-            model.setBatteryEndpointModelName("small-endpoint")
-            model.setPluggedInEngine(.llamaOpenSource)
-            model.setPluggedInModelFilename("big.gguf")
-            model.setPluggedInEndpointModelName("big-endpoint")
+            model.setPowerProfileEngine(.appleIntelligence, for: .battery)
+            model.setPowerProfileModelFilename("small.gguf", for: .battery)
+            model.setPowerProfileEndpointModelName("small-endpoint", for: .battery)
+            model.setPowerProfileEngine(.llamaOpenSource, for: .pluggedIn)
+            model.setPowerProfileModelFilename("big.gguf", for: .pluggedIn)
+            model.setPowerProfileEndpointModelName("big-endpoint", for: .pluggedIn)
         }
 
         let reloaded = makeModel()
@@ -236,12 +236,12 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setGhostTextSizeMultiplier(SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
         model.setCustomSuggestionTextColorHex("#a1b2c3")
         model.setPowerBasedModelSwitchingEnabled(true)
-        model.setBatteryEngine(.appleIntelligence)
-        model.setBatteryModelFilename("small.gguf")
-        model.setBatteryEndpointModelName("small-endpoint")
-        model.setPluggedInEngine(.appleIntelligence)
-        model.setPluggedInModelFilename("big.gguf")
-        model.setPluggedInEndpointModelName("big-endpoint")
+        model.setPowerProfileEngine(.appleIntelligence, for: .battery)
+        model.setPowerProfileModelFilename("small.gguf", for: .battery)
+        model.setPowerProfileEndpointModelName("small-endpoint", for: .battery)
+        model.setPowerProfileEngine(.appleIntelligence, for: .pluggedIn)
+        model.setPowerProfileModelFilename("big.gguf", for: .pluggedIn)
+        model.setPowerProfileEndpointModelName("big-endpoint", for: .pluggedIn)
 
         model.resetToDefaults()
 
@@ -322,25 +322,25 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
     func test_powerProfiles_mapEngineAndFilenameIntoProfileValues() {
         let model = makeModel()
-        model.setBatteryEngine(.appleIntelligence)
-        model.setPluggedInEngine(.llamaOpenSource)
-        model.setPluggedInModelFilename("qwen.gguf")
+        model.setPowerProfileEngine(.appleIntelligence, for: .battery)
+        model.setPowerProfileEngine(.llamaOpenSource, for: .pluggedIn)
+        model.setPowerProfileModelFilename("qwen.gguf", for: .pluggedIn)
 
-        XCTAssertEqual(model.batteryProfile, .appleIntelligence)
-        XCTAssertEqual(model.pluggedInProfile, .llama(filename: "qwen.gguf"))
+        XCTAssertEqual(model.powerProfile(for: .battery), .appleIntelligence)
+        XCTAssertEqual(model.powerProfile(for: .pluggedIn), .llama(filename: "qwen.gguf"))
     }
 
     func test_setPowerProfiles_applyEngineAndLlamaFilename() {
         let model = makeModel()
 
-        model.setBatteryProfile(.llama(filename: "tiny.gguf"))
+        model.setPowerProfile(.llama(filename: "tiny.gguf"), for: .battery)
         XCTAssertEqual(model.batteryEngine, .llamaOpenSource)
         XCTAssertEqual(model.batteryModelFilename, "tiny.gguf")
 
         // Switching to Apple Intelligence keeps the stored llama filename so flipping back does
         // not lose the previous model choice.
-        model.setPluggedInProfile(.llama(filename: "large.gguf"))
-        model.setPluggedInProfile(.appleIntelligence)
+        model.setPowerProfile(.llama(filename: "large.gguf"), for: .pluggedIn)
+        model.setPowerProfile(.appleIntelligence, for: .pluggedIn)
         XCTAssertEqual(model.pluggedInEngine, .appleIntelligence)
         XCTAssertEqual(model.pluggedInModelFilename, "large.gguf")
     }
@@ -353,8 +353,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
             endpointCredentialStore: credentials
         )
 
-        model.setBatteryProfile(.openAICompatible(modelName: "gemma4:12b-mlx"))
-        XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4:12b-mlx"))
+        model.setPowerProfile(.openAICompatible(modelName: "gemma4:12b-mlx"), for: .battery)
+        XCTAssertEqual(model.powerProfile(for: .battery), .openAICompatible(modelName: "gemma4:12b-mlx"))
         XCTAssertEqual(try model.openAICompatibleAPIKey(), "secret")
 
         try model.saveOpenAICompatibleAPIKey("replacement")
@@ -366,11 +366,47 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.endpointCredentialRevision, 2)
     }
 
+    func test_powerProfile_roundTripsPerSourceWithoutTouchingTheOther() {
+        let profiles: [PowerProfile] = [
+            .appleIntelligence,
+            .llama(filename: "tiny.gguf"),
+            .openAICompatible(modelName: "gemma4")
+        ]
+
+        for source in PowerSource.allCases {
+            let model = makeModel()
+            let other: PowerSource = source == .battery ? .pluggedIn : .battery
+            let untouched = model.powerProfile(for: other)
+
+            for profile in profiles {
+                model.setPowerProfile(profile, for: source)
+
+                XCTAssertEqual(model.powerProfile(for: source), profile)
+                XCTAssertEqual(makeModel().powerProfile(for: source), profile, "must persist")
+                XCTAssertEqual(model.powerProfile(for: other), untouched)
+            }
+            model.resetToDefaults()
+        }
+    }
+
+    func test_powerProfile_isUnconfiguredOnlyForOpenSourceWithNoModel() {
+        XCTAssertTrue(makeModel().powerProfile(for: .battery).isUnconfigured)
+        XCTAssertTrue(PowerProfile.llama(filename: "").isUnconfigured)
+        XCTAssertFalse(PowerProfile.llama(filename: "tiny.gguf").isUnconfigured)
+        XCTAssertFalse(PowerProfile.appleIntelligence.isUnconfigured)
+        XCTAssertFalse(PowerProfile.openAICompatible(modelName: "").isUnconfigured)
+    }
+
+    func test_powerSource_followsThePluggedInFlag() {
+        XCTAssertEqual(PowerSource(isPluggedIn: true), .pluggedIn)
+        XCTAssertEqual(PowerSource(isPluggedIn: false), .battery)
+    }
+
     func test_initializePowerProfiles_seedsOnlyPristineProfiles() {
         let model = makeModel()
 
         // Battery profile made non-pristine by an explicit engine choice; plugged-in stays pristine.
-        model.setBatteryEngine(.appleIntelligence)
+        model.setPowerProfileEngine(.appleIntelligence, for: .battery)
         model.initializePowerProfiles(currentEngine: .llamaOpenSource, currentModelFilename: "active.gguf")
 
         XCTAssertEqual(model.batteryEngine, .appleIntelligence, "an explicit choice must never be reseeded")
@@ -398,8 +434,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
             currentEndpointModelName: "gemma4"
         )
 
-        XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4"))
-        XCTAssertEqual(model.pluggedInProfile, .openAICompatible(modelName: "gemma4"))
+        XCTAssertEqual(model.powerProfile(for: .battery), .openAICompatible(modelName: "gemma4"))
+        XCTAssertEqual(model.powerProfile(for: .pluggedIn), .openAICompatible(modelName: "gemma4"))
         // The llama filename is only seeded for the Open Source engine.
         XCTAssertEqual(model.batteryModelFilename, "")
         XCTAssertEqual(model.pluggedInModelFilename, "")
@@ -449,6 +485,67 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.selectEngine(.openAICompatible)
 
         XCTAssertEqual(decisions, [false, false], "A repeated write of the same engine is not a change")
+    }
+
+    /// `snapshot` and `snapshotPublisher` build the same value from two hand-written field lists.
+    /// Dirtying a field from every publisher group and comparing the two catches a setting that was
+    /// added to one list but not the other, or wired to the wrong slot in the publisher's tuples.
+    func test_snapshotPublisher_emitsTheSameSnapshotTheModelReports() {
+        let model = makeModel()
+        var latest: SuggestionSettingsSnapshot?
+        let subscription = model.snapshotPublisher.sink { latest = $0 }
+        defer { subscription.cancel() }
+
+        model.setGloballyEnabled(false)
+        model.pauseSuggestions(for: .indefinitely)
+        model.disableApplication(bundleIdentifier: "com.example.app", displayName: "Example")
+        model.selectEngine(.appleIntelligence)
+        model.selectWordCountPreset(.fourToSeven)
+        model.setUsingCustomWordCountRange(true)
+        model.setCustomWordCountRange(low: 3, high: 9)
+        model.setClipboardContextEnabled(true)
+        model.setSurfaceContextEnabled(false)
+        model.setFastModeEnabled(true)
+        model.setMirrorPreference(.alwaysMirror)
+        model.setSuppressCompletionsOnTypo(false)
+        model.setOfferTypoCorrections(false)
+        model.setAutomaticallyFixTypos(true)
+        model.setSpellingDictionary(.german, enabled: true)
+        model.setUserName("Ada")
+        model.setRules(["Be terse"])
+        model.setLanguages(["French"])
+        model.setExtendedContext("Glossary")
+        model.setMultiLineEnabled(true)
+        model.setSuggestWithinWords(false)
+        model.setShowFollowingWords(false)
+        model.setAutoAcceptTrailingPunctuation(false)
+        model.setAddSpaceAfterAccept(true)
+        model.setStreamSuggestionsWhileGenerating(true)
+        model.setPredictAheadWhileTyping(false)
+        model.setAcceptanceGranularity(.phrase)
+        model.setDoubleTapFullAcceptance()
+        model.setTabLeavesSingleLineFields(true)
+        model.setPerAppFullAcceptKey(
+            bundleIdentifier: "com.apple.Terminal",
+            displayName: "Terminal",
+            keyCode: 36,
+            modifiers: [],
+            label: "Return"
+        )
+        model.setSuggestInIntegratedTerminals(true)
+        model.setLowPowerModeAutoDisableEnabled(false)
+
+        XCTAssertEqual(latest, model.snapshot)
+        // Guards against the comparison passing only because nothing above reached the snapshot.
+        XCTAssertNotEqual(latest, makePristineModel().snapshot)
+    }
+
+    private func makePristineModel() -> SuggestionSettingsModel {
+        let pristineSuite = "cotabby.test.settingsModel.pristine.\(UUID().uuidString)"
+        let pristineDefaults = UserDefaults(suiteName: pristineSuite)!
+        pristineDefaults.removePersistentDomain(forName: pristineSuite)
+        addTeardownBlock { pristineDefaults.removePersistentDomain(forName: pristineSuite) }
+        return SuggestionSettingsModel(configuration: .standard, userDefaults: pristineDefaults)
     }
 
     // MARK: - Endpoint configuration

@@ -229,7 +229,7 @@ struct AppsPaneView: View {
             } else {
                 KeybindRow(
                     label: binding.label,
-                    keyCode: binding.keyCode,
+                    isBound: binding.keyCode != SuggestionSettingsModel.disabledKeyCode,
                     isRecording: recordingBinding,
                     onRecord: { keyCode, modifiers, recordedLabel in
                         applyPerAppBinding(

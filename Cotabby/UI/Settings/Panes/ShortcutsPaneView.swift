@@ -7,9 +7,10 @@ import SwiftUI
 struct ShortcutsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
-    @State private var isRecordingKeybind = false
-    @State private var isRecordingFullAcceptKeybind = false
-    @State private var isRecordingGlobalToggleKeybind = false
+    /// The one shortcut being recorded, if any. A single target rather than a flag per row,
+    /// because every active recorder installs a key monitor that swallows key presses; starting
+    /// one recording therefore has to end any other.
+    @State private var recordingAction: ShortcutAction?
 
     var body: some View {
         SettingsPaneScaffold {
@@ -22,8 +23,8 @@ struct ShortcutsPaneView: View {
                 LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.acceptanceKeyLabel,
-                        keyCode: suggestionSettings.acceptanceKeyCode,
-                        isRecording: $isRecordingKeybind,
+                        isBound: suggestionSettings.acceptanceBinding.isBound,
+                        isRecording: recordingBinding(for: .acceptWord),
                         onRecord: { keyCode, modifiers, label in
                             suggestionSettings.setAcceptanceKey(
                                 keyCode: keyCode,
@@ -67,8 +68,8 @@ struct ShortcutsPaneView: View {
                 LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.fullAcceptanceDisplayLabel,
-                        keyCode: suggestionSettings.fullAcceptanceKeyCode,
-                        isRecording: $isRecordingFullAcceptKeybind,
+                        isBound: suggestionSettings.hasFullAcceptanceShortcut,
+                        isRecording: recordingBinding(for: .acceptEntireSuggestion),
                         onRecord: { keyCode, modifiers, label in
                             suggestionSettings.setFullAcceptanceKey(
                                 keyCode: keyCode,
@@ -95,7 +96,6 @@ struct ShortcutsPaneView: View {
                                 excluding: .acceptEntireSuggestion
                             )
                         },
-                        isBound: suggestionSettings.hasFullAcceptanceShortcut,
                         doubleTapKey: acceptWordDoubleTapKey,
                         onDoubleTapRecorded: { suggestionSettings.setDoubleTapFullAcceptance() }
                     )
@@ -125,8 +125,8 @@ struct ShortcutsPaneView: View {
                 LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.globalToggleKeyLabel,
-                        keyCode: suggestionSettings.globalToggleKeyCode,
-                        isRecording: $isRecordingGlobalToggleKeybind,
+                        isBound: suggestionSettings.globalToggleBinding.isBound,
+                        isRecording: recordingBinding(for: .toggleTabby),
                         onRecord: { keyCode, modifiers, label in
                             suggestionSettings.setGlobalToggleKey(
                                 keyCode: keyCode,
@@ -177,10 +177,25 @@ struct ShortcutsPaneView: View {
 
     private static let tabKeyCode: CGKeyCode = 48
 
+    /// A row is recording while it is the target. Turning a row off only clears the target if that
+    /// row still owns it, so a row that finishes late cannot cancel the recording that replaced it.
+    private func recordingBinding(for action: ShortcutAction) -> Binding<Bool> {
+        Binding(
+            get: { recordingAction == action },
+            set: { isRecording in
+                if isRecording {
+                    recordingAction = action
+                } else if recordingAction == action {
+                    recordingAction = nil
+                }
+            }
+        )
+    }
+
     /// The Accept Word key, offered to the recorder as a double press. Nil while Accept Word is
     /// unbound, because there is then no key to press twice.
     private var acceptWordDoubleTapKey: DoubleTapRecordingKey? {
-        guard suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode else {
+        guard suggestionSettings.acceptanceBinding.isBound else {
             return nil
         }
         return DoubleTapRecordingKey(

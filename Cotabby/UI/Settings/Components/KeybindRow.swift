@@ -3,7 +3,9 @@ import SwiftUI
 /// Shared keybinding controls used by global and per-app settings.
 struct KeybindRow: View {
     let label: String
-    let keyCode: CGKeyCode
+    /// Whether anything is bound, which decides if Clear is offered. Passed in rather than derived
+    /// from a key code because a binding is not always a single key (a double tap has none).
+    let isBound: Bool
     @Binding var isRecording: Bool
     let onRecord: (CGKeyCode, ShortcutModifierMask, String) -> Void
     /// `nil` hides Reset for bindings without a distinct reset action.
@@ -14,9 +16,6 @@ struct KeybindRow: View {
     let clearLabel: String
     let clearHelp: String
     let conflictChecker: (CGKeyCode, ShortcutModifierMask) -> String?
-    /// Overrides the "is anything bound" check behind Clear, for a binding that is not a single
-    /// key code (a double tap). `nil` derives it from `keyCode`.
-    var isBound: Bool?
     var doubleTapKey: DoubleTapRecordingKey?
     var onDoubleTapRecorded: (() -> Void)?
 
@@ -53,7 +52,7 @@ struct KeybindRow: View {
                 }
             }
 
-            if isBound ?? (keyCode != SuggestionSettingsModel.disabledKeyCode) {
+            if isBound {
                 Button(clearLabel) {
                     onClear()
                     isRecording = false
