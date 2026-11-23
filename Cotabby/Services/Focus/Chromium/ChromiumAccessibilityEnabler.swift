@@ -85,7 +85,7 @@ final class ChromiumAccessibilityEnabler {
             // Codex embeds Chromium in a native shell that rejects AXManualAccessibility.
             // Its native AXEnhancedUserInterface switch exposes the composed web tree instead.
             // Keep this fallback specific to Codex: changing it globally can affect window managers.
-            if application.bundleIdentifier?.lowercased() == "com.openai.codex" {
+            if BrowserAppDetector.isCodexDesktop(bundleIdentifier: application.bundleIdentifier) {
                 let root = AXUIElementCreateApplication(pid)
                 AXUIElementSetMessagingTimeout(root, 0.05)
                 _ = AXUIElementSetAttributeValue(root, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)

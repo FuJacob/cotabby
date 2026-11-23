@@ -194,7 +194,7 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         }
         XCTAssertLessThanOrEqual(
             context.precedingText.utf16.count,
-            FocusSnapshotResolver.focusedTextContextWindowUTF16,
+            FocusedInputSnapshot.textWindowUTF16,
             "The caret window must cap what flows into equality checks and signatures"
         )
         XCTAssertTrue(context.precedingText.allSatisfy { $0 == "a" })

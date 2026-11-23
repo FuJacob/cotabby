@@ -11,7 +11,7 @@ import Foundation
 /// sequence is a real field switch and drops everything.
 ///
 /// A reference type so it can carry state across the value-typed `FocusSnapshotResolver`'s
-/// non-mutating `resolveSnapshot`, mirroring `DeepGeometryWalkThrottle` and `FieldStyleCache`.
+/// non-mutating `resolveSnapshot`, mirroring `FocusSessionWalkThrottle` and `FieldStyleCache`.
 @MainActor
 final class FocusSessionScopedCache<Value> {
     private var sequence: UInt64?

@@ -371,4 +371,59 @@ final class AXTextGeometryResolverTests: XCTestCase {
             .unavailable
         )
     }
+
+    // MARK: - Caret line lookup shared by the line box and the host text metrics probe
+
+    func test_nonEmptyLine_returnsTheLineAndItsRange() {
+        let host = indentedParagraphHost()
+
+        let line = host.queries.nonEmptyLine(containing: 150)
+
+        XCTAssertEqual(line?.index, 4)
+        XCTAssertEqual(line?.range, NSRange(location: 140, length: 40))
+        XCTAssertEqual(host.calls, ["lineForIndex", "rangeForLine"])
+    }
+
+    /// A line with no characters has no box, so neither caller may go on to ask for its bounds.
+    func test_nonEmptyLine_rejectsALineWithNoCharacters() {
+        let host = ScriptedLineHost(
+            lineForOffset: { _ in 0 },
+            lines: [0: (NSRange(location: 12, length: 0), .zero)]
+        )
+
+        XCTAssertNil(host.queries.nonEmptyLine(containing: 12))
+    }
+
+    /// An implausible line number is rejected before it is handed back to the host as a parameter.
+    func test_nonEmptyLine_neverAsksForTheRangeOfAnImplausibleLine() {
+        for index in [-1, AXTextGeometryResolver.LineGeometryQueries.lineIndexLimit] {
+            let host = ScriptedLineHost(
+                lineForOffset: { _ in index },
+                lines: [index: (NSRange(location: 0, length: 5), .zero)]
+            )
+
+            XCTAssertNil(host.queries.nonEmptyLine(containing: 3), "line \(index)")
+            XCTAssertEqual(host.calls, ["lineForIndex"], "line \(index)")
+        }
+    }
+
+    func test_nonEmptyLine_acceptsTheLastPlausibleLine() {
+        let last = AXTextGeometryResolver.LineGeometryQueries.lineIndexLimit - 1
+        let host = ScriptedLineHost(
+            lineForOffset: { _ in last },
+            lines: [last: (NSRange(location: 0, length: 5), .zero)]
+        )
+
+        XCTAssertEqual(host.queries.nonEmptyLine(containing: 3)?.index, last)
+    }
+
+    func test_nonEmptyLine_isNilWhenTheHostDeclinesEitherQuery() {
+        let noLine = ScriptedLineHost(lineForOffset: { _ in nil }, lines: [:])
+        XCTAssertNil(noLine.queries.nonEmptyLine(containing: 3))
+        XCTAssertEqual(noLine.calls, ["lineForIndex"])
+
+        let noRange = ScriptedLineHost(lineForOffset: { _ in 2 }, lines: [:])
+        XCTAssertNil(noRange.queries.nonEmptyLine(containing: 3))
+        XCTAssertEqual(noRange.calls, ["lineForIndex", "rangeForLine"])
+    }
 }

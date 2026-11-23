@@ -139,11 +139,11 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
     // MARK: - Line-content-edge paragraph key
 
     /// Builds the paragraph from the same before-caret window `nativeTextWindow` produces: at most
-    /// `focusedTextContextWindowUTF16` units ending at the caret. Text after the caret never affects
+    /// `FocusedInputSnapshot.textWindowUTF16` units ending at the caret. Text after the caret never affects
     /// the result, so it is omitted.
     private func paragraph(document: String, caret: Int) -> FocusSnapshotResolver.LineEdgeParagraph {
         let doc = document as NSString
-        let before = min(caret, FocusSnapshotResolver.focusedTextContextWindowUTF16)
+        let before = min(caret, FocusedInputSnapshot.textWindowUTF16)
         let window = doc.substring(with: NSRange(location: caret - before, length: before))
         return FocusSnapshotResolver.lineContentEdgesParagraph(
             windowText: window,
@@ -156,7 +156,7 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
         paragraph(document: document, caret: caret).key
     }
 
-    private let window = FocusSnapshotResolver.focusedTextContextWindowUTF16
+    private let window = FocusedInputSnapshot.textWindowUTF16
 
     func testParagraphKeyUsesVisibleParagraphStartInDocumentCoordinates() {
         // The window [3904, 8000) contains the newline at 6000, so the paragraph starts at 6001 in

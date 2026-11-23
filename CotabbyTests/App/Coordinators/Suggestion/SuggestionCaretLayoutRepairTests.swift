@@ -182,7 +182,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         // so wrap/Y math would be computed against a mid-document offset.
         let cappedPrefix = String(
             repeating: "a",
-            count: FocusSnapshotResolver.focusedTextContextWindowUTF16
+            count: FocusedInputSnapshot.textWindowUTF16
         )
         let context = CotabbyTestFixtures.focusedInputContext(
             inputFrameRect: CGRect(x: 0, y: 0, width: 600, height: 400),

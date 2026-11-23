@@ -64,14 +64,19 @@ struct AXTextGeometryResolver {
         return AXHelper.cocoaRect(fromAccessibilityRect: frame)
     }
 
+    /// Throttle window shared by the Branch 2.5 static-text-run walk and `FocusSnapshotResolver`'s
+    /// deep caret BFS: short enough that caret geometry trails fast typing by at most one window,
+    /// long enough to keep a few-hundred-node AX walk off every poll tick and keystroke in
+    /// Gmail-class hosts.
+    static let walkThrottleInterval: TimeInterval = 0.1
+
+    /// The caret box's width in points: the insertion point is a position, so every branch
+    /// publishes the same thin box whatever width the host's answer had.
+    private static let caretWidth: CGFloat = 2
+
     /// Finds the best caret anchor available, preferring bounds-for-range and falling back to element frame.
     /// `cocoaAnchorFrame` is the element's AXFrame already converted to Cocoa coordinates — it serves
     /// as the ground-truth reference for detecting whether text-range rects need pixel-to-point scaling.
-    /// Throttle window for the Branch 2.5 static-text-run walk, matching the deep-walk interval:
-    /// short enough that caret geometry trails fast typing by at most one window, long enough to
-    /// keep a ~300-node AX walk off every poll tick in Gmail-class hosts.
-    private static let staticRunWalkThrottleInterval: TimeInterval = 0.1
-
     func resolveCaretRect(
         for element: AXUIElement,
         selection: NSRange,
@@ -80,7 +85,7 @@ struct AXTextGeometryResolver {
         cocoaAnchorFrame: CGRect?,
         textValue: String? = nil,
         textSelection: NSRange? = nil,
-        staticRunThrottle: StaticTextRunWalkThrottle? = nil,
+        staticRunThrottle: FocusSessionWalkThrottle<[StaticTextRun]>? = nil,
         focusChangeSequence: UInt64 = 0,
         supportsLineQueries: Bool = false
     ) -> CaretGeometryResult? {
@@ -225,14 +230,35 @@ struct AXTextGeometryResolver {
         /// `AXBoundsForRange`: character range -> its box, in Accessibility (top-left) coordinates.
         let boundsForRange: (NSRange) -> CGRect?
 
+        /// A line number at or above this is treated as a malformed answer rather than a line to
+        /// ask the host about.
+        static let lineIndexLimit = 100_000
+
+        /// The visual line holding the character at `offset` and that line's character range, or
+        /// nil when the host declines, answers an implausible line number, or names a line with no
+        /// characters (which has no box to measure). Two host round trips at most; the caller must
+        /// already know the element advertises both line attributes.
+        func nonEmptyLine(containing offset: Int) -> (index: Int, range: NSRange)? {
+            guard let index = lineForIndex(offset), index >= 0, index < Self.lineIndexLimit,
+                  let range = rangeForLine(index), range.length > 0
+            else {
+                return nil
+            }
+            return (index, range)
+        }
+
         /// The real cross-process queries against `element`.
         static func accessibility(_ element: AXUIElement) -> LineGeometryQueries {
             LineGeometryQueries(
                 lineForIndex: { index in
-                    AXHelper.parameterizedIntValue(for: "AXLineForIndex" as CFString, index: index, on: element)
+                    AXHelper.parameterizedIntValue(
+                        for: kAXLineForIndexParameterizedAttribute as CFString, parameter: index, on: element
+                    )
                 },
                 rangeForLine: { line in
-                    AXHelper.parameterizedRangeValue(for: "AXRangeForLine" as CFString, index: line, on: element)
+                    AXHelper.parameterizedRangeValue(
+                        for: kAXRangeForLineParameterizedAttribute as CFString, parameter: line, on: element
+                    )
                 },
                 boundsForRange: { range in
                     AXHelper.parameterizedRectValue(
@@ -401,7 +427,7 @@ struct AXTextGeometryResolver {
             ? fieldFrame.minY
             : fieldFrame.midY - (caretHeight / 2)
 
-        return CGRect(x: caretX, y: caretY, width: 2, height: caretHeight)
+        return CGRect(x: caretX, y: caretY, width: Self.caretWidth, height: caretHeight)
     }
 
     /// Walks AXStaticText children of a text container to find the one containing the caret,
@@ -413,7 +439,7 @@ struct AXTextGeometryResolver {
         parentSelection: NSRange,
         parentText: String,
         fallbackFrame: CGRect?,
-        staticRunThrottle: StaticTextRunWalkThrottle? = nil,
+        staticRunThrottle: FocusSessionWalkThrottle<[StaticTextRun]>? = nil,
         focusChangeSequence: UInt64 = 0
     ) -> CaretGeometryResult? {
         let parentTextLength = (parentText as NSString).length
@@ -424,12 +450,12 @@ struct AXTextGeometryResolver {
         // With a throttle, the expensive node walk is reused within the window while the
         // caret-placement math below still reruns against the live text and selection, so the
         // caret keeps tracking keystrokes inside slightly stale run frames. Deep-walk leaf calls
-        // pass no throttle: they are already bounded by `DeepGeometryWalkThrottle` upstream.
-        let textRuns: [StaticTextRunWalkThrottle.TextRun]
+        // pass no throttle: they are already bounded by the resolver's deep-walk throttle upstream.
+        let textRuns: [StaticTextRun]
         if let staticRunThrottle {
-            textRuns = staticRunThrottle.runs(
+            textRuns = staticRunThrottle.value(
                 focusChangeSequence: focusChangeSequence,
-                interval: Self.staticRunWalkThrottleInterval
+                interval: Self.walkThrottleInterval
             ) {
                 collectStaticTextRuns(from: element)
             }
@@ -534,7 +560,7 @@ struct AXTextGeometryResolver {
             caretX += charWidth * CGFloat(placement.trailingGapCharacters)
         }
         return CaretGeometryResult(
-            rect: CGRect(x: caretX, y: runFrame.minY, width: 2, height: runFrame.height),
+            rect: CGRect(x: caretX, y: runFrame.minY, width: Self.caretWidth, height: runFrame.height),
             quality: .derived,
             observedCharWidth: charWidth,
             observedContentEdges: contentEdges,
@@ -548,7 +574,7 @@ struct AXTextGeometryResolver {
     /// selection and single-line geometry. It also keeps Claude's exact-character preference and
     /// TextKit fallback as one invariant: both paths must avoid repeating the same deep AX walk.
     private func resolveWrappedRunCaret(
-        _ selectedRun: StaticTextRunWalkThrottle.TextRun,
+        _ selectedRun: StaticTextRun,
         parentText: String,
         parentSelection: NSRange,
         paragraphTextBeforeCaret: String,
@@ -596,7 +622,7 @@ struct AXTextGeometryResolver {
             rect: CGRect(
                 x: min(estimatedX, fallbackFrame.maxX),
                 y: fallbackFrame.minY,
-                width: 2,
+                width: Self.caretWidth,
                 height: fallbackFrame.height
             ),
             quality: .estimated,
@@ -673,7 +699,7 @@ struct AXTextGeometryResolver {
     /// caret shape. The trailing edge—not the character origin—is the insertion point: the right
     /// edge for left-to-right text, the left edge for right-to-left text.
     static func caretRect(afterCharacterFrame frame: CGRect, rightToLeft: Bool = false) -> CGRect {
-        CGRect(x: rightToLeft ? frame.minX : frame.maxX, y: frame.minY, width: 2, height: frame.height)
+        CGRect(x: rightToLeft ? frame.minX : frame.maxX, y: frame.minY, width: caretWidth, height: frame.height)
     }
 
     /// The character immediately before `caretLocation` (a UTF-16 offset into `text`), or nil.
@@ -683,6 +709,15 @@ struct AXTextGeometryResolver {
         guard caretLocation <= nsText.length else { return nil }
         let clusterRange = nsText.rangeOfComposedCharacterSequence(at: caretLocation - 1)
         return nsText.substring(with: clusterRange).first
+    }
+
+    /// What the zero-length caret answer needs to be finished (see `zeroLengthCaretResult`).
+    private struct ZeroLengthCaretContext {
+        let element: AXUIElement
+        let caretLocation: Int
+        let supportsLineQueries: Bool
+        let anchorFrame: CGRect?
+        let isAtTextEndAfterNewline: Bool
     }
 
     /// Finishes a zero-length caret answer. Its x is trustworthy in every measured host, but its
@@ -695,15 +730,6 @@ struct AXTextGeometryResolver {
     /// sits past that line's trailing break. Hosts without line queries keep the rect as answered,
     /// except the trailing-break-at-end case, which is demoted to `.estimated` so the card shows
     /// rather than an inline ghost on the wrong line.
-    /// What the zero-length caret answer needs to be finished (see `zeroLengthCaretResult`).
-    private struct ZeroLengthCaretContext {
-        let element: AXUIElement
-        let caretLocation: Int
-        let supportsLineQueries: Bool
-        let anchorFrame: CGRect?
-        let isAtTextEndAfterNewline: Bool
-    }
-
     private func zeroLengthCaretResult(_ rect: CGRect, context: ZeroLengthCaretContext) -> CaretGeometryResult {
         if context.supportsLineQueries,
            let lineBox = lineBoxForCaret(
@@ -728,21 +754,11 @@ struct AXTextGeometryResolver {
     /// line, which the host does not enumerate; that box is the reported one moved down by its
     /// own height.
     private func lineBoxForCaret(element: AXUIElement, caretLocation: Int, cocoaAnchorFrame: CGRect?) -> CGRect? {
-        guard let lineIndex = AXHelper.parameterizedIntValue(
-            for: kAXLineForIndexParameterizedAttribute as CFString,
-            parameter: caretLocation,
-            on: element
-        ), lineIndex >= 0, lineIndex < 100_000,
-        let lineRange = AXHelper.parameterizedRangeValue(
-            for: kAXRangeForLineParameterizedAttribute as CFString,
-            parameter: lineIndex,
-            on: element
-        ), lineRange.length > 0,
-        let raw = AXHelper.parameterizedRectValue(
-            for: kAXBoundsForRangeParameterizedAttribute as CFString,
-            range: lineRange,
-            on: element
-        ), raw.height > 0, AXHelper.rectHasFiniteComponents(raw) else {
+        let queries = LineGeometryQueries.accessibility(element)
+        guard let lineRange = queries.nonEmptyLine(containing: caretLocation)?.range,
+              let raw = queries.boundsForRange(lineRange),
+              raw.height > 0, AXHelper.rectHasFiniteComponents(raw)
+        else {
             return nil
         }
         let lineBox = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: cocoaAnchorFrame)
@@ -952,7 +968,7 @@ struct AXTextGeometryResolver {
     /// consecutive distinct run tops that can be a pitch (see `plausibleRunPitchRange`), and the
     /// median run height. Nil until two adjacent lines were seen.
     static func lineGeometry(
-        fromSingleLineRuns runs: [StaticTextRunWalkThrottle.TextRun]
+        fromSingleLineRuns runs: [StaticTextRun]
     ) -> (pitch: CGFloat?, boxHeight: CGFloat?) {
         let frames = runs.filter(\.allowsProportionalCaretPlacement).map { AXHelper.cocoaRect(fromAccessibilityRect: $0.frame) }
         guard !frames.isEmpty else { return (nil, nil) }
@@ -1070,12 +1086,12 @@ struct AXTextGeometryResolver {
     /// still tracks visual reading order in most editor trees.
     private func collectStaticTextRuns(
         from root: AXUIElement
-    ) -> [StaticTextRunWalkThrottle.TextRun] {
+    ) -> [StaticTextRun] {
         let maxDepth = 8
         let maxNodes = 300
         var visitedNodes = 0
         var seen = Set<String>()
-        var runs: [StaticTextRunWalkThrottle.TextRun] = []
+        var runs: [StaticTextRun] = []
 
         func walk(_ element: AXUIElement, depth: Int) {
             guard depth <= maxDepth, visitedNodes < maxNodes else {
@@ -1121,7 +1137,7 @@ struct AXTextGeometryResolver {
                     )
                 }
                 runs.append(
-                    StaticTextRunWalkThrottle.TextRun(
+                    StaticTextRun(
                         text: text,
                         frame: frame,
                         caretCharacterFrame: caretCharacterFrame,
@@ -1156,8 +1172,8 @@ struct AXTextGeometryResolver {
     /// whose midpoint lies nowhere near where the user is typing.
     ///
     /// Returns `true` when no anchor is supplied (cannot validate, preserve legacy behavior) or
-    /// when the rect's midpoint sits inside the anchor expanded by an 80pt halo — the same
-    /// tolerance `AXHelper.validatedCocoaTextRect` uses to decide between coordinate systems.
+    /// when the rect's midpoint sits inside the anchor expanded by `AXHelper.anchorHaloTolerance` —
+    /// the same tolerance `AXHelper.validatedCocoaTextRect` uses to decide between coordinate systems.
     ///
     /// Internal (not private) so tests can exercise the accept/reject boundary directly, without
     /// needing a live AX element that returns a controllable rect.
@@ -1165,8 +1181,7 @@ struct AXTextGeometryResolver {
         guard let anchor, !anchor.isEmpty else {
             return true
         }
-        let tolerance: CGFloat = 80
-        let expanded = anchor.insetBy(dx: -tolerance, dy: -tolerance)
+        let expanded = anchor.insetBy(dx: -AXHelper.anchorHaloTolerance, dy: -AXHelper.anchorHaloTolerance)
         return expanded.contains(CGPoint(x: cocoaRect.midX, y: cocoaRect.midY))
     }
 
@@ -1177,11 +1192,6 @@ struct AXTextGeometryResolver {
             return rect
         }
 
-        let normalizedWidth: CGFloat = 2
-        if rect.width <= 6 {
-            return CGRect(x: rect.minX, y: rect.minY, width: normalizedWidth, height: rect.height)
-        }
-
-        return CGRect(x: rect.minX, y: rect.minY, width: normalizedWidth, height: rect.height)
+        return CGRect(x: rect.minX, y: rect.minY, width: Self.caretWidth, height: rect.height)
     }
 }

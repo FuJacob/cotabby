@@ -17,7 +17,7 @@ import Foundation
 /// no size. Empty answers are retried a bounded number of times, spaced over successive polls.
 ///
 /// A reference type so it can carry state across the value-typed `FocusSnapshotResolver`'s
-/// non-mutating `resolveSnapshot`, mirroring `DeepGeometryWalkThrottle`. The resolver is constructed
+/// non-mutating `resolveSnapshot`, mirroring `FocusSessionWalkThrottle`. The resolver is constructed
 /// once and retained by `FocusTracker`.
 @MainActor
 final class FieldStyleCache {
