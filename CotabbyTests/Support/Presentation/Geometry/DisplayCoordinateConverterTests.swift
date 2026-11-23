@@ -9,7 +9,6 @@ final class DisplayCoordinateConverterTests: XCTestCase {
 
     /// Builds a display whose CoreGraphics bounds are given directly and whose AppKit frame is
     /// supplied separately (they differ only in Y for displays not aligned with the primary).
-    /// `visibleFrame` is irrelevant to conversion, so it simply mirrors the AppKit frame.
     private func display(
         appKit: CGRect,
         coreGraphics: CGRect? = nil,
@@ -17,7 +16,6 @@ final class DisplayCoordinateConverterTests: XCTestCase {
     ) -> DisplayGeometry {
         DisplayGeometry(
             appKitFrame: appKit,
-            visibleFrame: appKit,
             coreGraphicsBounds: coreGraphics ?? appKit,
             backingScaleFactor: scale
         )

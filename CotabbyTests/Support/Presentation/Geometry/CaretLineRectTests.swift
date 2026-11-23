@@ -7,7 +7,7 @@ import XCTest
 /// (`w:0 h:16.5`), which `CGRect.isEmpty` treats as empty, so the icon was hidden in exactly the
 /// field where nothing had been typed yet.
 @MainActor
-final class ActivationIndicatorCaretTests: XCTestCase {
+final class CaretLineRectTests: XCTestCase {
     func testZeroWidthCaretWithHeightPlacesTheIcon() {
         XCTAssertTrue(CGRect(x: 1332, y: 1119.5, width: 0, height: 16.5).describesCaretLine)
     }

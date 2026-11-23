@@ -35,11 +35,6 @@ nonisolated enum GhostFontStyler {
         font.fontDescriptor.symbolicTraits.contains(.bold)
     }
 
-    /// Whether `font` is italic: a true italic face, or a synthetic oblique made by this type.
-    static func isItalic(_ font: NSFont) -> Bool {
-        font.fontDescriptor.symbolicTraits.contains(.italic) || hasObliqueTransform(font)
-    }
-
     private static func boldFace(of font: NSFont) -> NSFont {
         // `NSFontManager.convert(_:toHaveTrait:)` looks for the bold member of the same family and
         // returns the font unchanged when the family has none, so the trait is checked afterwards
@@ -61,10 +56,5 @@ nonisolated enum GhostFontStyler {
         let size = font.pointSize
         let transform = AffineTransform(m11: size, m12: 0, m21: syntheticObliqueShear * size, m22: size, tX: 0, tY: 0)
         return NSFont(descriptor: font.fontDescriptor, textTransform: transform) ?? font
-    }
-
-    /// A synthetic oblique shows only in the text matrix: its descriptor still names the upright face.
-    private static func hasObliqueTransform(_ font: NSFont) -> Bool {
-        font.textTransform.m21 != 0
     }
 }

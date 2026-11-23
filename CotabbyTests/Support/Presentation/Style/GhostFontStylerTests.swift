@@ -8,6 +8,12 @@ import XCTest
 final class GhostFontStylerTests: XCTestCase {
     private let helvetica = NSFont(name: "Helvetica", size: 15)!
 
+    /// A true italic face, or a synthetic oblique: that shows only in the text matrix, its
+    /// descriptor still naming the upright face.
+    private func isItalic(_ font: NSFont) -> Bool {
+        font.fontDescriptor.symbolicTraits.contains(.italic) || font.textTransform.m21 != 0
+    }
+
     func test_noStyleReturnsTheHostFontItself() {
         XCTAssertEqual(GhostFontStyler.styled(helvetica, bold: false, italic: false), helvetica)
     }
@@ -16,7 +22,7 @@ final class GhostFontStylerTests: XCTestCase {
         let bold = GhostFontStyler.styled(helvetica, bold: true, italic: false)
 
         XCTAssertTrue(GhostFontStyler.isBold(bold))
-        XCTAssertFalse(GhostFontStyler.isItalic(bold))
+        XCTAssertFalse(isItalic(bold))
         XCTAssertEqual(bold.familyName, "Helvetica")
         XCTAssertEqual(bold.pointSize, 15)
     }
@@ -34,7 +40,7 @@ final class GhostFontStylerTests: XCTestCase {
         let both = GhostFontStyler.styled(helvetica, bold: true, italic: true)
 
         XCTAssertTrue(GhostFontStyler.isBold(both))
-        XCTAssertTrue(GhostFontStyler.isItalic(both))
+        XCTAssertTrue(isItalic(both))
         XCTAssertEqual(both.familyName, "Helvetica")
     }
 
@@ -43,7 +49,7 @@ final class GhostFontStylerTests: XCTestCase {
         let both = GhostFontStyler.styled(system, bold: true, italic: true)
 
         XCTAssertTrue(GhostFontStyler.isBold(both))
-        XCTAssertTrue(GhostFontStyler.isItalic(both))
+        XCTAssertTrue(isItalic(both))
         XCTAssertEqual(both.pointSize, 13)
     }
 
@@ -57,7 +63,7 @@ final class GhostFontStylerTests: XCTestCase {
         XCTAssertEqual(bold.pointSize, 14)
 
         let italic = GhostFontStyler.styled(single, bold: false, italic: true)
-        XCTAssertTrue(GhostFontStyler.isItalic(italic))
+        XCTAssertTrue(isItalic(italic))
         XCTAssertEqual(italic.fontName, single.fontName, "a synthetic oblique keeps the face")
         XCTAssertEqual(italic.pointSize, 14, accuracy: 0.01)
     }
