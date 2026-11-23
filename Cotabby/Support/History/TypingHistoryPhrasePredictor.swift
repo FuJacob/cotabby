@@ -2,7 +2,7 @@ import Foundation
 
 /// Predicts the rest of a phrase the user has typed many times before, without a model.
 ///
-/// The idea: after "Best regards," the user writes "Senad" nearly every time; after "let me know"
+/// The idea: after "Best regards," the user writes "Robin" nearly every time; after "let me know"
 /// they usually write "if you have any questions." A word-level n-gram table built from history
 /// answers those instantly and in the user's exact wording, which a general model can only guess.
 ///
@@ -28,7 +28,7 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
     private static let backoffMinimumShare = 0.7
     /// Marks a context word history has never seen, so the three-word lookup misses cleanly.
     private static let unknownToken: Int32 = -1
-    /// A one-word shortcut ("Senad" after "Best regards,") needs more evidence than a longer chain,
+    /// A one-word shortcut ("Robin" after "Best regards,") needs more evidence than a longer chain,
     /// because a single common word is more likely to be a coincidence.
     private static let minimumSingleWordCount: Int32 = 5
     private static let newlineToken = "\n"
@@ -46,7 +46,7 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
 
     /// Lowercased token -> id. Ids index `displayForms`.
     private let vocabulary: [String: Int32]
-    /// The spelling to insert for each token, as the user last wrote it ("Senad", "POC").
+    /// The spelling to insert for each token, as the user last wrote it ("Robin", "POC").
     private let displayForms: [String]
     /// Next-token counts for contexts seen at least `minimumCount` times.
     private let continuations: [Context: [Int32: Int32]]
@@ -122,7 +122,7 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
     /// The exact text to insert after `precedingText`, or nil when history is not confident.
     ///
     /// When the caret is inside a word ("Best reg"), the typed letters filter the first word and
-    /// only its untyped remainder is returned ("ards, Senad"). Otherwise the result starts with
+    /// only its untyped remainder is returned ("ards, Robin"). Otherwise the result starts with
     /// the separating space.
     func continuation(after precedingText: String, limits: Limits) -> String? {
         let endsAtBoundary = precedingText.last.map { $0.isWhitespace } ?? true

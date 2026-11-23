@@ -36,11 +36,11 @@ final class TypingHistoryPhraseEngineTests: XCTestCase {
     }
 
     func test_confidentPhraseAnswersWithoutCallingTheModel() async throws {
-        let (engine, base, _) = makeEngine(phrase: " Senad")
+        let (engine, base, _) = makeEngine(phrase: " Robin")
 
         let result = try await engine.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
 
-        XCTAssertEqual(result.text, " Senad")
+        XCTAssertEqual(result.text, " Robin")
         XCTAssertTrue(result.spacingIsExact)
         XCTAssertEqual(base.calls, 0)
     }

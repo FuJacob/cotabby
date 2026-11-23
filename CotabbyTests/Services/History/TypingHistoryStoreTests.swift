@@ -99,7 +99,7 @@ final class TypingHistoryStoreTests: XCTestCase {
     private func signOffRows(count: Int) -> [[String: Any]] {
         (0..<count).map { index in
             ["appBundleIdentifier": "com.microsoft.Outlook",
-             "textUpToCursor": "Topic \(index): the Imperum POC with Sentinel is going well.\nThanks!\nBest regards, Senad"]
+             "textUpToCursor": "Topic \(index): the Contoso POC with Sentinel is going well.\nThanks!\nBest regards, Robin"]
         }
     }
 
@@ -109,7 +109,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         let vault = makeVault()
         let record = TypingHistoryRecord(
             id: UUID(), bundleIdentifier: "com.apple.mail", domain: nil, createdAt: Date(), updatedAt: Date(),
-            text: "A very private sentence about the Imperum POC.", source: .recorded
+            text: "A very private sentence about the Contoso POC.", source: .recorded
         )
 
         try vault.save([record])
@@ -159,11 +159,11 @@ final class TypingHistoryStoreTests: XCTestCase {
 
         let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Thanks!\nBest regards, ")
         await waitUntil { store.phraseContinuation(for: request, engine: .appleIntelligence) != nil }
-        XCTAssertEqual(store.phraseContinuation(for: request, engine: .appleIntelligence), "Senad")
+        XCTAssertEqual(store.phraseContinuation(for: request, engine: .appleIntelligence), "Robin")
 
         let context = CotabbyTestFixtures.focusedInputContext(
             bundleIdentifier: "com.microsoft.Outlook",
-            precedingText: "Topic update: the Imperum POC with Sentinel is going well, the connectors look fine and stable today "
+            precedingText: "Topic update: the Contoso POC with Sentinel is going well, the connectors look fine and stable today "
         )
         XCTAssertFalse(store.historyExamples(for: context, engine: .llamaOpenSource).isEmpty)
     }
@@ -176,7 +176,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         await waitUntil { store.phraseContinuation(for: request, engine: .appleIntelligence) != nil }
         let context = CotabbyTestFixtures.focusedInputContext(
             bundleIdentifier: "com.microsoft.Outlook",
-            precedingText: "Topic update: the Imperum POC with Sentinel is going well, the connectors look fine and stable today "
+            precedingText: "Topic update: the Contoso POC with Sentinel is going well, the connectors look fine and stable today "
         )
 
         XCTAssertNil(store.phraseContinuation(for: request, engine: .openAICompatible))
@@ -226,8 +226,8 @@ final class TypingHistoryStoreTests: XCTestCase {
         let store = makeStore()
         store.setRecording(true)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC")) { true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.")) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC")) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.")) { true }
         XCTAssertEqual(store.recordCount, 0, "The field being typed in is not committed yet")
 
         store.observe(focus("", element: "other")) { true }
@@ -252,7 +252,7 @@ final class TypingHistoryStoreTests: XCTestCase {
     func test_recordingOffRecordsNothing() {
         let store = makeStore()
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.")) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.")) { true }
         store.observe(focus("", element: "other")) { true }
 
         XCTAssertEqual(store.recordCount, 0)
@@ -263,9 +263,9 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.setRecording(true)
         let unsupported = FocusSnapshot(applicationName: "Mail", bundleIdentifier: "com.apple.mail", capability: .unsupported("blip"), context: nil)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready")) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready")) { true }
         store.observe(unsupported) { true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.")) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.")) { true }
         store.observe(focus("", element: "other")) { true }
 
         XCTAssertEqual(store.recordCount, 1)
@@ -327,9 +327,9 @@ final class TypingHistoryStoreTests: XCTestCase {
         let store = makeStore()
         store.setRecording(true)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready", element: "body", sequence: 1)) { true }
         store.observe(focus("", element: "search", sequence: 2)) { true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 3)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.", element: "body", sequence: 3)) { true }
         store.observe(focus("", element: "search", sequence: 4)) { true }
 
         XCTAssertEqual(store.recordCount, 1)
@@ -339,7 +339,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         let store = makeStore()
         store.setRecording(true)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.", element: "body", sequence: 1)) { true }
         store.observe(focus("", element: "other", sequence: 2)) { true }
         store.observe(focus("A completely different message about lunch plans today.", element: "body", sequence: 3)) { true }
         store.observe(focus("", element: "other", sequence: 4)) { true }
@@ -402,8 +402,8 @@ final class TypingHistoryStoreTests: XCTestCase {
         )
         TestLifetime.retain(store)
         store.setRecording(true)
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.", element: "body", sequence: 1)) { true }
         await waitUntil { keyStore.isHoldingAWrite }
         // The background write finishes only after the quit has started waiting for it.
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { keyStore.release() }
@@ -512,7 +512,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         let store = makeStore(vault: vault)
         store.setRecording(true)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.", element: "body", sequence: 1)) { true }
         store.observe(focus("", element: "other", sequence: 2)) { true }
         // A new compose window that got the old body's element identifier, empty at first.
         store.observe(focus("", element: "body", sequence: 3)) { true }
@@ -520,7 +520,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.observe(focus("", element: "other", sequence: 4)) { true }
 
         XCTAssertEqual(try storedTexts(store, vault: vault), [
-            "Hi Arnaud, the Imperum POC is ready for review.",
+            "Hi Marcel, the Contoso POC is ready for review.",
             "Lunch at noon tomorrow works for me, see you."
         ])
     }
@@ -530,18 +530,18 @@ final class TypingHistoryStoreTests: XCTestCase {
         let store = makeStore(vault: vault)
         store.setRecording(true)
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready", element: "body", sequence: 1)) { true }
         store.observe(focus("", element: "body", sequence: 1)) { true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready for review.", element: "body", sequence: 1)) { true }
         store.observe(focus("", element: "other", sequence: 2)) { true }
 
-        XCTAssertEqual(try storedTexts(store, vault: vault), ["Hi Arnaud, the Imperum POC is ready for review."])
+        XCTAssertEqual(try storedTexts(store, vault: vault), ["Hi Marcel, the Contoso POC is ready for review."])
     }
 
     func test_deletingAFieldsTextKeyByKeyStillDiscardsIt() {
         let store = makeStore()
         store.setRecording(true)
-        let text = "Hi Arnaud, the Imperum POC is ready for review."
+        let text = "Hi Marcel, the Contoso POC is ready for review."
         store.observe(focus(text, element: "body", sequence: 1)) { true }
         store.flush()
         XCTAssertEqual(store.recordCount, 1)
@@ -611,10 +611,10 @@ final class TypingHistoryStoreTests: XCTestCase {
     }
 
     func test_keepsMostOfTellsEditsFromReplacements() {
-        let draft = "Hi Arnaud, the Imperum POC is ready for review."
+        let draft = "Hi Marcel, the Contoso POC is ready for review."
 
         XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: draft + " Thanks"), "Typing at the end")
-        XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: "Hello Arnaud, the Imperum POC is ready for review."),
+        XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: "Hello Marcel, the Contoso POC is ready for review."),
                       "Fixing the first word")
         XCTAssertTrue(TypingHistoryStore.keepsMostOf(draft, in: String(draft.dropLast(5))), "Deleting a few characters")
         XCTAssertFalse(TypingHistoryStore.keepsMostOf(draft, in: ""), "A sent message cleared from the composer")
@@ -628,10 +628,10 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.setUsingHistory(true)
         await store.importCotypistExport(from: try writeExport([[
             "appBundleIdentifier": "com.example.TestApp",
-            "textUpToCursor": "we will review the Imperum connector plan with the SOC team on Monday morning, then ship it."
+            "textUpToCursor": "we will review the Contoso connector plan with the SOC team on Monday morning, then ship it."
         ]]))
         // 16 words: the query block for both lookups below.
-        let opening = "Draft notes for Friday about unrelated budget items we will review the Imperum connector plan with "
+        let opening = "Draft notes for Friday about unrelated budget items we will review the Contoso connector plan with "
         let earlier = CotabbyTestFixtures.focusedInputContext(precedingText: opening)
         // Five more words, still inside the same 8-word block, and now the field holds the past text.
         let later = CotabbyTestFixtures.focusedInputContext(precedingText: opening + "the SOC team on Monday")
@@ -652,13 +652,13 @@ final class TypingHistoryStoreTests: XCTestCase {
     /// first store kept its examples on purpose rather than by coincidence.
     func test_shownExamplesStayWhileTheyRemainHighlyRanked() async throws {
         let rows: [[String: Any]] = [
-            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "The Imperum connector plan review moved to Monday with the steering group."],
-            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "Connector plan notes are ready for the Imperum steering group on Monday."],
+            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "The Contoso connector plan review moved to Monday with the steering group."],
+            ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "Connector plan notes are ready for the Contoso steering group on Monday."],
             ["appBundleIdentifier": "com.example.TestApp", "textUpToCursor": "Detections rollout for the SOC analysts starts after the dashboard migration."]
         ]
         // Exactly 8 words, then exactly 16: each is one whole query block. The second block's new
         // words all belong to the third passage, so a fresh ranking puts it first.
-        let opening = "Notes for Monday about the Imperum connector plan "
+        let opening = "Notes for Monday about the Contoso connector plan "
         let later = opening + "SOC analysts detections rollout after the dashboard migration "
 
         let sticky = makeStore()
@@ -693,16 +693,16 @@ final class TypingHistoryStoreTests: XCTestCase {
     func test_anExampleHiddenByTheFieldsLatestWordsComesBackWhenTheWordingMovesOn() async throws {
         let store = makeStore()
         store.setUsingHistory(true)
-        let earlier = "we will review the Imperum connector plan with the SOC team on Monday morning, then ship it."
+        let earlier = "we will review the Contoso connector plan with the SOC team on Monday morning, then ship it."
         await store.importCotypistExport(from: try writeExport([[
             "appBundleIdentifier": "com.example.TestApp", "textUpToCursor": earlier
         ]]))
         let probe = CotabbyTestFixtures.focusedInputContext(
-            elementIdentifier: "probe", precedingText: "Imperum connector plan review notes for the steering group "
+            elementIdentifier: "probe", precedingText: "Contoso connector plan review notes for the steering group "
         )
         await waitUntil { !store.historyExamples(for: probe, engine: .llamaOpenSource).isEmpty }
         // The field's latest words are inside the earlier passage, so it is withheld for now.
-        let echoing = "Budget notes for Friday and several other items: please review the Imperum connector plan with "
+        let echoing = "Budget notes for Friday and several other items: please review the Contoso connector plan with "
             + "the SOC team on Monday"
         XCTAssertEqual(
             store.historyExamples(for: CotabbyTestFixtures.focusedInputContext(precedingText: echoing), engine: .llamaOpenSource), []
@@ -721,8 +721,8 @@ final class TypingHistoryStoreTests: XCTestCase {
         store.setRecording(true)
         var gateCalls = 0
 
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
-        store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
+        store.observe(focus("Hi Marcel, the Contoso POC is ready", element: "body", sequence: 1)) { gateCalls += 1; return true }
 
         XCTAssertEqual(gateCalls, 1)
     }

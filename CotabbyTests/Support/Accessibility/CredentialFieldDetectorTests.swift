@@ -65,9 +65,9 @@ final class CredentialFieldDetectorTests: XCTestCase {
 
     func test_typedAddressIsBlockedEvenWithoutLabel() {
         XCTAssertTrue(CredentialFieldDetector.isCredentialField(
-            role: textField, labels: [], domIdentifier: nil, text: "senad@imperum.io"
+            role: textField, labels: [], domIdentifier: nil, text: "robin@example.com"
         ))
-        XCTAssertFalse(CredentialFieldDetector.looksLikeAddressEntry("mail senad@imperum.io today"))
+        XCTAssertFalse(CredentialFieldDetector.looksLikeAddressEntry("mail robin@example.com today"))
     }
 
     func test_addressBeingTypedIsBlockedBeforeItIsComplete() {

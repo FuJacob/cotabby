@@ -8,12 +8,12 @@ final class PromptPrefaceEchoFilterTests: XCTestCase {
         // Measured in ChatGPT with the Open Source engine.
         XCTAssertEqual(PromptPrefaceEchoFilter.truncated("4 5.6 Sol\nThe user usually writes in"), "4 5.6 Sol")
         XCTAssertEqual(PromptPrefaceEchoFilter.truncated(" the agenda. Nearby on screen: Inbox"), " the agenda.")
-        XCTAssertEqual(PromptPrefaceEchoFilter.truncated("Notes the writer keeps in mind: Imperum"), "")
+        XCTAssertEqual(PromptPrefaceEchoFilter.truncated("Notes the writer keeps in mind: Contoso"), "")
     }
 
     func testLineStartPhrasesOnlyCountAtTheStartOfALine() {
         XCTAssertEqual(PromptPrefaceEchoFilter.truncated(" a book written by her"), " a book written by her")
-        XCTAssertEqual(PromptPrefaceEchoFilter.truncated(" thanks,\nWritten by Senad."), " thanks,")
+        XCTAssertEqual(PromptPrefaceEchoFilter.truncated(" thanks,\nWritten by Robin."), " thanks,")
         XCTAssertEqual(PromptPrefaceEchoFilter.truncated("Writing style: concise"), "")
     }
 
@@ -71,10 +71,10 @@ final class PromptPrefaceEchoFilterTests: XCTestCase {
     private static func fullPrompt(surfaceClass: AppSurfaceClass) -> String {
         BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            userName: "Senad",
+            userName: "Robin",
             trailingText: "rest of the passage",
             customRules: ["concise"],
-            extendedContext: "Imperum builds a SOC platform.",
+            extendedContext: "Contoso builds a SOC platform.",
             languageInstruction: LanguageCatalog.promptInstruction(for: ["en", "tr"]),
             clipboardContext: "copied text",
             visualContextSummary: "screen text",

@@ -15,7 +15,7 @@ final class TypingHistoryModelsTests: XCTestCase {
     /// part before the caret is learned from. A record written before the caret split existed, or
     /// whose split no longer falls inside its text, counts whole.
     func test_typedText_isThePartBeforeTheCaretWhenTheSplitIsKnown() {
-        XCTAssertEqual(record("Thanks!\n\nOn Monday Luuk wrote:", typedLength: 7).typedText, "Thanks!")
+        XCTAssertEqual(record("Thanks!\n\nOn Monday Alex wrote:", typedLength: 7).typedText, "Thanks!")
         XCTAssertEqual(record("Thanks!", typedLength: 0).typedText, "", "nothing was typed before the caret")
         XCTAssertEqual(record("Thanks!", typedLength: nil).typedText, "Thanks!")
         XCTAssertEqual(record("Thanks!", typedLength: 40).typedText, "Thanks!")

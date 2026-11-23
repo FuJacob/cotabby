@@ -60,40 +60,40 @@ final class TypingHistoryPhrasePredictorTests: XCTestCase {
     }
 
     func test_singleWordShortcutNeedsStrongerEvidence() {
-        let three = Array(repeating: "Thanks for the update.\nBest regards, Senad\nImperum", count: 3)
-        let six = Array(repeating: "Thanks for the update.\nBest regards, Senad\nImperum", count: 6)
+        let three = Array(repeating: "Thanks for the update.\nBest regards, Robin\nContoso", count: 3)
+        let six = Array(repeating: "Thanks for the update.\nBest regards, Robin\nContoso", count: 6)
 
         XCTAssertNil(predictor(three).continuation(after: "Thanks!\nBest regards, ", limits: limits))
-        XCTAssertEqual(predictor(six).continuation(after: "Thanks!\nBest regards, ", limits: limits), "Senad")
+        XCTAssertEqual(predictor(six).continuation(after: "Thanks!\nBest regards, ", limits: limits), "Robin")
     }
 
     func test_newlineContinuesOnlyWhenMultiLineIsAllowed() {
-        let history = Array(repeating: "Thanks for your time.\nKind regards,\nSenad Aruc\nImperum B.V.", count: 6)
+        let history = Array(repeating: "Thanks for your time.\nKind regards,\nRobin Lund\nContoso B.V.", count: 6)
         let multiLine = TypingHistoryPhrasePredictor.Limits(maxWords: 12, allowsNewlines: true)
 
         XCTAssertNil(predictor(history).continuation(after: "Thanks for your time.\nKind regards,", limits: limits))
         XCTAssertEqual(
             predictor(history).continuation(after: "Thanks for your time.\nKind regards,", limits: multiLine),
-            "\nSenad Aruc\nImperum B.V."
+            "\nRobin Lund\nContoso B.V."
         )
     }
 
     func test_outputUsesTheUsersSpellingAndRespectsTheWordLimit() {
-        let history = Array(repeating: "we will start the imperum POC with the SOC team next Monday morning", count: 4)
+        let history = Array(repeating: "we will start the contoso POC with the SOC team next Monday morning", count: 4)
         let twoWords = TypingHistoryPhrasePredictor.Limits(maxWords: 2, allowsNewlines: false)
 
-        XCTAssertEqual(predictor(history).continuation(after: "Then we will start the ", limits: twoWords), "imperum POC")
+        XCTAssertEqual(predictor(history).continuation(after: "Then we will start the ", limits: twoWords), "contoso POC")
     }
 
     func test_twoWordFallbackAnswersWhenTheThirdWordIsNew() {
         // "Kind regards," follows many different sentences, so the three-word context before it is
         // rarely the same; the two-word fallback still knows what comes next.
-        let history = (0..<6).map { "Topic number \($0) is done.\nKind regards,\nSenad" }
+        let history = (0..<6).map { "Topic number \($0) is done.\nKind regards,\nRobin" }
         let multiLine = TypingHistoryPhrasePredictor.Limits(maxWords: 12, allowsNewlines: true)
 
         XCTAssertEqual(
             predictor(history).continuation(after: "Something never seen before.\nKind regards,", limits: multiLine),
-            "\nSenad"
+            "\nRobin"
         )
     }
 
@@ -101,8 +101,8 @@ final class TypingHistoryPhrasePredictorTests: XCTestCase {
         // The quoted thread after the caret is someone else's writing; their name must not become
         // the user's sign-off.
         let records = (0..<6).map { _ -> TypingHistoryRecord in
-            let typed = "Thanks for the update.\nBest regards, Senad"
-            let quoted = "\n\nOn Monday Luuk wrote:\nThanks for the update.\nBest regards, Luuk"
+            let typed = "Thanks for the update.\nBest regards, Robin"
+            let quoted = "\n\nOn Monday Alex wrote:\nThanks for the update.\nBest regards, Alex"
             var record = record(typed + quoted)
             record.typedLength = typed.count
             return record
@@ -110,7 +110,7 @@ final class TypingHistoryPhrasePredictorTests: XCTestCase {
 
         XCTAssertEqual(
             TypingHistoryPhrasePredictor(records: records).continuation(after: "Done.\nBest regards, ", limits: limits),
-            "Senad"
+            "Robin"
         )
     }
 

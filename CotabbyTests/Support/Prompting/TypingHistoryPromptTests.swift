@@ -9,10 +9,10 @@ final class TypingHistoryPromptTests: XCTestCase {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "The POC is",
             userName: nil,
-            historyExamples: ["The Imperum POC starts Monday."]
+            historyExamples: ["The Contoso POC starts Monday."]
         )
 
-        XCTAssertTrue(prompt.contains("Earlier writing by the same author:\n“The Imperum POC starts Monday.”"))
+        XCTAssertTrue(prompt.contains("Earlier writing by the same author:\n“The Contoso POC starts Monday.”"))
         XCTAssertTrue(prompt.hasSuffix("The POC is"), "The caret text must stay last")
     }
 
@@ -37,18 +37,18 @@ final class TypingHistoryPromptTests: XCTestCase {
     }
 
     func test_foundationPromptCarriesExamples() {
-        let request = CotabbyTestFixtures.suggestionRequest(historyExamples: ["The Imperum POC starts Monday."])
+        let request = CotabbyTestFixtures.suggestionRequest(historyExamples: ["The Contoso POC starts Monday."])
 
         let prompt = FoundationModelPromptRenderer.prompt(for: request)
 
-        XCTAssertTrue(prompt.contains("\"The Imperum POC starts Monday.\""))
-        XCTAssertFalse(FoundationModelPromptRenderer.sessionInstructions(for: request).contains("Imperum"),
+        XCTAssertTrue(prompt.contains("\"The Contoso POC starts Monday.\""))
+        XCTAssertFalse(FoundationModelPromptRenderer.sessionInstructions(for: request).contains("Contoso"),
                        "Examples stay out of the cached instructions")
     }
 
     func test_factoryDropsExamplesForTheEndpointEngine() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "The POC is")
-        let examples = ["The Imperum POC starts Monday."]
+        let examples = ["The Contoso POC starts Monday."]
 
         let endpoint = SuggestionRequestFactory.buildRequest(
             context: context, settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .openAICompatible),
@@ -60,8 +60,8 @@ final class TypingHistoryPromptTests: XCTestCase {
         ).request
 
         XCTAssertEqual(endpoint.historyExamples, [])
-        XCTAssertFalse(endpoint.prompt.contains("Imperum"))
+        XCTAssertFalse(endpoint.prompt.contains("Contoso"))
         XCTAssertEqual(local.historyExamples, examples)
-        XCTAssertTrue(local.prompt.contains("Imperum"))
+        XCTAssertTrue(local.prompt.contains("Contoso"))
     }
 }
