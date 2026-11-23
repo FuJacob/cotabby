@@ -16,10 +16,10 @@ import SwiftUI
 /// so the demos cannot drift from what the features actually draw.
 ///
 /// Lifecycle: each typing card holds one `DemoTypingPhase` and plays its `DemoTypingTimeline` from a
-/// `.task`, which SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
-/// height so the onboarding window never resizes mid-loop. Continuous looping is skipped when the
-/// system Reduce Motion setting is on (or when not animating, see below), in which case the card
-/// shows a static accepted state.
+/// `.task`, which SwiftUI cancels automatically when the view leaves the hierarchy. Each card also
+/// keeps a *fixed* height so the onboarding window never resizes mid-loop. Continuous looping is
+/// skipped when the system Reduce Motion setting is on (or when not animating, see below), in which
+/// case the card shows a static resting frame.
 ///
 /// `autoplay`: the one-time onboarding screen passes `true` so the demos play on their own. The
 /// persistent Settings Home pane passes `false`, which keeps the loops idle (static resting frame)

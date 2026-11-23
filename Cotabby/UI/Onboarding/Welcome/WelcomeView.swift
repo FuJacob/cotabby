@@ -67,9 +67,9 @@ struct WelcomeView: View {
         permissionGuidanceController: PermissionGuidanceController,
         onPreferredWindowSizeChange: @escaping (NSSize) -> Void,
         onDismiss: @escaping () -> Void,
-        initialStep: WelcomeStep = .welcome,
-        isReturningUser: Bool = false,
-        onStepChange: @escaping (WelcomeStep) -> Void = { _ in }
+        initialStep: WelcomeStep,
+        isReturningUser: Bool,
+        onStepChange: @escaping (WelcomeStep) -> Void
     ) {
         self.isReturningUser = isReturningUser
         _permissionManager = ObservedObject(wrappedValue: permissionManager)
@@ -81,7 +81,6 @@ struct WelcomeView: View {
         self.onPreferredWindowSizeChange = onPreferredWindowSizeChange
         self.onDismiss = onDismiss
         self.onStepChange = onStepChange
-        // Resume at the furthest step the user previously reached; brand-new users get `.welcome`.
         _step = State(initialValue: initialStep)
         // Seed the engine before the first render so the template step never shows a frame of "Open
         // Source" selected on an Apple Intelligence-capable Mac and then snaps to it. Availability
@@ -215,7 +214,7 @@ extension WelcomeView {
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 hardware: hardware,
                 selectedEngine: selectedEngine,
-                selectedTemplate: $selectedTemplate,
+                selectedTemplate: selectedTemplate,
                 onSelectEngine: selectEngine,
                 onSelect: applyTemplate
             )

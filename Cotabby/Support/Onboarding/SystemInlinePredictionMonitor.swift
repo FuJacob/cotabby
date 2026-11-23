@@ -15,9 +15,9 @@ import Combine
 /// from System Settings after changing it; the hint then disappears on its own.
 @MainActor
 final class SystemInlinePredictionMonitor: ObservableObject {
-    /// Keyboard settings, where "Text Input › Edit…" holds the inline predictive text switch (named in the
-    /// user's language by `SystemKeyboardSettingsLabels`). The
-    /// switch itself sits in a sheet that has no deep link of its own.
+    /// Keyboard settings, where "Text Input › Edit…" holds the inline predictive text switch (named in
+    /// the user's language by `SystemKeyboardSettingsLabels`). The switch itself sits in a sheet that
+    /// has no deep link of its own.
     static let keyboardSettingsURL: URL = {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") else {
             preconditionFailure("Invalid Keyboard settings URL")

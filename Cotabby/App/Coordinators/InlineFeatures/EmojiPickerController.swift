@@ -312,12 +312,11 @@ final class EmojiPickerController {
         )
     }
 
+    /// `::` names no emoji, so it never takes the bare-`:` recents a typed-out capture would show.
     private func bestMatchForClosingColon(query: String) -> EmojiMatch? {
+        guard !query.isEmpty else { return nil }
         let lowercased = query.lowercased()
-        let results = EmojiVariantResolver.resolve(
-            matcher.matches(for: query, usage: emojiUsage()),
-            preferences: emojiPreferences()
-        )
+        let results = rankedMatches(for: query)
         if let exact = results.first(where: { $0.entry.aliases.contains(lowercased) }) {
             return exact
         }

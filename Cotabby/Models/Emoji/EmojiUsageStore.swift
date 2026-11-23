@@ -35,7 +35,7 @@ final class EmojiUsageStore {
     /// Cap on stored recents: ample for the panel (which shows ~24) while keeping the persisted blob
     /// small. Older aliases fall off the end as new emoji are committed.
     private static let recentsCap = 50
-    /// Bounds for the frequency map, which previously grew one entry per unique emoji forever.
+    /// Bounds for the frequency map, which would otherwise grow one entry per unique emoji forever.
     /// Frequency only breaks ties inside a relevance tier, so trimming the rarest entries cannot
     /// change which emoji match a query. Trimming triggers above `frequencyCap` and cuts down to
     /// `frequencyTrimTarget` so steady use does not re-sort the map on every commit.

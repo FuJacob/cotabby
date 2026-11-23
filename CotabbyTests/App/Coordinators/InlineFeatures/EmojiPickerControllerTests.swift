@@ -113,6 +113,20 @@ final class EmojiPickerControllerTests: XCTestCase {
         XCTAssertFalse(harness.panel.isVisible)
     }
 
+    func test_doubleColonInsertsNothingEvenWhileRecentsAreShown() {
+        let harness = makeHarness(precedingText: "::")
+        harness.usage.snapshot = EmojiUsageSnapshot(recentAliases: ["smile"], frequency: [:])
+        harness.type(":")
+        XCTAssertEqual(harness.panel.presentations.last?.glyphs.first, "😄", "A bare `:` shows the recents")
+
+        harness.type(":")
+        drainInlineFeatureMainQueue()
+
+        XCTAssertTrue(harness.inserter.calls.isEmpty, "`::` names no emoji, so the recents are not a match")
+        XCTAssertTrue(harness.usage.recorded.isEmpty)
+        XCTAssertFalse(harness.panel.isVisible)
+    }
+
     func test_panelClickCommitsTheClickedRow() {
         let harness = makeHarness()
         harness.type(":smile")

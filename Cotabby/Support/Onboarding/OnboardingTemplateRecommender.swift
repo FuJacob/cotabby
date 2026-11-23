@@ -21,9 +21,9 @@ enum OnboardingTemplateRecommender {
 
     /// Resolves the model and behavior flags for a template under an explicitly chosen engine.
     ///
-    /// The engine is now picked by the user at the top of the onboarding step rather than inferred
-    /// from the tier, so a tier only contributes its behavior flags. Apple Intelligence downloads
-    /// nothing; Open Source maps each tier to its local GGUF.
+    /// The user picks the engine at the top of the onboarding step, independently of the tier, so a
+    /// tier only contributes its behavior flags. Apple Intelligence downloads nothing; Open Source
+    /// maps each tier to its local GGUF.
     static func resolvePlan(
         for template: OnboardingTemplate,
         engine: SuggestionEngineKind

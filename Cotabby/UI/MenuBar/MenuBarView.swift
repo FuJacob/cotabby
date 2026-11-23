@@ -555,7 +555,7 @@ private enum MenuBarWindowChromeConfigurator {
 }
 
 /// The week-later reminder card in the menu bar popover (see `InlinePredictionNudge`).
-struct InlinePredictionReminderCard: View {
+private struct InlinePredictionReminderCard: View {
     let onOpenSettings: () -> Void
     let onDismiss: () -> Void
 

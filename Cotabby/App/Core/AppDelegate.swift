@@ -5,9 +5,8 @@ import Logging
 
 /// File overview:
 /// Starts the long-lived services that power permissions, focus tracking, suggestion generation,
-/// overlay rendering, acceptance, and app updates. Dependency construction now lives in
-/// `CotabbyAppEnvironment`, while `AppDelegate` focuses on lifecycle wiring and cross-subsystem
-/// subscriptions.
+/// overlay rendering, acceptance, and app updates. `CotabbyAppEnvironment` constructs them;
+/// `AppDelegate` owns their launch/terminate lifecycle and the cross-subsystem subscriptions.
 ///
 /// In React terms, this is the top-level container that owns the long-lived stores/services.
 /// SwiftUI renders views from these objects, but the view layer does not create or own them.
@@ -32,10 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let activationIndicatorController: ActivationIndicatorController
     private let focusDebugOverlayController: FocusDebugOverlayController?
-    /// Retained for the app's lifetime because the environment owns its own `cancellables` (the only
-    /// subscriptions wiring the focus-poll-interval setting and the global-toggle hotkey rebind to the
-    /// runtime). If the environment deallocated when `init` returned, those subscriptions would be
-    /// cancelled and both settings would silently stop working until the next relaunch.
+    /// Retained for the app's lifetime because the environment owns subscriptions nothing else holds
+    /// (focus-poll interval, global-toggle rebind, typing-history recording, power-profile switching,
+    /// endpoint discovery) and graph-internal objects that are only captured weakly. If it deallocated
+    /// when `init` returned, those would silently stop working until the next relaunch.
     private let environment: CotabbyAppEnvironment
     private var cancellables = Set<AnyCancellable>()
     private var didStartServices = false
@@ -152,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Starts runtime and polling services once AppKit reports that app launch finished.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard !Self.isRunningUnderXCTest else {
+        guard !CotabbyAppEnvironment.isRunningUnderXCTest else {
             CotabbyLogger.app.info("Unit test host detected; skipping production service startup")
             return
         }
@@ -314,13 +313,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleModelDirectoryChange() {
         runtimeModel.refreshAvailableModels()
         startRuntimeIfPreferredEngineRequiresIt()
-    }
-
-    /// Xcode's app-hosted unit tests launch the real menu-bar app binary before loading the test
-    /// bundle. Those tests instantiate focused services directly, so starting global taps, focus
-    /// polling, update checks, and the llama runtime in the host process only adds side effects and can
-    /// crash before a test assertion runs. The environment variable is supplied by XCTest only.
-    private static var isRunningUnderXCTest: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }

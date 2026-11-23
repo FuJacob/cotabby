@@ -18,10 +18,10 @@ final class MacroController {
     private let engine: MacroEngine
     private let panel: any InlinePreviewPresenting
     private let focusModel: any SuggestionFocusProviding
+    private let inputMonitor: any InlineCommandInputIntercepting
     private let inserter: any InlineCommandTextInserting
     private let isEnabled: () -> Bool
     private let acceptKeyLabel: () -> String?
-    private let isWordAcceptKey: (InputMonitorKeyEvent) -> Bool
 
     /// Invoked whenever the capture state changes (open or teardown), so the coordinator can recompute
     /// whether the active accept tap should be installed. Teardown can happen outside an `observe`
@@ -43,18 +43,18 @@ final class MacroController {
         engine: MacroEngine,
         panel: any InlinePreviewPresenting,
         focusModel: any SuggestionFocusProviding,
+        inputMonitor: any InlineCommandInputIntercepting,
         inserter: any InlineCommandTextInserting,
         isEnabled: @escaping () -> Bool,
-        acceptKeyLabel: @escaping () -> String?,
-        isWordAcceptKey: @escaping (InputMonitorKeyEvent) -> Bool
+        acceptKeyLabel: @escaping () -> String?
     ) {
         self.engine = engine
         self.panel = panel
         self.focusModel = focusModel
+        self.inputMonitor = inputMonitor
         self.inserter = inserter
         self.isEnabled = isEnabled
         self.acceptKeyLabel = acceptKeyLabel
-        self.isWordAcceptKey = isWordAcceptKey
     }
 
     func start() {
@@ -100,7 +100,7 @@ final class MacroController {
     private func triggerInput(for event: CapturedInputEvent) -> MacroTriggerInput {
         // Commit on the user's configured word-accept binding, so the macro commit stays consistent
         // with accepting a suggestion word.
-        switch InlineCommandKeyClassifier.classify(event, isWordAcceptKey: isWordAcceptKey) {
+        switch InlineCommandKeyClassifier.classify(event, isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }) {
         case let .character(character):
             return .character(character)
         case .backspace:

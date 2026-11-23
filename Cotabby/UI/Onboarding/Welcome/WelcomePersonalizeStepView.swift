@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// File overview:
-/// The onboarding personalization step. Merges what used to be two wizard screens (the "about you"
-/// name-and-languages step and the gated "writing style" custom-rules step) into one, so the flow
-/// stays four counted steps whether or not custom rules are user-facing
-/// (`CustomRulesCatalog.isUserFacingEnabled`).
+/// The onboarding personalization step: name, languages and, when custom rules are user-facing
+/// (`CustomRulesCatalog.isUserFacingEnabled`), writing style share one screen. Keeping the gated
+/// editor on this screen instead of its own step means the flow is four counted steps either way.
 ///
 /// The editors are the real settings components (`LanguageTagsEditor`, `CustomRulesEditor`)
 /// writing through `SuggestionSettingsModel`; this view only supplies onboarding's card framing.

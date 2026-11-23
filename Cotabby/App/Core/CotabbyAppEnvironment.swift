@@ -50,6 +50,14 @@ final class CotabbyAppEnvironment {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// Xcode's app-hosted unit tests launch the real menu-bar app binary before loading the test
+    /// bundle. Those tests build the services they need directly, so the host process must not touch
+    /// user data or start global taps, focus polling, update checks, or the llama runtime: that only
+    /// adds side effects and can crash before a test assertion runs. XCTest alone sets this variable.
+    static var isRunningUnderXCTest: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     init() {
         CotabbyLogger.app.info("Building dependency graph")
         let configuration = SuggestionConfiguration.standard
@@ -227,8 +235,7 @@ final class CotabbyAppEnvironment {
         )
         // Typing history owns its own encrypted archive. Inside the XCTest host it starts empty and
         // never opens the real archive or Keychain item, so tests cannot read or overwrite it.
-        let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-        let typingHistoryStore = TypingHistoryStore(loadsArchive: !isTestHost)
+        let typingHistoryStore = TypingHistoryStore(loadsArchive: !Self.isRunningUnderXCTest)
         // Phrase shortcuts answer from history before the router runs. The live engine kind is
         // read per request so a power-source switch to the endpoint stops shortcuts immediately.
         let historyAwareEngine = TypingHistoryPhraseEngine(
@@ -324,14 +331,14 @@ final class CotabbyAppEnvironment {
             engine: MacroEngine.standard(),
             panel: InlinePreviewPanelController(),
             focusModel: focusModel,
+            inputMonitor: inputMonitor,
             inserter: suggestionInserter,
             isEnabled: { suggestionSettings.isMacroExpansionEnabled },
             acceptKeyLabel: {
                 suggestionSettings.emojiPickerAcceptKeyLabel(
                     forBundleIdentifier: focusModel.snapshot.bundleIdentifier
                 )
-            },
-            isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
+            }
         )
         // One coordinator fans every keystroke out to both inline-command controllers and owns the
         // input monitor's single capture decider and interception flag, which the `:` and `/` features
