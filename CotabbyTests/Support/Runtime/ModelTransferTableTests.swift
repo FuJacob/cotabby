@@ -192,11 +192,8 @@ final class ModelTransferTableTests: XCTestCase {
         var table = runningTable(model)
         XCTAssertTrue(table.requestPause(model.id))
 
-        table.updateProgress(model.id, progress: 0.5, speedFormatted: "1MiB", etaFormatted: "9s")
-        XCTAssertEqual(
-            table.displayState(for: model.id),
-            .downloading(progress: 0.5, speedFormatted: "1MiB", etaFormatted: "9s")
-        )
+        table.updateProgress(model.id, progress: 0.5)
+        XCTAssertEqual(table.displayState(for: model.id), .downloading(progress: 0.5))
         XCTAssertEqual(table.stopIntent(for: model.id), .pause)
 
         table.finish(model.id, .completed, isInstalled: true)

@@ -6,7 +6,7 @@ import XCTest
 ///
 /// This classification matters because user cancellation surfaces as different errors at runtime
 /// (CancellationError vs URLError.cancelled depending on whether the URLSession download had started
-/// yet, or DownloadInterruption.cancelled when a backend observed the request itself) but all of
+/// yet, or DownloadInterruption.cancelled when the request landed before a session opened) but all of
 /// them should restore the prior state, never surface as a user-visible failure. Conversely, a real
 /// failure misclassified as a cancellation would silently roll back to idle and the user would never
 /// see the problem.
@@ -26,8 +26,7 @@ final class DownloadOutcomeClassifierTests: XCTestCase {
             ("URLError.timedOut", URLError(.timedOut), .failed),
             ("URLError.notConnectedToInternet", URLError(.notConnectedToInternet), .failed),
             ("URLError.badServerResponse", URLError(.badServerResponse), .failed),
-            ("Aria2DownloadError.invalidFilename", Aria2DownloadError.invalidFilename, .failed),
-            ("Aria2DownloadError.processFailed", Aria2DownloadError.processFailed(exitCode: 7, message: "network"), .failed),
+            ("ModelDownloadSessionError.alreadyStarted", ModelDownloadSessionError.alreadyStarted, .failed),
             ("NSError", NSError(domain: "TestDomain", code: 42, userInfo: nil), .failed),
             (
                 "LlamaRuntimeError.unavailable",

@@ -9,7 +9,7 @@ nonisolated enum ModelDownloadSessionError: LocalizedError, Equatable {
 }
 
 /// Bridges URLSession's callback lifecycle into one async download result with pause data.
-/// `ModelDownloadManager` owns an instance only while a fallback download is active; the lock
+/// `ModelDownloadManager` owns an instance only while a download is active; the lock
 /// serializes delegate queues, UI cancellation, and continuation completion. Each instance owns
 /// exactly one attempt because URLSession delegate completion state cannot be safely reset.
 nonisolated final class ModelDownloadSessionDelegate:

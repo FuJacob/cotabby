@@ -344,7 +344,7 @@ private struct TemplateCard: View {
             Text("Preparing download…")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-        case .downloading(let progress, _, _):
+        case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 if let progress {
                     ProgressView(value: progress)

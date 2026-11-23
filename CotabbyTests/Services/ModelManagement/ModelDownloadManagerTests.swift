@@ -155,31 +155,41 @@ final class ModelDownloadManagerTests: XCTestCase {
         XCTAssertEqual(manager.state(for: model), .downloaded)
     }
 
-    func test_inactiveCancelRemovesOnlySourceScopedResumeDirectory() throws {
-        let model = try makeModel(source: "https://example.com/second/shared.gguf")
-        let scopedDirectory = Aria2StagingDirectoryResolver.directory(
-            in: tempDir,
-            downloadURL: model.downloadURL,
-            filename: model.filename
-        )
-        let ambiguousLegacyDirectory = tempDir.appendingPathComponent(
-            ".aria2-staging-shared.gguf",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(
-            at: scopedDirectory,
-            withIntermediateDirectories: true
-        )
-        try FileManager.default.createDirectory(
-            at: ambiguousLegacyDirectory,
-            withIntermediateDirectories: true
-        )
-        let manager = makeManager()
+    /// Builds that used aria2 left hidden staging directories (possibly multi-GB partials) in the
+    /// model folder. The sweep removes exactly those and leaves models, sidecars and other hidden
+    /// entries alone.
+    func test_legacyAria2StagingSweepRemovesOnlyStagingDirectories() throws {
+        let fileManager = FileManager.default
+        let scopedStaging = tempDir.appendingPathComponent(".aria2-staging-0123456789ab-shared.gguf", isDirectory: true)
+        let filenameOnlyStaging = tempDir.appendingPathComponent(".aria2-staging-shared.gguf", isDirectory: true)
+        for directory in [scopedStaging, filenameOnlyStaging] {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try "partial".write(
+                to: directory.appendingPathComponent("shared.gguf.aria2"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+        let installedModel = tempDir.appendingPathComponent("shared.gguf")
+        let stagingNamedFile = tempDir.appendingPathComponent(".aria2-staging-not-a-directory")
+        let otherHiddenDirectory = tempDir.appendingPathComponent(".import-in-progress", isDirectory: true)
+        try "installed".write(to: installedModel, atomically: true, encoding: .utf8)
+        try "file".write(to: stagingNamedFile, atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(at: otherHiddenDirectory, withIntermediateDirectories: true)
 
-        manager.cancel(model)
+        ModelDownloadManager.removeLegacyAria2StagingDirectories(in: tempDir)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: scopedDirectory.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: ambiguousLegacyDirectory.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: scopedStaging.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: filenameOnlyStaging.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: installedModel.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: stagingNamedFile.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: otherHiddenDirectory.path))
+    }
+
+    func test_legacyAria2StagingSweepIgnoresMissingDirectory() {
+        let missing = tempDir.appendingPathComponent("missing", isDirectory: true)
+        ModelDownloadManager.removeLegacyAria2StagingDirectories(in: missing)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missing.path))
     }
 
     /// An installed destination short-circuits `download` without starting a transfer, and

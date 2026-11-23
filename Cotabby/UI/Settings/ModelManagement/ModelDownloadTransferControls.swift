@@ -60,7 +60,7 @@ struct ModelDownloadTransferControls: View {
 
     var body: some View {
         switch state {
-        case .downloading(let progress, _, _):
+        case .downloading(let progress):
             HStack(spacing: 6) {
                 downloadIndicator(progress: progress)
                 actionButton(
