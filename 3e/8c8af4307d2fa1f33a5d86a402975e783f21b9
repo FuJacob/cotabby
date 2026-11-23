@@ -1,0 +1,65 @@
+Cotabby/Support/Focus/RetryBudget.swift
+  s_b9af9eb54478c8::t_8f7bfa70af9fbc 1-47
+CotabbyTests/Support/Focus/RetryBudgetTests.swift
+  s_b9af9eb54478c8::t_eb5ba9d10f69fc 1-47
+Cotabby/Models/Focus/CaretSourceDetail.swift
+  s_b9af9eb54478c8::t_10d91b488dbb51 1-46
+CotabbyTests/Support/Focus/ChromiumPrimingPolicyTests.swift
+  s_b9af9eb54478c8::t_5f53129f4d7954 1-71
+CotabbyTests/Services/Focus/Resolution/FocusSnapshotResolverSelectionTests.swift
+  s_b9af9eb54478c8::t_8c86b3b60a9ada 116,120,365,367,370-371,373,379,381,383-389
+Cotabby/Services/Focus/FocusTracker.swift
+  s_b9af9eb54478c8::t_5c9064d6c41319 40-43,102,117-118,132,139,146,162
+  s_b9af9eb54478c8::t_47ea3dd6b40925 66-77,456,459-460,462-469
+Cotabby/Support/Focus/ChromiumPrimingPolicy.swift
+  s_b9af9eb54478c8::t_5fc678b07b328e 1-68
+Cotabby/Support/Focus/Capability/FocusCapabilityResolver.swift
+  s_b9af9eb54478c8::t_1aecee17cf3478 53-59
+CotabbyTests/TestSupport/CotabbyTestFixtures.swift
+  s_b9af9eb54478c8::t_d705bd22d20ea0 214,222
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_b9af9eb54478c8::t_161caf84648c18 875-881,887
+Cotabby/Services/Focus/Caching/HostTextMetricsCache.swift
+  s_b9af9eb54478c8::t_ac41afda4d0674 34-52,60-61,63,73-74,77-78,80,102,105,108-111,113,118-120,124-127
+CotabbyTests/Support/Focus/CodexFocusSearchTests.swift
+  s_b9af9eb54478c8::t_714173073e605d 1-195,198,200-203,205-241
+  s_b9af9eb54478c8::t_5050305fa9574c 196-197,199,204
+Cotabby/Models/Focus/FocusTrackingModel.swift
+  s_b9af9eb54478c8::t_eb9819206e1a59 52-53
+Cotabby/Support/Focus/CodexFocusSearch.swift
+  s_b9af9eb54478c8::t_9f878bed94e81a 1-139
+Cotabby/Services/Focus/Caching/FieldStyleCache.swift
+  s_b9af9eb54478c8::t_23cef890baeaa6 38-45,47,67,79,82,85,88-89,91
+CotabbyTests/Models/Focus/CaretSourceDetailTests.swift
+  s_b9af9eb54478c8::t_38c09c1fa69124 1-39
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_075bf653bace67 74,255,286-287,295,334,358,386,460,664,709,993,1154,1286,1453,1482,1492,1505,1664,1680,1877,3211,3529-3530,3533,3567-3568,3571,4176,4180,4185,4370,4539,4543,4548,4733,4892,4896,4900,5047
+Cotabby/Services/Focus/Resolution/AXTextGeometryResolver.swift
+  s_b9af9eb54478c8::t_6c46906f9e60bf 27,29,40,123,172,567,603,637,662,664,666,668-680,755,759,761
+Cotabby/Services/Focus/Chromium/ChromiumAccessibilityEnabler.swift
+  s_b9af9eb54478c8::t_0f22d50c30ff3f 22-24,31-32,44-51,57,61-83,87
+Cotabby/Services/Focus/Resolution/FocusSnapshotResolver.swift
+  s_b9af9eb54478c8::t_01a71057b32231 134-140,144,534,549,554,630,676,1160,1661-1666,1700
+CotabbyTests/Support/Presentation/Geometry/CaretGeometrySelectorTests.swift
+  s_b9af9eb54478c8::t_8381c5c031e2c1 47,53,57,92,97,101,105,113,119,122
+Cotabby/Support/Presentation/Geometry/CaretGeometrySelector.swift
+  s_b9af9eb54478c8::t_91e13bf5b88e42 25,67,118-119,122
+CotabbyTests/Support/Focus/Capability/FocusCapabilityResolverTests.swift
+  s_b9af9eb54478c8::t_07e73ffb20cbc6 61,67,70,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e8c8af4307d2fa1f33a5d86a402975e783f21b9",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
