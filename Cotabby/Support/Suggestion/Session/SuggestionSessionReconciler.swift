@@ -5,8 +5,9 @@ import Foundation
 /// state is reconciled against a buffered suggestion tail and how acceptance chunks are chosen.
 ///
 /// Architectural role:
-/// `SuggestionCoordinator` owns mutable session state. This file owns the deterministic rules for
+/// `SuggestionInteractionState` owns the mutable session state. This file owns the deterministic rules for
 /// transforming that state when new editor input arrives.
+
 /// How far the live field moved through the suggestion since the last reconciliation. Whether
 /// that exhausted it is read from the reconciled session, and the wording for logs is the
 /// coordinator's.

@@ -86,6 +86,5 @@ struct SuggestionStreamingState {
         finishGeneration()
         spellingAssessments.removeAll()
         renderedText = nil
-        pendingPartial = nil
     }
 }

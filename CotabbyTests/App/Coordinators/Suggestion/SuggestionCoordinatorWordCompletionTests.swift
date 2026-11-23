@@ -120,8 +120,9 @@ final class SuggestionCoordinatorWordCompletionTests: SuggestionCoordinatorRigTe
         _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "w"))
         publishText("Hello w", in: rig)
         rig.coordinator.schedulePrediction()
-        await waitUntil { rig.coordinator.state == .ready(text: "orld again", latency: 0.01) }
-        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "orld again")
+        await waitUntil {
+            rig.coordinator.state == .ready && rig.interactionState.activeSession?.remainingText == "orld again"
+        }
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
 

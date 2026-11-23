@@ -63,6 +63,21 @@ final class PreparedContinuationTests: XCTestCase {
         XCTAssertTrue(prepared.ownsNextPrediction)
     }
 
+    func test_awaitsItsTargetOnlyOnceCommittedAndOnlyInItsSourceField() throws {
+        var prepared = try makePrepared()
+        let sameField = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedule ")
+        let otherField = CotabbyTestFixtures.focusedInputSnapshot(
+            elementIdentifier: "other-field", precedingText: "Please schedule "
+        )
+
+        XCTAssertFalse(prepared.awaitsTarget(in: sameField), "An uncommitted source is still only the offer")
+
+        prepared.markCommitted()
+        XCTAssertTrue(prepared.awaitsTarget(in: sameField))
+        XCTAssertFalse(prepared.awaitsTarget(in: otherField), "A field switch is not the target arriving")
+        XCTAssertFalse(prepared.awaitsTarget(in: nil))
+    }
+
     func test_belongsOnlyToTheSessionItWasPreparedFor() throws {
         let prepared = try makePrepared()
         let source = prepared.sourceSession

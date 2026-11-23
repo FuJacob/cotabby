@@ -68,4 +68,40 @@ struct HostPublishBaseline: Equatable {
         let selectionChanged = current?.selection.location != selectionLocation
         return textChanged || ((elementChanged || selectionChanged) && !requiresTextChange)
     }
+
+    /// What the poll does after reading `current`, `elapsedMilliseconds` of scheduled waiting
+    /// after the keystroke. A publish is checked before the ceiling, so the read that lands on the
+    /// ceiling still counts a publish it observed.
+    ///
+    /// `awaitingPreparedTarget` holds off a publish while a committed prepared continuation names
+    /// the exact text it waits for: a replacement can publish its backspaces before its insert,
+    /// and those intermediate slices are not the user's edit.
+    func nextStep(
+        after current: FocusedInputSnapshot?,
+        awaitingPreparedTarget: Bool,
+        elapsedMilliseconds: Int
+    ) -> HostPublishPollStep {
+        if !awaitingPreparedTarget && hostMovedOn(to: current) {
+            return .published
+        }
+        if let interval = HostPublishPollSchedule.nextInterval(afterElapsedMilliseconds: elapsedMilliseconds) {
+            return .pollAgain(afterMilliseconds: interval)
+        }
+        return requiresTextChange ? .abandonAtCeiling : .generateAtCeiling
+    }
+}
+
+/// One step of the host-publish poll.
+enum HostPublishPollStep: Equatable {
+    /// The host processed the key; the prediction that waited for it may run.
+    case published
+    /// Nothing observable changed yet.
+    case pollAgain(afterMilliseconds: Int)
+    /// The ceiling passed without a change. Ordinary input generates against whatever is there:
+    /// a host that never publishes an observable change (a dead-key composition) would otherwise
+    /// never get its next prediction.
+    case generateAtCeiling
+    /// The ceiling passed without the replacement's new text. Generating would judge the same
+    /// stale word again and could correct it twice, so the next real input restarts prediction.
+    case abandonAtCeiling
 }

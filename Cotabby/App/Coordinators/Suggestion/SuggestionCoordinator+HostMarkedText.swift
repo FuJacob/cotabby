@@ -41,12 +41,7 @@ extension SuggestionCoordinator {
             hideOverlay(reason: Self.hostMarkedTextHoldReason)
         }
         if interactionState.activeSession == nil {
-            switch state {
-            case .disabled, .idle:
-                break
-            default:
-                state = .idle
-            }
+            state.settle()
         }
         if !wasHolding {
             logStage(

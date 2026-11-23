@@ -3,8 +3,8 @@ import Foundation
 
 /// File overview:
 /// Declares the shared state and dependency graph for Cotabby's inline-completion orchestrator.
-/// The behavior now lives in `SuggestionCoordinator+*.swift` files so maintainers can read the
-/// state machine by concern instead of scrolling through one monolithic source file.
+/// The behavior lives in `SuggestionCoordinator+*.swift` files so maintainers can read the state
+/// machine by concern instead of scrolling through one monolithic source file.
 ///
 /// Swift does not offer a "type-private across multiple files" access level. Because this
 /// coordinator is split across extension files, coordinator-owned mutable state uses module
@@ -14,7 +14,7 @@ import Foundation
 final class SuggestionCoordinator: ObservableObject {
     /// Coordinator-owned state machine values. Tests inspect these directly, but no UI subscribes
     /// to them, so keeping them as plain properties avoids unrelated menu re-renders.
-    var state: SuggestionDebugState = .idle
+    var state: SuggestionPipelinePhase = .idle
     var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
     var latestGenerationNumber: UInt64?
     /// True while the latest focus snapshot carried host-owned marked text (system inline
@@ -115,8 +115,8 @@ final class SuggestionCoordinator: ObservableObject {
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
     /// token, every key starts its own delayed polling chain and those chains stack up, each doing
-    /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
-    /// no-op before they can perform another expensive AX read.
+    /// synchronous `refreshNow()` calls on the main actor. `cancelHostPublishPoll()` bumps the
+    /// token, which makes older chains no-op before they can perform another expensive AX read.
     var hostPublishPollGeneration: UInt64 = 0
     /// Suppresses single-poll `Supported → Blocked → Supported` flicker on the same focused element
     /// so the overlay does not tear down and rebuild on every transient AX redraw. See
@@ -336,8 +336,7 @@ final class SuggestionCoordinator: ObservableObject {
                 self.cancelPredictionWork()
                 self.clearSuggestion()
                 self.hideOverlay(reason: "Overlay hidden because screen context was invalidated.")
-                if case .disabled = self.state { return }
-                self.state = .idle
+                self.state.settle()
             }
         }
 
