@@ -1,0 +1,65 @@
+CotabbyTests/Support/Accessibility/AXDumpValuePreviewTests.swift
+  s_9990f9098df800::t_88f910f1ace864 1-30
+Cotabby/Support/Accessibility/AXDumpValuePreview.swift
+  s_9990f9098df800::t_b27053a50a452e 1-27
+Cotabby/Support/Logging/CotabbyDebugArtifacts.swift
+  s_9990f9098df800::t_54b3e0a27ce390 1-205
+CotabbyTests/Support/Logging/CotabbyDebugArtifactsTests.swift
+  s_9990f9098df800::t_be110a68b318a7 1-174
+AGENTS.md
+  s_9990f9098df800::t_dddd9ca413d455 263-264,266-269,276-280,282-289,323
+ARCHITECTURE.md
+  s_9990f9098df800::t_36ba2e5b4d1e94 547-548,552-556
+CONTRIBUTING.md
+  s_9990f9098df800::t_a20c0ece537475 307-309
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_fa433c56a7f00b 322,400,470,633,728,747,1403,1464,1495,1598,1945,2602,2823,3122,4101,4155,4455,4509,4809,4850
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_9990f9098df800::t_23e514484379d9 230-235
+Cotabby/Services/Focus/Chromium/AXTreeDumpWriter.swift
+  s_9990f9098df800::t_4b8d4ba7cdfed0 7-8,12-17,34-36,49,57-58,62,76-78,81-83,87,91-92,95-96,104,106,116-117,122-126,133-139,144-150,161,163-164,167-168,185,196
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_9990f9098df800::t_19c1f8ff0bc9ec 61-63,110-111,116,516-518,520
+Cotabby/Services/Presentation/HostBaselineCalibrator.swift
+  s_9990f9098df800::t_a36546668a0338 261,465-470,472-475,483-485,500
+Cotabby/Services/Presentation/PixelCaretLocator.swift
+  s_9990f9098df800::t_fd0e12a3ce5c66 287,711-715,731-734,742-744,764
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_9990f9098df800::t_175a23624931ef 328-331,333-335,347-351,358-361,363-364
+Cotabby/Support/Logging/CotabbyDebugOptions.swift
+  s_9990f9098df800::t_e80103df91976f 8-11,29-40
+Cotabby/Support/Logging/FileLogHandler.swift
+  s_9990f9098df800::t_9fe97f55304e0b 37,95,128-130,133-135,137,142-152,154-155
+Cotabby/Support/Logging/LLMIOFileHandler.swift
+  s_9990f9098df800::t_1c8d9002d551ff 33,83,112-114,117-119,121,126-136,138-139
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_9990f9098df800::t_e06ecf824e103a 38,99-116
+Cotabby/UI/Settings/Panes/TypingHistorySectionView.swift
+  s_9990f9098df800::t_be087400dcc223 71-74
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_9990f9098df800::t_4aadb8346a1441 291-324
+CotabbyTests/Support/Logging/CotabbyDebugOptionsTests.swift
+  s_9990f9098df800::t_38403fdd397ab2 52-61
+CotabbyTests/Support/Logging/FileLogHandlerTests.swift
+  s_9990f9098df800::t_dca968c40fe518 244-290
+CotabbyTests/Support/Logging/LLMIOFileHandlerTests.swift
+  s_9990f9098df800::t_c33e422f0930d3 165-193
+SOURCE_LAYOUT.md
+  s_9990f9098df800::t_08a5ddb5838be7 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0e6bc6fb2198b4e48ced8a3829b2a686cc4cf709",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
