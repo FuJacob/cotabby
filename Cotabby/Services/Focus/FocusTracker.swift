@@ -315,8 +315,9 @@ final class FocusTracker {
         // `frontmostApplication`. Accessory apps with non-activating panels (Raycast, Spotlight,
         // Alfred) leave the previous app frontmost while owning the focused field, so trusting
         // frontmost there would attribute typing to the wrong app and defeat per-app disabling.
-        // For a hit-test fallback we trust the frontmost browser (`preresolvedApplication`): the
-        // element's own pid can be a renderer subprocess rather than the browser the user sees.
+        // For a hit-test fallback we attribute to the frontmost browser (`preresolvedApplication`).
+        // The fallback only adopts an element the frontmost app owns, but for a Chromium app shim the
+        // element's pid can be the host browser's, and the shim is the app the user sees and configures.
         guard let application = preresolvedApplication
             ?? AXHelper.owningApplication(of: focusedElement)
             ?? NSWorkspace.shared.frontmostApplication else {
@@ -407,7 +408,8 @@ final class FocusTracker {
     /// hit-test at the cursor and climb to the nearest editable container. Runs only for
     /// Chromium/Electron and only after the cheaper queries fail, so the native and normal-Chrome
     /// paths never reach here. The resolved element is cached and re-validated each tick via
-    /// AXFocused to avoid re-hit-testing on every poll while the field stays focused.
+    /// AXFocused to avoid re-hit-testing on every poll while the field stays focused. A hit-test
+    /// result owned by any other app is rejected (`HitTestOwnershipPolicy`).
     private func resolveChromiumFocusFallback() -> (element: AXUIElement, application: NSRunningApplication)? {
         guard let frontmost = NSWorkspace.shared.frontmostApplication,
             BrowserAppDetector.needsWebAccessibilityPriming(
@@ -431,15 +433,39 @@ final class FocusTracker {
             return (appFocused, frontmost)
         }
 
-        // Cursor hit-test: the only query that crosses the OOPIF boundary.
+        // Cursor hit-test: the only query that crosses the OOPIF boundary. It is system-wide, so the
+        // pointer can rest over another app's window; the result is attributed to `frontmost` below,
+        // so a foreign element would be read under the browser's per-app settings. Check ownership
+        // before `nearestEditable` so a foreign app's tree is never walked, and again after it,
+        // because the climb follows AXParent and must not end outside the frontmost app either.
         if let hit = AXHelper.element(atCocoaPoint: NSEvent.mouseLocation) {
+            guard frontmostOwns(hit, frontmost: frontmost) else {
+                logChromeFocusProbe(source: "hit-test-foreign", application: frontmost)
+                return nil
+            }
             let editable = AXHelper.nearestEditable(from: hit)
+            guard frontmostOwns(editable, frontmost: frontmost) else {
+                logChromeFocusProbe(source: "hit-test-foreign", application: frontmost)
+                return nil
+            }
             chromiumHitTestCache = (editable, pid)
             logChromeFocusProbe(source: "hit-test", application: frontmost)
             return (editable, frontmost)
         }
 
         return nil
+    }
+
+    /// Whether a hit-test element belongs to the frontmost app (see `HitTestOwnershipPolicy`). The
+    /// pid read is local; the bundle lookup runs only when the pids differ.
+    private func frontmostOwns(_ element: AXUIElement, frontmost: NSRunningApplication) -> Bool {
+        let elementPID = AXHelper.processIdentifier(of: element)
+        return HitTestOwnershipPolicy.belongsToFrontmostApplication(
+            elementPID: elementPID,
+            elementBundleIdentifier: elementPID.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier },
+            frontmostPID: frontmost.processIdentifier,
+            frontmostBundleIdentifier: frontmost.bundleIdentifier
+        )
     }
 
     /// Search only Codex's active window, accepting an explicitly focused editable node.

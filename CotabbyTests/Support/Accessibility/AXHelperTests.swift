@@ -242,6 +242,53 @@ final class AXHelperTests: XCTestCase {
         }
     }
 
+    // MARK: - Host range validation (pure)
+
+    /// Hosts are other processes, so a reply can carry any `CFRange`. Ranges that downstream
+    /// arithmetic would trap on (negative, or an end past `Int.max`) must arrive as "no range".
+    func test_cfRange_rejectsNegativeAndOverflowingHostRanges() throws {
+        func hostValue(_ location: Int, _ length: Int) throws -> AXValue {
+            var range = CFRange(location: location, length: length)
+            return try XCTUnwrap(AXValueCreate(.cfRange, &range))
+        }
+
+        XCTAssertEqual(try AXHelper.cfRange(from: hostValue(3, 4)), NSRange(location: 3, length: 4))
+        XCTAssertEqual(try AXHelper.cfRange(from: hostValue(0, 0)), NSRange(location: 0, length: 0))
+        // Some hosts report "no selection" as a zero-length range at NSNotFound; that shape is
+        // harmless (callers clamp it) and keeps passing as before.
+        XCTAssertEqual(
+            try AXHelper.cfRange(from: hostValue(NSNotFound, 0)),
+            NSRange(location: NSNotFound, length: 0)
+        )
+        XCTAssertEqual(
+            try AXHelper.cfRange(from: hostValue(Int.max - 5, 5)),
+            NSRange(location: Int.max - 5, length: 5)
+        )
+
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(5, -1)))
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(0, Int.min)))
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(-1, 0)))
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(Int.min, 3)))
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(Int.max, 1)))
+        XCTAssertNil(try AXHelper.cfRange(from: hostValue(1, Int.max)))
+    }
+
+    func test_cfRange_rejectsNonRangeValues() {
+        var point = CGPoint(x: 1, y: 2)
+        XCTAssertNil(AXHelper.cfRange(from: AXValueCreate(.cgPoint, &point)))
+        XCTAssertNil(AXHelper.cfRange(from: "AXSelectedTextRange" as CFString))
+        XCTAssertNil(AXHelper.cfRange(from: nil))
+    }
+
+    func test_validatedTextRange_isTheSameRuleWithoutTheCFContainer() {
+        XCTAssertEqual(
+            AXHelper.validatedTextRange(CFRange(location: 2, length: 0)),
+            NSRange(location: 2, length: 0)
+        )
+        XCTAssertNil(AXHelper.validatedTextRange(CFRange(location: 2, length: -2)))
+        XCTAssertNil(AXHelper.validatedTextRange(CFRange(location: Int.max / 2 + 1, length: Int.max / 2 + 1)))
+    }
+
     // MARK: - Invalid-pid guards (no AX needed)
 
     func test_invalidPIDGuards_failFastWithoutTouchingAX() {
