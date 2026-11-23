@@ -22,7 +22,7 @@ enum CaretGeometrySelector {
         let observedCharWidth: CGFloat?
         let observedContentEdges: ObservedContentEdges?
         /// How the chosen source placed the caret (e.g. the caret-to-run mapping mode), when it said.
-        var sourceDetail: String?
+        var sourceDetail: CaretSourceDetail?
     }
 
     /// Whether the primary (focused-input) caret geometry is too weak to trust, so the resolver
@@ -64,7 +64,7 @@ enum CaretGeometrySelector {
         primaryQuality: CaretGeometryQuality?,
         primaryObservedCharWidth: CGFloat?,
         primaryObservedContentEdges: ObservedContentEdges? = nil,
-        primarySourceDetail: String? = nil,
+        primarySourceDetail: CaretSourceDetail? = nil,
         deepResult: CaretGeometryResult?
     ) -> Selected? {
         if let primary = primaryRect, primaryQuality == .exact {
@@ -115,10 +115,10 @@ enum CaretGeometrySelector {
 
     /// Appends resolver-supplied detail (e.g. the caret-to-run mapping mode) so the debug badge
     /// and structured logs show not just which branch produced the rect but how it mapped.
-    private static func labeled(_ base: String, detail: String?) -> String {
-        guard let detail, !detail.isEmpty else {
+    private static func labeled(_ base: String, detail: CaretSourceDetail?) -> String {
+        guard let detail else {
             return base
         }
-        return "\(base) (\(detail))"
+        return "\(base) (\(detail.rawValue))"
     }
 }

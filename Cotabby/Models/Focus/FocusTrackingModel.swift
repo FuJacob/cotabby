@@ -13,7 +13,6 @@ final class FocusTrackingModel: ObservableObject {
     @Published private(set) var latestPollEvent: FocusPollingEvent?
 
     private let tracker: FocusTracker
-    private var isStarted = false
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -50,20 +49,14 @@ final class FocusTrackingModel: ObservableObject {
         }
     }
 
-    /// Starts focus observation once and treats later calls as a request for an immediate refresh.
+    /// Starts focus observation once; the tracker treats a call while it is already polling as a
+    /// request for an immediate refresh.
     func start() {
-        guard !isStarted else {
-            tracker.refreshNow()
-            return
-        }
-
-        isStarted = true
         tracker.start()
     }
 
     /// Stops observation while leaving the last captured snapshot available for UI consumers.
     func stop() {
-        isStarted = false
         tracker.stop()
     }
 

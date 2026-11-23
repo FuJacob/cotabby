@@ -35,10 +35,16 @@ final class FieldStyleCache {
         let caretHeightBucket: Int
     }
 
+    /// The answer for the current probe and what it has cost so far. Replaced whole when the probe
+    /// moves to another field or style run, so a new run never inherits the old one's spent retries.
+    private struct Resolution {
+        var style: ResolvedFieldStyle?
+        var budget = RetryBudget(maximumAttempts: FieldStyleCache.maximumAttempts)
+        var pacing = RetryPacing(interval: FieldStyleCache.retryInterval)
+    }
+
     private var probe: Probe?
-    private var style: ResolvedFieldStyle?
-    private var attempts = 0
-    private var lastAttemptAt: Date?
+    private var resolution = Resolution()
 
     /// Returns the cached style for the caret's current style run, otherwise resolves and caches.
     ///
@@ -58,7 +64,7 @@ final class FieldStyleCache {
     ) -> ResolvedFieldStyle? {
         let heightBucket = Int(caretHeight.rounded())
         if let probe, probe.fieldKey == fieldKey, probe.caretHeightBucket == heightBucket,
-           let cached = style, let run = probe.styleRun, Self.run(run, containsCaret: caretLocation) {
+           let cached = resolution.style, let run = probe.styleRun, Self.run(run, containsCaret: caretLocation) {
             return cached
         }
 
@@ -70,24 +76,19 @@ final class FieldStyleCache {
                 && probe?.styleRun?.location == nextProbe.styleRun?.location
             probe = nextProbe
             if !sameFieldSameRun {
-                style = nil
-                attempts = 0
-                lastAttemptAt = nil
+                resolution = Resolution()
             }
         }
-        if let style {
+        if let style = resolution.style {
             return style
         }
-        guard attempts < Self.maximumAttempts else {
+        guard resolution.budget.hasAttemptsLeft, resolution.pacing.allowsAttempt(at: now) else {
             return nil
         }
-        if let lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < Self.retryInterval {
-            return nil
-        }
-        attempts += 1
-        lastAttemptAt = now
+        resolution.budget.spend()
+        resolution.pacing.recordAttempt(at: now)
         let resolved = resolve()
-        style = resolved
+        resolution.style = resolved
         return resolved
     }
 
