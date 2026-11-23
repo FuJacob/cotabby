@@ -36,7 +36,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world")
         XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.shown, 1)
         // The completed round trip feeds the adaptive debounce for this engine only.
-        XCTAssertEqual(rig.coordinator.lastLatencyByEngine, [.llamaOpenSource: 10])
+        XCTAssertEqual(rig.coordinator.engineLatency.lastCompletionMilliseconds, [.llamaOpenSource: 10])
     }
 
     // MARK: - Gates before generation
@@ -150,12 +150,12 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
             result: SuggestionResult(generation: 1, rawText: " late", text: " late", latency: 0.5),
             workID: retiredWorkID
         )
-        await rig.coordinator.applyFailure("late failure", workID: retiredWorkID)
+        rig.coordinator.applyFailure("late failure", workID: retiredWorkID)
 
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world")
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.coordinator.state, .idle)
-        XCTAssertTrue(rig.coordinator.lastLatencyByEngine.isEmpty, "A superseded result must not tune the debounce")
+        XCTAssertTrue(rig.coordinator.engineLatency.lastCompletionMilliseconds.isEmpty, "A superseded result must not tune the debounce")
     }
 
     func test_apply_selectedTextDropsTheSuggestion() async {
@@ -298,10 +298,10 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.state, .disabled("Cotabby is turned off."))
     }
 
-    func test_disablePredictionsPreservingVisualContext_keepsTheOCRSessionAlive() {
+    func test_disablePredictions_preservingVisualContext_keepsTheOCRSessionAlive() {
         let rig = retained(makeCoordinatorRig())
 
-        rig.coordinator.disablePredictionsPreservingVisualContext(reason: "Text is currently selected.")
+        rig.coordinator.disablePredictions(reason: "Text is currently selected.", preservingVisualContext: true)
 
         XCTAssertEqual(rig.coordinator.state, .disabled("Text is currently selected."))
         XCTAssertTrue(

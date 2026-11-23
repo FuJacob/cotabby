@@ -56,30 +56,6 @@ enum SuggestionAvailabilityEvaluator {
         }
     }
 
-    static func shouldSchedulePrediction(
-        globallyEnabled: Bool = true,
-        temporarilyPaused: Bool = false,
-        isLowPowerModeActive: Bool = false,
-        isLowPowerModeAutoDisableEnabled: Bool = false,
-        disabledAppBundleIdentifiers: Set<String> = [],
-        disabledDomains: Set<String> = [],
-        suggestInIntegratedTerminals: Bool = false,
-        inputMonitoringGranted: Bool,
-        focusSnapshot: FocusSnapshot
-    ) -> Bool {
-        disabledReason(
-            globallyEnabled: globallyEnabled,
-            temporarilyPaused: temporarilyPaused,
-            isLowPowerModeActive: isLowPowerModeActive,
-            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
-            disabledDomains: disabledDomains,
-            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            inputMonitoringGranted: inputMonitoringGranted,
-            focusSnapshot: focusSnapshot
-        ) == nil
-    }
-
     /// Whether the environment allows visual context capture to start.
     ///
     /// Delegates to `disabledReason` with capability checking disabled so transient field

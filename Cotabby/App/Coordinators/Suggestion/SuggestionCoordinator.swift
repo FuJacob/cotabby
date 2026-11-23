@@ -20,8 +20,6 @@ final class SuggestionCoordinator: ObservableObject {
     /// True while the latest focus snapshot carried host-owned marked text (system inline
     /// prediction or IME composition); see `SuggestionCoordinator+HostMarkedText.swift`.
     var isHoldingForHostMarkedText = false
-    /// Work id of a generation re-issued from the word boundary after a seam misspelling, so the
-    /// retry's own result is judged once and never retried again.
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0
@@ -69,36 +67,16 @@ final class SuggestionCoordinator: ObservableObject {
 
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
-    // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
-    // Async work and active-session storage now live in dedicated collaborators below.
+    // Mutable coordinator state from here down. The session and the debounce/generation tasks
+    // live in `interactionState` and `workController`; what remains is grouped by concern:
+    // request bookkeeping, streaming and typing lookahead, acceptance follow-up, and caches.
     var cancellables = Set<AnyCancellable>()
     var settingsSnapshot: SuggestionSettingsSnapshot
-    /// Last completed round trip per backend, retained across keystrokes. Keeping this separate lets
-    /// a slow HTTP backend retain an appropriate debounce without leaking that latency into the
-    /// in-process engines.
-    var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
-    /// Latency to the first streamed text of the most recent requests per backend: what starting a
-    /// request costs once the KV prefix is warm. `DebouncePolicy` prefers it, because a superseded
-    /// request stops at its next token while a debounce delays every keystroke. Recorded once per
-    /// work item (`firstTextRecordedWorkID`), only for the request that is still current, and read
-    /// as the median of the last few so one cache miss (a context refresh re-decoding a whole
-    /// section) cannot put the next keystroke behind the slow tier.
-    var recentFirstTextLatenciesByEngine: [SuggestionEngineKind: [Int]] = [:]
-    var firstTextRecordedWorkID: UInt64?
-
-    func recordFirstTextLatency(_ milliseconds: Int, engine: SuggestionEngineKind) {
-        recentFirstTextLatenciesByEngine[engine, default: []].append(milliseconds)
-        recentFirstTextLatenciesByEngine[engine] = Array(recentFirstTextLatenciesByEngine[engine, default: []].suffix(3))
-    }
-
-    func typicalFirstTextLatency(engine: SuggestionEngineKind) -> Int? {
-        let recent = recentFirstTextLatenciesByEngine[engine, default: []].sorted()
-        return recent.isEmpty ? nil : recent[recent.count / 2]
-    }
-    // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
+    /// Per-backend latency memory that sizes the next debounce; see `EngineLatencyTracker`.
+    var engineLatency = EngineLatencyTracker()
+    // Synchronous input/focus callbacks cannot directly `await`, so a reset is represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
-    var cacheResetSequence: UInt64 = 0
-    var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    var pendingCacheReset: Task<Void, Never>?
     /// One accepted clipboard-relevance verdict per (field session, pasteboard state). The verdict
     /// used to be re-evaluated against the live prefix on every request, and because the clipboard
     /// section precedes the typed prefix in the prompt, every flip rewrote the prompt HEAD and

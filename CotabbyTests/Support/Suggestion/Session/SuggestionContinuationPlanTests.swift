@@ -156,7 +156,10 @@ final class SuggestionContinuationPlanTests: XCTestCase {
         let spacedTarget = CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "third-ax-token", precedingText: "Please schedule ", isWebContentField: true
         )
+<<<<<<< HEAD
         XCTAssertTrue(SuggestionContinuationPlan.sameFocusedField(refreshedSource, plan.sourceSnapshot))
+=======
+>>>>>>> ae32b409 (Remove dead code and duplicated teardown, request, and availability plumbing from the suggestion coordinator)
         XCTAssertTrue(plan.matchesTarget(publishedTarget))
         XCTAssertFalse(plan.matchesTarget(spacedTarget))
         XCTAssertTrue(plan.matchesTargetWithJoiningSeparator(spacedTarget))

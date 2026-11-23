@@ -10,7 +10,7 @@ import Foundation
 /// reproduction) briefly drop one of `textValue` / `selectionRange` / `caretBounds` while they
 /// redraw, which collapses capability to Blocked for a single poll and bounces back to Supported on
 /// the next. Without this gate every flicker drives `handleFocusSnapshotChange` to call
-/// `disablePredictionsPreservingVisualContext` → `OverlayController.hide` → `panel.orderOut(nil)`,
+/// `disablePredictions` → `OverlayController.hide` → `panel.orderOut(nil)`,
 /// which the user sees as the overlay opening and closing several times per second.
 ///
 /// The gate is intentionally tiny and pure: it tracks the most recently delivered Supported element

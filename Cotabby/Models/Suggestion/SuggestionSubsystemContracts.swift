@@ -304,9 +304,3 @@ protocol VisualContextCoordinating: AnyObject {
     func cancel(resetState: Bool)
     func excerpt(for context: FocusedInputContext) -> String?
 }
-
-extension VisualContextCoordinating {
-    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot) {
-        startSessionIfNeeded(for: snapshotContext, configuration: .default)
-    }
-}

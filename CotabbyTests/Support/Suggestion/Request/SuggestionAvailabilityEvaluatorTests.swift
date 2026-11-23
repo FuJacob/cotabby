@@ -82,20 +82,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
-        let shouldSchedule = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: globallyEnabled,
-            temporarilyPaused: temporarilyPaused,
-            isLowPowerModeActive: isLowPowerModeActive,
-            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
-            disabledDomains: disabledDomains,
-            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            inputMonitoringGranted: inputMonitoringGranted,
-            focusSnapshot: focusSnapshot
-        )
 
         XCTAssertEqual(reason, expectedReason, file: file, line: line)
-        XCTAssertEqual(shouldSchedule, expectedReason == nil, "wrapper disagrees with reason", file: file, line: line)
     }
 
     // MARK: - Individual gates

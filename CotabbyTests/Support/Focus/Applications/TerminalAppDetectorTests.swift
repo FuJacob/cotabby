@@ -91,13 +91,14 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertNil(reason)
     }
 
-    func test_shouldSchedulePrediction_falseForTerminal() {
-        XCTAssertFalse(
-            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+    func test_evaluator_blocksThirdPartyTerminalApp() {
+        XCTAssertEqual(
+            SuggestionAvailabilityEvaluator.disabledReason(
                 globallyEnabled: true,
                 inputMonitoringGranted: true,
                 focusSnapshot: supportedSnapshot(applicationName: "iTerm2", bundleIdentifier: "com.googlecode.iterm2")
-            )
+            ),
+            "Cotabby is not available in terminal apps."
         )
     }
 

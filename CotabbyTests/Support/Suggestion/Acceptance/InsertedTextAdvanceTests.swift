@@ -57,14 +57,14 @@ final class InsertedTextAdvanceTests: XCTestCase {
     @MainActor
     func test_predictedCaretRect_prefersTheHostFontOverTheSystemFallback() {
         let oldCaret = CGRect(x: 100, y: 20, width: 2, height: 18)
-        let withHostFont = SuggestionCoordinator.predictedCaretRect(
+        let withHostFont = PredictedCaretAdvance.caretRect(
             after: " world",
             oldCaretRect: oldCaret,
             caretQuality: .exact,
             observedCharWidth: nil,
             fieldStyle: ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 12, colorHex: nil)
         )
-        let withSystemFallback = SuggestionCoordinator.predictedCaretRect(
+        let withSystemFallback = PredictedCaretAdvance.caretRect(
             after: " world",
             oldCaretRect: oldCaret,
             caretQuality: .exact,

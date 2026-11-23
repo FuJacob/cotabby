@@ -43,9 +43,7 @@ extension SuggestionCoordinator {
         resetCachedGenerationContext()
         interactionState.resetAll()
         visualContextCoordinator.cancel(resetState: true)
-        clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: "Overlay hidden because the runtime model is switching.")
-        state = .idle
+        retireSuggestion(reason: "Overlay hidden because the runtime model is switching.", clearDiagnostics: true)
     }
 
     // MARK: - Settings
@@ -64,42 +62,15 @@ extension SuggestionCoordinator {
         settleDeferredScreenContextChange()
         cancelPredictionWork()
         resetCachedGenerationContext()
-        clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
-        state = .idle
+        retireSuggestion(reason: "Overlay hidden because autocomplete settings changed.", clearDiagnostics: true)
 
         // Cancel any obsolete context, then restart only when the subsystem is not disabled.
         visualContextCoordinator.cancel(resetState: true)
-        if let focusedSnapshot = focusModel.snapshot.context,
-           SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-               globallyEnabled: settingsSnapshot.isGloballyEnabled,
-               temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-               isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-               isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-               disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-               disabledDomains: PerDomainDisableSettings.disabledDomains(),
-               suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-               inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-               screenRecordingGranted: permissionManager.screenRecordingGranted,
-               focusSnapshot: focusModel.snapshot,
-               isFastModeEnabled: settingsSnapshot.isFastModeEnabled
-           ) {
-            visualContextCoordinator.startSessionIfNeeded(
-                for: focusedSnapshot, configuration: .forEngine(settingsSnapshot.selectedEngine)
-            )
+        if let focusedSnapshot = focusModel.snapshot.context {
+            startVisualContextIfAllowed(for: focusedSnapshot, focusSnapshot: focusModel.snapshot)
         }
 
-        if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            focusSnapshot: focusModel.snapshot
-        ) {
+        if currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil {
             schedulePrediction()
         }
     }
@@ -112,19 +83,7 @@ extension SuggestionCoordinator {
         focusModel.refreshNow()
         let snapshot = focusModel.snapshot
         guard let context = snapshot.context, !context.isSecure,
-              SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                globallyEnabled: settingsSnapshot.isGloballyEnabled,
-                temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-                isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-                isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-                disabledDomains: PerDomainDisableSettings.disabledDomains(),
-                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-                screenRecordingGranted: permissionManager.screenRecordingGranted,
-                focusSnapshot: snapshot,
-                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
-              ) else { return nil }
+              shouldCaptureVisualContext(for: snapshot) else { return nil }
         return context
     }
 }

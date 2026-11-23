@@ -246,12 +246,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         }
         XCTAssertEqual(reconciledSession.acceptedText, " world")
         XCTAssertEqual(reconciledSession.remainingText, " again")
-        XCTAssertEqual(advancement, SuggestionSessionAdvancement(
-            stage: "session-reconciled",
-            message: "The live field state consumed 6 additional suggestion characters.",
-            exhaustionStage: "session-exhausted",
-            exhaustionMessage: "The live field state fully consumed the active suggestion."
-        ))
+        XCTAssertEqual(advancement, SuggestionSessionAdvancement(advancedBy: 6))
         XCTAssertNil(nextPending)
     }
 
@@ -410,12 +405,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         ) else { return XCTFail("Expected typing through the suggestion to stay valid") }
 
         XCTAssertTrue(reconciledSession.isExhausted)
-        XCTAssertEqual(advancement, SuggestionSessionAdvancement(
-            stage: "session-exhausted",
-            message: "The live field state caught up with the fully consumed suggestion.",
-            exhaustionStage: "session-exhausted",
-            exhaustionMessage: "The live field state fully consumed the active suggestion."
-        ))
+        XCTAssertEqual(advancement, SuggestionSessionAdvancement(advancedBy: 6))
     }
 
     func test_reconcile_countsConsumedTextInUserCharactersNotUTF16Units() {
