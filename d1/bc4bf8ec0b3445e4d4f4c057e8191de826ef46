@@ -1,0 +1,33 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_9946228485876a 66,106,505,1360,1491,1659,2317,3305,3521,4920,4960,5013
+Cotabby/Models/Runtime/LlamaRuntimeModels.swift
+  s_b9af9eb54478c8::t_2de09dc07d5168 190-192
+Cotabby/Models/Runtime/RuntimeBootstrapModel.swift
+  s_b9af9eb54478c8::t_3961fd37e6ab82 18-55,99,103-105,107,121-124,132-149,155-157,161,163,191,199,203-207
+Cotabby/Services/Runtime/Llama/LlamaRuntimeCore.swift
+  s_b9af9eb54478c8::t_7c5c5e53fb4c0a 31-34,44,139-162,175-207,228,238,241,246,255,319-335,444,447-451,453,461,463,467,491-492,494,497,500-510,569-575,577-614,616-617,621-653,659-661,663-665,668,672-673,675,678,693,696,708-713
+Cotabby/Services/Runtime/Llama/LlamaRuntimeManager.swift
+  s_b9af9eb54478c8::t_a752c732ea73c9 23-24,27-41,59-60,64-68,108-109,113,235,241-251,256-257,259-264,266-268,274-288,290,294,297-318,326-327,329-332
+CotabbyTests/Models/Runtime/RuntimeBootstrapModelActivityTests.swift
+  s_b9af9eb54478c8::t_6bc6f1d12118ee 1-132
+CotabbyTests/Services/Runtime/Llama/LlamaRuntimeManagerTests.swift
+  s_b9af9eb54478c8::t_c164cd7b3fcc70 1-191
+CotabbyTests/TestSupport/GatedModelLoader.swift
+  s_b9af9eb54478c8::t_14dd298d042389 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1bc4bf8ec0b3445e4d4f4c057e8191de826ef46",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
