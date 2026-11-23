@@ -1,0 +1,21 @@
+Cotabby/Support/Focus/Applications/TerminalAppDetector.swift
+  s_9990f9098df800::t_99b57874eca7fb 9-11,16-19,24
+CotabbyTests/Support/Focus/Applications/TerminalAppDetectorTests.swift
+  s_9990f9098df800::t_fa85b2c88e6683 12-13,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7813b7fffa497122d18feee7a8febf58f28758f",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
