@@ -32,12 +32,11 @@ final class FocusTrackingModelTests: XCTestCase {
         return model
     }
 
-    func test_init_startsInactiveWithoutEventsOrExternalApp() {
+    func test_init_startsInactiveWithoutEvents() {
         runOnMainActor {
             let model = makeModel()
 
             XCTAssertEqual(model.snapshot, .inactive)
-            XCTAssertNil(model.latestExternalApplication)
             XCTAssertNil(model.latestPollEvent)
         }
     }
@@ -51,8 +50,6 @@ final class FocusTrackingModelTests: XCTestCase {
             XCTAssertEqual(model.snapshot.applicationName, Self.blockedApplicationName)
             XCTAssertEqual(model.snapshot.capability, .blocked("Accessibility permission is required."))
             XCTAssertNil(model.snapshot.bundleIdentifier)
-            // A nil bundle identifier can never become the "Enable in X" target.
-            XCTAssertNil(model.latestExternalApplication)
         }
     }
 

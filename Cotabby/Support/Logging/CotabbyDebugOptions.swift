@@ -144,7 +144,7 @@ struct OSLogHandler: LogHandler {
     private let osLogger: os.Logger
 
     /// Apple's convention: `subsystem` is the app-wide identifier (constant for all loggers),
-    /// `category` is the per-component label. This way Console.app can filter all Tabby output
+    /// `category` is the per-component label. This way Console.app can filter all Cotabby output
     /// with one subsystem while still distinguishing components by category.
     private static let subsystem = "com.cotabby.app"
 

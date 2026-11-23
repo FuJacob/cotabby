@@ -38,12 +38,6 @@ final class CotabbyPermissionKindTests: XCTestCase {
         }
     }
 
-    func test_guidanceStyle_isGuidedOverlayForAllCases() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertEqual(kind.guidanceStyle, .guidedOverlay, "\(kind)")
-        }
-    }
-
     func test_isRequiredForAutocomplete_isTrueOnlyForCoreInputPermissions() {
         XCTAssertTrue(CotabbyPermissionKind.accessibility.isRequiredForAutocomplete)
         XCTAssertTrue(CotabbyPermissionKind.inputMonitoring.isRequiredForAutocomplete)

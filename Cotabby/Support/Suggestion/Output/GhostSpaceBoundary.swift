@@ -24,13 +24,6 @@ import Foundation
 /// lost since the request was built. Engines that do not vouch for it (instruct and chat models
 /// drop leading spaces) get the word-character rule, with digits and in-word apostrophes joined.
 ///
-/// A word-boundary-anchored request (the user's half-typed word re-anchored at its start, see
-/// `WordBoundaryAnchorPolicy`) is decided the same way: what remains after the anchor starts with a
-/// space only when the model ended the word there. Measured in the same session: 52 times the user
-/// had typed a whole word ("that", "PM"), the model returned " that the timeline…", and a rule that
-/// treated every anchored remainder as the rest of the word stripped the space, gluing
-/// "thatthe timeline" until the user typed the space and the ghost vanished.
-///
 /// The rule is a pure function of its inputs, so it can be applied wherever the live text is known
 /// (when a result becomes a session, a streamed partial, a prefetched continuation) and always
 /// agrees with itself:
@@ -68,21 +61,17 @@ nonisolated enum GhostSpaceBoundary {
     ///   - requestPrecedingText: the text before the caret the request was built from, given only
     ///     when the engine's completion is exact text following it (a base model, whose leading
     ///     space is its own word boundary). Nil for engines whose spacing cannot be trusted.
-    ///   - continuesPartialWord: true when the request was anchored at a word boundary; the
-    ///     completion is then what remains after the user's half-typed word.
     static func adjusted(
         _ completion: String,
         precedingText: String,
-        requestPrecedingText: String? = nil,
-        continuesPartialWord: Bool
+        requestPrecedingText: String? = nil
     ) -> String {
         guard !completion.isEmpty else { return completion }
         let stripped = String(completion.drop(while: isSpace))
         guard !stripped.isEmpty else { return completion }
         let boundary = modelBoundary(
             leadsWithSpace: completion.first.map(isSpace) ?? false,
-            requestPrecedingText: requestPrecedingText,
-            continuesPartialWord: continuesPartialWord
+            requestPrecedingText: requestPrecedingText
         )
         return needsLeadingSpace(stripped, precedingText: precedingText, boundary: boundary) ? " " + stripped : stripped
     }
@@ -95,9 +84,7 @@ nonisolated enum GhostSpaceBoundary {
     /// and a new word ("hearing" + " from you") are told apart only by the engine that produced them.
     static func liveAdjusted(_ completion: String, precedingText: String, requestPrecedingText: String?) -> String {
         if let requestPrecedingText {
-            return adjusted(
-                completion, precedingText: precedingText, requestPrecedingText: requestPrecedingText, continuesPartialWord: false
-            )
+            return adjusted(completion, precedingText: precedingText, requestPrecedingText: requestPrecedingText)
         }
         guard let last = precedingText.last, last.isWhitespace else { return completion }
         return String(completion.drop(while: isSpace))
@@ -121,16 +108,7 @@ nonisolated enum GhostSpaceBoundary {
     }
 
     /// Reads the model's own boundary decision from the completion's leading space.
-    static func modelBoundary(
-        leadsWithSpace: Bool,
-        requestPrecedingText: String?,
-        continuesPartialWord: Bool
-    ) -> ModelBoundary {
-        if continuesPartialWord {
-            // The remainder after the anchor starts with a space only when the model ended the
-            // user's word there; otherwise it is the rest of that word.
-            return leadsWithSpace ? .newWord : .sameWord
-        }
+    static func modelBoundary(leadsWithSpace: Bool, requestPrecedingText: String?) -> ModelBoundary {
         guard let requestPrecedingText else { return .unknown }
         // After a request text that ended with whitespace, the normalizer removed the model's
         // leading space (the field's own space was the boundary): the completion is a new word.

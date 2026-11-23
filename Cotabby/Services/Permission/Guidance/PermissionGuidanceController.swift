@@ -38,9 +38,8 @@ final class PermissionGuidanceController {
 
     /// Public entry point used by onboarding and menu-bar permission buttons.
     ///
-    /// The controller chooses the appropriate experience based on the permission's metadata. That
-    /// keeps the view layer simple: onboarding asks for help with a permission, and this type
-    /// decides whether that means a rich guided overlay or a plain Settings deep link.
+    /// Callers only ask for help with a permission. The system prompt is tried first, and the
+    /// guided System Settings overlay is the fallback when macOS will not grant from the prompt.
     func requestAccess(for permission: CotabbyPermissionKind, sourceFrameInScreen: CGRect? = nil) {
         permissionManager.refresh()
         guard !permissionManager.isGranted(permission) else {
@@ -52,13 +51,7 @@ final class PermissionGuidanceController {
             return
         }
 
-        switch permission.guidanceStyle {
-        case .guidedOverlay:
-            presentGuidance(for: permission, sourceFrameInScreen: sourceFrameInScreen)
-        case .settingsOnly:
-            dismiss()
-            permissionManager.openSettings(for: permission)
-        }
+        presentGuidance(for: permission, sourceFrameInScreen: sourceFrameInScreen)
     }
 
     func dismiss() {

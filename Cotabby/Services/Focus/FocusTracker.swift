@@ -234,8 +234,7 @@ final class FocusTracker {
                 focusChangeSequence: focusChangeSequence,
                 didChangeFocusedInput: capture.didChangeFocusedInput,
                 applicationName: capture.snapshot.applicationName,
-                capabilitySummary: capture.snapshot.capability.shortLabel,
-                occurredAt: Date()
+                capabilitySummary: capture.snapshot.capability.shortLabel
             )
         )
 

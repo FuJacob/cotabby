@@ -29,8 +29,6 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     /// Attributed by the engine (the runtime reports it on `LlamaGenerationOutput`), not by the
     /// normalizer, which never sees the withheld text.
     case lowConfidence
-    /// The request was anchored at a word boundary and the model completed a different word than
-    /// the one the user had started (see `WordBoundaryAnchorPolicy`).
     /// Nothing but punctuation or symbols survived: not a continuation the user can use.
     case noWordContent
     /// Closing punctuation offered right after the user typed a space.

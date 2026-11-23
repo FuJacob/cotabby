@@ -176,25 +176,6 @@ final class ModelDownloadManagerTests: XCTestCase {
         XCTAssertEqual(manager.state(for: model), .idle)
     }
 
-    func test_installedModelOptions_listsLoadableGGUFsSortedAndSkipsSidecars() throws {
-        let fileManager = FileManager.default
-        let nested = tempDir.appendingPathComponent("nested", isDirectory: true)
-        try fileManager.createDirectory(at: nested, withIntermediateDirectories: true)
-        try fileManager.createDirectory(
-            at: tempDir.appendingPathComponent("directory.gguf", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        for relativePath in ["b-model.gguf", "a-model.GGUF", "nested/c-model.gguf", "mmproj-vision.gguf", "notes.txt"] {
-            try "x".write(to: tempDir.appendingPathComponent(relativePath), atomically: true, encoding: .utf8)
-        }
-        let manager = makeManager()
-
-        XCTAssertEqual(
-            manager.installedModelOptions().map(\.filename),
-            ["a-model.GGUF", "b-model.gguf", "c-model.gguf"]
-        )
-    }
-
     private func makeManager() -> ModelDownloadManager {
         let manager = ModelDownloadManager(runtimeDirectoryURL: tempDir)
         Self.retainedManagers.append(manager)

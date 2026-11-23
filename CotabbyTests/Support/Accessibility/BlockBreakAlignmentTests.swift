@@ -66,6 +66,5 @@ final class BlockBreakAlignmentTests: XCTestCase {
     func testEmptyInputs() {
         XCTAssertEqual(caret(value: "", rangePrefix: ""), 0)
         XCTAssertEqual(caret(value: "\nabc", rangePrefix: "", startsBlock: true), 1)
-        XCTAssertEqual(BlockBreakAlignment.valueOffset(following: "", in: "abc"), 0)
     }
 }

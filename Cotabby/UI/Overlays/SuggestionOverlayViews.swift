@@ -1,19 +1,36 @@
 import AppKit
 import SwiftUI
 
-/// SwiftUI content hosted by `OverlayController`'s non-activating AppKit panel.
-/// Keeping styling here lets the controller focus on window lifetime, positioning, and state publication.
+// SwiftUI content hosted by `OverlayController`'s non-activating AppKit panel.
+// Keeping styling here lets the controller focus on window lifetime, positioning, and state publication.
 
 /// The green used to signal a typo correction. Tuned per color scheme so it stays legible in both
 /// appearances without dropping below a comfortable contrast floor against typical text-field
-/// backgrounds. Shared by the inline ghost and the mirror card so a correction reads identically in
-/// either display mode; the user's custom suggestion color is intentionally bypassed for corrections
-/// because semantic communication beats personalization here.
+/// backgrounds. Shared by the inline ghost (AppKit) and the mirror card (SwiftUI) so a correction
+/// reads identically in either display mode; the user's custom suggestion color is intentionally
+/// bypassed for corrections because semantic communication beats personalization here.
 enum SuggestionCorrectionStyle {
+    /// One set of sRGB components feeds both color types, so the two surfaces cannot drift apart.
+    private struct Components {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    private static func components(isDark: Bool) -> Components {
+        isDark
+            ? Components(red: 0.45, green: 0.85, blue: 0.45)
+            : Components(red: 0.15, green: 0.60, blue: 0.20)
+    }
+
     static func color(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark
-            ? Color(red: 0.45, green: 0.85, blue: 0.45)
-            : Color(red: 0.15, green: 0.60, blue: 0.20)
+        let rgb = components(isDark: colorScheme == .dark)
+        return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
+    static func nsColor(isDark: Bool) -> NSColor {
+        let rgb = components(isDark: isDark)
+        return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
     }
 }
 
@@ -54,7 +71,7 @@ struct GhostKeycap: View {
 }
 
 /// Mirror-mode card. Renders the suggestion inside a Cotabby-owned backdrop anchored below the
-/// focused field. Unlike `GhostSuggestionView`, this view is single-line by design — the whole
+/// focused field. Unlike the inline `GhostTextPanelView`, this view is single-line by design — the whole
 /// reason mirror mode exists is that the host's caret rect is unreliable, so multi-line wrapping
 /// would just compound the positioning uncertainty.
 ///

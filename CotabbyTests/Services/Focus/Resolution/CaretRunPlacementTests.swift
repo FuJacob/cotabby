@@ -17,11 +17,11 @@ final class CaretRunPlacementTests: XCTestCase {
         parent: String,
         caret: Int
     ) -> Placement? {
-        AXTextGeometryResolver.caretRunPlacement(
+        AXTextGeometryResolver.caretRunPlacementWithStart(
             runTexts: runs,
             parentText: parent,
             caretOffset: caret
-        )
+        )?.placement
     }
 
     func test_placement_newlineSeparatorsDoNotDriftTheCaretIntoLaterRuns() {

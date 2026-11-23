@@ -142,12 +142,8 @@ and cohesive mutable sub-state to smaller boundaries:
   pure permission, settings, focus, and runtime gates.
 - [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift): pure bounded
   request construction and the selected backend's developer-debug prompt payload. Nothing is generated
-  with the caret inside a token ([CaretTokenPosition.swift](Cotabby/Support/Suggestion/Request/CaretTokenPosition.swift)),
-  and on the llama path a request made mid-word is anchored at the word boundary
-  ([WordBoundaryAnchorPolicy.swift](Cotabby/Support/Suggestion/Request/WordBoundaryAnchorPolicy.swift)): the partial
-  word leaves the prompt (so its last token is a whole word) and the engine is handed the boundary whitespace plus the
-  typed letters as a required prefix it masks every inconsistent token against, so the model finishes the word the
-  user started; the normalizer shows only the untyped remainder. The word-count preset also bounds the result
+  with the caret inside a token ([CaretTokenPosition.swift](Cotabby/Support/Suggestion/Request/CaretTokenPosition.swift)).
+  The word-count preset also bounds the result
   ([SuggestionLengthPolicy.swift](Cotabby/Support/Suggestion/Output/SuggestionLengthPolicy.swift) trims to the
   preset's upper bound at a clause boundary; the decoder's sentence stop waits for its lower bound).
 - [SuggestionWorkController.swift](Cotabby/Services/Suggestion/State/SuggestionWorkController.swift):

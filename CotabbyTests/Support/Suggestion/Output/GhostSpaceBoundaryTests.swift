@@ -4,8 +4,8 @@ import XCTest
 /// Each case is one of the space symptoms reported from real use, stated as the text in the field
 /// and what the model returned.
 final class GhostSpaceBoundaryTests: XCTestCase {
-    private func adjusted(_ completion: String, after preceding: String, partialWord: Bool = false) -> String {
-        GhostSpaceBoundary.adjusted(completion, precedingText: preceding, continuesPartialWord: partialWord)
+    private func adjusted(_ completion: String, after preceding: String) -> String {
+        GhostSpaceBoundary.adjusted(completion, precedingText: preceding)
     }
 
     // MARK: - The space arrived while the model was generating
@@ -30,33 +30,10 @@ final class GhostSpaceBoundaryTests: XCTestCase {
         XCTAssertEqual(adjusted("world", after: "Hello\u{00A0}"), "world")
     }
 
-    // MARK: - Shapes that must never take a space
-
-    func testACompletionFinishingTheUsersWordNeverTakesASpace() {
-        XCTAssertEqual(adjusted("iate it", after: "I really apprec", partialWord: true), "iate it")
-        XCTAssertEqual(adjusted("llet points", after: "add the bu", partialWord: true), "llet points")
-    }
-
-    /// Measured 2026-09-10 in Claude's composer: the user had typed the whole word, the model
-    /// returned " that the timeline", and a rule that read every anchored remainder as the rest of
-    /// the word stripped the space, gluing "thatthe timeline" 52 times in fifteen minutes.
-    func testAnAnchoredWordTheModelEndedKeepsItsSpace() {
-        XCTAssertEqual(adjusted(" the timeline", after: "I was thinking that", partialWord: true), " the timeline")
-        XCTAssertEqual(adjusted(" on Friday", after: "at 12 PM", partialWord: true), " on Friday")
-        XCTAssertEqual(adjusted(" section at", after: "add the budget", partialWord: true), " section at")
-        XCTAssertEqual(
-            adjusted(" the timeline", after: "I was thinking that ", partialWord: true), "the timeline",
-            "a space typed meanwhile is the boundary"
-        )
-        XCTAssertEqual(adjusted(" , and", after: "I was thinking that", partialWord: true), ", and")
-    }
-
     // MARK: - A base model's own spacing
 
     private func exact(_ completion: String, after preceding: String, request: String? = nil) -> String {
-        GhostSpaceBoundary.adjusted(
-            completion, precedingText: preceding, requestPrecedingText: request ?? preceding, continuesPartialWord: false
-        )
+        GhostSpaceBoundary.adjusted(completion, precedingText: preceding, requestPrecedingText: request ?? preceding)
     }
 
     /// Measured 2026-09-10 in Claude's composer: "1 50K", "10 0%" and "It' s" shown over

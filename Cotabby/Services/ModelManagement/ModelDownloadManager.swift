@@ -204,17 +204,6 @@ final class ModelDownloadManager: ObservableObject {
         isInstalled(model: model)
     }
 
-    /// Returns the active downloaded model options from the primary directory.
-    func installedModelOptions() -> [RuntimeModelOption] {
-        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: runtimeDirectoryURL)
-        return discovered.map {
-            RuntimeModelOption(
-                filename: $0.lastPathComponent,
-                url: $0
-            )
-        }.sorted { $0.displayName < $1.displayName }
-    }
-
     /// The path shown in Settings and opened by "Open Folder". This is always Cotabby's own writable
     /// directory because that is where downloads and imports land; additive sources such as LM Studio
     /// are read-only and surfaced only through the model picker, not this control.

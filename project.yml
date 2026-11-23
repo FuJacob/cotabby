@@ -114,8 +114,6 @@ targetTemplates:
       - package: CotabbyInference
         product: CotabbyInference
       - package: swift-log
-        product: InMemoryLogging
-      - package: swift-log
         product: Logging
       - package: LaunchAtLogin
         product: LaunchAtLogin

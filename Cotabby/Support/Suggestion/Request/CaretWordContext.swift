@@ -37,7 +37,7 @@ nonisolated enum CaretWordContext {
             body.removeLast()
             delimiter = String(last) + delimiter
         }
-        guard !delimiter.isEmpty, let word = CurrentWordExtractor.extract(from: body)?.word,
+        guard !delimiter.isEmpty, let word = CurrentWordExtractor.extract(from: body),
               unfinishedWord(in: body) == word else { return nil }
         return CommittedWord(word: word, delimiter: delimiter)
     }

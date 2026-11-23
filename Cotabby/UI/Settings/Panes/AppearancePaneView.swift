@@ -414,7 +414,7 @@ struct AppearancePaneView: View {
 
     // MARK: - Ghost color swatch helpers
 
-    /// Mirrors the overlay's automatic fallback (`GhostSuggestionView.ghostColor`) so the Automatic
+    /// Mirrors the overlay's automatic fallback (`OverlayController.ghostTextColor(for:)`) so the Automatic
     /// swatch previews the same gray the user will actually see.
     private var automaticGhostTextColor: Color {
         colorScheme == .dark

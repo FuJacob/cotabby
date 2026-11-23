@@ -440,7 +440,7 @@ struct AXTextGeometryResolver {
         guard !textRuns.isEmpty else { return nil }
 
         // Map the caret offset to a run by aligning run texts inside the parent value (see
-        // `caretRunPlacement`). The run frame's Y is a real rendered line position, so a correct
+        // `caretRunPlacementWithStart`). The run frame's Y is a real rendered line position, so a correct
         // run choice is what makes derived geometry trustworthy vertically.
         guard let placementWithStart = Self.caretRunPlacementWithStart(
             runTexts: textRuns.map(\.text),
@@ -790,18 +790,10 @@ struct AXTextGeometryResolver {
     /// trailing-edge snap and lets the next fresh walk correct it.
     private static let maximumExtrapolatedGapCharacters = 64
 
+    /// The caret's run placement plus where that run begins in the parent value, as a UTF-16
+    /// offset (valid in the original string, since matching normalizes one unit for one). The
+    /// offset is nil when the run was not anchored: the legacy cumulative walk matches no text.
     /// Internal (not private) so the mapping math is unit-testable without live AX elements.
-    static func caretRunPlacement(
-        runTexts: [String],
-        parentText: String,
-        caretOffset: Int
-    ) -> CaretRunPlacement? {
-        caretRunPlacementWithStart(runTexts: runTexts, parentText: parentText, caretOffset: caretOffset)?.placement
-    }
-
-    /// `caretRunPlacement` plus where the caret's run begins in the parent value, as a UTF-16
-    /// offset (valid in the original string, since matching normalizes one unit for one). Nil
-    /// when the run was not anchored: the legacy cumulative walk matches no text.
     static func caretRunPlacementWithStart(
         runTexts: [String],
         parentText: String,

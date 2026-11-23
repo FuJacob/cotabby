@@ -40,10 +40,6 @@ nonisolated struct SuggestionContinuationPlan: Equatable, Sendable {
         requestSnapshot = SpeculativeAcceptanceContext.optimisticSnapshot(after: target, inserting: joiningSeparator)
     }
 
-    func matchesSource(_ snapshot: FocusedInputSnapshot) -> Bool {
-        Self.matches(snapshot, expected: sourceSnapshot)
-    }
-
     func matchesTarget(_ snapshot: FocusedInputSnapshot) -> Bool {
         Self.matches(snapshot, expected: targetSnapshot) || matchesShiftedWindow(snapshot, expected: targetSnapshot)
     }
