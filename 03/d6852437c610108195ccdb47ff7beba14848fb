@@ -1,0 +1,41 @@
+Cotabby/Services/Suggestion/SuggestionInserter.swift
+  s_9990f9098df800::t_e9be75714590c2 211
+  s_9990f9098df800::t_e207be76287a2f 31-36
+  s_9990f9098df800::t_6494ede248cfc0 301-317,321-322,328,335-336
+  s_9990f9098df800::t_881b0ba4e48a1f 319-320
+Cotabby/Support/Context/ClipboardPrivacyPolicy.swift
+  s_9990f9098df800::t_d3f1659591ee3e 1-63
+Cotabby/Services/Context/ClipboardContextProvider.swift
+  s_9990f9098df800::t_c73b1e5aee11f7 9-13,25-30
+Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift
+  s_9990f9098df800::t_3a3fc1e1b6780b 221-222,224-225,230
+CotabbyTests/Support/Context/ClipboardPrivacyPolicyTests.swift
+  s_9990f9098df800::t_77e08ae58fa827 1-76
+CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift
+  s_9990f9098df800::t_45457da9e8f94c 357-385
+Cotabby/Support/History/TypingHistoryScrubber.swift
+  s_9990f9098df800::t_2dae51cd9d7c32 67-68
+  s_9990f9098df800::t_709f0ed5698811 69-70
+ARCHITECTURE.md
+  s_9990f9098df800::t_1006218c97f8d5 240-242,373-375
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_ae34938891dc83 65,576,765,1809,1894,3053,3949,4540,4941,5331
+CotabbyTests/Services/Context/ClipboardContextProviderTests.swift
+  s_9990f9098df800::t_49e4bdee28610b 9-10,78-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03d6852437c610108195ccdb47ff7beba14848fb",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
