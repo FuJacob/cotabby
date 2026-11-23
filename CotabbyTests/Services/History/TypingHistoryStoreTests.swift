@@ -155,7 +155,7 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 6)
         await store.importCotypistExport(from: url)
         XCTAssertEqual(store.recordCount, 6)
-        XCTAssertEqual(store.lastImportMessage, "Imported 0 entries (6 were already in your history).")
+        XCTAssertEqual(store.importState, .finished("Imported 0 entries (6 were already in your history)."))
 
         let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Thanks!\nBest regards, ")
         await waitUntil { store.phraseContinuation(for: request, engine: .appleIntelligence) != nil }
@@ -207,7 +207,10 @@ final class TypingHistoryStoreTests: XCTestCase {
         await store.importCotypistExport(from: url)
 
         XCTAssertEqual(store.recordCount, 0)
-        XCTAssertEqual(store.lastImportMessage, CotypistExportImporter.ImportError.unrecognizedFormat.errorDescription)
+        XCTAssertEqual(
+            store.notice?.text,
+            try XCTUnwrap(CotypistExportImporter.ImportError.unrecognizedFormat.errorDescription)
+        )
     }
 
     // MARK: - Recording
@@ -428,6 +431,40 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 0)
         XCTAssertNil(store.deletionError)
         XCTAssertFalse(keyStore.hasKey)
+    }
+
+    func test_noticeShowsAFailedDeletionOverTheEarlierImportResult() async throws {
+        let keyStore = InMemoryKeyStore()
+        let store = makeStore(vault: makeVault(keyStore: keyStore))
+        XCTAssertNil(store.notice)
+        XCTAssertFalse(store.canDeleteAll, "Nothing is stored yet")
+
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+        XCTAssertEqual(store.notice, TypingHistoryStore.Notice(text: "Imported 3 entries.", isError: false))
+        XCTAssertTrue(store.canDeleteAll)
+        XCTAssertTrue(store.canImport)
+
+        store.flush()
+        keyStore.setDeletionFails(true)
+        store.deleteAll()
+
+        let failure = try XCTUnwrap(store.notice)
+        XCTAssertTrue(failure.isError)
+        XCTAssertEqual(failure.text, store.deletionError)
+        XCTAssertEqual(store.importState, .finished("Imported 3 entries."), "The import result is hidden, not lost")
+        XCTAssertTrue(store.canDeleteAll, "A failed deletion must stay retryable")
+    }
+
+    func test_aSuccessfulDeleteAllClearsEveryNotice() async throws {
+        let store = makeStore()
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+
+        store.deleteAll()
+
+        XCTAssertNil(store.notice)
+        XCTAssertEqual(store.importState, .idle)
+        XCTAssertFalse(store.canDeleteAll)
+        XCTAssertTrue(store.canImport)
     }
 
     func test_excludingAnAppMidFieldAlsoDropsTheAlreadySavedPart() throws {

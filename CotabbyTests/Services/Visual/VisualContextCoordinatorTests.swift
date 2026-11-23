@@ -349,8 +349,49 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(generator.contexts.count, 1)
     }
 
+    func test_captureBlockedOnPermissionRestartsForTheSameFieldOnceGranted() async throws {
+        // The provider can say "granted" while the capture itself is still refused. That session
+        // is parked like one that launched without permission, so the next start for the same
+        // field retries instead of being coalesced away as a duplicate.
+        let message = "Screen Recording permission is required to capture screenshot context."
+        let generator = StubVisualContextGenerator()
+        generator.error = ScreenshotContextGenerationError.permissionMissing(message)
+        let coordinator = makeCoordinator(generator)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        defer { coordinator.cancel() }
+
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .unavailable(message) }
+        XCTAssertEqual(generator.contexts.count, 1)
+
+        generator.error = nil
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+        XCTAssertEqual(generator.contexts.count, 2)
+    }
+
+    func test_anUnavailableCaptureIsNotRetriedByARepeatedStartForTheSameField() async throws {
+        let generator = StubVisualContextGenerator()
+        generator.error = ScreenshotContextGenerationError.unavailable("Too little text")
+        let coordinator = makeCoordinator(generator)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        defer { coordinator.cancel() }
+
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .unavailable("Too little text") }
+
+        generator.error = nil
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        // Longer than the settle delay a restart would need before capturing again.
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertEqual(generator.contexts.count, 1)
+        XCTAssertEqual(coordinator.status, .unavailable("Too little text"))
+    }
+
     func test_generatorErrorsBecomeSessionStatusWithoutAnExcerpt() async throws {
         let cases: [(ScreenshotContextGenerationError, VisualContextStatus)] = [
+            (.permissionMissing("No permission"), .unavailable("No permission")),
             (.unavailable("Too little text"), .unavailable("Too little text")),
             (.failed("Capture broke"), .failed("Capture broke"))
         ]

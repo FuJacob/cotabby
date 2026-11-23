@@ -12,14 +12,20 @@ final class PermissionGuidanceController {
     private let permissionManager: PermissionManager
     private let hostApp: PermissionHostApp
 
-    private var overlayController: PermissionOverlayWindowController?
-    private var trackingTimer: Timer?
-    private var activationObserver: NSObjectProtocol?
-    private var activePermission: CotabbyPermissionKind?
-    private var pendingSourceFrameInScreen: CGRect?
-    private var hasPresentedOverlay = false
-    private var isOverlayVisible = false
-    private var lastSettingsFrame: CGRect?
+    /// Everything one guided flow owns. Held as a single optional (`nil` means no guidance is
+    /// showing) so the overlay window, its tracking timer and observer, and the overlay phase are
+    /// created and torn down together.
+    nonisolated private struct GuidanceSession {
+        let permission: CotabbyPermissionKind
+        /// Where the fly-in starts: the onboarding or menu control that asked for help.
+        let sourceFrameInScreen: CGRect?
+        let overlay: PermissionOverlayWindowController
+        var trackingTimer: Timer?
+        var activationObserver: NSObjectProtocol?
+        var overlayPhase = PermissionOverlayPhase.notPresented
+    }
+
+    private var session: GuidanceSession?
 
     init(
         permissionManager: PermissionManager,
@@ -30,8 +36,8 @@ final class PermissionGuidanceController {
     }
 
     deinit {
-        trackingTimer?.invalidate()
-        if let activationObserver {
+        session?.trackingTimer?.invalidate()
+        if let activationObserver = session?.activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
         }
     }
@@ -55,21 +61,18 @@ final class PermissionGuidanceController {
     }
 
     func dismiss() {
-        trackingTimer?.invalidate()
-        trackingTimer = nil
-
-        if let activationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
-            self.activationObserver = nil
+        guard let session else {
+            return
         }
+        // Cleared first so the overlay's own dismiss callback, if closing triggers it, finds
+        // nothing left to tear down.
+        self.session = nil
 
-        overlayController?.close()
-        overlayController = nil
-        activePermission = nil
-        pendingSourceFrameInScreen = nil
-        hasPresentedOverlay = false
-        isOverlayVisible = false
-        lastSettingsFrame = nil
+        session.trackingTimer?.invalidate()
+        if let activationObserver = session.activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
+        session.overlay.close()
     }
 
     private func presentGuidance(for permission: CotabbyPermissionKind, sourceFrameInScreen: CGRect?) {
@@ -79,14 +82,16 @@ final class PermissionGuidanceController {
             return
         }
 
-        activePermission = permission
-        pendingSourceFrameInScreen = sourceFrameInScreen
-        overlayController = PermissionOverlayWindowController(
-            hostApp: hostApp,
+        session = GuidanceSession(
             permission: permission,
-            onDismiss: { [weak self] in
-                self?.dismiss()
-            }
+            sourceFrameInScreen: sourceFrameInScreen,
+            overlay: PermissionOverlayWindowController(
+                hostApp: hostApp,
+                permission: permission,
+                onDismiss: { [weak self] in
+                    self?.dismiss()
+                }
+            )
         )
 
         permissionManager.openSettings(for: permission)
@@ -94,8 +99,7 @@ final class PermissionGuidanceController {
     }
 
     private func startTracking() {
-        trackingTimer?.invalidate()
-        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+        session?.trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
             guard let self else {
                 return
             }
@@ -104,10 +108,7 @@ final class PermissionGuidanceController {
             }
         }
 
-        if let activationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
-        }
-        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        session?.activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
@@ -124,13 +125,12 @@ final class PermissionGuidanceController {
     }
 
     private func refreshPosition() {
-        guard let activePermission else {
-            dismiss()
+        guard let session else {
             return
         }
 
         permissionManager.refresh()
-        guard !permissionManager.isGranted(activePermission) else {
+        guard !permissionManager.isGranted(session.permission) else {
             dismiss()
             return
         }
@@ -140,38 +140,31 @@ final class PermissionGuidanceController {
         // hiding on every tick is what made the helper flicker as focus moved between System
         // Settings, the macOS permission dialog, and Cotabby's own windows.
         let snapshot = SystemSettingsWindowLocator.frontmostWindow()
-        switch PermissionOverlayTracker.transition(
+        let (transition, nextPhase) = PermissionOverlayTracker.transition(
             settingsFrame: snapshot?.frame,
-            hasPresented: hasPresentedOverlay,
-            isVisible: isOverlayVisible,
-            lastFrame: lastSettingsFrame
-        ) {
-        case .present:
-            guard let snapshot else { return }
-            overlayController?.present(
-                from: pendingSourceFrameInScreen,
+            phase: session.overlayPhase
+        )
+        self.session?.overlayPhase = nextPhase
+
+        // `present` and `reposition` are only ever decided when a Settings window was found.
+        switch (transition, snapshot) {
+        case (.present, let snapshot?):
+            session.overlay.present(
+                from: session.sourceFrameInScreen,
                 settingsFrame: snapshot.frame,
                 visibleFrame: snapshot.visibleFrame
             )
-            hasPresentedOverlay = true
-            isOverlayVisible = true
-            lastSettingsFrame = snapshot.frame
 
-        case .reposition:
-            guard let snapshot else { return }
-            overlayController?.updatePosition(
+        case (.reposition, let snapshot?):
+            session.overlay.updatePosition(
                 with: snapshot.frame,
                 visibleFrame: snapshot.visibleFrame
             )
-            isOverlayVisible = true
-            lastSettingsFrame = snapshot.frame
 
-        case .hide:
-            overlayController?.hide()
-            isOverlayVisible = false
-            lastSettingsFrame = nil
+        case (.hide, _):
+            session.overlay.hide()
 
-        case .none:
+        case (.none, _), (.present, nil), (.reposition, nil):
             break
         }
     }

@@ -13,12 +13,15 @@ import UniformTypeIdentifiers
 /// plain-text value instead of exposing raw screenshots or OCR implementation details.
 
 enum ScreenshotContextGenerationError: LocalizedError {
+    /// Screen Recording permission is missing. Kept apart from `unavailable` so the coordinator
+    /// can park the session and restart it on a grant without matching on the message text.
+    case permissionMissing(String)
     case unavailable(String)
     case failed(String)
 
     var errorDescription: String? {
         switch self {
-        case .unavailable(let message), .failed(let message):
+        case .permissionMissing(let message), .unavailable(let message), .failed(let message):
             return message
         }
     }
@@ -276,6 +279,10 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
                 around: context,
                 snapshotDimension: configuration.snapshotDimension,
                 capturesEntireWindow: configuration.capturesEntireWindow
+            )
+        } catch WindowScreenshotError.screenRecordingPermissionMissing {
+            throw ScreenshotContextGenerationError.permissionMissing(
+                WindowScreenshotError.screenRecordingPermissionMissing.localizedDescription
             )
         } catch let error as WindowScreenshotError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)

@@ -69,16 +69,3 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
 nonisolated struct VisualContextExcerpt: Equatable, Sendable {
     let text: String
 }
-
-/// Session-scoped state for screenshot-derived context tied to one focused field.
-/// This is separate from `ActiveSuggestionSession` because the screenshot context belongs to the
-/// focused input session itself, not to any one individual completion result.
-nonisolated struct FocusedInputAugmentationSession: Equatable, Sendable {
-    let sessionID: UUID
-    let elementIdentifier: String
-    /// Mirrors the monotonic counter from `FocusedInputSnapshot`. The coordinator compares this
-    /// alongside `elementIdentifier` to avoid CFHash-recycling false positives.
-    let focusChangeSequence: UInt64
-    var status: VisualContextStatus
-    var excerpt: VisualContextExcerpt?
-}

@@ -29,11 +29,60 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     @Published private(set) var preferences: TypingHistoryPreferences
     @Published private(set) var recordCount = 0
     @Published private(set) var status: Status = .loading
-    @Published private(set) var isImporting = false
-    @Published private(set) var lastImportMessage: String?
+    /// Where the Cotypist import stands. One value, so "importing" and "here is the last result"
+    /// cannot both be showing.
+    nonisolated enum ImportState: Equatable {
+        case idle
+        case importing
+        /// The last import ended, with the line Settings shows for it (a count, or why it failed).
+        case finished(String)
+    }
+
+    /// The one line of feedback Settings shows under the entry count.
+    nonisolated struct Notice: Equatable {
+        let text: String
+        let isError: Bool
+    }
+
+    @Published private(set) var importState: ImportState = .idle
     /// Why the last Delete All failed, until a later one succeeds. While it is set the history is
     /// still stored, so Settings keeps showing it and keeps Delete All available for a retry.
+    /// Independent of `importState`: a failed deletion can sit beside an earlier import result,
+    /// and Delete All can run while a file is still being read.
     @Published private(set) var deletionError: String?
+
+    /// The most important thing to tell the user right now. Problems outrank progress: a deletion
+    /// that did not happen, then an archive that cannot be read, then the import.
+    var notice: Notice? {
+        if let deletionError {
+            return Notice(text: deletionError, isError: true)
+        }
+        if case let .unavailable(message) = status {
+            return Notice(text: message, isError: true)
+        }
+        switch importState {
+        case .idle:
+            return nil
+        case .importing:
+            return Notice(text: "Importing…", isError: false)
+        case .finished(let message):
+            return Notice(text: message, isError: false)
+        }
+    }
+
+    /// Import needs a readable archive and never overlaps another import.
+    var canImport: Bool {
+        status == .ready && importState != .importing
+    }
+
+    /// Delete All also clears an archive that can no longer be opened (its entries can't be
+    /// counted, so the count reads zero) and stays available after a failed deletion so it can be
+    /// retried. Never during an import, which would add entries back.
+    var canDeleteAll: Bool {
+        guard importState != .importing else { return false }
+        if case .unavailable = status { return true }
+        return recordCount > 0 || deletionError != nil
+    }
 
     /// Oldest records are dropped past this many. Retrieval and the phrase table stay small enough
     /// to rebuild in a second or two, and very old writing says little about how the user writes now.
@@ -127,8 +176,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         guard preferences.isUsingHistory != enabled else { return }
         preferences.isUsingHistory = enabled
         userDefaults.set(enabled, forKey: DefaultsKey.isUsingHistory)
-        exampleCache = nil
-        shownExamples = nil
+        invalidateExamples()
     }
 
     func setRecording(_ enabled: Bool) {
@@ -251,8 +299,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             guard let self, generation == self.rebuildGeneration else { return }
             self.index = built.0
             self.phrases = built.1
-            self.exampleCache = nil
-            self.shownExamples = nil
+            self.invalidateExamples()
         }
     }
 
@@ -464,14 +511,20 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         records.removeFirst(records.count - Self.maximumRecords)
     }
 
+    /// Both example caches describe the index and preferences they were ranked under, so they
+    /// are always dropped together when either changes.
+    private func invalidateExamples() {
+        exampleCache = nil
+        shownExamples = nil
+    }
+
     // MARK: - Import and deletion
 
     /// Imports a Cotypist `user_inputs.json` export. Entries whose text is already in history are
     /// skipped, so importing the same file twice adds nothing.
     func importCotypistExport(from url: URL) async {
-        guard status == .ready, !isImporting else { return }
-        isImporting = true
-        defer { isImporting = false }
+        guard canImport else { return }
+        importState = .importing
         let generation = persistenceGeneration
         do {
             let imported = try await Task.detached(priority: .userInitiated) {
@@ -479,13 +532,15 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             }.value
             // Delete All ran while the file was being read; adding the import now would partly undo it.
             guard generation == persistenceGeneration else {
-                lastImportMessage = "Import cancelled because typing history was deleted."
+                importState = .finished("Import cancelled because typing history was deleted.")
                 return
             }
             let knownTexts = Set(records.map(\.text))
             let fresh = imported.filter { !knownTexts.contains($0.text) }
-            lastImportMessage = "Imported \(fresh.count) entries"
-                + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
+            importState = .finished(
+                "Imported \(fresh.count) entries"
+                    + (imported.count > fresh.count ? " (\(imported.count - fresh.count) were already in your history)." : ".")
+            )
             guard !fresh.isEmpty else { return }
             records.append(contentsOf: fresh)
             trimToCapacity()
@@ -494,7 +549,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             scheduleSave()
             rebuildSearchStructures()
         } catch {
-            lastImportMessage = (error as? LocalizedError)?.errorDescription ?? "Import failed: \(error.localizedDescription)"
+            importState = .finished(
+                (error as? LocalizedError)?.errorDescription ?? "Import failed: \(error.localizedDescription)"
+            )
         }
     }
 
@@ -523,10 +580,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         savedChangeCount = changeCount
         index = nil
         phrases = nil
-        exampleCache = nil
-        shownExamples = nil
+        invalidateExamples()
         rebuildGeneration += 1
-        lastImportMessage = nil
+        // An import still reading its file stays in progress; it notices the deletion itself and
+        // reports that it was cancelled.
+        if case .finished = importState {
+            importState = .idle
+        }
         deletionError = nil
         status = .ready
     }

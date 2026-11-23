@@ -165,33 +165,19 @@ final class InputMonitor {
     private var observerTap: EventTap?
 
     private var acceptTap: EventTap?
-    /// Whether `acceptTap` is currently intercepting. Between suggestions the tap is disabled
-    /// rather than destroyed (see `updateAcceptTapState`), so this distinguishes an intentional
-    /// pause from the system disabling it on timeout, which the callback re-enables.
-    private var acceptTapEnabled = false
+    /// Decides when `acceptTap` is installed, enabled, parked, and released; this class only
+    /// applies its effects to the real tap.
+    ///
+    /// Internal instead of private so unit tests can stage tap ownership and exercise observer
+    /// routing without installing global event taps. Production only mutates it through
+    /// `setAcceptInterceptionActive(_:)`, `setCaptureInterceptionActive(_:)`, and the timers
+    /// those arm.
+    var acceptTapLifecycle = AcceptTapLifecycle()
 
     /// Dedicated consuming tap for the global-toggle hotkey. Lives independently of the accept tap
     /// because it must fire even when no suggestion is visible — and even when Cotabby is globally
     /// disabled, since the whole purpose of the hotkey is to flip that switch back on.
     private var toggleTap: EventTap?
-
-    /// Tracks whether the consuming tap currently owns accept-key semantics. This is separate
-    /// from "a suggestion exists": the observer should only suppress accept-key callbacks when a
-    /// real default tap can make the consume/pass-through decision for that same physical key.
-    ///
-    /// Internal instead of private so unit tests can exercise observer routing without installing
-    /// global event taps.
-    var isAcceptTapOwningAcceptKeys = false
-
-    /// The two independent reasons to keep the active tap installed. A visible suggestion needs to
-    /// consume the accept key; an in-progress emoji capture needs to consume navigation and commit
-    /// keys. Tracking them separately means neither feature removes the tap while the other still
-    /// needs it, and the tap is gone entirely when both are idle (the issue #328 invariant).
-    private var suggestionInterceptionActive = false
-    /// Internal (not private) for the same reason as `isAcceptTapOwningAcceptKeys`: tests stage the
-    /// "emoji capture open" state directly to exercise observer routing without installing real taps.
-    /// Production only mutates this through `setCaptureInterceptionActive(_:)`.
-    var captureInterceptionActive = false
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -248,107 +234,66 @@ final class InputMonitor {
 
     private static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
 
-    /// How long the accept tap stays enabled after the last suggestion hid. Switching an active tap
-    /// off pulls it out of the session tap chain, and an event still on its way through it is lost:
-    /// a final-chunk accept runs *inside* this tap's own callback, posts the synthetic insertion to
-    /// `.cghidEventTap`, then hides the overlay, and tearing the tap down in that same run-loop turn
-    /// once made the last accepted word never reach the host (PR #385, "Fix last tab issue"). The
-    /// user's own keystrokes are exposed the same way: toggling the tap around every keystroke of a
-    /// burst dropped about one typed character in a hundred in live TextEdit runs, and none with
-    /// Cotabby quit. Two seconds spans a typing burst, so the tap is only switched off once input
-    /// has gone quiet, and it also covers the synthetic-insertion drain.
-    private static let acceptTapIdleDisableSeconds: TimeInterval = 2
-    /// How long a disabled accept tap is kept for its next suggestion before it is released.
-    private static let acceptTapReleaseDelaySeconds: TimeInterval = 10
-    private var acceptTapStateGeneration: UInt64 = 0
-    /// `ProcessInfo.systemUptime` of the last keydown the observer saw, real or synthetic. The idle
-    /// disable is measured from it, not from the overlay hide: the user can keep typing long after
-    /// the last suggestion state change, and that burst must not see the tap switch off.
+    /// `ProcessInfo.systemUptime` of the last keydown the observer saw, real or synthetic. The
+    /// accept tap's idle disable is measured from it (see `AcceptTapLifecycle.idleCheckFired`).
     private var lastObservedKeyDownUptime: TimeInterval?
-
-    private var acceptTapWanted: Bool {
-        permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
-    }
 
     /// Suggestion-overlay reason for the active tap. The coordinator calls this when a suggestion
     /// becomes visible or hidden, so Cotabby only enters the synchronous event path while there is
     /// something to accept.
     func setAcceptInterceptionActive(_ active: Bool) {
-        suggestionInterceptionActive = active
-        updateAcceptTapState()
+        setAcceptTapReason(.suggestion, active: active)
     }
 
     /// Emoji-capture reason for the active tap. The emoji controller calls this when a `:query`
     /// capture opens or closes, so the tap can consume navigation and commit keys for the duration.
     func setCaptureInterceptionActive(_ active: Bool) {
-        captureInterceptionActive = active
-        updateAcceptTapState()
+        setAcceptTapReason(.emojiCapture, active: active)
     }
 
-    /// Installs the active tap when either reason wants it and tears it down otherwise. Recomputes
-    /// accept-key ownership: only a visible suggestion claims the accept key at the observer layer.
-    /// When the tap exists solely for emoji capture, the observer must keep routing the accept key
-    /// (Tab) to the coordinator so the emoji controller — not the suggestion accept path — acts on it.
-    private func updateAcceptTapState() {
-        let wantsTap = permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
-        // Only a visible suggestion claims the accept key at the observer layer. When the tap exists
-        // solely for emoji capture, the observer must keep routing the accept key (Tab) to the
-        // coordinator so the emoji controller — not the suggestion accept path — acts on it. Setting
-        // this synchronously (even on teardown) lets the fail-open preflight resume passing keys
-        // through immediately.
-        isAcceptTapOwningAcceptKeys = wantsTap && suggestionInterceptionActive
-        if wantsTap {
-            acceptTapStateGeneration &+= 1
-            installAcceptTapIfNeeded()
-        } else {
-            // Defer the disable, so a final-chunk accept's synthetic insertion can drain before the
-            // tap stops intercepting (see `acceptTapIdleDisableSeconds`). Re-check both
-            // reasons at fire time so a suggestion or an emoji capture that re-armed the tap during the
-            // delay keeps it installed.
-            //
-            // While typing, a ghost hides and reappears on nearly every keystroke. Destroying the tap
-            // each time made the next appearance re-create it, a synchronous WindowServer round trip
-            // (~20-30 ms measured) on the main thread right before the ghost could be presented. A
-            // disabled tap intercepts nothing, so typing stays off this synchronous path exactly as
-            // before; re-enabling it is cheap. It is released only after a longer idle period.
-            //
-            // The tap is disabled only after a quiet period, never between keystrokes of a burst.
-            // Switching an active tap off while a keystroke is in flight through it can lose that
-            // keystroke: live runs dropped one character in roughly a hundred while the tap was
-            // toggled around every keystroke, and none with Cotabby quit. Every state change bumps
-            // `acceptTapStateGeneration`, so only a disable scheduled after the last change runs.
-            acceptTapStateGeneration &+= 1
-            scheduleAcceptTapDisable(generation: acceptTapStateGeneration, after: Self.acceptTapIdleDisableSeconds)
-        }
+    private func setAcceptTapReason(_ reason: AcceptTapLifecycle.Reasons, active: Bool) {
+        let hasPermission = permissionProvider()
+        apply(acceptTapLifecycle.setReason(reason, active: active, hasPermission: hasPermission))
     }
 
-    /// Disables the accept tap once input has been quiet for `acceptTapIdleDisableSeconds`, then
-    /// releases it after `acceptTapReleaseDelaySeconds` more. Both steps are owned by `generation`:
-    /// any later state change bumps it, so a stale callback (say, a release scheduled before the
-    /// tap was re-armed and disabled again) cannot cut the newer idle period short.
-    private func scheduleAcceptTapDisable(generation: UInt64, after delay: TimeInterval) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, generation == self.acceptTapStateGeneration, !self.acceptTapWanted else { return }
-            let remaining = Self.acceptTapIdleRemaining(
-                lastKeyDownUptime: self.lastObservedKeyDownUptime, nowUptime: ProcessInfo.processInfo.systemUptime
-            )
-            if remaining > 0 {
-                self.scheduleAcceptTapDisable(generation: generation, after: remaining)
-                return
+    /// Carries out what the lifecycle decided. Timers report back into the lifecycle, which drops
+    /// the ones a later reason change has made stale.
+    private func apply(_ effect: AcceptTapLifecycle.Effect) {
+        switch effect {
+        case .none:
+            break
+
+        case .intercept(let reenableParkedTap):
+            ensureAcceptTapIntercepting(reenableParkedTap: reenableParkedTap)
+
+        case .scheduleIdleCheck(let generation, let delay):
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                let hasPermission = self.permissionProvider()
+                let next = self.acceptTapLifecycle.idleCheckFired(
+                    generation: generation,
+                    hasPermission: hasPermission,
+                    lastKeyDownUptime: self.lastObservedKeyDownUptime,
+                    nowUptime: ProcessInfo.processInfo.systemUptime
+                )
+                self.apply(next)
             }
-            self.disableAcceptTap()
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapReleaseDelaySeconds) { [weak self] in
-                guard let self, generation == self.acceptTapStateGeneration,
-                      !self.acceptTapWanted, !self.acceptTapEnabled else { return }
-                self.destroyAcceptTap()
-            }
-        }
-    }
 
-    /// Seconds until input will have been quiet for `acceptTapIdleDisableSeconds`, or 0 once it has.
-    nonisolated static func acceptTapIdleRemaining(lastKeyDownUptime: TimeInterval?, nowUptime: TimeInterval) -> TimeInterval {
-        guard let lastKeyDownUptime else { return 0 }
-        return max(0, acceptTapIdleDisableSeconds - max(0, nowUptime - lastKeyDownUptime))
+        case .park(let disableTap, let releaseGeneration, let delay):
+            if disableTap, let acceptTap {
+                acceptTap.setEnabled(false)
+                CotabbyLogger.app.debug("CGEvent accept tap disabled")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                let hasPermission = self.permissionProvider()
+                let next = self.acceptTapLifecycle.releaseFired(generation: releaseGeneration, hasPermission: hasPermission)
+                self.apply(next)
+            }
+
+        case .release:
+            invalidateAcceptTap()
+        }
     }
 
     private func installObserverTapIfNeeded() {
@@ -384,13 +329,13 @@ final class InputMonitor {
         CotabbyLogger.app.info("CGEvent observer tap installed (listen-only)")
     }
 
-    private func installAcceptTapIfNeeded() {
-        // Ownership of the accept key is decided by `updateAcceptTapState`, not here, so this method
-        // only guarantees the tap exists and is intercepting.
+    /// Makes sure the accept tap exists and is intercepting. An installed tap is already enabled
+    /// unless the lifecycle parked it; a missing one (first use, or an earlier install that
+    /// failed) is created.
+    private func ensureAcceptTapIntercepting(reenableParkedTap: Bool) {
         if let acceptTap {
-            if !acceptTapEnabled {
+            if reenableParkedTap {
                 acceptTap.setEnabled(true)
-                acceptTapEnabled = true
                 CotabbyLogger.app.debug("CGEvent accept tap re-enabled")
             }
             return
@@ -422,18 +367,7 @@ final class InputMonitor {
             return
         }
         acceptTap = tap
-        acceptTapEnabled = true
         CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only)")
-    }
-
-    /// Stops the accept tap from intercepting without releasing it, so the next visible
-    /// suggestion only has to re-enable it.
-    private func disableAcceptTap() {
-        isAcceptTapOwningAcceptKeys = false
-        guard let acceptTap, acceptTapEnabled else { return }
-        acceptTap.setEnabled(false)
-        acceptTapEnabled = false
-        CotabbyLogger.app.debug("CGEvent accept tap disabled")
     }
 
     private func installToggleTapIfNeeded() {
@@ -476,14 +410,18 @@ final class InputMonitor {
         observerTap = nil
     }
 
+    /// Tears the accept tap down from outside its lifecycle (stopping, or permission revoked).
     private func destroyAcceptTap() {
-        isAcceptTapOwningAcceptKeys = false
+        acceptTapLifecycle.tapRemoved()
+        invalidateAcceptTap()
+    }
+
+    private func invalidateAcceptTap() {
         guard let acceptTap else {
             return
         }
         acceptTap.invalidate()
         self.acceptTap = nil
-        acceptTapEnabled = false
         CotabbyLogger.app.info("CGEvent accept tap removed")
     }
 
@@ -624,7 +562,7 @@ final class InputMonitor {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             // Only undo a system-initiated disable; a tap Cotabby paused between suggestions stays off.
-            if let acceptTap, acceptTapEnabled {
+            if let acceptTap, acceptTapLifecycle.isTapEnabled {
                 CotabbyLogger.app.warning("Accept tap was disabled by system, re-enabling")
                 acceptTap.setEnabled(true)
             }
@@ -729,11 +667,12 @@ final class InputMonitor {
         // While an emoji capture is open, the accept key must reach the observer's `onEvent` so the
         // emoji controller can commit on it. The emoji commit fires from the listen-only observer pass
         // (the accept tap only swallows the key afterward), so suppressing the accept key here — which
-        // we do whenever a ghost suggestion is concurrently visible (`isAcceptTapOwningAcceptKeys`) —
+        // we do whenever a ghost suggestion is concurrently visible (`ownsAcceptKeys`) —
         // would freeze the emoji controller out of its own commit key and route Tab to the suggestion
         // accept path instead. Excluding capture from acceptance recognition keeps the emoji picker's
         // "first look at every keystroke" invariant intact even when a suggestion overlay is showing.
-        let recognizesAcceptance = isAcceptTapOwningAcceptKeys && !captureInterceptionActive
+        let recognizesAcceptance = acceptTapLifecycle.ownsAcceptKeys
+            && !acceptTapLifecycle.reasons.contains(.emojiCapture)
         let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
         // Trace-level so it is free at the default floor; under `-cotabby-debug` every observed key
         // lands in the JSONL stream, which is how a "why did the ghost vanish" report gets answered.

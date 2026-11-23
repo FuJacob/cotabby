@@ -102,7 +102,8 @@ final class InputMonitorTests: XCTestCase {
         let bindings: [(label: String, keyCode: CGKeyCode)] = [("word accept", Self.tab), ("full accept", Self.backtick)]
         for binding in bindings {
             let monitor = makeMonitor()
-            monitor.isAcceptTapOwningAcceptKeys = true
+            // Staged directly: `setAcceptInterceptionActive` would install a real CGEvent tap.
+            _ = monitor.acceptTapLifecycle.setReason(.suggestion, active: true, hasPermission: true)
             monitor.fullAcceptanceBindingProvider = { (Self.backtick, []) }
             let delivered = recordKinds(on: monitor, accepts: true)
 
@@ -112,15 +113,15 @@ final class InputMonitorTests: XCTestCase {
     }
 
     /// Regression: while an emoji `:query` capture is open, the observer must keep routing the accept
-    /// key (Tab) to `onEvent` even when a ghost suggestion is concurrently visible (which sets
-    /// `isAcceptTapOwningAcceptKeys`). The emoji commit fires from this observer pass; suppressing the
+    /// key (Tab) to `onEvent` even when a ghost suggestion is concurrently visible (which makes the
+    /// accept tap own the accept keys). The emoji commit fires from this observer pass; suppressing the
     /// key here let a late async suggestion steal the first Tab, so the emoji never landed on the first
     /// try and only worked once the suggestion had cleared.
     func test_observerRoutesAcceptKeyToEmojiObserverWhileCapturingDespiteVisibleSuggestion() {
         let monitor = makeMonitor()
         // Staged directly: `setCaptureInterceptionActive` would install a real CGEvent tap.
-        monitor.captureInterceptionActive = true
-        monitor.isAcceptTapOwningAcceptKeys = true
+        _ = monitor.acceptTapLifecycle.setReason(.emojiCapture, active: true, hasPermission: true)
+        _ = monitor.acceptTapLifecycle.setReason(.suggestion, active: true, hasPermission: true)
         let delivered = recordKinds(on: monitor, accepts: false)
 
         let captured = monitor.handleObserverKeyDown(InputMonitorKeyEvent(keyCode: Self.tab))
@@ -286,15 +287,5 @@ final class InputMonitorTests: XCTestCase {
 
         XCTAssertEqual(monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: Self.tab)), .consume)
         XCTAssertEqual(monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 125)), .notHandled)
-    }
-
-    /// The accept tap switches off only after input has been quiet for two seconds, measured from
-    /// the last keystroke rather than from the overlay hide.
-    func test_acceptTapIdleRemainingIsMeasuredFromTheLastKeystroke() {
-        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: nil, nowUptime: 100), 0)
-        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 99.5, nowUptime: 100), 1.5, accuracy: 1e-9)
-        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 97, nowUptime: 100), 0)
-        // A keystroke stamped after `now` (clock read order) still waits the full period, never longer.
-        XCTAssertEqual(InputMonitor.acceptTapIdleRemaining(lastKeyDownUptime: 100.2, nowUptime: 100), 2, accuracy: 1e-9)
     }
 }
