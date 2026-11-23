@@ -454,7 +454,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         // about to publish (speculative prefetch) instead of idling through the publish poll; the
         // overlay still hides until that result lands and validates.
         XCTAssertEqual(rig.coordinator.state, .generating)
-        XCTAssertEqual(rig.coordinator.pendingSpeculativeContext?.precedingText, "what's on your mind today")
+        XCTAssertEqual(rig.coordinator.speculativeBet.expected?.precedingText, "what's on your mind today")
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         // It records what it committed so `apply` can drop a stale echo of the same tail.
         XCTAssertEqual(
@@ -471,7 +471,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         XCTAssertEqual(rig.inserter.insertedChunks, [" today"])
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "The kill switch must skip the speculative request")
+        XCTAssertNil(rig.coordinator.speculativeBet.expected, "The kill switch must skip the speculative request")
         XCTAssertEqual(rig.coordinator.state, .idle, "Only the host-publish poll may regenerate now")
         XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed, "Tab ownership does not depend on speculation")
     }
@@ -650,12 +650,12 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
     func test_applyAcceptsSpeculativeResultWhenContentSignatureMatches() async {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
         let rig = retained(makeCoordinatorRig(snapshot: snapshot))
-        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(snapshot: snapshot, generation: 1)
+        rig.coordinator.speculativeBet.place(expecting: FocusedInputContext(snapshot: snapshot, generation: 1))
 
         await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
 
         XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "the exemption is single-use")
+        XCTAssertNil(rig.coordinator.speculativeBet.expected, "the exemption is single-use")
     }
 
     /// A speculative result can finish before the host publishes the keystroke it was built for.
@@ -665,34 +665,37 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         let unpublished = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello worl")
         let published = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
         let rig = retained(makeCoordinatorRig(snapshot: unpublished))
-        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(snapshot: published, generation: 999)
+        rig.coordinator.speculativeBet.place(expecting: FocusedInputContext(snapshot: published, generation: 999))
 
         await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
-        XCTAssertNotNil(rig.coordinator.parkedSpeculativeResult, "an early speculative result is held")
+        guard case .parked = rig.coordinator.speculativeBet else {
+            return XCTFail("an early speculative result is held")
+        }
         XCTAssertNotEqual(rig.overlayController.hideReasons.last, "Overlay hidden because a stale result was dropped.")
 
         // The host publishes the speculated text; replaying the parked result shows it.
         rig.setFocusedInput(published)
-        let parked = try? XCTUnwrap(rig.coordinator.parkedSpeculativeResult)
+        let parked = try? XCTUnwrap(rig.coordinator.speculativeBet.takeParked())
         await rig.coordinator.apply(result: parked!.result, workID: parked!.workID)
         XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext)
-        XCTAssertNil(rig.coordinator.parkedSpeculativeResult)
+        XCTAssertEqual(rig.coordinator.speculativeBet, .idle)
     }
 
-    /// A new bet, or a reschedule that abandons the old one, discards a parked result for good.
+    /// A reschedule that abandons the bet discards its parked result for good.
     func test_parkedSpeculativeResultIsDiscardedWithItsBet() async {
         let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello worl")
         ))
-        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(
+        rig.coordinator.speculativeBet.place(expecting: FocusedInputContext(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world "), generation: 999
-        )
+        ))
         await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
-        XCTAssertNotNil(rig.coordinator.parkedSpeculativeResult)
+        guard case .parked = rig.coordinator.speculativeBet else {
+            return XCTFail("the early result should be parked")
+        }
 
-        rig.coordinator.pendingSpeculativeContext = nil
-        XCTAssertNil(rig.coordinator.parkedSpeculativeResult)
+        rig.coordinator.schedulePrediction()
+        XCTAssertEqual(rig.coordinator.speculativeBet, .idle)
     }
 
     /// Without the signature exemption, a stale-generation result must keep being dropped.

@@ -40,7 +40,7 @@ final class SuggestionConversationIsolationTests: SuggestionCoordinatorRigTestCa
         // another conversation (a nil one would only be a timed-out read of the same field).
         let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This conversation")))
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
-        rig.coordinator.pendingSpeculativeContext = source
+        rig.coordinator.speculativeBet.place(expecting: source)
         rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Different conversation"))
         await rig.coordinator.apply(result: SuggestionResult(
             generation: source.generation, rawText: " old chat", text: " old chat", latency: 0.01

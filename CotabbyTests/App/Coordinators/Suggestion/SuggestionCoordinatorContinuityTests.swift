@@ -177,7 +177,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
         publishText("Please schedule", in: rig)
         rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
         XCTAssertNil(rig.interactionState.activeSession)
-        XCTAssertEqual(rig.coordinator.preparedContinuation?.awaitingCommit, true)
+        XCTAssertEqual(rig.coordinator.preparedContinuation?.isCommitted, true)
         XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Please schedu", "Please schedule "])
 
         gate.resume(text: "a meeting")
@@ -216,7 +216,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
         rig.coordinator.schedulePrediction()
-        await waitUntil { rig.coordinator.preparedContinuation?.text == "the package" }
+        await waitUntil { rig.coordinator.preparedContinuation?.readyText == "the package" }
 
         XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Please receive "])
         XCTAssertEqual(rig.overlayController.shownTexts, ["receive"])
@@ -274,7 +274,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
         await waitUntil { rig.focusProvider.refreshCount > refreshCountBeforePublication }
         XCTAssertTrue(rig.coordinator.usePreparedContinuationIfPossible())
         XCTAssertNil(rig.interactionState.activeSession)
-        XCTAssertEqual(rig.coordinator.preparedContinuation?.awaitingCommit, true)
+        XCTAssertEqual(rig.coordinator.preparedContinuation?.isCommitted, true)
 
         // The corrected text has already published, so its publication poll may stand down while
         // the engine still runs. There is no active session left to notice a subsequent field switch.
@@ -300,7 +300,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
         rig.coordinator.schedulePrediction()
-        await waitUntil { rig.coordinator.preparedContinuation?.text == "the package" }
+        await waitUntil { rig.coordinator.preparedContinuation?.readyText == "the package" }
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         // Seeing the exact replacement retires the publication poll and the plan, then queues the
@@ -336,7 +336,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
         let refreshCountBeforePublication = rig.focusProvider.refreshCount
         publishText("Please receive ", in: rig)
         await waitUntil { rig.focusProvider.refreshCount > refreshCountBeforePublication }
-        XCTAssertEqual(rig.coordinator.preparedContinuation?.awaitingCommit, true)
+        XCTAssertEqual(rig.coordinator.preparedContinuation?.isCommitted, true)
         publishText("Please receive a ", in: rig)
 
         gate.resume(text: "the package")
@@ -431,7 +431,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
         rig.coordinator.schedulePrediction()
-        await waitUntil { rig.coordinator.preparedContinuation?.text == "the package" }
+        await waitUntil { rig.coordinator.preparedContinuation?.readyText == "the package" }
 
         // Chromium may replace the AX element token without a focus change. Sequence and exact
         // content still identify the original edit; treating token churn as a field switch would
@@ -442,7 +442,7 @@ final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCa
         ))
         rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
         XCTAssertEqual(rig.interactionState.activeSession?.kind, .correction(typoWord: "recieve"))
-        XCTAssertEqual(rig.coordinator.preparedContinuation?.text, "the package")
+        XCTAssertEqual(rig.coordinator.preparedContinuation?.readyText, "the package")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.replacements.map(\.text), ["receive "])
 

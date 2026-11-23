@@ -331,32 +331,6 @@ extension SuggestionCoordinator {
         return shift != event.flags.contains(.maskAlphaShift) ? event.characters.uppercased() : event.characters
     }
 
-    /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
-    /// up and generating against whatever's there. Chosen empirically: long enough to cover
-    /// Chrome's slower contenteditable publish on a busy page, short enough that the user can
-    /// always type ahead without the rescheduled suggestion feeling stuck.
-    private static let hostPublishWaitCeilingMs = 400
-
-    /// Interval between AX polls while waiting for the host publish. Same order of magnitude as
-    /// the focus poll itself (default 80ms) but tighter so we catch the publish promptly without
-    /// burning CPU on AX queries that are themselves 5–15ms each.
-    private static let hostPublishPollIntervalMs = 30
-
-    /// First-retry interval after the immediate (elapsed 0) poll, which runs inside the keystroke's
-    /// own tap callback before the host has even processed the key and therefore always misses. A
-    /// short first retry catches fast-publishing native apps in ~10ms instead of making them wait a
-    /// full steady interval; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
-    private static let hostPublishFirstPollIntervalMs = 6
-
-    /// Native hosts publish a keystroke to AX within roughly 10-40 ms, so the wait polls densely
-    /// during that window and only then backs off to `hostPublishPollIntervalMs` for slow Chromium
-    /// hosts. With a 30 ms step from the start, a publish that landed just after the first retry
-    /// waited a further ~30 ms (live TextEdit trace: key-to-request 50 ms instead of ~20 ms), the
-    /// largest remaining wait before generation. The dense phase costs a handful of ~2-3 ms AX
-    /// reads per keystroke and ends after `hostPublishFastPhaseMs`.
-    private static let hostPublishFastPollIntervalMs = 8
-    private static let hostPublishFastPhaseMs = 60
-
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
     /// logs in #381 showed Chromium's publish lag can exceed that ceiling on a busy page, so the
@@ -365,16 +339,19 @@ extension SuggestionCoordinator {
     ///
     /// We now snapshot the AX state at keystroke time (focused element identity, preceding text,
     /// selection) and poll `focusModel` until the snapshot actually moves on. The poll is capped
-    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline. Ordinary input can
-    /// fall back to the latest snapshot; correction callers require changed text and abandon the
-    /// refresh on timeout so stale AX cannot repeatedly correct the same word.
+    /// at `HostPublishPollSchedule.waitCeilingMilliseconds` so a silent host can't hang the
+    /// pipeline. Ordinary input can fall back to the latest snapshot; correction callers require
+    /// changed text and abandon the refresh on timeout so stale AX cannot repeatedly correct the
+    /// same word.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
     func schedulePredictionAfterHostPublishDelay(requiresTextChange: Bool = false) {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
-        let baseline = focusModel.snapshot.context
+        let baseline = HostPublishBaseline(
+            snapshot: focusModel.snapshot.context, requiresTextChange: requiresTextChange
+        )
         // Anchor for folding the publish wait into the debounce: `schedulePrediction` subtracts
         // the wall time already spent waiting for AX from the configured debounce, so the debounce
         // window starts at the keystroke instead of stacking on top of the publish delay. Measured
@@ -386,19 +363,13 @@ extension SuggestionCoordinator {
         // almost always reads the pre-keystroke value while still paying the full AX cost. Start at
         // the first retry instead; this keeps fast native fields responsive and removes one
         // guaranteed-stale read from every keypress.
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(Self.hostPublishFirstPollIntervalMs)
-        ) { [weak self] in
+        let firstInterval = HostPublishPollSchedule.firstIntervalMilliseconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(firstInterval)) { [weak self] in
             self?.pollForHostPublish(
-                baseline: HostPublishBaseline(
-                    precedingText: baseline?.precedingText,
-                    elementIdentifier: baseline?.elementIdentifier,
-                    selectionLocation: baseline?.selection.location,
-                    requiresTextChange: requiresTextChange,
-                    keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
-                ),
+                baseline: baseline,
+                keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
                 pollGeneration: pollGeneration,
-                elapsedMs: Self.hostPublishFirstPollIntervalMs
+                elapsedMs: firstInterval
             )
         }
     }
@@ -424,23 +395,13 @@ extension SuggestionCoordinator {
         )
     }
 
-    /// The AX state captured at keystroke time, against which the host-publish poll detects "the
-    /// host has processed the key", plus the uptime anchor for folding the wait into the debounce.
-    private struct HostPublishBaseline {
-        let precedingText: String?
-        let elementIdentifier: String?
-        let selectionLocation: Int?
-        /// Correction must never run again against the same pre-replacement text on timeout.
-        /// Ordinary keystrokes retain their fallback for hosts that publish no observable change.
-        let requiresTextChange: Bool
-        let keystrokeUptimeNanoseconds: UInt64
-    }
-
     /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`
-    /// as soon as any of the captured baseline fields move on, and otherwise tail-calls itself
-    /// after `hostPublishPollIntervalMs` until the ceiling is hit.
+    /// as soon as the host has moved past the baseline, and otherwise calls itself again on the
+    /// `HostPublishPollSchedule` cadence until the ceiling is hit. `keystrokeUptimeNanoseconds` is
+    /// the anchor for folding the wait into the debounce.
     private func pollForHostPublish(
         baseline: HostPublishBaseline,
+        keystrokeUptimeNanoseconds: UInt64,
         pollGeneration: UInt64,
         elapsedMs: Int
     ) {
@@ -458,33 +419,24 @@ extension SuggestionCoordinator {
         if usePreparedContinuationIfPossible() { return }
         if keepTypingPredictionAfterHostPublish() { return }
 
-        // No focus context at all means the user moved away from any editable field — let
-        // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
-        let textChanged = currentContext?.precedingText != baseline.precedingText
-        let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
-        let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
         // A replacement can publish intermediate backspaces before its final insertion. A prepared
         // continuation names the exact target, so do not turn those intermediate slices into new
         // predictions. Real user input cancels this plan before it starts another polling chain.
         let awaitingPreparedTarget = preparedContinuation.map { prepared in
-            prepared.awaitingCommit && currentContext.map {
+            prepared.isCommitted && currentContext.map {
                 SuggestionContinuationPlan.sameFocusedField($0, prepared.plan.sourceSnapshot)
             } == true
         } ?? false
-        // After a replacement only new text counts: Chromium can hand out a new AX wrapper while
-        // the old word is still visible, and re-running the typo gate there would replace it twice.
-        // A genuine field switch still cancels this poll through the focus-change path.
-        let hostMovedOn = textChanged || ((elementChanged || selectionChanged) && !baseline.requiresTextChange)
-        if !awaitingPreparedTarget && hostMovedOn {
+        // A genuine field switch during a replacement's poll still cancels it through the
+        // focus-change path.
+        if !awaitingPreparedTarget && baseline.hostMovedOn(to: currentContext) {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
             // round-trip the speculation existed to skip. Stand down and let it land; `apply`
             // validates via the same signature. Any divergence falls through to the normal
             // reschedule, whose newer work id retires the speculation automatically.
-            if let expected = pendingSpeculativeContext, let currentContext,
-               currentContext.sessionIdentity.continues(expected.sessionIdentity),
-               currentContext.contentSignature == expected.contentSignature {
+            if let currentContext, speculativeBet.isPaidOff(by: currentContext) {
                 logStage(
                     "speculation-validated",
                     workID: currentWorkID,
@@ -493,18 +445,17 @@ extension SuggestionCoordinator {
                 )
                 // The generation may already have finished against the unpublished text and been
                 // parked by `apply`; now that the text matches, it is exactly current.
-                if let parked = parkedSpeculativeResult {
-                    parkedSpeculativeResult = nil
+                if let parked = speculativeBet.takeParked() {
                     Task { [weak self] in await self?.apply(result: parked.result, workID: parked.workID) }
                 }
                 return
             }
-            if let expected = pendingSpeculativeContext, let published = currentContext {
+            if let expected = speculativeBet.expected, let published = currentContext {
                 logSpeculationMiss(expected: expected, published: published)
             }
-            pendingSpeculativeContext = nil
+            speculativeBet.clear()
             schedulePrediction(
-                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
             )
             return
         }
@@ -512,14 +463,7 @@ extension SuggestionCoordinator {
         // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
         // its next prediction.
-        // We already waited the short first interval before entering this method; remaining polls
-        // stay dense while native hosts usually publish, then use the steady cadence until the
-        // ceiling.
-        let interval = elapsedMs < Self.hostPublishFastPhaseMs
-            ? Self.hostPublishFastPollIntervalMs
-            : Self.hostPublishPollIntervalMs
-        let nextElapsed = elapsedMs + interval
-        guard nextElapsed < Self.hostPublishWaitCeilingMs else {
+        guard let interval = HostPublishPollSchedule.nextInterval(afterElapsedMilliseconds: elapsedMs) else {
             if baseline.requiresTextChange {
                 // A delayed or rejected replacement must not become a loop of correcting the
                 // same stale word. Let the next real input restart prediction, and release any
@@ -529,7 +473,7 @@ extension SuggestionCoordinator {
                 return
             }
             schedulePrediction(
-                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
             )
             return
         }
@@ -537,8 +481,9 @@ extension SuggestionCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { [weak self] in
             self?.pollForHostPublish(
                 baseline: baseline,
+                keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
                 pollGeneration: pollGeneration,
-                elapsedMs: nextElapsed
+                elapsedMs: elapsedMs + interval
             )
         }
     }

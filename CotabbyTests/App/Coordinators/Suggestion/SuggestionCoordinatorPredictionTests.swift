@@ -593,14 +593,14 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         let rig = retained(makeCoordinatorRig())
         rig.coordinator.schedulePrediction()
         let workID = rig.coordinator.currentWorkID
-        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(
+        rig.coordinator.speculativeBet.place(expecting: FocusedInputContext(
             snapshot: rig.focusProvider.snapshot.context!, generation: 1
-        )
+        ))
 
         rig.coordinator.cancelPredictionWork()
 
         XCTAssertNotEqual(rig.coordinator.currentWorkID, workID)
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext)
+        XCTAssertNil(rig.coordinator.speculativeBet.expected)
     }
 
     func test_hasSuggestionArtifactsToClear_ignoresIdleAndDisabledStates() {

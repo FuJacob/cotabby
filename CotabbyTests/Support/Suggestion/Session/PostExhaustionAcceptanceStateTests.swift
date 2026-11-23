@@ -37,7 +37,6 @@ final class PostExhaustionAcceptanceStateTests: XCTestCase {
 
         XCTAssertFalse(state.isArmed)
         XCTAssertFalse(state.hasQueuedAccept)
-        XCTAssertFalse(state.needsRelease)
         XCTAssertFalse(state.ownsBackstop(generation: generation))
     }
 
@@ -47,12 +46,12 @@ final class PostExhaustionAcceptanceStateTests: XCTestCase {
         queuedState.queueAcceptIfArmed()
 
         XCTAssertTrue(queuedState.consumeQueuedAccept())
-        XCTAssertFalse(queuedState.needsRelease)
+        XCTAssertFalse(queuedState.isArmed)
 
         var emptyState = PostExhaustionAcceptanceState()
         emptyState.arm()
         XCTAssertFalse(emptyState.consumeQueuedAccept())
-        XCTAssertFalse(emptyState.needsRelease)
+        XCTAssertFalse(emptyState.isArmed)
     }
 
     func test_consumeInvalidatesTheCapturedBackstopAndClosesTheWindowForLaterPresses() {
@@ -73,7 +72,7 @@ final class PostExhaustionAcceptanceStateTests: XCTestCase {
     func test_consumeWithoutAnArmedWindowNeverOwesAnAccept() {
         var state = PostExhaustionAcceptanceState()
         XCTAssertFalse(state.queueAcceptIfArmed())
-        XCTAssertFalse(state.needsRelease)
+        XCTAssertFalse(state.isArmed)
         XCTAssertFalse(state.consumeQueuedAccept())
     }
 

@@ -165,20 +165,9 @@ final class SuggestionCoordinator: ObservableObject {
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
     static let continuationPrefetchDisabledDefaultsKey = "cotabbyContinuationPrefetchDisabled"
 
-    /// Expected post-acceptance context. A speculative result may predate the live generation
-    /// only when both its writing session and exact text match. A matching draft in a different
-    /// conversation must never receive this exemption. The host-publish poll shares that rule.
-    var pendingSpeculativeContext: FocusedInputContext? {
-        // A parked result belongs to exactly one bet; a new bet, a validated one, or a reschedule
-        // that abandons it must never let it be replayed later.
-        didSet { parkedSpeculativeResult = nil }
-    }
-
-    /// A speculative result that finished before the host published the text it was built for.
-    /// `apply` cannot show it yet (the live text still lacks the keystroke) and must not drop it:
-    /// once the publish matches, the poll stands down instead of requesting again, so a dropped
-    /// result would leave that keystroke with no suggestion. The publish poll replays it.
-    var parkedSpeculativeResult: (result: SuggestionResult, workID: UInt64)?
+    /// The outstanding bet on text the host has not published yet; `apply` and the host-publish
+    /// poll both validate results against it. See `SpeculativeBet`.
+    var speculativeBet = SpeculativeBet.idle
 
     /// One bounded next-word request can outlive consumption of its source word. It has its own
     /// work identity so accepting a correction does not cancel the answer being prepared for it.

@@ -20,7 +20,7 @@ extension SuggestionCoordinator {
         clearTypingPrediction()
         // Any normal reschedule supersedes an outstanding speculative bet (its work id retires the
         // in-flight task; this retires the signature exemption so a late result cannot sneak in).
-        pendingSpeculativeContext = nil
+        speculativeBet.clear()
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
@@ -223,7 +223,7 @@ extension SuggestionCoordinator {
     /// Starts the next generation immediately after a final-chunk accept, against the snapshot
     /// the host is expected to publish, instead of idling through the publish poll first. The
     /// poll keeps running as the validator: a matching publish lets this result through
-    /// (`pendingSpeculativeContext` in `apply`), a mismatch schedules a normal regeneration
+    /// (`speculativeBet` in `apply`), a mismatch schedules a normal regeneration
     /// whose newer work id retires this one automatically.
     func dispatchSpeculativePostAcceptanceGeneration(
         rawContext: FocusedInputSnapshot,
@@ -270,7 +270,7 @@ extension SuggestionCoordinator {
     }
 
     /// Shared body of the speculative paths: gate, build the request for `optimistic`, and run it
-    /// with no debounce while `pendingSpeculativeContext` lets the publish poll validate it.
+    /// with no debounce while `speculativeBet` lets the publish poll validate it.
     private func dispatchSpeculativeGeneration(optimistic: FocusedInputSnapshot, message: String) {
         // Same pre-generation gates the ordinary cycle applies, minus their UI side effects: a
         // speculative request must not spend a decode on text the normal path would refuse (too
@@ -289,7 +289,7 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: optimistic)
-        pendingSpeculativeContext = context
+        speculativeBet.place(expecting: context)
 
         let requestBuildResult = buildRequest(
             for: context, rawContext: optimistic, visualContextSummary: screenExcerpt(for: context)
@@ -620,10 +620,7 @@ extension SuggestionCoordinator {
         // read of the pre-publish snapshot moves the live generation past the partial's. Like
         // `apply`, accept it by content instead: once the live field reads exactly what was
         // speculated, the partial is current; before that it stays hidden.
-        if let expected = pendingSpeculativeContext,
-           expected.sessionIdentity == liveContext.sessionIdentity,
-           expected.contentSignature == liveContext.contentSignature,
-           expected.generation == partial.generation {
+        if speculativeBet.coversStreamedPartial(generation: partial.generation, in: liveContext) {
             return SuggestionResult(
                 generation: liveContext.generation,
                 rawText: partial.rawText,
@@ -902,20 +899,12 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeContext.map { speculated in
-            liveContext.sessionIdentity.continues(speculated.sessionIdentity)
-                && liveContext.contentSignature == speculated.contentSignature
-        } ?? false
+        let isPaidOffSpeculation = speculativeBet.isPaidOff(by: liveContext)
         if isPaidOffSpeculation {
-            pendingSpeculativeContext = nil
-        }
-
-        // The speculative request itself, finished before the host published its keystroke: the
-        // live text cannot match yet, so park the result for the publish poll to replay.
-        if !isPaidOffSpeculation, let speculated = pendingSpeculativeContext,
-           result.generation == speculated.generation,
-           liveContext.sessionIdentity.continues(speculated.sessionIdentity) {
-            parkedSpeculativeResult = (result, workID)
+            speculativeBet.clear()
+        } else if speculativeBet.park(result, workID: workID, live: liveContext) {
+            // The speculative request itself, finished before the host published its keystroke:
+            // the live text cannot match yet, so the result waits for the publish poll to replay.
             logStage(
                 "speculation-parked",
                 workID: workID,
@@ -1457,7 +1446,7 @@ extension SuggestionCoordinator {
         if !preservingContinuation { cancelPreparedContinuation() }
         clearTypingPrediction()
         cancelDelayedStreamPresentation()
-        pendingSpeculativeContext = nil
+        speculativeBet.clear()
         hostPublishPollGeneration &+= 1
         workController.cancelAll()
     }

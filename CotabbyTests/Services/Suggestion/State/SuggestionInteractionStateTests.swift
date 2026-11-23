@@ -131,7 +131,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
             }
             XCTAssertEqual(kept.remainingText, "orld again")
             XCTAssertTrue(state.isAwaitingPostInsertionSync)
-            XCTAssertNil(state.pendingInsertionConsumedCount, "Typing must not open synthetic-insertion tolerance")
+            XCTAssertEqual(state.publicationLag, .awaitingTypedInput(0..<2), "Typing must not open synthetic-insertion tolerance")
         }
 
         guard case let .valid(_, published, _) = state.reconcileActiveSession(
@@ -194,7 +194,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         let afterAccept = try XCTUnwrap(state.activeSession)
         _ = state.advanceIfTypedCharactersMatch(" ", expectedSession: afterAccept)
 
-        XCTAssertEqual(state.pendingInsertionConsumedCount, 7)
+        XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 7))
         guard case let .valid(_, kept, _) = state.reconcileActiveSession(with: snapshot) else {
             return XCTFail("Typing ahead must not retire a still-pending Tab insertion")
         }
@@ -238,7 +238,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
             chunk, liveContext: context, session: session
         ) else { return XCTFail("The buffered phrase should stay ready after the word ending is accepted") }
         XCTAssertEqual(advanced.remainingText, " for the device")
-        XCTAssertEqual(state.pendingInsertionConsumedCount, 4)
+        XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 4))
 
         // A second Tab may arrive before AX publishes the first insertion. The existing sentinel
         // must continue to protect the newly revealed phrase without a second model request.
@@ -283,8 +283,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
             return XCTFail("Unpublished matching typing must preserve the following phrase")
         }
         XCTAssertEqual(kept.remainingText, " for the device")
-        XCTAssertTrue(state.isAwaitingPostInsertionSync)
-        XCTAssertNil(state.pendingInsertionConsumedCount)
+        XCTAssertEqual(state.publicationLag, .awaitingTypedInput(0..<4))
     }
 
     func test_acceptanceCannotCrossIntoAnUnseenWordRevealedByTheLatestAXSnapshot() {
@@ -335,7 +334,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         ))
 
         XCTAssertEqual(extended.remainingText, " again today")
-        XCTAssertEqual(state.pendingInsertionConsumedCount, 6)
+        XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 6))
         guard case let .valid(_, kept, _) = state.reconcileActiveSession(with: snapshot) else {
             return XCTFail("Extending a prediction must preserve pending Tab insertion")
         }

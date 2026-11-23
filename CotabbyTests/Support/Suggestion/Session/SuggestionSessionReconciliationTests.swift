@@ -24,7 +24,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         ]
         for target in targets {
             assertInvalid(SuggestionSessionReconciler.reconcile(
-                session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
+                session: session, with: target, lag: .awaitingSyntheticInsert(consumedCount: session.consumedCharacterCount)
             ), reason: "Overlay hidden because the focused field changed.")
         }
 
@@ -38,7 +38,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: nativeSession,
             with: CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
-            pendingInsertionConsumedCount: nativeSession.consumedCharacterCount
+            lag: .awaitingSyntheticInsert(consumedCount: nativeSession.consumedCharacterCount)
         ), reason: "Overlay hidden because the focused field changed.")
     }
 
@@ -62,13 +62,13 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         ]
         for live in blankReads {
             guard case .valid = SuggestionSessionReconciler.reconcile(
-                session: session, with: live, pendingInsertionConsumedCount: session.consumedCharacterCount
+                session: session, with: live, lag: .awaitingSyntheticInsert(consumedCount: session.consumedCharacterCount)
             ) else { return XCTFail("A surface fact that failed to read must not end the session: \(live.sessionIdentity)") }
         }
         assertInvalid(SuggestionSessionReconciler.reconcile(
             session: session,
             with: CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two", windowTitle: "Chat one"),
-            pendingInsertionConsumedCount: session.consumedCharacterCount
+            lag: .awaitingSyntheticInsert(consumedCount: session.consumedCharacterCount)
         ), reason: "Overlay hidden because the focused field changed.")
     }
 
@@ -76,7 +76,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let session = CotabbyTestFixtures.activeSession()
         let target = CotabbyTestFixtures.focusedInputContext(elementIdentifier: "refreshed-wrapper")
         guard case .valid = SuggestionSessionReconciler.reconcile(
-            session: session, with: target, pendingInsertionConsumedCount: nil
+            session: session, with: target, lag: .settled
         ) else { return XCTFail("AX wrapper churn must not discard an otherwise matching suggestion") }
     }
 
@@ -94,7 +94,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -104,7 +104,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertEqual(reconciledSession.acceptedText, session.acceptedText)
         XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
         XCTAssertNil(advancement)
-        XCTAssertNil(nextPending)
+        XCTAssertEqual(nextPending, .settled)
     }
 
     func test_reconcile_invalidWhenProcessChanges() {
@@ -114,7 +114,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(
@@ -132,7 +132,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(reconciliation, reason: "Overlay hidden because text is selected.")
@@ -152,7 +152,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(
@@ -176,7 +176,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: 6
+            lag: .awaitingSyntheticInsert(consumedCount: 6)
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -186,7 +186,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertEqual(reconciledSession.acceptedText, session.acceptedText)
         XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
         XCTAssertNil(advancement)
-        XCTAssertEqual(nextPending, 6)
+        XCTAssertEqual(nextPending, .awaitingSyntheticInsert(consumedCount: 6))
     }
 
     func test_reconcile_invalidWhenPrefixAnchorChangesOutsideInsertionSyncWindow() {
@@ -199,7 +199,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(
@@ -218,7 +218,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(
@@ -237,7 +237,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -247,7 +247,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertEqual(reconciledSession.acceptedText, " world")
         XCTAssertEqual(reconciledSession.remainingText, " again")
         XCTAssertEqual(advancement, SuggestionSessionAdvancement(advancedBy: 6))
-        XCTAssertNil(nextPending)
+        XCTAssertEqual(nextPending, .settled)
     }
 
     func test_reconcile_invalidWhenSuggestionPartiallyUndoneOutsideInsertionSyncWindow() {
@@ -263,7 +263,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         assertInvalid(
@@ -286,7 +286,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: 5
+            lag: .awaitingSyntheticInsert(consumedCount: 5)
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -296,7 +296,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertEqual(reconciledSession.acceptedText, session.acceptedText)
         XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
         XCTAssertNil(advancement)
-        XCTAssertEqual(nextPending, 5)
+        XCTAssertEqual(nextPending, .awaitingSyntheticInsert(consumedCount: 5))
     }
 
     func test_reconcile_toleratesPrefixAnchorRaceRightAfterAcceptedInsertion() {
@@ -312,7 +312,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: 6
+            lag: .awaitingSyntheticInsert(consumedCount: 6)
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -321,7 +321,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         }
         XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
         XCTAssertNil(advancement)
-        XCTAssertEqual(nextPending, 6)
+        XCTAssertEqual(nextPending, .awaitingSyntheticInsert(consumedCount: 6))
     }
 
     func test_reconcile_toleratesConsumedSuffixDivergenceRightAfterAcceptedInsertion() {
@@ -337,7 +337,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: 6
+            lag: .awaitingSyntheticInsert(consumedCount: 6)
         )
 
         guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
@@ -346,7 +346,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         }
         XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
         XCTAssertNil(advancement)
-        XCTAssertEqual(nextPending, 6)
+        XCTAssertEqual(nextPending, .awaitingSyntheticInsert(consumedCount: 6))
     }
 
     func test_reconcile_clearsPendingInsertionSentinelWhenAXCatchesUp() {
@@ -360,14 +360,14 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: 6
+            lag: .awaitingSyntheticInsert(consumedCount: 6)
         )
 
         guard case let .valid(_, _, nextPending) = reconciliation else {
             XCTFail("Expected caught-up AX state to remain valid")
             return
         }
-        XCTAssertNil(nextPending)
+        XCTAssertEqual(nextPending, .settled)
     }
 
     func test_pendingTypedInputNeverToleratesUnrelatedEditsOrAnEarlierPublishedPrefix() {
@@ -385,8 +385,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         for context in invalidContexts {
             let result = SuggestionSessionReconciler.reconcile(
-                session: session, with: context, pendingInsertionConsumedCount: nil,
-                pendingTypedConsumedRange: 6..<7
+                session: session, with: context, lag: .awaitingTypedInput(6..<7)
             )
             guard case .invalid = result else {
                 return XCTFail("Typed-input lag must not excuse a changed field or text: \(context.precedingText)")
@@ -401,7 +400,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world")
 
         guard case let .valid(reconciledSession, advancement, _) = SuggestionSessionReconciler.reconcile(
-            session: session, with: liveContext, pendingInsertionConsumedCount: nil
+            session: session, with: liveContext, lag: .settled
         ) else { return XCTFail("Expected typing through the suggestion to stay valid") }
 
         XCTAssertTrue(reconciledSession.isExhausted)
@@ -413,7 +412,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello 🐈")
 
         guard case let .valid(reconciledSession, advancement, _) = SuggestionSessionReconciler.reconcile(
-            session: session, with: liveContext, pendingInsertionConsumedCount: nil
+            session: session, with: liveContext, lag: .settled
         ) else { return XCTFail("Expected the typed emoji to advance the session") }
 
         XCTAssertEqual(reconciledSession.consumedCharacterCount, 2)
@@ -429,13 +428,13 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world ag")
 
         guard case let .valid(reconciledSession, advancement, nextPending) = SuggestionSessionReconciler.reconcile(
-            session: session, with: liveContext, pendingInsertionConsumedCount: 6
+            session: session, with: liveContext, lag: .awaitingSyntheticInsert(consumedCount: 6)
         ) else { return XCTFail("Expected matching typed-ahead text to stay valid") }
 
         XCTAssertEqual(reconciledSession.remainingText, "ain")
         XCTAssertFalse(reconciledSession.isExhausted)
         XCTAssertEqual(advancement?.advancedBy, 3)
-        XCTAssertNil(nextPending)
+        XCTAssertEqual(nextPending, .settled)
     }
 
     func test_reconcile_staleSentinelForAnEarlierChunkDoesNotExcuseAnUndo() {
@@ -448,7 +447,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         assertInvalid(
             SuggestionSessionReconciler.reconcile(
-                session: session, with: liveContext, pendingInsertionConsumedCount: 3
+                session: session, with: liveContext, lag: .awaitingSyntheticInsert(consumedCount: 3)
             ),
             reason: "Overlay hidden because the active suggestion was partially undone."
         )
@@ -463,7 +462,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         assertInvalid(
             SuggestionSessionReconciler.reconcile(
-                session: session, with: liveContext, pendingInsertionConsumedCount: 6
+                session: session, with: liveContext, lag: .awaitingSyntheticInsert(consumedCount: 6)
             ),
             reason: "Overlay hidden because text after the caret changed (5 -> 8 chars)."
         )
@@ -478,17 +477,15 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         XCTAssertEqual(
             SuggestionSessionReconciler.reconcile(
-                session: session, with: lagging, pendingInsertionConsumedCount: nil,
-                pendingTypedConsumedRange: 6..<7
+                session: session, with: lagging, lag: .awaitingTypedInput(6..<7)
             ),
-            .valid(session: session, advancement: nil, nextPendingInsertionConsumedCount: nil)
+            .valid(session: session, advancement: nil, nextLag: .awaitingTypedInput(6..<7))
         )
 
         // A range that does not end at the session's consumed count describes different keystrokes.
         assertInvalid(
             SuggestionSessionReconciler.reconcile(
-                session: session, with: lagging, pendingInsertionConsumedCount: nil,
-                pendingTypedConsumedRange: 5..<6
+                session: session, with: lagging, lag: .awaitingTypedInput(5..<6)
             ),
             reason: "Overlay hidden because the active suggestion was partially undone."
         )
@@ -521,7 +518,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         guard case let .valid(reconciledSession, advancement, _) = reconciliation else {
@@ -549,7 +546,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let reconciliation = SuggestionSessionReconciler.reconcile(
             session: session,
             with: liveContext,
-            pendingInsertionConsumedCount: nil
+            lag: .settled
         )
 
         guard case let .valid(reconciledSession, _, _) = reconciliation else {
@@ -584,7 +581,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
     func test_terminalScreen_redrawsOffTheCaretLineKeepTheSuggestion() {
         let live = terminalContext(above: "● other output\n✻ Thinking", prompt: "❯ git check", below: "ctx:63% · 54,801 tok")
         guard case let .valid(session, advancement, _) = SuggestionSessionReconciler.reconcile(
-            session: terminalSession(), with: live, pendingInsertionConsumedCount: nil
+            session: terminalSession(), with: live, lag: .settled
         ) else { return XCTFail("a status line or output redraw must not drop the suggestion") }
         XCTAssertNil(advancement)
         XCTAssertEqual(session.consumedCharacterCount, 0)
@@ -593,7 +590,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
     func test_terminalScreen_typingOnThePromptLineAdvancesTheSuggestion() {
         let live = terminalContext(above: "● agent output", prompt: "❯ git checkout", below: "ctx:63% · 54,801 tok")
         guard case let .valid(session, _, _) = SuggestionSessionReconciler.reconcile(
-            session: terminalSession(), with: live, pendingInsertionConsumedCount: nil
+            session: terminalSession(), with: live, lag: .settled
         ) else { return XCTFail("typing the suggestion on the prompt line must advance it") }
         XCTAssertEqual(session.consumedCharacterCount, 3)
     }
@@ -609,12 +606,12 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
             bundleIdentifier: "dev.bybee.herdrm", precedingText: "out\n❯ git check", trailingText: " --x\nstatus"
         )
         assertInvalid(SuggestionSessionReconciler.reconcile(
-            session: session, with: edited, pendingInsertionConsumedCount: nil
+            session: session, with: edited, lag: .settled
         ), reason: "Overlay hidden because text after the caret changed (0 -> 4 chars).")
 
         let retyped = terminalContext(above: "out", prompt: "❯ git switch", below: "status")
         assertInvalid(SuggestionSessionReconciler.reconcile(
-            session: session, with: retyped, pendingInsertionConsumedCount: nil
+            session: session, with: retyped, lag: .settled
         ), reason: "Overlay hidden because text before the caret no longer matches the suggestion anchor.")
     }
 
@@ -637,7 +634,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
             trailingText: String(repeating: " ", count: 180) + "\nstatus"
         )
         guard case let .valid(reconciled, _, _) = SuggestionSessionReconciler.reconcile(
-            session: session, with: live, pendingInsertionConsumedCount: nil
+            session: session, with: live, lag: .settled
         ) else { return XCTFail("blank cells pushed off the row must not drop the rest of the suggestion") }
         XCTAssertEqual(reconciled.consumedCharacterCount, 3)
         XCTAssertEqual(reconciled.predictedRemainingText, " main")
@@ -661,7 +658,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
             trailingText: "foobar" + String(repeating: " ", count: 61) + "\nstatus"
         )
         guard case .invalid = SuggestionSessionReconciler.reconcile(
-            session: session, with: joined, pendingInsertionConsumedCount: nil
+            session: session, with: joined, lag: .settled
         ) else { return XCTFail("removing a space between words after the caret must retire the suggestion") }
     }
 
@@ -683,7 +680,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
             trailingText: String(repeating: " ", count: 37) + "main ✓ 12:01"
         )
         guard case .valid = SuggestionSessionReconciler.reconcile(
-            session: session, with: live, pendingInsertionConsumedCount: nil
+            session: session, with: live, lag: .settled
         ) else { return XCTFail("the gap before a right prompt shrinking is not an edit after the caret") }
     }
 
@@ -691,7 +688,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         let session = CotabbyTestFixtures.activeSession(basePrecedingText: "Hello", baseTrailingText: "\nfooter")
         let live = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", trailingText: "\nfooter 2")
         assertInvalid(SuggestionSessionReconciler.reconcile(
-            session: session, with: live, pendingInsertionConsumedCount: nil
+            session: session, with: live, lag: .settled
         ), reason: "Overlay hidden because text after the caret changed (7 -> 9 chars).")
     }
 

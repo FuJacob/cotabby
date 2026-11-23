@@ -212,9 +212,9 @@ final class TypingExperienceEvalTests: XCTestCase {
         rig.coordinator.prepareContinuation(after: session, rawContext: source)
         run.record("correction-offered", text: source.precedingText, rig: rig, engine: engine)
         try await waitFor("Real-model correction lookahead did not produce a usable continuation") {
-            rig.coordinator.preparedContinuation?.text != nil && engine.inFlightCount == 0
+            rig.coordinator.preparedContinuation?.readyText != nil && engine.inFlightCount == 0
         }
-        let prepared = try XCTUnwrap(rig.coordinator.preparedContinuation?.text)
+        let prepared = try XCTUnwrap(rig.coordinator.preparedContinuation?.readyText)
         XCTAssertEqual(engine.records.map(\.prefix), [target])
         XCTAssertFalse(prepared.isEmpty)
         XCTAssertEqual(rig.interactionState.activeSession?.fullText, "forward")
