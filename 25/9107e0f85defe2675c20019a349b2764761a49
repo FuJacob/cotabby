@@ -1,0 +1,31 @@
+Cotabby/Models/Runtime/HuggingFaceModels.swift
+  s_9990f9098df800::t_b64ebfd61d4ea0 13-20,25-27
+Cotabby/Models/Runtime/LlamaRuntimeModels.swift
+  s_9990f9098df800::t_ca9880988ca66c 56-58,60-64,105-108,110,114-117,122-129,134-141,146-153,158-165,168-185,187-200
+Cotabby/Services/ModelManagement/HuggingFaceSearchService.swift
+  s_9990f9098df800::t_e761af61fca586 115-144,148-156
+Cotabby/Services/ModelManagement/ModelFileValidator.swift
+  s_9990f9098df800::t_a17f4a7adc005d 16-24,30,42-43,77-81,93-96,98,101-102,113-127,146-160,162
+Cotabby/UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift
+  s_9990f9098df800::t_765366d07c57b9 132-133,148-149,216-248
+CotabbyTests/Models/Runtime/HuggingFaceModelsTests.swift
+  s_9990f9098df800::t_b1034f246d77b5 6,69-92,94-100,103-104,110-111,119-191,193
+CotabbyTests/Services/ModelManagement/ModelFileValidatorTests.swift
+  s_9990f9098df800::t_041eb5dfe1ee33 116-119,121-144,196-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "259107e0f85defe2675c20019a349b2764761a49",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
