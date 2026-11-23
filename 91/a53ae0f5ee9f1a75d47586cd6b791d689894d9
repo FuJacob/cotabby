@@ -1,0 +1,27 @@
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_b9af9eb54478c8::t_e4a1a678da00fa 700
+CotabbyTests/Models/Focus/FocusModelsTests.swift
+  s_b9af9eb54478c8::t_0202d1e5ca4dd4 130-167
+CotabbyTests/Models/Suggestion/Session/SuggestionPresentationModelsTests.swift
+  s_b9af9eb54478c8::t_0a419192cd8774 6,8-27,29,31,37-53,55,57-66,69-116
+CotabbyTests/Support/Accessibility/AXHelperTests.swift
+  s_b9af9eb54478c8::t_6e49421d5418b3 462-498
+CotabbyTests/Support/Settings/PerAppShortcutOverrideStoreTests.swift
+  s_b9af9eb54478c8::t_ffcdf6891c8f9b 1,146-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91a53ae0f5ee9f1a75d47586cd6b791d689894d9",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
