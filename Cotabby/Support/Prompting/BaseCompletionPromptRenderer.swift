@@ -58,7 +58,7 @@ enum BaseCompletionPromptRenderer {
             // `maxChars` must stay at or above `SuggestionSettingsModel.maximumExtendedContextCharacters`
             // plus this label (~32 chars) so the full user-entered Extended Context survives here instead
             // of being silently clipped far under the advertised cap. It still competes for the total
-            // total budget below (priority 40), so an unusually long prefix can trim it, but in normal use
+            // budget below (priority 40), so an unusually long prefix can trim it, but in normal use
             // the whole blob lands.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
         }

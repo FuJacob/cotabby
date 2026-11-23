@@ -59,7 +59,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         }
 
         let report = LlamaEvalReport(
-            modelLabel: manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown-model",
+            modelLabel: manager.loadedModelFileURL?.lastPathComponent ?? "unknown-model",
             results: results
         )
         print("Sampler seed: \(LlamaEvalRuntime.seed)")
@@ -103,7 +103,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         }
 
         let report = LlamaEvalReport(
-            modelLabel: (manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown-model") + " [recall]",
+            modelLabel: (manager.loadedModelFileURL?.lastPathComponent ?? "unknown-model") + " [recall]",
             results: results
         )
         print(report.rendered())

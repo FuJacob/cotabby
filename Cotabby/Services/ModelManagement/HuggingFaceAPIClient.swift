@@ -1,8 +1,7 @@
 import Foundation
 
 /// Stateless client for the HuggingFace public REST API.
-/// Each call creates an ephemeral URLSession — matching the existing networking pattern
-/// in ModelDownloadManager — so no shared state or cookies persist between requests.
+/// Each call creates an ephemeral URLSession so no shared state or cookies persist between requests.
 enum HuggingFaceAPIClient {
 
     enum APIError: LocalizedError {
@@ -26,7 +25,7 @@ enum HuggingFaceAPIClient {
     }
 
     /// Search for GGUF model repositories sorted by download count.
-    static func searchModels(query: String, limit: Int = 20, offset: Int = 0) async throws -> [HFModelSearchResult] {
+    static func searchModels(query: String, limit: Int, offset: Int) async throws -> [HFModelSearchResult] {
         guard var components = URLComponents(string: "https://huggingface.co/api/models") else {
             throw APIError.invalidURL
         }

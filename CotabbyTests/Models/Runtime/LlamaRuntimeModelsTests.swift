@@ -66,7 +66,6 @@ final class LlamaRuntimeModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(option.id, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
-        XCTAssertEqual(option.actualModelName, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
         XCTAssertEqual(option.displayName, "tabby-2-nano")
     }
 
@@ -80,7 +79,6 @@ final class LlamaRuntimeModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(model.id, "https://example.com/custom.gguf")
-        XCTAssertEqual(model.actualModelName, "custom.gguf")
         XCTAssertNil(model.expectedSizeBytes)
         XCTAssertNil(model.sha256)
         XCTAssertEqual(model.approximateSizeLabel, "~1.4 GB")

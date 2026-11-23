@@ -49,13 +49,9 @@ struct ModelTransferTable: Equatable {
         case failed(String)
     }
 
-    private(set) var transfers: [String: Transfer] = [:]
+    private var transfers: [String: Transfer] = [:]
 
     // MARK: - Queries
-
-    var displayStates: [String: ModelDownloadState] {
-        transfers.mapValues { Self.displayState(for: $0.phase) }
-    }
 
     func displayState(for id: String) -> ModelDownloadState? {
         transfers[id].map { Self.displayState(for: $0.phase) }

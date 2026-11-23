@@ -40,7 +40,6 @@ final class FoundationModelAvailabilityService: ObservableObject {
     @Published private(set) var state: FoundationModelAvailabilityState
 
     private let provider: any FoundationModelAvailabilityProviding
-    private var observationTask: Task<Void, Never>?
 
     init(provider: (any FoundationModelAvailabilityProviding)? = nil) {
         let resolvedProvider = provider ?? Self.makeDefaultProvider()
@@ -73,9 +72,11 @@ final class FoundationModelAvailabilityService: ObservableObject {
     /// Starts a reactive observation loop so availability changes propagate to the UI without
     /// manual `refresh()` calls. The provider owns the observation mechanism: the system provider
     /// watches `SystemLanguageModel.availability` via Swift Observation, while the unsupported
-    /// provider is a no-op since its state never changes.
+    /// provider is a no-op since its state never changes. Nothing ever needs to stop it: the
+    /// service lives as long as the app, and the loop ends at the first change after its provider
+    /// is gone.
     private func startObserving() {
-        observationTask = provider.observe { [weak self] newState in
+        provider.observe { [weak self] newState in
             self?.state = newState
         }
     }
@@ -94,10 +95,10 @@ protocol FoundationModelAvailabilityProviding {
     /// Re-reads provider-specific availability and returns it in Cotabby's app-level vocabulary.
     func refresh() -> FoundationModelAvailabilityState
 
-    /// Returns a long-lived task that calls `onChange` whenever availability changes.
+    /// Calls `onChange` whenever availability changes, for as long as the provider lives.
     /// The system provider uses Swift Observation to watch `SystemLanguageModel`; the unsupported
-    /// provider returns nil because its state is constant.
-    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>?
+    /// provider never calls it because its state is constant.
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void)
 }
 
 /// Reports a stable unavailable state for the Apple Intelligence backend.
@@ -118,9 +119,7 @@ private struct UnsupportedAvailabilityProvider: FoundationModelAvailabilityProvi
         currentState
     }
 
-    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>? {
-        nil
-    }
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) {}
 }
 
 extension FoundationModelAvailabilityService {
@@ -177,10 +176,10 @@ private final class SystemAvailabilityProvider: FoundationModelAvailabilityProvi
 
     /// Uses Swift Observation to watch `SystemLanguageModel.availability` and push changes
     /// back to the service. `withObservationTracking` fires once per change, so the loop
-    /// re-registers after each callback to stay subscribed for the lifetime of the task.
-    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>? {
+    /// re-registers after each callback to stay subscribed until this provider is released.
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) {
         let observedModel = model
-        return Task { @MainActor [weak self] in
+        Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 let newState: FoundationModelAvailabilityState? = await withCheckedContinuation { continuation in
                     withObservationTracking {

@@ -356,13 +356,4 @@ final class ModelTransferTableTests: XCTestCase {
         cancelled.refresh(catalog: []) { _ in false }
         XCTAssertNil(cancelled.displayState(for: dynamicModel.id))
     }
-
-    func test_displayStates_mirrorEveryRow() {
-        let first = makeModel("first", filename: "first.gguf")
-        let second = makeModel("second", filename: "second.gguf")
-        var table = runningTable(first)
-        XCTAssertEqual(table.start(second, isInstalled: true), .alreadyInstalled)
-
-        XCTAssertEqual(table.displayStates, [first.id: .downloading(progress: nil), second.id: .downloaded])
-    }
 }

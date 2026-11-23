@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Shared value types for runtime bootstrap, model selection, diagnostics, and runtime errors.
+/// Shared value types for runtime bootstrap, model selection, generation options, and runtime errors.
 /// These types keep runtime state serializable, testable, and separate from the service layer.
 ///
 /// Human-readable lifecycle states surfaced to the UI during runtime bootstrap.
@@ -42,7 +42,6 @@ struct RuntimeModelOption: Equatable, Hashable, Sendable, Identifiable {
 
     var id: String { filename }
     var displayName: String { RuntimeModelCatalog.displayName(for: filename) }
-    var actualModelName: String { filename }
 }
 
 /// Downloadable model metadata used by onboarding and the Settings model catalog.
@@ -65,7 +64,6 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     let sha256: String?
 
     var id: String { downloadURL.absoluteString }
-    var actualModelName: String { filename }
     var approximateSizeLabel: String { String(format: "~%.1f GB", approximateSizeInGigabytes) }
 
     init(
@@ -223,15 +221,6 @@ struct LlamaGenerationOutput: Equatable, Sendable {
 struct ResolvedLlamaRuntime: Equatable, Sendable {
     let modelFileURL: URL
     let modelDisplayName: String
-}
-
-/// The runtime manager's record of its most recent load and failure. Nothing in the UI renders
-/// it; it exists so tests and eval harnesses can ask which model loaded and why a load failed.
-/// Load parameters (context window, threads, GPU layers) are in the `Model loaded` log line.
-struct LlamaRuntimeDiagnostics: Equatable, Sendable {
-    var modelFilePath: String?
-    var lastLoadStatus: String?
-    var lastError: String?
 }
 
 /// Runtime failures surfaced before or during in-process generation.

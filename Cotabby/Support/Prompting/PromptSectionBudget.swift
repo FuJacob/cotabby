@@ -43,33 +43,11 @@ enum PromptSectionBudget {
     /// is trimmed unless the section explicitly preserves it. Surviving sections are returned in
     /// their ORIGINAL order so the caller keeps control of render order
     /// independently of fill priority.
+    ///
+    /// This is the token-aware fill with every character costing exactly one token: the
+    /// characters-per-token density is then 1, so each cap and deduction is in characters.
     static func allocate(_ sections: [PromptSection], totalChars: Int) -> [PromptSection] {
-        var remaining = max(0, totalChars)
-
-        let fillOrder = sections.enumerated().sorted { lhs, rhs in
-            lhs.element.priority == rhs.element.priority
-                ? lhs.offset < rhs.offset
-                : lhs.element.priority > rhs.element.priority
-        }
-
-        var kept: [Int: PromptSection] = [:]
-        for (index, section) in fillOrder {
-            guard remaining > 0 else { break }
-            let cap = min(section.maxChars, section.content.count, remaining)
-            if cap < section.minChars {
-                continue
-            }
-            let truncated = allocatedContent(for: section, characterCap: cap)
-            guard !truncated.isEmpty else {
-                continue
-            }
-            var copy = section
-            copy.content = truncated
-            kept[index] = copy
-            remaining -= truncated.count
-        }
-
-        return sections.indices.compactMap { kept[$0] }
+        allocate(sections, totalTokens: totalChars, estimate: { $0.count })
     }
 
     /// Token-aware variant of `allocate`: the budget and remaining are counted in *estimated tokens*

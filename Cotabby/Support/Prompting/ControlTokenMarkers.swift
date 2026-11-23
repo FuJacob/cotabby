@@ -5,7 +5,7 @@ import Foundation
 ///
 /// We ship base (non-instruct) models, but their vocabularies still contain the special tokens of
 /// the chat templates they were trained alongside. When the model drifts, it can emit those tokens
-/// as literal text, which must never reach the ghost text. Three shapes need different handling:
+/// as literal text, which must never reach the ghost text. Four shapes need different handling:
 ///
 /// - Role-header blocks wrap a role name between two markers (`<|start_header_id|>assistant
 ///   <|end_header_id|>`). Removing the markers individually would leak the role word, so the whole

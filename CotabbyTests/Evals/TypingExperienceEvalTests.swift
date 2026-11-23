@@ -48,7 +48,7 @@ final class TypingExperienceEvalTests: XCTestCase {
         runs.append(cancellation)
 
         let report = TypingExperienceReport(
-            model: manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown",
+            model: manager.loadedModelFileURL?.lastPathComponent ?? "unknown",
             runs: runs
         )
         let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
