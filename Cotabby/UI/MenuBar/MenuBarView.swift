@@ -408,10 +408,7 @@ struct MenuBarView: View {
     }
 
     private var lengthChoiceBinding: Binding<SuggestionLengthChoice> {
-        Binding(
-            get: { suggestionSettings.lengthChoice },
-            set: { suggestionSettings.selectLengthChoice($0) }
-        )
+        suggestionSettings.binding(\.lengthChoice) { $0.selectLengthChoice($1) }
     }
 
     private var customRangeCompactLabel: String {
