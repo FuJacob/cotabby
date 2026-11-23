@@ -84,10 +84,6 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertEqual(completedWord.remainingText, " for the device")
         XCTAssertEqual(completedWord.predictedRemainingText, " for the device")
         XCTAssertFalse(completedWord.isExhausted)
-<<<<<<< HEAD
-=======
-        XCTAssertEqual(completedWord.predictedRemainingText, " for the device")
->>>>>>> ae32b409 (Remove dead code and duplicated teardown, request, and availability plumbing from the suggestion coordinator)
         XCTAssertEqual(completedWord.baseContext, session.baseContext)
     }
 

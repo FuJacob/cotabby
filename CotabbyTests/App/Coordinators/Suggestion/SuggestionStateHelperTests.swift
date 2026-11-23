@@ -286,7 +286,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             }
             XCTAssertEqual(session.remainingText, " again")
             XCTAssertEqual(state.activeSession?.remainingText, " again")
-            XCTAssertEqual(advancement?.stage, "session-reconciled")
+            XCTAssertEqual(advancement?.advancedBy, 6)
         }
     }
 

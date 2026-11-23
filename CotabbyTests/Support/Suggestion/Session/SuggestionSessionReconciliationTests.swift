@@ -418,7 +418,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         XCTAssertEqual(reconciledSession.consumedCharacterCount, 2)
         XCTAssertEqual(reconciledSession.remainingText, " cat")
-        XCTAssertEqual(advancement?.message, "The live field state consumed 2 additional suggestion characters.")
+        XCTAssertEqual(advancement?.advancedBy, 2)
     }
 
     func test_reconcile_clearsSentinelAndAdvancesWhenAXPublishesBeyondTheInsertedChunk() {
@@ -433,8 +433,8 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         ) else { return XCTFail("Expected matching typed-ahead text to stay valid") }
 
         XCTAssertEqual(reconciledSession.remainingText, "ain")
-        XCTAssertEqual(advancement?.stage, "session-reconciled")
-        XCTAssertEqual(advancement?.message, "The live field state consumed 3 additional suggestion characters.")
+        XCTAssertFalse(reconciledSession.isExhausted)
+        XCTAssertEqual(advancement?.advancedBy, 3)
         XCTAssertNil(nextPending)
     }
 
@@ -530,7 +530,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         }
         XCTAssertEqual(reconciledSession.acceptedText, " ")
         XCTAssertEqual(reconciledSession.remainingText, "world again")
-        XCTAssertEqual(advancement?.stage, "session-reconciled")
+        XCTAssertEqual(advancement?.advancedBy, 1)
     }
 
     func test_reconcile_keepsAnchorWhenChromiumRevertsNonBreakingSpaceMidWord() {

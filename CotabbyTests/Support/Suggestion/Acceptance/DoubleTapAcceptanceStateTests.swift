@@ -45,15 +45,10 @@ final class DoubleTapAcceptanceStateTests: XCTestCase {
         state.recordWordAccept(of: session, at: 10.0)
         let regenerated = DoubleTapAcceptanceState.SessionToken(generation: 8, fullText: " world and more")
 
-<<<<<<< HEAD
         // The miss is a press on another session, so the original press is still inside the
         // window: only clearing it explains the second refusal.
         XCTAssertFalse(state.consumeDoubleTap(of: regenerated, at: 10.1))
         XCTAssertFalse(state.consumeDoubleTap(of: session, at: 10.2))
-=======
-        XCTAssertFalse(state.consumeDoubleTap(of: session, at: 11.0))
-        XCTAssertFalse(state.consumeDoubleTap(of: session, at: 11.1), "The missed pair must not arm a later one")
->>>>>>> ae32b409 (Remove dead code and duplicated teardown, request, and availability plumbing from the suggestion coordinator)
     }
 
     func test_resetCancelsThePendingPress() {

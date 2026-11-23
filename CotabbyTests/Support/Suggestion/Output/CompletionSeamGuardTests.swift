@@ -445,7 +445,7 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// suppressed as a typo, it is only withheld until its boundary arrives.
     func testStreamedLeadingWordWaitsUntilItsBoundaryArrives() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Je veux ",
                 completion: "ecrir",
                 spellingAssessment: { $0 == "ecrir" ? .correctableTypo : .known }
@@ -458,13 +458,13 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// waiting a decode step for its boundary; short words, which often grow, still wait.
     func testStreamedKnownLeadingWordShowsBeforeItsBoundary() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Please send the ", completion: "report", spellingAssessment: { _ in .known }
             ),
             .allow
         )
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Please send ", completion: "the", spellingAssessment: { _ in .known }
             ),
             .wait
@@ -474,7 +474,7 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// A trailing apostrophe may still join the next letters, so it cannot finalize the word.
     func testStreamedContractionWaitsAfterADanglingApostrophe() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "It ",
                 completion: "does'",
                 spellingAssessment: { _ in
@@ -489,7 +489,7 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// Once its boundary arrives, a correctable streamed typo is suppressed before presentation.
     func testStreamedCorrectableLeadingWordIsSuppressedAtItsBoundary() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Je veux ",
                 completion: "ecrir ",
                 spellingAssessment: { $0 == "ecrir" ? .correctableTypo : .known }
@@ -501,7 +501,7 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// A known streamed word becomes presentable as soon as its boundary makes it complete.
     func testStreamedKnownLeadingWordIsAllowedAtItsBoundary() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Je veux ",
                 completion: "écrire ",
                 spellingAssessment: { $0 == "écrire" ? .known : .correctableTypo }
@@ -513,7 +513,7 @@ final class CompletionSeamGuardTests: XCTestCase {
     /// Streaming also exempts a completed letter-and-digit token without consulting spelling.
     func testStreamedLetterAndDigitLeadingTokenIsAllowedWithoutSpellLookup() {
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Use ",
                 completion: "ecrir2 ",
                 spellingAssessment: { _ in
@@ -678,7 +678,7 @@ final class CompletionSeamGuardTests: XCTestCase {
             .wait
         )
         XCTAssertEqual(
-            streamedOutcome(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
                 precedingText: "Hello", completion: "", spellingAssessment: knowsEverything
             ),
             .wait
@@ -759,7 +759,6 @@ final class CompletionSeamGuardTests: XCTestCase {
     }
 }
 
-<<<<<<< HEAD
 /// Terse views of `presentation(...)`, the one decision production consumes, so each case above can
 /// state only the outcome it pins: the final suppression reason, or the streamed wait/show/suppress.
 private extension CompletionSeamGuard {
@@ -791,26 +790,5 @@ private extension CompletionSeamGuard {
         case .suppress: return .suppress
         case .show: return .allow
         }
-=======
-/// The three things a streamed partial can do, without the payload each decision carries. The
-/// streaming tests assert which one happens; the payloads are covered by the presentation tests.
-private enum StreamedOutcome: Equatable {
-    case wait
-    case allow
-    case suppress
-}
-
-private func streamedOutcome(
-    precedingText: String,
-    completion: String,
-    spellingAssessment: (String) -> CompletionSeamGuard.SpellingAssessment
-) -> StreamedOutcome {
-    switch CompletionSeamGuard.presentation(
-        precedingText: precedingText, completion: completion, isFinal: false, spellingAssessment: spellingAssessment
-    ) {
-    case .wait: return .wait
-    case .suppress: return .suppress
-    case .show: return .allow
->>>>>>> ae32b409 (Remove dead code and duplicated teardown, request, and availability plumbing from the suggestion coordinator)
     }
 }
