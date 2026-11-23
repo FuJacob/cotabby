@@ -1,0 +1,19 @@
+Cotabby/Support/Input/ShortcutResolver.swift
+  s_b9af9eb54478c8::t_c1593e42f87a16 20-25,35-52,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6fb836f34595d23b9aedcf0a28cf003414085937",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
