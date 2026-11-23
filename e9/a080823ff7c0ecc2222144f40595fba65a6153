@@ -1,0 +1,67 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_e64f6f1b58c19a 91,100,168,223,251,445,493,582,591,594,720,727,1101,1106,1190,1201,1237,1554,1634,1693,2231,2503,2615,2679,2836,3108,3455,3839,4114,4133,4320,4446,4471,4490,4677,4803,4826,4838,4988,5107
+Cotabby/Models/Context/VisualContextSessionPhase.swift
+  s_b9af9eb54478c8::t_703e5a667b9479 1-164
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_b9af9eb54478c8::t_b8d10c98598829 32-47,50-51,54-86,179,302,514-520,526-527,535,540-543,552-554,583,585-589
+Cotabby/Services/Input/InputMonitor.swift
+  s_b9af9eb54478c8::t_4bed8e093ed64b 168-175,237-238,245,251,254-256,259-279,281-291,294-296,332-335,337,413,415-419,565,670,674-675
+Cotabby/Services/Permission/Guidance/PermissionGuidanceController.swift
+  s_b9af9eb54478c8::t_c26dcff00fefec 15-28,39-40,64-69,71-72,75,85,87-94,102,111,128,133,143,145-153,158-159,164-165,167
+Cotabby/Services/Permission/Guidance/PermissionOverlayWindowController.swift
+  s_b9af9eb54478c8::t_c04f3412eb7554 13-19,27,47,53,59,68,74-82,91-93,102,117-119,121,125-130,132,141-143,150,180,245-246
+Cotabby/Services/Spelling/SymSpellCorrector.swift
+  s_b9af9eb54478c8::t_6a08c63dea480a 11-14,16-18,29-30,43,47,58,76,84,86,93,98-100,102,105-108,110-112,120,128,130,133,138-145
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_b9af9eb54478c8::t_f958685c432538 16-18,24,283-286
+Cotabby/Services/Visual/VisualContextCoordinator.swift
+  s_b9af9eb54478c8::t_d5951c7b4745f6 22-46,88,94-96,98,116-117,122,131-134,136,146,160,163,173,185,198,203,209,212,214-216,226,229,232-234,237-238,250-251,265-268,273,276-285,288-289,291-298,300-306,308-310,323,328-330,338,359-361,375,377-379,383,385,387-388
+Cotabby/Support/Accessibility/PermissionOverlayLaunchAnimation.swift
+  s_b9af9eb54478c8::t_b9c5749d73661f 1-76
+Cotabby/Support/Accessibility/PermissionOverlayTracker.swift
+  s_b9af9eb54478c8::t_7beef94cc39532 8-10,21,26,29-30,34-37,40-52,56-69
+Cotabby/Support/Context/VisualContextStartCoalescer.swift
+  s_b9af9eb54478c8::t_fc9530790af1f8 21-22,25
+Cotabby/Support/Input/AcceptTapLifecycle.swift
+  s_b9af9eb54478c8::t_5c14387b7274fc 1-160
+Cotabby/Support/Spelling/BoundedLoadCache.swift
+  s_b9af9eb54478c8::t_bf3447ba9109a4 1-82
+Cotabby/UI/Settings/Panes/TypingHistorySectionView.swift
+  s_b9af9eb54478c8::t_23012f623bacd1 50,52,57-58,60
+CotabbyTests/Models/Context/VisualContextSessionPhaseTests.swift
+  s_b9af9eb54478c8::t_ace01db904f9a6 1-217
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_b9af9eb54478c8::t_b617acad8c6a5c 165,217-220,443-476
+CotabbyTests/Services/Input/InputMonitorTests.swift
+  s_b9af9eb54478c8::t_347a478ff9d59b 112-113,123-124,130-131
+CotabbyTests/Services/Visual/ScreenshotContextGeneratorTests.swift
+  s_b9af9eb54478c8::t_e25d01bbba8a3e 277-288,294-301
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_b9af9eb54478c8::t_982c6b4f7d8dae 352-391,394
+CotabbyTests/Support/Accessibility/PermissionOverlayLaunchAnimationTests.swift
+  s_b9af9eb54478c8::t_a898c4418f2e71 1-80
+CotabbyTests/Support/Accessibility/PermissionOverlayTrackerTests.swift
+  s_b9af9eb54478c8::t_de53ecdcb728a1 11-21,24-25,28-29,32-33,36-37,41,44-45,49-63
+CotabbyTests/Support/Context/VisualContextStartCoalescerTests.swift
+  s_b9af9eb54478c8::t_6ea36ac536460a 8-9,15-16,19
+CotabbyTests/Support/Input/AcceptTapLifecycleTests.swift
+  s_b9af9eb54478c8::t_b083f0eed0f186 1-266
+CotabbyTests/Support/Spelling/BoundedLoadCacheTests.swift
+  s_b9af9eb54478c8::t_257628e470f65f 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e9a080823ff7c0ecc2222144f40595fba65a6153",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
