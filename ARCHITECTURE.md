@@ -201,6 +201,11 @@ Tab is the way from To to Subject to body there, not an accept; and single-line 
 verification fields, [CredentialFieldDetector.swift](Cotabby/Support/Accessibility/CredentialFieldDetector.swift):
 a completion there is a guess at the user's identity), bounds
 text on both sides of the caret, resolves the focused process, and publishes stable domain values.
+A field's secure verdict is re-judged from its role pair on every poll (a page can switch one input
+to `type=password` in place) and stays set for the rest of the focus session once seen; only the
+label probes behind it are cached. Labels count as secret in several languages and for non-password
+secrets such as API keys and recovery phrases
+([SecureFieldDetector.swift](Cotabby/Support/Accessibility/SecureFieldDetector.swift)).
 Chromium/Electron require accessibility priming, cursor hit-test recovery, and out-of-process iframe
 handling. All fallbacks are revalidated and yield to a valid system-focused element.
 
