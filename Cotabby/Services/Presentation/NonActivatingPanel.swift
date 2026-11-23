@@ -60,7 +60,7 @@ extension NSScreen {
     /// outside every visible frame). Nil when the rect is on no screen.
     static func overlayScreen(for rect: CGRect) -> NSScreen? {
         let midpoint = CGPoint(x: rect.midX, y: rect.midY)
-        return screens.first { $0.visibleFrame.contains(midpoint) } ?? screens.first { $0.frame.intersects(rect) }
+        return screens.first(where: { $0.visibleFrame.contains(midpoint) }) ?? screens.first(where: { $0.frame.intersects(rect) })
     }
 
     /// The visible frame of `overlayScreen(for:)`, else of the main screen.
