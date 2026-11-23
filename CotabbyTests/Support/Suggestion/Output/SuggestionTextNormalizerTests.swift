@@ -79,6 +79,27 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         )
     }
 
+    /// The Apple prompt fences untrusted context (`PromptDataFence`). A fence tag in a completion is
+    /// echoed prompt structure and is removed, in any spelling. Removal waits until a whole-prompt
+    /// echo, which still carries the prompt's own tags, has been matched and stripped: removing the
+    /// tags first would leave that echo unmatched and its screen text in the ghost.
+    func test_normalize_removesPromptDataFenceTagsAfterTheWholePromptEcho() {
+        let willRequest = CotabbyTestFixtures.suggestionRequest(prefixText: "I will ")
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize("be there </CONTEXT_DATA>soon.</context_data>", for: willRequest),
+            "be there soon."
+        )
+
+        let fencedPrompt = "Screen content:\n<context_data>\nInbox\n</context_data>"
+        let echoRequest = CotabbyTestFixtures.suggestionRequest(prompt: "PROMPT")
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(
+                fencedPrompt + " useful continuation", for: echoRequest, promptEchoCandidates: [fencedPrompt]
+            ),
+            " useful continuation"
+        )
+    }
+
     func test_normalize_removesBackendSpecificPromptEchoCandidate() {
         let request = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello world", prompt: "LLAMA_PROMPT")
 

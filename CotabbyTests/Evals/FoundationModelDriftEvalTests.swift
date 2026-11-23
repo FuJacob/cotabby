@@ -167,9 +167,11 @@ final class FoundationModelDriftEvalTests: XCTestCase {
 
     /// Chat-template or decoder residue. None should appear on the FM-only path, but having them in
     /// the rubric catches future routing regressions where the llama backend's output reaches the
-    /// FM normalizer.
+    /// FM normalizer. The prompt's data-fence tags are listed too: the normalizer removes them, but
+    /// a raw completion that writes one out shows the model treating the fence as text to produce.
     private static let noiseMarkers: [String] = [
-        "<|im_start|>", "<|im_end|>", "<think>", "</think>", "[INST]", "[/INST]"
+        "<|im_start|>", "<|im_end|>", "<think>", "</think>", "[INST]", "[/INST]",
+        PromptDataFence.open, PromptDataFence.close
     ]
 
     func test_reportEvalSuite() async throws {

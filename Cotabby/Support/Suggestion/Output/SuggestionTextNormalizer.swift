@@ -75,6 +75,10 @@ enum SuggestionTextNormalizer {
 
         let promptCleanup = strippingPromptEcho(normalized, request: request, promptEchoCandidates: promptEchoCandidates)
         normalized = promptCleanup.text
+        // The Apple prompt fences untrusted context (`PromptDataFence`), and a model that writes a
+        // fence tag out is echoing prompt structure. Removed after the whole-prompt echo above,
+        // which can only match while the echo still carries the tags the prompt itself has.
+        normalized = PromptDataFence.removingTags(from: normalized)
 
         var removedLeadingNewline = promptCleanup.removedLeadingNewline || leadingWhitespaceContainsNewline(normalized)
         normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
