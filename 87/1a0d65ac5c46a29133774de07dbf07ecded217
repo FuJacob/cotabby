@@ -1,0 +1,26 @@
+RELEASING.md
+  s_9990f9098df800::t_3b53c20b1fce84 9-15
+.github/workflows/release.yml
+  s_9990f9098df800::t_c4bb7fffb259eb 503-507,510,514-516,521-525,840,849
+  s_9990f9098df800::t_4c80ea838fbe6e 713-714,716,723,750,767,791,809-817,820-821,853,859-860
+  s_9990f9098df800::t_5534a465be1d37 881-883,886
+  s_9990f9098df800::t_d0938ee4e97156 5,7-8,11-19
+  s_9990f9098df800::t_912b670a9b9484 60-102,111,114-116,826,833,848
+  s_9990f9098df800::t_22bfb0f2ec1ca8 818-819,822-825,827-832,834-839,841-847,850-852,854-858,861-862
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "871a0d65ac5c46a29133774de07dbf07ecded217",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
