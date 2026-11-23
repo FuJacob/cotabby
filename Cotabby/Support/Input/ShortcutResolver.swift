@@ -17,14 +17,12 @@ enum ShortcutResolver {
         globalModifiers: ShortcutModifierMask,
         globalLabel: String
     ) -> ResolvedBinding {
-        if let binding = override(for: frontmostBundleIdentifier, in: overrides)?.acceptance {
-            return ResolvedBinding(
-                keyCode: binding.keyCode,
-                modifiers: binding.modifiers,
-                label: binding.label
-            )
-        }
-        return ResolvedBinding(keyCode: globalKeyCode, modifiers: globalModifiers, label: globalLabel)
+        resolve(
+            \.acceptance,
+            frontmostBundleIdentifier: frontmostBundleIdentifier,
+            overrides: overrides,
+            global: ResolvedBinding(keyCode: globalKeyCode, modifiers: globalModifiers, label: globalLabel)
+        )
     }
 
     static func fullAcceptBinding(
@@ -34,14 +32,26 @@ enum ShortcutResolver {
         globalModifiers: ShortcutModifierMask,
         globalLabel: String
     ) -> ResolvedBinding {
-        if let binding = override(for: frontmostBundleIdentifier, in: overrides)?.fullAcceptance {
-            return ResolvedBinding(
-                keyCode: binding.keyCode,
-                modifiers: binding.modifiers,
-                label: binding.label
-            )
+        resolve(
+            \.fullAcceptance,
+            frontmostBundleIdentifier: frontmostBundleIdentifier,
+            overrides: overrides,
+            global: ResolvedBinding(keyCode: globalKeyCode, modifiers: globalModifiers, label: globalLabel)
+        )
+    }
+
+    /// One precedence rule for both accept actions, so a per-app slot can never be honored for one
+    /// action and ignored for the other.
+    private static func resolve(
+        _ slot: KeyPath<PerAppShortcutOverride, SuggestionShortcutBindingSettings?>,
+        frontmostBundleIdentifier: String?,
+        overrides: [PerAppShortcutOverride],
+        global: ResolvedBinding
+    ) -> ResolvedBinding {
+        guard let binding = override(for: frontmostBundleIdentifier, in: overrides)?[keyPath: slot] else {
+            return global
         }
-        return ResolvedBinding(keyCode: globalKeyCode, modifiers: globalModifiers, label: globalLabel)
+        return ResolvedBinding(keyCode: binding.keyCode, modifiers: binding.modifiers, label: binding.label)
     }
 
     private static func override(
