@@ -1,0 +1,39 @@
+Cotabby/Support/History/TypingHistoryDefaultExclusions.swift
+  s_9990f9098df800::t_48c57038a59469 1-30
+ARCHITECTURE.md
+  s_9990f9098df800::t_f0550b927833cb 412-415,418
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_0828ae98201589 190,488,638,1366,1579,2326,3340,4409,4762,5067
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_9990f9098df800::t_f394a015bfd4a8 270-271,277,480-481,489
+Cotabby/Support/History/CotypistExportImporter.swift
+  s_9990f9098df800::t_b056274a82e45b 7-9,20-21,24-33,54-83,87,123-126,130,133-136,138-146,148,153-163,166-172,176-180
+Cotabby/Support/History/TypingHistoryScrubber.swift
+  s_9990f9098df800::t_6980f57c28a560 9-12,23-29,31-61,111-116,119,128-139,144,154
+Cotabby/UI/Settings/Panes/TypingHistorySectionView.swift
+  s_9990f9098df800::t_499e9d7e66ddb6 30
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_9990f9098df800::t_18191e03f796c3 372-385
+CotabbyTests/Support/History/CotypistExportImporterTests.swift
+  s_9990f9098df800::t_dbf85cb8c106c7 72-162
+CotabbyTests/Support/History/TypingHistoryDefaultExclusionsTests.swift
+  s_9990f9098df800::t_3e4d9652aa2e70 1-32
+CotabbyTests/Support/History/TypingHistoryScrubberTests.swift
+  s_9990f9098df800::t_92b11dd932a0c1 72-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d19d31bf6fc71c2b1e7925d17d8712dd18a3962",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
