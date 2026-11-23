@@ -251,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         CotabbyLogger.app.info("Cotabby terminating, releasing services")
-        activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
+        activationIndicatorController.hide()
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         // Write the field being typed in now; the debounced background save may not have run yet.
@@ -276,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               case .supported = snapshot.capability,
               let context = snapshot.context
         else {
-            activationIndicatorController.hide(reason: "Activation indicator hidden.")
+            activationIndicatorController.hide()
             return
         }
 

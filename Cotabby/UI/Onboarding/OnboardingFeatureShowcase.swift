@@ -114,7 +114,7 @@ private struct GhostTextDemoCard: View {
                 .font(.system(size: 16))
 
                 if showGhost && !accepted {
-                    DemoGhostKeycap(label: "Tab")
+                    GhostKeycap(label: "Tab")
                 }
 
                 Spacer(minLength: 0)
@@ -125,10 +125,9 @@ private struct GhostTextDemoCard: View {
         }
     }
 
-    /// The default inline ghost-text color (no user customization in a demo): `Color(white:)` gated
-    /// on the color scheme, matching the adaptive-gray fallback in `OverlayController.ghostTextColor(for:)`.
+    /// The default inline ghost-text color (no user customization in a demo).
     private var ghostColor: Color {
-        colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
+        GhostTextPalette.automaticTextColor(dark: colorScheme == .dark)
     }
 
     private func runLoop() async {
@@ -172,37 +171,11 @@ private struct GhostTextDemoCard: View {
     }
 }
 
-/// Replicates the private `GhostKeycap` from `OverlayController` (the small "Tab" pill after ghost
-/// text). Colors are `Color(white:)` gated on the color scheme, byte-for-byte with the original.
-private struct DemoGhostKeycap: View {
-    let label: String
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(textColor)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(backgroundColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(borderColor, lineWidth: 1)
-            )
-            .fixedSize()
-    }
-
-    private var textColor: Color { colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45) }
-    private var backgroundColor: Color { colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.95) }
-    private var borderColor: Color { colorScheme == .dark ? Color(white: 0.3) : Color(white: 0.8) }
-}
-
 // MARK: - Demo 2: autocorrect (typo correction)
 
 /// Mirrors the inline typo-correction feature: a misspelled last word is offered as a green
 /// correction that the user accepts with the word-accept key, turning it solid. The green is
-/// replicated (not shared) from `OverlayController`'s correction color, like the keycap above.
+/// the overlay's own correction color (`GhostTextPalette`).
 /// Reduce-motion shows the static green-correction state so the feature still reads.
 private struct AutocorrectDemoCard: View {
     let animating: Bool
@@ -233,7 +206,7 @@ private struct AutocorrectDemoCard: View {
                 .font(.system(size: 16))
 
                 if showCorrection && !accepted {
-                    DemoGhostKeycap(label: "Tab")
+                    GhostKeycap(label: "Tab")
                 }
 
                 Spacer(minLength: 0)
@@ -255,8 +228,9 @@ private struct AutocorrectDemoCard: View {
         (showCorrection && !accepted) ? correctionColor : .primary
     }
 
+    /// The inline correction green.
     private var correctionColor: Color {
-        SuggestionCorrectionStyle.color(for: colorScheme)
+        GhostTextPalette.correctionColor(dark: colorScheme == .dark)
     }
 
     private func runLoop() async {

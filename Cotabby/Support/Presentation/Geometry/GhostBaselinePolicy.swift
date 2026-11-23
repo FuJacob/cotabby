@@ -95,3 +95,11 @@ enum GhostBaselinePolicy {
         return floor((roundedAscent + roundedDescent) * 15 / 100)
     }
 }
+
+extension SuggestionOverlayGeometry {
+    /// The text engine that produced this geometry's caret box, for the baseline rule and the font
+    /// resolution that depend on it.
+    var hostRenderer: GhostBaselinePolicy.HostRenderer {
+        isWebContentField ? .webEngine : .textKit
+    }
+}

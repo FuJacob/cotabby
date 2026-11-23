@@ -1,7 +1,6 @@
 import AppKit
 import Foundation
 import Logging
-import ScreenCaptureKit
 
 /// File overview:
 /// Measures the caret's line and x inside a union-framed paragraph from the host's own pixels.
@@ -161,15 +160,13 @@ final class PixelCaretLocator {
     /// suggestion's length stays under a pixel and over a paragraph would not.
     static let maximumExtrapolatedCharacters = 48
 
-    private var cache: [String: Measurement] = [:]
-    private var cacheOrder: [String] = []
+    private var cache = BoundedCache<String, Measurement>(limit: PixelCaretLocator.cacheLimit)
     private var failures: Set<String> = []
     /// The latest capture per run, the base every extrapolation on that run starts from (never an
     /// extrapolation itself, so their error does not compound).
-    private var latestCaptures: [String: (request: Request, measurement: Measurement)] = [:]
-    private var latestCaptureOrder: [String] = []
+    private var latestCaptures = BoundedCache<String, (request: Request, measurement: Measurement)>(limit: PixelCaretLocator.cacheLimit)
     private var inFlight: [String: [@MainActor (Measurement?) -> Void]] = [:]
-    private var shareableContent: SCShareableContent?
+    private let pixelCapture = HostPixelCapture()
 
     // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
     // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
@@ -271,21 +268,20 @@ final class PixelCaretLocator {
             var measurement: Measurement?
             var failure = "capture"
             do {
-                // The region is snapped to whole pixels before capture (see the calibrator: a
-                // fractional edge makes ScreenCaptureKit resample and blur the glyphs), and the
-                // rows and columns map back through the rect that was really captured.
-                let (captured, region) = try await self.capture(requested)
+                // Rows and columns map back through the region that was really captured, which
+                // is the requested one snapped to whole pixels (see `HostPixelCapture.capture`).
+                let captured = try await self.pixelCapture.capture(requested)
                 let analysis = await Task.detached(priority: .userInitiated) {
                     InkCaretAnalyzer.measure(captured.bitmap)
                 }.value
                 if let analysis {
-                    measurement = Self.measurement(from: analysis, scale: captured.scale, region: region, request: request)
+                    measurement = Self.measurement(from: analysis, scale: captured.scale, region: captured.region, request: request)
                     failure = measurement == nil ? "geometry" : ""
                 } else {
                     failure = "no-ink"
                 }
-                if Self.dumpsCaptures {
-                    Self.dumpCapture(captured, region: region, request: request, analysis: analysis, measurement: measurement)
+                if HostPixelCapture.dumpsCaptures {
+                    Self.dumpCapture(captured, request: request, analysis: analysis, measurement: measurement)
                 }
             } catch {
                 failure = "capture: \(error.localizedDescription)"
@@ -293,7 +289,7 @@ final class PixelCaretLocator {
             let listeners = self.inFlight.removeValue(forKey: key) ?? []
             if let measurement {
                 self.store(measurement, for: key)
-                self.recordLatestCapture(measurement, for: request)
+                self.latestCaptures.insert((request, measurement), for: request.captureKey)
                 self.onFreshCapture?(request, measurement)
             } else {
                 self.failures.insert(key)
@@ -645,79 +641,13 @@ final class PixelCaretLocator {
         )
     }
 
-    // MARK: - Capture
-
-    private struct Captured {
-        let bitmap: RGBABitmap
-        let scale: CGFloat
-    }
-
-    private func capture(_ requested: CGRect) async throws -> (Captured, CGRect) {
-        let content = try await currentShareableContent()
-        let desktop = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
-        let scale = NSScreen.screens.first { $0.frame.contains(CGPoint(x: requested.midX, y: requested.midY)) }?.backingScaleFactor ?? 2
-        let region = HostBaselineCalibrator.snappedToPixels(requested, scale: scale)
-        let regionCG = CGRect(x: region.minX, y: desktop.maxY - region.maxY, width: region.width, height: region.height)
-        guard let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: regionCG.midX, y: regionCG.midY)) }) else {
-            throw LocatorError.noDisplay
-        }
-        let ownApplications = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        let filter = SCContentFilter(display: display, excludingApplications: ownApplications, exceptingWindows: [])
-        let configuration = SCStreamConfiguration()
-        configuration.sourceRect = regionCG.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
-        configuration.width = max(Int((region.width * scale).rounded()), 1)
-        configuration.height = max(Int((region.height * scale).rounded()), 1)
-        configuration.showsCursor = false
-        configuration.captureResolution = .best
-        let image: CGImage = try await withCheckedThrowingContinuation { continuation in
-            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let image {
-                    continuation.resume(returning: image)
-                } else {
-                    continuation.resume(throwing: LocatorError.noImage)
-                }
-            }
-        }
-        guard let bitmap = RGBABitmap(image) else { throw LocatorError.noImage }
-        return (Captured(bitmap: bitmap, scale: CGFloat(image.height) / region.height), region)
-    }
-
-    private func currentShareableContent() async throws -> SCShareableContent {
-        if let shareableContent { return shareableContent }
-        let content: SCShareableContent = try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let content {
-                    continuation.resume(returning: content)
-                } else {
-                    continuation.resume(throwing: LocatorError.noDisplay)
-                }
-            }
-        }
-        shareableContent = content
-        return content
-    }
-
-    private enum LocatorError: Error {
-        case noDisplay
-        case noImage
-    }
-
     // MARK: - Capture dumps (developer diagnostics)
 
-    /// Debug-only, under the calibrator's strip switch
-    /// (`defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES`): every caret capture is
-    /// written as a PNG plus a JSON sidecar (run frame, region, the text's tail, the analyzer's
-    /// lines and the caret they gave) next to the strips, so a caret read a point off can be
-    /// examined on exactly the pixels it came from. Off by default.
-    private static let dumpsCaptures = UserDefaults.standard.bool(forKey: "cotabbyDumpCalibrationStrips")
-
+    /// Written next to the calibrator's strips, under the same switch (`HostPixelCapture.dumpsCaptures`):
+    /// the sidecar carries the run frame, the region, the text's tail, the analyzer's lines and the
+    /// caret they gave, so a caret read a point off can be examined on exactly the pixels it came from.
     private nonisolated static func dumpCapture(
-        _ captured: Captured,
-        region: CGRect,
+        _ captured: HostPixelCapture.Capture,
         request: Request,
         analysis: InkCaretAnalyzer.Measurement?,
         measurement: Measurement?
@@ -730,22 +660,10 @@ final class PixelCaretLocator {
         case (_, .none): "geometry"
         default: ""
         }
-        let folder = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/\(ProcessInfo.processInfo.processName)/strips", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let stamp = Int(Date().timeIntervalSince1970 * 1000)
-        let bitmap = captured.bitmap
-        if let representation = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: bitmap.width, pixelsHigh: bitmap.height, bitsPerSample: 8, samplesPerPixel: 4,
-            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: bitmap.width * 4, bitsPerPixel: 32
-        ), let data = representation.bitmapData {
-            bitmap.bytes.withUnsafeBufferPointer { data.update(from: $0.baseAddress!, count: bitmap.bytes.count) }
-            try? representation.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("caret-\(stamp).png"))
-        }
         func values(_ rect: CGRect) -> [Double] { [rect.minX, rect.minY, rect.width, rect.height].map { Double($0) } }
         var sidecar: [String: Any] = [
             "run_frame": values(request.runFrame),
-            "region": values(region),
+            "region": values(captured.region),
             "scale": Double(captured.scale),
             "text_tail": String(request.paragraphTextBeforeCaret.suffix(60)),
             "trailing_ink_gap": Double(request.trailingInkGap),
@@ -759,31 +677,12 @@ final class PixelCaretLocator {
         if let measurement {
             sidecar["caret"] = values(measurement.caretRect)
         }
-        if let json = try? JSONSerialization.data(withJSONObject: sidecar) {
-            try? json.write(to: folder.appendingPathComponent("caret-\(stamp).json"))
-        }
+        HostPixelCapture.dump(captured.bitmap, prefix: "caret", sidecar: sidecar)
     }
 
     private func store(_ measurement: Measurement, for key: String) {
-        if cache[key] == nil {
-            cacheOrder.append(key)
-            if cacheOrder.count > Self.cacheLimit {
-                cache.removeValue(forKey: cacheOrder.removeFirst())
-            }
-        }
-        cache[key] = measurement
+        cache.insert(measurement, for: key)
         failures.remove(key)
-    }
-
-    private func recordLatestCapture(_ measurement: Measurement, for request: Request) {
-        let key = request.captureKey
-        if latestCaptures[key] == nil {
-            latestCaptureOrder.append(key)
-            if latestCaptureOrder.count > Self.cacheLimit {
-                latestCaptures.removeValue(forKey: latestCaptureOrder.removeFirst())
-            }
-        }
-        latestCaptures[key] = (request, measurement)
     }
 
     private static func logExtrapolation(_ measurement: Measurement, base: Request, request: Request) {

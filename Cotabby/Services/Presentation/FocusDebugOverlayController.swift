@@ -70,8 +70,8 @@ final class FocusDebugOverlayController {
 
     /// Mirrors focus polling diagnostics into the bottom status panel.
     ///
-    /// Polling diagnostics replace the old AXObserver pulse. This keeps focus debugging tied to
-    /// the single source of truth that now drives snapshots.
+    /// The panel shows the poll events themselves, so focus debugging reads the same source of
+    /// truth that drives snapshots.
     func updateFocusPolling(event: FocusPollingEvent) {
         guard isEnabled else { return }
         latestPollEvent = event

@@ -160,7 +160,7 @@ enum GhostFontResolver {
               sampleWidth > 0, !sample.isEmpty else {
             return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
         }
-        let scaled = scaledToSample(systemFont, sample: sample, width: sampleWidth)
+        let scaled = Self.scaled(systemFont, toSample: sample, width: sampleWidth)
         return Resolution(font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: widthAgreement(of: scaled, input))
     }
 
@@ -174,7 +174,7 @@ enum GhostFontResolver {
         else {
             return Resolution(font: font, provenance: provenance, widthAgreement: agreement)
         }
-        let scaled = scaledToSample(font, sample: sample, width: sampleWidth)
+        let scaled = Self.scaled(font, toSample: sample, width: sampleWidth)
         return Resolution(font: scaled, provenance: .hostFaceScaled, widthAgreement: widthAgreement(of: scaled, input))
     }
 
@@ -234,7 +234,7 @@ enum GhostFontResolver {
             let provenance: Provenance = best.font.familyName == systemFont.familyName ? .hostSizeSystem : .hostSizeMatchedFamily
             return Resolution(font: best.font, provenance: provenance, widthAgreement: widthAgreement(of: best.font, input))
         }
-        let scaled = scaledToSample(systemFont, sample: sample, width: sampleWidth)
+        let scaled = Self.scaled(systemFont, toSample: sample, width: sampleWidth)
         return Resolution(font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: widthAgreement(of: scaled, input))
     }
 
@@ -262,17 +262,11 @@ enum GhostFontResolver {
         guard width > 0, !sample.isEmpty else {
             return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
         }
-        let scaled = scaledToSample(systemFont, sample: sample, width: width)
+        let scaled = Self.scaled(systemFont, toSample: sample, width: width)
         let measured = self.width(of: sample, font: scaled)
         return Resolution(
             font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: measured > 0 ? width / measured : 1
         )
-    }
-
-    /// A candidate family at a size, public so the evidence rule can re-render in the family it
-    /// settled on.
-    static func familyFont(_ family: String, size: CGFloat) -> NSFont? {
-        font(family: family, size: size)
     }
 
     // MARK: - Caret-derived size
@@ -297,7 +291,7 @@ enum GhostFontResolver {
               sampleWidth > 0, !sample.isEmpty else {
             return Resolution(font: derived, provenance: .caretDerived, widthAgreement: 1)
         }
-        let calibrated = scaledToSample(derived, sample: sample, width: sampleWidth)
+        let calibrated = Self.scaled(derived, toSample: sample, width: sampleWidth)
         // A sample this far from the caret box's face is another face, not another size: scaled to
         // it, the system face grew with every sample of a Menlo textarea (15.5, 18.4, 19.3, 20.3,
         // 21.5, 22.0pt over twelve seconds of typing, measured 2026-09-11) until the pixel match
@@ -369,12 +363,6 @@ enum GhostFontResolver {
         return abs(measured - width) / width
     }
 
-    /// `font` at the size whose width of `sample` is the host's measurement; public so a face the
-    /// pixels named can take its size from the host's own advance.
-    static func scaled(_ font: NSFont, toSample sample: String, width: CGFloat) -> NSFont {
-        scaledToSample(font, sample: sample, width: width)
-    }
-
     /// `font` at another size, still the same face. The system face is rebuilt through the
     /// system-font API: from its descriptor it comes back under the raw PostScript name
     /// (`.SFNS-Regular`), which draws the same glyphs at the same advances (measured 2026-09-10)
@@ -388,8 +376,9 @@ enum GhostFontResolver {
 
     /// Scales `font` so its width of `sample` matches the host's measurement. Iterated because the
     /// system font applies size-dependent tracking, so advances do not scale linearly with point
-    /// size; two refinement passes land within a fraction of a percent.
-    private static func scaledToSample(_ font: NSFont, sample: String, width: CGFloat) -> NSFont {
+    /// size; two refinement passes land within a fraction of a percent. Also how a face the pixels
+    /// named takes its size from the host's own advance (`OverlayController.applyingMatchedTypeface`).
+    static func scaled(_ font: NSFont, toSample sample: String, width: CGFloat) -> NSFont {
         var current = font
         for _ in 0..<3 {
             let measured = self.width(of: sample, font: current)

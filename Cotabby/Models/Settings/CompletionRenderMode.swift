@@ -15,12 +15,14 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
     case inline
 
     /// Suggestion drawn inside a Cotabby-owned card. Used when caret geometry is unreliable, or
-    /// when the user explicitly prefers the preview-card presentation. The reason is informational
-    /// only; the rendering pipeline does not branch on it.
+    /// when the user explicitly prefers the preview-card presentation. The reason says why the card
+    /// is up, not how good the caret is: only `MirrorOverlayLayout`'s uncalibrated-estimate rule
+    /// reads it, and only as a second witness to the caret quality.
     case mirror(reason: MirrorReason)
 
-    /// Why mirror mode was chosen for this presentation. Surfaced in the focus debug overlay so
-    /// operators can confirm the policy is firing as expected.
+    /// Why mirror mode was chosen for this presentation. Recorded in `OverlayState` and the
+    /// `overlay-show` / `overlay-present` debug logs so a session can confirm the policy fired as
+    /// expected.
     nonisolated enum MirrorReason: String, Equatable, Sendable {
         /// Caret quality came back `.estimated`, meaning the host did not expose `AXBoundsForRange`
         /// or any of the derived geometry paths. Inline rendering would land at a guessed X that
@@ -45,11 +47,8 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
         /// text below the caret kept the ghost to that one row. The card shows the whole suggestion.
         case inlineLayoutUnavailable
 
-        /// User set their global preference to always use mirror mode. Phase 2 wiring.
+        /// The user set their global preference to always use mirror mode.
         case userPreference
-
-        /// Per-app override forced mirror mode for this host. Phase 2 wiring.
-        case perAppOverride
     }
 
     /// Short, debug-friendly label for diagnostics and logs.

@@ -4,41 +4,23 @@ import SwiftUI
 
 /// File overview:
 /// Owns the tiny non-activating panel that marks supported inputs with Cotabby's icon near
-/// the field edge. Unlike the ghost-text overlay, this controller is focus-driven and toggled
-/// by a simple boolean.
+/// the field edge. Unlike the ghost-text overlay, this controller is focus-driven: every focus
+/// snapshot either places the icon beside the field being typed in or takes it down.
 ///
 /// Keeping this as a separate controller preserves the architectural split between:
 /// supported-field affordances and suggestion-specific UI.
 @MainActor
 final class ActivationIndicatorController {
-    /// Field-edge mode should visually touch the input's outside edge.
-    private let fieldEdgeGap: CGFloat = 0
     private let screenInset: CGFloat = 2
 
-    private lazy var contentView: NSHostingView<AnyView> = {
-        NSHostingView(rootView: AnyView(EmptyView()))
-    }()
+    private lazy var contentView = NSHostingView(rootView: FieldEdgeIconIndicatorView())
 
-    private lazy var panel: ActivationIndicatorPanel = {
-        let panel = ActivationIndicatorPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.ignoresMouseEvents = true
-        panel.hasShadow = false
-        panel.animationBehavior = .none
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+    private lazy var panel: NonActivatingPanel = {
+        // Below the ghost text and the pickers, which use `aboveStatusBarLevel`.
+        let panel = NonActivatingPanel.makeDisplayOnly(level: .statusBar)
         panel.contentView = contentView
         return panel
     }()
-
-    private var isVisible = false
 
     /// Shows or hides the field-edge Cotabby icon indicator.
     func show(
@@ -46,17 +28,12 @@ final class ActivationIndicatorController {
         caretRect: CGRect,
         inputFrameRect: CGRect?
     ) {
-        guard enabled else {
-            hide(reason: "Activation indicator hidden because it is disabled.")
+        // A caret with no line (see `CGRect.describesCaretLine`) cannot say which line to sit beside.
+        guard enabled, caretRect.describesCaretLine else {
+            hide()
             return
         }
 
-        guard Self.isUsableCaret(caretRect) else {
-            hide(reason: "Activation indicator hidden because the caret rect was empty.")
-            return
-        }
-
-        contentView.rootView = AnyView(FieldEdgeIconIndicatorView())
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = fieldEdgeIconOrigin(
@@ -66,19 +43,17 @@ final class ActivationIndicatorController {
         )
 
         let frame = CGRect(origin: origin, size: contentSize).integral
-        if isVisible, panel.frame == frame, panel.isVisible {
+        if panel.isVisible, panel.frame == frame {
             return
         }
 
         panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
-        isVisible = true
     }
 
     /// Hides the indicator when Cotabby is not actively supporting the current field.
-    func hide(reason _: String) {
+    func hide() {
         panel.orderOut(nil)
-        isVisible = false
     }
 
     /// Places Cotabby's icon just outside the text area's left edge. When the field is flush against
@@ -100,12 +75,10 @@ final class ActivationIndicatorController {
         // whole page as one `AXTextArea` (846pt tall), so the icon landed halfway down an empty page,
         // hundreds of points below the line being typed. The caret is always on the active line, and
         // for single-line fields it sits at the field's own centre anyway, so short inputs are
-        // unaffected. Falls back to the field when the caret rect is empty.
-        let verticalAnchor = Self.isUsableCaret(caretRect) ? caretRect : anchorRect
-
-        let preferredLeftX = anchorRect.minX - contentSize.width - fieldEdgeGap
-        let fallbackRightX = anchorRect.maxX + fieldEdgeGap
-        let centeredY = verticalAnchor.midY - (contentSize.height / 2)
+        // unaffected. The icon touches the field's outside edge, with no gap.
+        let preferredLeftX = anchorRect.minX - contentSize.width
+        let fallbackRightX = anchorRect.maxX
+        let centeredY = caretRect.midY - (contentSize.height / 2)
 
         guard let screen = screen(for: anchorRect) else {
             return CGPoint(x: preferredLeftX, y: centeredY)
@@ -128,16 +101,7 @@ final class ActivationIndicatorController {
         return CGPoint(x: clampedX, y: clampedY)
     }
 
-    /// Chooses the screen that currently contains the given rect's center point.
-    /// Whether a caret rect can place the icon. Only its height is checked: a caret box is
-    /// legitimately zero-width (an empty field's zero-length `AXBoundsForRange`, as in WhatsApp's
-    /// composer), and `CGRect.isEmpty`, true for any zero-width rect, hid the icon in exactly the
-    /// empty field where the user most needs it.
-    static func isUsableCaret(_ caretRect: CGRect) -> Bool {
-        !caretRect.isNull && caretRect.height > 0
-            && caretRect.minX.isFinite && caretRect.minY.isFinite && caretRect.height.isFinite
-    }
-
+    /// The screen whose usable area contains the rect's centre, else one the rect touches at all.
     private func screen(for rect: CGRect) -> NSScreen? {
         let midpoint = CGPoint(x: rect.midX, y: rect.midY)
 
@@ -149,9 +113,4 @@ final class ActivationIndicatorController {
 
         return NSScreen.screens.first(where: { $0.frame.intersects(rect) })
     }
-}
-
-private final class ActivationIndicatorPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 }

@@ -135,7 +135,7 @@ struct HomePaneView: View {
 
     /// Matches the overlay's adaptive ghost gray so the tagline previews the real feature color.
     private var ghostTextColor: Color {
-        colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
+        GhostTextPalette.automaticTextColor(dark: colorScheme == .dark)
     }
 
     private var appVersionText: String? {

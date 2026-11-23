@@ -150,7 +150,7 @@ final class GhostFontResolverTests: XCTestCase {
     func testTheMonospacedSystemFamilyIsTheMonospacedFace() throws {
         let monospaced = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         let family = try XCTUnwrap(monospaced.familyName)
-        let resolved = try XCTUnwrap(GhostFontResolver.familyFont(family, size: 13))
+        let resolved = try XCTUnwrap(GhostFontResolver.font(family: family, size: 13))
         XCTAssertTrue(resolved.isFixedPitch || resolved.fontDescriptor.symbolicTraits.contains(.monoSpace))
         // Its own text fits it; Menlo's, 2.7% narrower, does not (they are different faces).
         let sample = "Thanks for sending the report"
