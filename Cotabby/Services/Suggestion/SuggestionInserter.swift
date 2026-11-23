@@ -352,4 +352,4 @@ enum SyntheticReplacePlanner {
 }
 
 extension SuggestionInserter: SuggestionInserting {}
-extension SuggestionInserter: EmojiTextInserting {}
+extension SuggestionInserter: InlineCommandTextInserting {}

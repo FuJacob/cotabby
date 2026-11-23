@@ -9,7 +9,7 @@ import Logging
 /// keeping them separate stops the suggestion state machine from growing emoji concerns.
 ///
 /// Data flow:
-/// - `observe(_:)` receives every keystroke (via `SuggestionCoordinator.emojiInputObserver`) and feeds
+/// - `observe(_:)` receives every keystroke (via `SuggestionCoordinator.inlineCommandObserver`) and feeds
 ///   the pure `EmojiTriggerStateMachine`. It records the per-key consume decision for the decider.
 /// - `decideCaptureKey(_:)` is the closure the active tap consults to swallow navigation/commit/Escape
 ///   keys. It returns the decision `observe(_:)` just computed for the same event.
@@ -33,8 +33,8 @@ final class EmojiPickerController {
     }
     private let panel: any EmojiPickerPanelPresenting
     private let focusModel: any SuggestionFocusProviding
-    private let inputMonitor: any EmojiInputIntercepting
-    private let inserter: any EmojiTextInserting
+    private let inputMonitor: any InlineCommandInputIntercepting
+    private let inserter: any InlineCommandTextInserting
     private let isEnabled: () -> Bool
     /// Live emoji-customization preferences (skin tone / gender / neutral variant), read at match time.
     private let emojiPreferences: () -> EmojiVariantPreferences
@@ -67,8 +67,8 @@ final class EmojiPickerController {
         matcherProvider: @MainActor @escaping () -> EmojiMatcher,
         panel: any EmojiPickerPanelPresenting,
         focusModel: any SuggestionFocusProviding,
-        inputMonitor: any EmojiInputIntercepting,
-        inserter: any EmojiTextInserting,
+        inputMonitor: any InlineCommandInputIntercepting,
+        inserter: any InlineCommandTextInserting,
         isEnabled: @escaping () -> Bool,
         emojiPreferences: @escaping () -> EmojiVariantPreferences,
         emojiUsage: @MainActor @escaping () -> EmojiUsageSnapshot,

@@ -341,7 +341,7 @@ final class CotabbyAppEnvironment {
             macro: macroController,
             inputMonitor: inputMonitor
         )
-        suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
+        suggestionCoordinator.inlineCommandObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false
         }
 

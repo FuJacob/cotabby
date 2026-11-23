@@ -58,7 +58,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
     func test_emojiCaptureStandsTheSuggestionPipelineDown() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig)
-        rig.coordinator.emojiInputObserver = { _ in true }
+        rig.coordinator.inlineCommandObserver = { _ in true }
 
         let consumed = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: ":"))
 
