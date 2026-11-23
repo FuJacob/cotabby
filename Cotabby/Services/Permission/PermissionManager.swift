@@ -175,8 +175,15 @@ final class PermissionManager: ObservableObject {
 extension PermissionManager: SuggestionPermissionProviding {
     /// The coordinator subscribes through erased publishers so it can depend on a protocol instead
     /// of the concrete `@Published` storage details of `PermissionManager`.
+    ///
+    /// `@Published` emits from `willSet`, so a subscriber that re-reads `accessibilityGranted` (as
+    /// `InputMonitor.refresh()` does through its permission provider) would see the *old* value and,
+    /// on a grant, leave the event taps uninstalled until some later change. Hopping to the next main
+    /// queue turn delivers after the assignment lands, so every reader sees the new state.
     var accessibilityGrantedPublisher: AnyPublisher<Bool, Never> {
-        $accessibilityGranted.eraseToAnyPublisher()
+        $accessibilityGranted
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
     var screenRecordingGrantedPublisher: AnyPublisher<Bool, Never> {

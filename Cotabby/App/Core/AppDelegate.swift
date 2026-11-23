@@ -76,7 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Combine subscriptions keep the app's long-lived services in sync as permission and
         // focus state changes over time.
-        permissionManager.$accessibilityGranted
+        // The deferred publisher (not `$accessibilityGranted`) so `refresh()` reads the new grant.
+        permissionManager.accessibilityGrantedPublisher
             .sink { [weak self] _ in
                 self?.inputMonitor.refresh()
             }
