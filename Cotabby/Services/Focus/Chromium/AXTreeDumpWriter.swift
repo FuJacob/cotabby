@@ -4,13 +4,17 @@ import Logging
 
 /// File overview:
 /// Renders the focused AX element plus its ancestors and children to plain text and overwrites
-/// `~/Desktop/cotabby-ax-dump.txt`. This is a developer diagnostic for triaging caret-placement and
+/// `ax-dump.txt` in the debug artifact directory (`CotabbyDebugArtifacts`, under
+/// `~/Library/Logs/<app>/`). This is a developer diagnostic for triaging caret-placement and
 /// host-AX-publish issues (primarily Chrome contenteditables), kept out of `FocusSnapshotResolver`
 /// so that hot path stays focused on snapshot assembly rather than diagnostic disk I/O.
 ///
-/// The dump only runs on debug builds (`-cotabby-debug`), only for the configured bundle, and is
-/// debounced to one write per focused-element identity change so rapid focus/value notifications
-/// inside one field don't overwrite the file mid-inspection. Writes are best-effort.
+/// The dump only runs under `-cotabby-debug`, only for the configured bundle, and is debounced to
+/// one write per focused-element identity change so rapid focus/value notifications inside one
+/// field don't overwrite the file mid-inspection. Writes are best-effort and owner-only.
+///
+/// The walk runs before the resolver's own secure-field check, so it applies that policy itself:
+/// a secure element, and everything under it, is printed without its value, selection, or caret.
 @MainActor
 enum AXTreeDumpWriter {
     /// Bundle identifier we automatically dump the AX tree for when `-cotabby-debug` is on.
@@ -27,9 +31,9 @@ enum AXTreeDumpWriter {
         return formatter
     }()
 
-    /// Writes the AX tree dump for `focusedElement`, but only on debug builds, only for the configured
-    /// bundle (currently Chrome), and only when the focused element changed since the last dump
-    /// (debounced by element identity). A no-op otherwise.
+    /// Writes the AX tree dump for `focusedElement`, but only under `-cotabby-debug`, only for the
+    /// configured bundle (currently Chrome), and only when the focused element changed since the
+    /// last dump (debounced by element identity). A no-op otherwise.
     static func dumpIfEnabled(
         focusedElement: AXUIElement,
         applicationName: String,
@@ -42,7 +46,7 @@ enum AXTreeDumpWriter {
             return
         }
         lastDumpedElementID = focusedElementIdentifier
-        writeAXTreeDumpToDesktop(
+        writeAXTreeDump(
             focusedElement: focusedElement,
             app: applicationName,
             bundle: bundleIdentifier
@@ -50,12 +54,12 @@ enum AXTreeDumpWriter {
     }
 
     /// Renders the focused element plus its ancestors and children to plain text and overwrites
-    /// `~/Desktop/cotabby-ax-dump.txt`. The file is overwritten so the user (or an AI debugger)
-    /// always inspects the latest snapshot at a stable path.
+    /// `ax-dump.txt` in the debug artifact directory. The file is overwritten so the user (or an AI
+    /// debugger) always inspects the latest snapshot at a stable path.
     ///
     /// Writes are best-effort: a failed disk write is logged through `CotabbyLogger.focus` and
     /// does not propagate, since AX dumping is purely diagnostic.
-    private static func writeAXTreeDumpToDesktop(focusedElement: AXUIElement, app: String, bundle: String) {
+    private static func writeAXTreeDump(focusedElement: AXUIElement, app: String, bundle: String) {
         let timestamp = Self.dumpTimestampFormatter.string(from: Date())
         var out = "========== AX TREE DUMP ==========\n"
         out += "Timestamp: \(timestamp)\n"
@@ -69,24 +73,27 @@ enum AXTreeDumpWriter {
             ancestors.append(parent)
             currentElement = parent
         }
+        // Printed outermost first, so a secure ancestor's flag carries down to the focused element,
+        // and the focused element's (printed last) carries into its children.
+        var insideSecureField = false
         for (offset, element) in ancestors.enumerated().reversed() {
             let indent = String(repeating: "  ", count: ancestors.count - 1 - offset)
-            out += describeNode(element, indent: indent)
+            let node = describeNode(element, indent: indent, insideSecureField: insideSecureField)
+            out += node.text
+            insideSecureField = node.isSecure
         }
 
         out += "\n-- Children (depth 6) --\n"
-        dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
+        dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0, insideSecureField: insideSecureField)
 
         out += "========== END DUMP ==========\n"
 
-        guard let desktopURL = FileManager.default
-            .urls(for: .desktopDirectory, in: .userDomainMask).first else {
-            CotabbyLogger.focus.error("AX dump skipped: no Desktop directory available")
+        guard let directory = CotabbyDebugArtifacts.preparedDirectory() else {
+            CotabbyLogger.focus.error("AX dump skipped: debug artifact directory unavailable")
             return
         }
-        let targetURL = desktopURL.appendingPathComponent("cotabby-ax-dump.txt", isDirectory: false)
-        do {
-            try out.write(to: targetURL, atomically: true, encoding: .utf8)
+        let targetURL = directory.appendingPathComponent(CotabbyDebugArtifacts.axDumpName, isDirectory: false)
+        if CotabbyDebugArtifacts.writePrivateFile(Data(out.utf8), to: targetURL) {
             CotabbyLogger.focus.debug(
                 "Wrote AX dump",
                 metadata: [
@@ -94,9 +101,9 @@ enum AXTreeDumpWriter {
                     "bundle": .string(bundle)
                 ]
             )
-        } catch {
+        } else {
             CotabbyLogger.focus.error(
-                "Failed to write AX dump: \(error.localizedDescription)",
+                "Failed to write AX dump",
                 metadata: ["path": .string(targetURL.path)]
             )
         }
@@ -106,24 +113,41 @@ enum AXTreeDumpWriter {
         of element: AXUIElement,
         into out: inout String,
         indent: String,
-        depth: Int
+        depth: Int,
+        insideSecureField: Bool
     ) {
         guard depth < 6 else { return }
         let children = AXHelper.childElements(of: element)
         for (offset, child) in children.prefix(20).enumerated() {
-            out += describeNode(child, indent: "\(indent)[\(offset)] ")
-            dumpChildrenRecursive(of: child, into: &out, indent: indent + "  ", depth: depth + 1)
+            let node = describeNode(child, indent: "\(indent)[\(offset)] ", insideSecureField: insideSecureField)
+            out += node.text
+            dumpChildrenRecursive(
+                of: child, into: &out, indent: indent + "  ", depth: depth + 1, insideSecureField: node.isSecure
+            )
         }
         if children.count > 20 {
             out += "\(indent)  ...+\(children.count - 20) more\n"
         }
     }
 
-    private static func describeNode(_ element: AXUIElement, indent: String) -> String {
+    /// One node's lines, and whether it counts as secure for the nodes under it: it is secure by
+    /// `SecureFieldDetector`'s markers, or it sits inside an element that is.
+    private static func describeNode(
+        _ element: AXUIElement,
+        indent: String,
+        insideSecureField: Bool
+    ) -> (text: String, isSecure: Bool) {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let attributes = Set(AXHelper.attributeNames(on: element))
         let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
+        let isSecure = insideSecureField || SecureFieldDetector.isSecure(
+            role: role,
+            subrole: subrole,
+            roleDescription: AXHelper.stringValue(for: kAXRoleDescriptionAttribute as CFString, on: element),
+            title: AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element),
+            descriptionLabel: AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)
+        )
 
         var summary = "\(indent)\(role)"
         if let subrole { summary += " (\(subrole))" }
@@ -134,15 +158,14 @@ enum AXTreeDumpWriter {
             summary += "\(indent)  frame(AX): \(fmt(frame))  frame(cocoa): \(fmt(cocoa))\n"
         }
 
+        // A secure element's value is never read, so no later edit to the preview can leak it.
         if attributes.contains(kAXValueAttribute as String),
-            let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element) {
-            let previewText = text.count > 80 ? String(text.prefix(80)) + "…" : text
-            summary += "\(indent)  value: " +
-                "\"\(previewText.replacingOccurrences(of: "\n", with: "\\n"))\" " +
-                "(len=\(text.count))\n"
+           let text = isSecure ? "" : AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element) {
+            summary += "\(indent)  value: \(AXDumpValuePreview.line(for: text, isSecure: isSecure))\n"
         }
 
-        if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
+        // The selection and caret of a secure field give away how long its value is.
+        if !isSecure, let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
             summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
 
             if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
@@ -159,7 +182,7 @@ enum AXTreeDumpWriter {
             }
         }
 
-        if let markerRect = AXHelper.textMarkerCaretRect(on: element), !markerRect.isEmpty {
+        if !isSecure, let markerRect = AXHelper.textMarkerCaretRect(on: element), !markerRect.isEmpty {
             summary += "\(indent)  TextMarkerCaret: \(fmt(markerRect))\n"
         }
 
@@ -170,7 +193,7 @@ enum AXTreeDumpWriter {
         let childCount = AXHelper.childElements(of: element).count
         if childCount > 0 { summary += "\(indent)  children: \(childCount)\n" }
 
-        return summary
+        return (summary, isSecure)
     }
 
     private static func fmt(_ rect: CGRect) -> String {

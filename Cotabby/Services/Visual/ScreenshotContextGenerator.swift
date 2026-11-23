@@ -324,18 +324,16 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     /// Maximum number of debug capture pairs (png + txt) kept per application folder.
     private static let maxDebugCapturesPerApp = 20
 
+    /// Saves the capture and its raw OCR text under `screenshots/<app>/` in the debug artifact
+    /// directory (`CotabbyDebugArtifacts`), owner-only. Both can hold anything that was on screen,
+    /// which is why they stay out of the Desktop (often synced to iCloud) and go away with typing
+    /// history's Delete All.
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
-        guard let desktopURL = FileManager.default.urls(
-            for: .desktopDirectory,
-            in: .userDomainMask
-        ).first else {
+        guard let appFolderURL = CotabbyDebugArtifacts.preparedDirectory(
+            [CotabbyDebugArtifacts.screenshotsFolderName, name]
+        ) else {
             return
         }
-
-        let appFolderURL = desktopURL
-            .appendingPathComponent("cotabby-debug-screenshots")
-            .appendingPathComponent(name)
-        try? FileManager.default.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -345,48 +343,24 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         let fileURL = appFolderURL.appendingPathComponent("\(timestamp).png")
         let textURL = appFolderURL.appendingPathComponent("\(timestamp).txt")
 
-        if let dest = CGImageDestinationCreateWithURL(
-            fileURL as CFURL,
+        // Encoded in memory so the file can be created owner-only in one step, instead of letting
+        // ImageIO create it with the default mode.
+        let pngData = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            pngData as CFMutableData,
             UTType.png.identifier as CFString,
             1,
             nil
-        ) {
-            CGImageDestinationAddImage(dest, image, nil)
-            if CGImageDestinationFinalize(dest) {
-                try? text.write(to: textURL, atomically: true, encoding: .utf8)
-                evictOldDebugCaptures(in: appFolderURL)
-            }
-        }
-    }
-
-    /// Keeps only the newest `maxDebugCapturesPerApp` png+txt pairs per app folder,
-    /// deleting the oldest files first (by creation date).
-    private func evictOldDebugCaptures(in folderURL: URL) {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: [.creationDateKey],
-            options: .skipsHiddenFiles
         ) else {
             return
         }
-
-        let pngFiles = contents
-            .filter { $0.pathExtension == "png" }
-            .sorted { lhs, rhs in
-                let lhsDate = (try? lhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-                let rhsDate = (try? rhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-                return lhsDate < rhsDate
-            }
-
-        let overflow = pngFiles.count - Self.maxDebugCapturesPerApp
-        guard overflow > 0 else { return }
-
-        for pngURL in pngFiles.prefix(overflow) {
-            let txtURL = pngURL.deletingPathExtension().appendingPathExtension("txt")
-            try? fm.removeItem(at: pngURL)
-            try? fm.removeItem(at: txtURL)
+        CGImageDestinationAddImage(dest, image, nil)
+        guard CGImageDestinationFinalize(dest),
+              CotabbyDebugArtifacts.writePrivateFile(pngData as Data, to: fileURL) else {
+            return
         }
+        CotabbyDebugArtifacts.writePrivateFile(Data(text.utf8), to: textURL)
+        CotabbyDebugArtifacts.evictOldCaptures(in: appFolderURL, keeping: Self.maxDebugCapturesPerApp)
     }
 
     private func sanitizedDebugName(from rawName: String) -> String {

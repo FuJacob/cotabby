@@ -550,12 +550,16 @@ SuggestionCoordinator just because that is where its symptom becomes visible.
 ## Debugging and Validation
 
 Development schemes launch with -cotabby-debug. That enables local privacy-sensitive diagnostics in
-addition to unified logging:
+addition to unified logging, all in one owner-only directory (`~/Library/Logs/Cotabby Dev/` for the
+dev identity) that CotabbyDebugArtifacts owns:
 
 - ~/Library/Logs/Cotabby/cotabby.jsonl: structured event stream.
 - ~/Library/Logs/Cotabby/llm-io.jsonl: full prompt/completion records.
-- ~/Desktop/cotabby-ax-dump.txt: most recent Chrome focus AX tree.
-- ~/Desktop/cotabby-debug-screenshots/: retained visual-context capture/OCR pairs.
+- ~/Library/Logs/Cotabby/ax-dump.txt: most recent Chrome focus AX tree, secure values redacted.
+- ~/Library/Logs/Cotabby/screenshots/: retained visual-context capture/OCR pairs.
+
+The flag works in release builds too, for user bug reports, and a release build shows "Debug logging
+is on" in the menu bar panel while it is set. Typing history's Delete All removes these artifacts.
 
 Every prediction carries a request_id through coordinator, router, engine, and LLM-I/O records. Start
 with category focus for field/geometry failures, suggestion for state/acceptance failures, runtime for

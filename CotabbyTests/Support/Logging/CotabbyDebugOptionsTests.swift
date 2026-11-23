@@ -35,6 +35,18 @@ final class CotabbyDebugOptionsTests: XCTestCase {
         try body()
     }
 
+    // MARK: - Debug mode notice
+
+    func test_showsDebugModeNotice_onlyInBuildsThatCanShip() {
+        // Debug builds always launch with the flag from the scheme; a release build launched with
+        // it must say so, because it is writing prompts and captures to disk.
+        #if DEBUG
+        XCTAssertFalse(CotabbyDebugOptions.showsDebugModeNotice)
+        #else
+        XCTAssertEqual(CotabbyDebugOptions.showsDebugModeNotice, CotabbyDebugOptions.isEnabled)
+        #endif
+    }
+
     // MARK: - Verbosity floor precedence
 
     func test_minimumLogLevel_honorsEveryRecognizedOverrideCaseInsensitively() {

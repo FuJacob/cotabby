@@ -82,7 +82,7 @@ Cotabby/
 │   ├── History/                      history retrieval, phrase prediction, scrubbing, import
 │   ├── InlineCommands/               key and focus rules shared by emoji and macro capture
 │   ├── Input/                        composition, key-label, and selection helpers
-│   ├── Logging/                      debug options, request IDs, and JSONL handlers
+│   ├── Logging/                      debug options, artifact paths, request IDs, and JSONL handlers
 │   ├── Macros/
 │   │   └── Evaluators/               deterministic arithmetic/date/unit evaluators
 │   ├── Onboarding/                   flow steps, recommendation rules, inline-prediction nudge

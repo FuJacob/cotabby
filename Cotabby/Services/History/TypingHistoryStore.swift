@@ -104,6 +104,9 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     private var changeCount = 0
     private var savedChangeCount = 0
     private let userDefaults: UserDefaults
+    /// Removes the debug artifacts that can hold typed text (`CotabbyDebugArtifacts`) as part of
+    /// Delete All. Injected so tests never touch the developer's real logs; the default does nothing.
+    private let deletesDebugArtifacts: () -> Void
     /// How long typing must pause before a background save; injectable so tests need not wait.
     private let saveDelayNanoseconds: UInt64
     private var records: [TypingHistoryRecord] = []
@@ -157,11 +160,13 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         vault: TypingHistoryVault = .standard(),
         userDefaults: UserDefaults = .standard,
         loadsArchive: Bool = true,
-        saveDelayNanoseconds: UInt64 = 5_000_000_000
+        saveDelayNanoseconds: UInt64 = 5_000_000_000,
+        deletesDebugArtifacts: @escaping () -> Void = {}
     ) {
         self.vault = vault
         self.writer = TypingHistoryWriter(vault: vault)
         self.userDefaults = userDefaults
+        self.deletesDebugArtifacts = deletesDebugArtifacts
         self.saveDelayNanoseconds = saveDelayNanoseconds
         preferences = TypingHistoryPreferences(
             isUsingHistory: userDefaults.object(forKey: DefaultsKey.isUsingHistory) as? Bool
@@ -563,7 +568,11 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
 
     /// Removes every record, the encrypted file, and its Keychain key. Also the way out of an
     /// archive that can no longer be opened: deleting it lets recording start over.
+    ///
+    /// The debug logs and captures go first and regardless of how the archive deletion ends: they
+    /// are copies of the same typing, and a Keychain failure is no reason to keep them.
     func deleteAll() {
+        deletesDebugArtifacts()
         saveTask?.cancel()
         persistenceGeneration += 1
         do {
