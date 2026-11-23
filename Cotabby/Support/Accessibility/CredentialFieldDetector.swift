@@ -3,6 +3,7 @@ import Foundation
 
 /// File overview:
 /// Recognizes sign-in and verification fields (email, username, phone, one-time codes, card
+/// numbers) and fields named for other secrets (API keys, recovery phrases, social security
 /// numbers) where Cotabby stands down, alongside password fields, which arrive as secure fields
 /// and are already blocked by the resolver.
 ///
@@ -18,7 +19,9 @@ import Foundation
 ///
 /// Every signal is matched by whole words or whole id parts, never by raw substring. Blocking
 /// costs the writer their completions, so "phonebook-search", "emailSearch" and "Email subject"
-/// must stay ordinary fields even though they contain a credential word.
+/// must stay ordinary fields even though they contain a credential word. The one exception is the
+/// shared secret vocabulary (`SecureFieldDetector.labelNamesSecret`), whose terms are chosen to be
+/// safe at a word start or, for compounding and unspaced languages, anywhere.
 enum CredentialFieldDetector {
     static let blockedReason = "Sign-in and verification fields are left alone."
 
@@ -44,7 +47,8 @@ enum CredentialFieldDetector {
     static let credentialIdentifierWords: [String] = [
         "email", "mail", "username", "userid", "login", "logon", "signin", "passwd", "password", "pwd",
         "passcode", "otp", "totp", "mfa", "2fa", "phone", "telephone", "tel", "mobile", "msisdn", "pin",
-        "cvc", "cvv", "cardnumber", "identifierid", "onetimecode", "verificationcode", "securitycode", "authcode"
+        "cvc", "cvv", "cardnumber", "identifierid", "onetimecode", "verificationcode", "securitycode", "authcode",
+        "apikey", "secretkey", "secretaccesskey", "accesstoken", "privatekey", "seedphrase", "recoveryphrase", "ssn"
     ]
 
     /// Id parts that commonly sit next to a credential word ("user_email", "txtPassword",
@@ -83,11 +87,16 @@ enum CredentialFieldDetector {
         return looksLikeAddressEntry(text)
     }
 
-    /// A label names a credential input when it contains a keyword as a whole word and no word
-    /// that turns it into a description of prose ("Email" yes, "Email subject" no).
+    /// A label names a credential input when it contains a keyword as a whole word, or names a
+    /// secret the way `SecureFieldDetector.labelNamesSecret` recognizes (a localized "password", an
+    /// API key, a recovery phrase), and has no word that turns it into a description of prose
+    /// ("Email" yes, "Email subject" no). The secret vocabulary is checked here as well because this
+    /// reading includes the placeholder, which is often a web field's only label.
     static func labelNamesCredential(_ label: String) -> Bool {
         let label = label.lowercased()
-        guard labelKeywords.contains(where: { containsWord($0, in: label) }) else { return false }
+        guard labelKeywords.contains(where: { containsWord($0, in: label) })
+            || SecureFieldDetector.labelNamesSecret(label)
+        else { return false }
         return !proseLabelWords.contains(where: { containsWord($0, in: label) })
     }
 

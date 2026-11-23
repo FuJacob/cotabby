@@ -24,7 +24,8 @@ struct FocusSnapshotResolver {
     /// Session-scoped caches for AX reads that are invariant while focus stays in one field.
     /// Secure-field verdicts gate whether Cotabby operates at all, so they are scoped to the
     /// focus-change sequence rather than raw element identity, which CFHash can recycle across
-    /// fields (see `FocusSessionScopedCache`).
+    /// fields (see `FocusSessionScopedCache`). The secure cache holds the label half of the
+    /// verdict, or `true` once the role pair has shown the field secure (sticky for the session).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
     /// The label and DOM-id reads behind `CredentialFieldDetector` and `SearchFieldDetector`: up to
@@ -1136,15 +1137,25 @@ struct FocusSnapshotResolver {
         let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
         let elementIdentifier = AXHelper.elementIdentifier(
             for: element, bundleIdentifier: bundleIdentifier)
-        // Secure-ness is invariant for an element's lifetime, and the three marker probes behind
-        // it (role description, title, description) are separate AX round trips otherwise paid on
-        // every poll tick. Session scoping keeps recycled element identities from ever serving a
-        // stale verdict to a different field.
-        let isSecure = secureFieldVerdictCache.value(
-            forKey: elementIdentifier,
-            focusChangeSequence: focusChangeSequence
-        ) {
-            isSecureElement(element: element, role: role, subrole: subrole)
+        // Secure-ness is NOT invariant for an element's lifetime: a page can switch the same input
+        // between type=text and type=password (a show-password toggle, a sign-in step that reuses
+        // the box) and AX keeps the element. The role pair was read for this poll anyway, so it is
+        // judged on every poll at no extra cost. Only the label probes (role description, title,
+        // description: three AX round trips) are cached for the focus session. A field seen secure
+        // once stays secure for the session: revealing a password does not make it less secret, and
+        // the reveal must not let the next poll record or complete it. Session scoping keeps
+        // recycled element identities from ever serving a verdict to a different field.
+        let isSecure: Bool
+        if SecureFieldDetector.isSecureRole(role: role, subrole: subrole) {
+            secureFieldVerdictCache.store(true, forKey: elementIdentifier, focusChangeSequence: focusChangeSequence)
+            isSecure = true
+        } else {
+            isSecure = secureFieldVerdictCache.value(
+                forKey: elementIdentifier,
+                focusChangeSequence: focusChangeSequence
+            ) {
+                hasSecureLabel(element: element)
+            }
         }
         let resolverCandidate = FocusCapabilityCandidate(
             editableHintScore: editableHintScore,
@@ -1585,14 +1596,13 @@ struct FocusSnapshotResolver {
         )
     }
 
-    /// Detects secure inputs so Cotabby can intentionally refuse to operate in sensitive fields.
-    private func isSecureElement(element: AXUIElement, role: String, subrole: String?) -> Bool {
+    /// The label half of the secure verdict (the role half is judged per poll by the caller), so
+    /// Cotabby can intentionally refuse to operate in sensitive fields.
+    private func hasSecureLabel(element: AXUIElement) -> Bool {
         // Read the role description too: a native NSSecureTextField announces its sensitivity there
         // ("secure text field") rather than through AXDescription, so the previous role/desc/title-only
         // check missed it. SecureFieldDetector owns the (pure, testable) marker policy.
-        SecureFieldDetector.isSecure(
-            role: role,
-            subrole: subrole,
+        SecureFieldDetector.hasSecureLabel(
             roleDescription: AXHelper.stringValue(for: kAXRoleDescriptionAttribute as CFString, on: element),
             title: AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element),
             descriptionLabel: AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)

@@ -94,6 +94,35 @@ final class CredentialFieldDetectorTests: XCTestCase {
         ))
     }
 
+    /// The placeholder is often a web field's only label, and only this detector reads it, so the
+    /// shared secret vocabulary (localized "password", API keys, recovery phrases) applies here too.
+    func test_secretLabelsBlockTheField() {
+        for label in ["Passwort", "Contraseña", "Mot de passe", "Senha", "API key", "Access token", "SSN", "Seed phrase"] {
+            XCTAssertTrue(
+                CredentialFieldDetector.isCredentialField(role: textField, labels: [nil, nil, label], domIdentifier: nil, text: nil),
+                label
+            )
+        }
+    }
+
+    func test_secretLabelsStillYieldToProseWords() {
+        for label in ["Escreva sua resenha", "Token count", "Notes about the API key", "Search key"] {
+            XCTAssertFalse(
+                CredentialFieldDetector.isCredentialField(role: textField, labels: [label], domIdentifier: nil, text: nil),
+                label
+            )
+        }
+    }
+
+    func test_secretDomIdentifiersAreBlocked() {
+        for identifier in ["api_key", "apiKey", "accessToken", "secret_access_key", "private-key", "seedPhrase", "user_ssn"] {
+            XCTAssertTrue(CredentialFieldDetector.domIdentifierNamesCredential(identifier), identifier)
+        }
+        for identifier in ["token_count", "keyboard", "primary_key", "monkey"] {
+            XCTAssertFalse(CredentialFieldDetector.domIdentifierNamesCredential(identifier), identifier)
+        }
+    }
+
     func test_multiLineFieldsAreNeverBlocked() {
         XCTAssertFalse(CredentialFieldDetector.isCredentialField(
             role: kAXTextAreaRole as String, labels: ["Email body"], domIdentifier: "email", text: "a@b.co"

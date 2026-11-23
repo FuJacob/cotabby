@@ -219,9 +219,14 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         super.tearDown()
     }
 
-    /// Hosts one editing `NSTextField` and returns its AX element, or skips where self-process AX
-    /// is unavailable.
-    private func makeFieldElement(placeholder: String, text: String, searchField: Bool = false) throws -> AXUIElement {
+    /// Hosts one editing `NSTextField` (or the given subclass instance) and returns its AX element,
+    /// or skips where self-process AX is unavailable.
+    private func makeFieldElement(
+        placeholder: String,
+        text: String,
+        searchField: Bool = false,
+        textField: NSTextField? = nil
+    ) throws -> AXUIElement {
         let window = NSWindow(
             contentRect: NSRect(x: 220, y: 220, width: 360, height: 80),
             styleMask: [.titled],
@@ -230,7 +235,8 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
         )
         window.isReleasedWhenClosed = false
         let frame = NSRect(x: 10, y: 28, width: 300, height: 24)
-        let field = searchField ? NSSearchField(frame: frame) : NSTextField(frame: frame)
+        let field = textField ?? (searchField ? NSSearchField(frame: frame) : NSTextField(frame: frame))
+        field.frame = frame
         field.placeholderString = placeholder
         field.setAccessibilityIdentifier(Self.fieldIdentifier)
         window.contentView?.addSubview(field)
@@ -343,5 +349,43 @@ final class FocusSnapshotResolverCredentialLiveTests: XCTestCase {
             capability(of: element, focusChangeSequence: 6, resolver: FocusSnapshotResolver()),
             .blocked(SearchFieldDetector.blockedReason)
         )
+    }
+
+    /// A page can switch one input between type=text and type=password while AX keeps the element.
+    /// The role pair is judged on every poll, so the switch is caught inside the focus session, and
+    /// a field seen secure stays blocked when the password is revealed again.
+    func test_fieldThatTurnsSecureMidSessionIsBlockedAndStaysBlocked() throws {
+        SubroleSwitchingTextField.reportsSecureSubrole = false
+        defer { SubroleSwitchingTextField.reportsSecureSubrole = false }
+        let element = try makeFieldElement(placeholder: "Notes", text: "hello", textField: SubroleSwitchingTextField(frame: .zero))
+        let resolver = FocusSnapshotResolver()
+        let secureBlock = FocusCapability.blocked("Secure text input is active.")
+
+        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 9, resolver: resolver), secureBlock)
+
+        SubroleSwitchingTextField.reportsSecureSubrole = true
+        guard AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element) == "AXSecureTextField" else {
+            throw XCTSkip("AppKit did not report the overridden subrole over AX")
+        }
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 9, resolver: resolver), secureBlock)
+
+        // Revealed again, same session: still blocked.
+        SubroleSwitchingTextField.reportsSecureSubrole = false
+        XCTAssertEqual(capability(of: element, focusChangeSequence: 9, resolver: resolver), secureBlock)
+
+        // A new focus session judges the field afresh.
+        XCTAssertNotEqual(capability(of: element, focusChangeSequence: 10, resolver: resolver), secureBlock)
+    }
+}
+
+/// An `NSTextField` whose AX subrole a test can switch, standing in for a web input that flips
+/// between type=text and type=password on one AX element. The switch is static so the subclass adds
+/// no stored property: a `@MainActor` class with one takes the back-deployed isolated-deinit path
+/// that aborts the macOS 15 test host (#908).
+private final class SubroleSwitchingTextField: NSTextField {
+    static var reportsSecureSubrole = false
+
+    override func accessibilitySubrole() -> NSAccessibility.Subrole? {
+        Self.reportsSecureSubrole ? .secureTextField : super.accessibilitySubrole()
     }
 }
