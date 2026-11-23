@@ -219,11 +219,13 @@ final class CotabbyAppEnvironment {
             },
             openAICompatibleEngine: OpenAICompatibleSuggestionEngine(
                 client: openAICompatibleClient,
+                // Only the approved server: the configuration is checked before the API key is
+                // read, so an unapproved server never receives either the text or the key.
                 configurationProvider: { [weak suggestionSettings] in
                     guard let suggestionSettings else {
                         throw OpenAICompatibleClientError.invalidResponse
                     }
-                    return try suggestionSettings.openAICompatibleConfiguration
+                    return try suggestionSettings.openAICompatibleApprovedConfiguration
                 },
                 apiKeyProvider: { [weak suggestionSettings] in
                     try suggestionSettings?.openAICompatibleAPIKey()
@@ -431,8 +433,18 @@ final class CotabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
+        restoreEndpointServerApproval()
         observePowerSourceProfileSwitching()
         observeOpenAICompatibleSelection()
+    }
+
+    /// Loads the approved endpoint server from the Keychain before anything can route to the
+    /// endpoint. The XCTest host skips it for the same reason it skips the typing-history archive:
+    /// tests must not read or write the real Keychain record, so under XCTest nothing is approved
+    /// and no endpoint request is sent.
+    private func restoreEndpointServerApproval() {
+        guard !Self.isRunningUnderXCTest else { return }
+        suggestionSettings.restoreOpenAICompatibleOriginApproval()
     }
 
     /// Applies the user's per-power-source profile (engine + model) whenever anything that could
@@ -514,7 +526,9 @@ final class CotabbyAppEnvironment {
         }
     }
 
-    /// Connect once when the endpoint engine becomes active. Only server identity and credentials
+    /// Connect once when the endpoint engine becomes active, but only to the server the user
+    /// already approved; an unapproved server gets no request and the connection shows why, so
+    /// Settings and Home ask the user to confirm it. Only server identity and credentials
     /// invalidate discovery: the selected model and generation route do not affect `GET /models`,
     /// so changing either must keep the catalog and connected status alive. Settings still owns
     /// explicit Connect/Return refreshes and avoids network traffic per keystroke.
@@ -526,12 +540,18 @@ final class CotabbyAppEnvironment {
                 Task { [weak self] in
                     guard let self else { return }
                     do {
-                        let configuration = try self.suggestionSettings.openAICompatibleConfiguration
+                        let configuration = try self.suggestionSettings.openAICompatibleApprovedConfiguration
                         let apiKey = try self.suggestionSettings.openAICompatibleAPIKey()
                         await self.openAICompatibleConnectionModel.refresh(
                             configuration: configuration,
                             apiKey: apiKey
                         )
+                    } catch let error as OpenAICompatibleEndpointError {
+                        if case .unapprovedServer = error {
+                            self.openAICompatibleConnectionModel.setFailure(error.localizedDescription)
+                        } else {
+                            self.openAICompatibleConnectionModel.invalidate()
+                        }
                     } catch {
                         self.openAICompatibleConnectionModel.invalidate()
                     }

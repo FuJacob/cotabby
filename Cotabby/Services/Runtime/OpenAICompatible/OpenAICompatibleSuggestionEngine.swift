@@ -154,6 +154,10 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
                     )
                 }
             }
+        } catch OpenAICompatibleEndpointError.unapprovedServer(_) {
+            // Expected until the user presses Connect, and this runs on every focus change; Settings
+            // already shows the state, so a warning here would only flood the log.
+            CotabbyLogger.runtime.debug("Skipped Ollama preload for an unapproved endpoint server")
         } catch {
             CotabbyLogger.runtime.warning(
                 "Default Ollama preload configuration failed: \(error.localizedDescription)"

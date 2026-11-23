@@ -66,6 +66,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Non-secret change token that lets lifecycle observers react to Keychain updates without
     /// publishing the credential itself.
     @Published private(set) var endpointCredentialRevision: UInt64 = 0
+    /// The endpoint server the user approved with Connect, mirrored from the Keychain. It starts at
+    /// `.nothingApproved` and only `restoreOpenAICompatibleOriginApproval()` loads the stored record,
+    /// so a model that never restored (tests, previews, the XCTest host) sends nothing to any endpoint.
+    @Published private(set) var openAICompatibleOriginApproval: OpenAICompatibleOriginApproval = .nothingApproved
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the active length budget reads `customWordCountLowWords...HighWords` and the
     /// curated `selectedWordCountPreset` is ignored for generation (but preserved as the value the
@@ -371,6 +375,16 @@ final class SuggestionSettingsModel: ObservableObject {
         } catch {
             CotabbyLogger.app.error("Failed to clear endpoint API key during settings reset: \(error.localizedDescription)")
         }
+        // Withdraw the approval in memory even if the Keychain write fails, so the reset never
+        // leaves a server approved. The sentinel (not a delete) keeps the upgrade adoption one-shot.
+        openAICompatibleOriginApproval = .nothingApproved
+        do {
+            try endpointCredentialStore.saveApprovedOriginRecord(OpenAICompatibleOriginApproval.nothingApproved.record)
+        } catch {
+            CotabbyLogger.app.error(
+                "Failed to clear endpoint server approval during settings reset: \(error.localizedDescription)"
+            )
+        }
         schedulePauseExpirationIfNeeded()
     }
 
@@ -541,6 +555,8 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveOpenAICompatibleAPIMode(mode)
     }
 
+    /// The stored endpoint fields, validated. This answers "is the URL well formed?" only; anything
+    /// that sends a request must use `openAICompatibleApprovedConfiguration` instead.
     var openAICompatibleConfiguration: OpenAICompatibleEndpointConfiguration {
         get throws {
             try OpenAICompatibleEndpointConfiguration(
@@ -553,15 +569,90 @@ final class SuggestionSettingsModel: ObservableObject {
 
     /// Why the endpoint cannot be used as configured, or nil when it can. The sidebar's attention
     /// dot and the Engine & Model pane's callout both read this, so a dot always has a callout
-    /// explaining it. An empty model name passes URL validation but still cannot serve a request.
+    /// explaining it. An empty model name passes URL validation but still cannot serve a request,
+    /// and a server the user has not approved with Connect receives nothing, so both are reported.
     var openAICompatibleConfigurationError: String? {
         do {
-            let configuration = try openAICompatibleConfiguration
+            let configuration = try openAICompatibleApprovedConfiguration
             return configuration.modelName.isEmpty
                 ? OpenAICompatibleEndpointError.emptyModelName.localizedDescription
                 : nil
         } catch {
             return error.localizedDescription
+        }
+    }
+
+    /// The endpoint configuration, only when its server is the one the user approved with Connect.
+    ///
+    /// Generation, Ollama warmup, and model discovery all read this, so a server URL that changed
+    /// outside Settings (the defaults key is writable by any same-user process) receives neither the
+    /// user's text nor the API key. It throws `unapprovedServer` instead, which Settings shows as a
+    /// request to confirm the server.
+    var openAICompatibleApprovedConfiguration: OpenAICompatibleEndpointConfiguration {
+        get throws {
+            let configuration = try openAICompatibleConfiguration
+            guard OpenAICompatibleOriginApprovalPolicy.allows(configuration, approval: openAICompatibleOriginApproval) else {
+                throw OpenAICompatibleEndpointError.unapprovedServer(configuration.baseURL.absoluteString)
+            }
+            return configuration
+        }
+    }
+
+    /// True when the configured address is valid but its server is not the approved one, the state
+    /// in which Settings asks the user to press Connect.
+    var openAICompatibleServerNeedsApproval: Bool {
+        guard let configuration = try? openAICompatibleConfiguration else { return false }
+        return !OpenAICompatibleOriginApprovalPolicy.allows(configuration, approval: openAICompatibleOriginApproval)
+    }
+
+    /// Connect: validate the typed address, record its server as approved, then make it the
+    /// configured address. Writing the Keychain record first means a failure leaves both the
+    /// approval and the address exactly as they were. Returns the configuration to connect with.
+    @discardableResult
+    func approveOpenAICompatibleEndpoint(baseURLString: String) throws -> OpenAICompatibleEndpointConfiguration {
+        let configuration = try OpenAICompatibleEndpointConfiguration(
+            baseURLString: baseURLString,
+            modelName: openAICompatibleModelName,
+            apiMode: openAICompatibleAPIMode
+        )
+        guard let origin = OpenAICompatibleEndpointOrigin(url: configuration.baseURL) else {
+            throw OpenAICompatibleEndpointError.invalidBaseURL
+        }
+        let approval = OpenAICompatibleOriginApproval.approved(origin: origin.serialized)
+        try endpointCredentialStore.saveApprovedOriginRecord(approval.record)
+        openAICompatibleOriginApproval = approval
+        setOpenAICompatibleBaseURL(baseURLString)
+        return configuration
+    }
+
+    /// Loads the approval record once at launch. The first launch of a build that knows about
+    /// approvals finds no record: an existing endpoint user then adopts the server already
+    /// configured (see `OpenAICompatibleOriginApprovalPolicy.restore`). Any Keychain failure leaves
+    /// nothing approved and writes nothing, so an unreadable record is never replaced by a guess.
+    func restoreOpenAICompatibleOriginApproval() {
+        do {
+            let storedRecord = try endpointCredentialStore.readApprovedOriginRecord()
+            let restoration = OpenAICompatibleOriginApprovalPolicy.restore(
+                storedRecord: storedRecord,
+                configuredBaseURL: openAICompatibleBaseURL,
+                endpointInUse: OpenAICompatibleOriginApprovalPolicy.endpointInUse(
+                    selectedEngine: selectedEngine,
+                    isPowerBasedModelSwitchingEnabled: isPowerBasedModelSwitchingEnabled,
+                    batteryEngine: batteryEngine,
+                    pluggedInEngine: pluggedInEngine
+                )
+            )
+            if let record = restoration.recordToPersist {
+                try endpointCredentialStore.saveApprovedOriginRecord(record)
+                CotabbyLogger.app.info(
+                    "Recorded the initial endpoint server approval",
+                    metadata: ["adopted_configured_server": .stringConvertible(restoration.approval != .nothingApproved)]
+                )
+            }
+            openAICompatibleOriginApproval = restoration.approval
+        } catch {
+            openAICompatibleOriginApproval = .nothingApproved
+            CotabbyLogger.app.error("Failed to restore the endpoint server approval: \(error.localizedDescription)")
         }
     }
 

@@ -319,6 +319,11 @@ struct HomePaneView: View {
                 .first { $0.filename == runtimeModel.selectedModelFilename }
             return selected?.displayName ?? "No model selected"
         case .openAICompatible:
+            // Nothing was sent to an unapproved server, so "failed" would send the user looking for
+            // a network problem instead of the Connect button.
+            if suggestionSettings.openAICompatibleServerNeedsApproval {
+                return "Confirm server"
+            }
             if openAICompatibleConnectionModel.state.failureDetail != nil {
                 return "Connection failed"
             }

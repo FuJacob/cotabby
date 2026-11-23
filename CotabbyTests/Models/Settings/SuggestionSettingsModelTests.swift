@@ -564,11 +564,20 @@ final class SuggestionSettingsModelTests: XCTestCase {
         }
     }
 
-    func test_openAICompatibleConfigurationError_namesWhatBlocksTheEndpoint() {
+    func test_openAICompatibleConfigurationError_namesWhatBlocksTheEndpoint() throws {
         let model = makeModel()
-        model.setOpenAICompatibleBaseURL("http://localhost:1234/v1")
 
-        // A valid URL with no model chosen still cannot serve a request.
+        // Nothing approved yet: the error asks the user to confirm the server before anything else.
+        XCTAssertEqual(
+            model.openAICompatibleConfigurationError,
+            OpenAICompatibleEndpointError.unapprovedServer(
+                OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+            ).localizedDescription
+        )
+
+        try model.approveOpenAICompatibleEndpoint(baseURLString: "http://localhost:1234/v1")
+
+        // A valid, approved URL with no model chosen still cannot serve a request.
         XCTAssertEqual(
             model.openAICompatibleConfigurationError,
             OpenAICompatibleEndpointError.emptyModelName.localizedDescription
@@ -582,6 +591,116 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.openAICompatibleConfigurationError,
             OpenAICompatibleEndpointError.invalidBaseURL.localizedDescription
         )
+    }
+
+    // MARK: - Endpoint server approval
+
+    func test_endpointServer_isRefusedUntilConnectApprovesIt() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore()
+        let model = makeModel(credentials: credentials)
+        model.setOpenAICompatibleModelName("local-model")
+
+        // A model that never restored or approved anything sends nothing, not even to loopback.
+        XCTAssertTrue(model.openAICompatibleServerNeedsApproval)
+        XCTAssertThrowsError(try model.openAICompatibleApprovedConfiguration) { error in
+            XCTAssertEqual(
+                error as? OpenAICompatibleEndpointError,
+                .unapprovedServer(OpenAICompatibleEndpointConfiguration.defaultBaseURLString)
+            )
+        }
+
+        let approved = try model.approveOpenAICompatibleEndpoint(baseURLString: "http://localhost:1234/")
+        XCTAssertEqual(approved.baseURL.absoluteString, "http://localhost:1234/v1")
+        XCTAssertEqual(model.openAICompatibleBaseURL, "http://localhost:1234/", "Connect commits the typed address")
+        XCTAssertEqual(try credentials.readApprovedOriginRecord(), "http://localhost:1234")
+        XCTAssertEqual(try model.openAICompatibleApprovedConfiguration.baseURL, approved.baseURL)
+        XCTAssertFalse(model.openAICompatibleServerNeedsApproval)
+
+        // Another path on the same server stays approved; another server does not.
+        model.setOpenAICompatibleBaseURL("http://LOCALHOST:1234/custom/v1")
+        XCTAssertNoThrow(try model.openAICompatibleApprovedConfiguration)
+        model.setOpenAICompatibleBaseURL("https://models.example.com/v1")
+        XCTAssertThrowsError(try model.openAICompatibleApprovedConfiguration) { error in
+            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .unapprovedServer("https://models.example.com/v1"))
+        }
+    }
+
+    func test_approveEndpoint_rejectsAnInvalidAddressWithoutChangingAnything() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore(approvedOriginRecord: "http://localhost:1234")
+        let model = makeModel(credentials: credentials)
+        model.restoreOpenAICompatibleOriginApproval()
+        model.setOpenAICompatibleBaseURL("http://localhost:1234/v1")
+
+        XCTAssertThrowsError(try model.approveOpenAICompatibleEndpoint(baseURLString: "http://models.example.com/v1")) { error in
+            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .insecurePublicHTTP)
+        }
+        XCTAssertEqual(model.openAICompatibleBaseURL, "http://localhost:1234/v1")
+        XCTAssertEqual(try credentials.readApprovedOriginRecord(), "http://localhost:1234")
+        XCTAssertNoThrow(try model.openAICompatibleApprovedConfiguration)
+    }
+
+    func test_restoreApproval_adoptsAnUpgradingEndpointUsersServerExactlyOnce() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore()
+        let model = makeModel(credentials: credentials)
+        model.selectEngine(.openAICompatible)
+        model.setOpenAICompatibleBaseURL("http://192.168.1.50:8000/v1")
+
+        model.restoreOpenAICompatibleOriginApproval()
+
+        XCTAssertEqual(model.openAICompatibleOriginApproval, .approved(origin: "http://192.168.1.50:8000"))
+        XCTAssertEqual(try credentials.readApprovedOriginRecord(), "http://192.168.1.50:8000")
+
+        // A later launch finds the record and never re-adopts, even if the defaults now name
+        // another server.
+        let relaunched = makeModel(credentials: credentials)
+        relaunched.setOpenAICompatibleBaseURL("https://models.example.com/v1")
+        relaunched.restoreOpenAICompatibleOriginApproval()
+        XCTAssertEqual(relaunched.openAICompatibleOriginApproval, .approved(origin: "http://192.168.1.50:8000"))
+        XCTAssertTrue(relaunched.openAICompatibleServerNeedsApproval)
+    }
+
+    func test_restoreApproval_recordsTheSentinelForUsersWithoutAnEndpoint() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore()
+        let model = makeModel(credentials: credentials)
+
+        model.restoreOpenAICompatibleOriginApproval()
+        XCTAssertEqual(model.openAICompatibleOriginApproval, .nothingApproved)
+        XCTAssertEqual(try credentials.readApprovedOriginRecord(), "none")
+
+        // Selecting the endpoint after the first launch (for example by rewriting the defaults)
+        // does not trigger the upgrade adoption.
+        let relaunched = makeModel(credentials: credentials)
+        relaunched.selectEngine(.openAICompatible)
+        relaunched.restoreOpenAICompatibleOriginApproval()
+        XCTAssertEqual(relaunched.openAICompatibleOriginApproval, .nothingApproved)
+        XCTAssertTrue(relaunched.openAICompatibleServerNeedsApproval)
+    }
+
+    func test_restoreApproval_keychainFailureApprovesNothingAndWritesNothing() {
+        let credentials = TestLifetime.retain(UnreadableApprovalCredentialStore())
+        let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults, endpointCredentialStore: credentials)
+        model.selectEngine(.openAICompatible)
+
+        model.restoreOpenAICompatibleOriginApproval()
+
+        XCTAssertEqual(model.openAICompatibleOriginApproval, .nothingApproved)
+        XCTAssertTrue(credentials.savedRecords.isEmpty, "An unreadable record must never be replaced by a guess")
+    }
+
+    func test_resetToDefaults_withdrawsTheApprovalWithTheSentinel() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore()
+        let model = makeModel(credentials: credentials)
+        try model.approveOpenAICompatibleEndpoint(baseURLString: OpenAICompatibleEndpointConfiguration.defaultBaseURLString)
+
+        model.resetToDefaults()
+
+        XCTAssertEqual(model.openAICompatibleOriginApproval, .nothingApproved)
+        XCTAssertEqual(try credentials.readApprovedOriginRecord(), "none")
+        XCTAssertThrowsError(try model.openAICompatibleApprovedConfiguration)
+    }
+
+    private func makeModel(credentials: InMemoryOpenAICompatibleCredentialStore) -> SuggestionSettingsModel {
+        SuggestionSettingsModel(configuration: .standard, userDefaults: defaults, endpointCredentialStore: credentials)
     }
 
     // MARK: - Spelling dictionaries
@@ -1222,4 +1341,19 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
     }
+}
+
+/// Fails every approval read, standing in for a locked or denied Keychain.
+@MainActor
+private final class UnreadableApprovalCredentialStore: OpenAICompatibleCredentialStoring {
+    private(set) var savedRecords: [String] = []
+
+    // Explicit for the same Xcode 26.0–26.3 isolated-deinit bug as the production stores.
+    deinit {}
+
+    func readAPIKey() throws -> String? { nil }
+    func saveAPIKey(_ apiKey: String?) throws {}
+    func deleteAPIKey() throws {}
+    func readApprovedOriginRecord() throws -> String? { throw URLError(.userAuthenticationRequired) }
+    func saveApprovedOriginRecord(_ record: String) throws { savedRecords.append(record) }
 }

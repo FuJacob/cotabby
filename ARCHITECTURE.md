@@ -402,6 +402,14 @@ before marking a secure field blocked; that lower-level acquisition remains sepa
 Endpoint credentials are stored in Keychain. A remote endpoint receives its bounded, legacy-scope
 request; its privacy scope must remain visible in settings and documentation.
 
+The server URL and engine choice are UserDefaults keys, which any same-user process can rewrite, so
+they do not decide on their own where text goes. Pressing Connect records the server's origin
+(scheme, host, port) in the same Keychain service as the API key. Generation, Ollama warmup, and
+model discovery read `SuggestionSettingsModel.openAICompatibleApprovedConfiguration`, which refuses
+any other origin before the API key is even read; Settings then asks the user to confirm the server.
+Typing in the Server URL field only edits a draft. On the first launch with this rule, an existing
+endpoint user adopts the origin already configured, once (`OpenAICompatibleOriginApprovalPolicy`).
+
 Typing history (Settings → Context → Typing History) is the one store of the user's writing that
 outlives its field. Both of its switches are off by default. When recording is on,
 `TypingHistoryStore` keeps the text of fields where Cotabby is active (the same

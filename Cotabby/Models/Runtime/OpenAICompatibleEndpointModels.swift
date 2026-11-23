@@ -129,6 +129,12 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
         case .loopback:
             return nil
         case .localNetwork:
+            // Plain HTTP is only allowed on the LAN, so this is the one place a bearer token can
+            // travel in cleartext. Say so before the user presses Connect, which is their approval.
+            if baseURL.scheme == "http" {
+                return "Cotabby will send typed text, any enabled context, and your API key, if you " +
+                    "entered one, to this server on your local network without encryption."
+            }
             return "Cotabby will send typed text and any enabled context to this server on your local network."
         case .publicInternet:
             return "This server is outside your Mac. Typed text and any enabled context will leave your device."
@@ -163,13 +169,36 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
             return .publicInternet
         }
 
+        if let bytes = ipv6Bytes(host) {
+            if bytes == ipv6LoopbackBytes { return .loopback }
+            // fc00::/7 (unique local) and fe80::/10 (link local). Matching the parsed address rather
+            // than the text keeps DNS names such as `fdic.gov` or `fe80.example.com` public.
+            if (bytes[0] & 0xFE) == 0xFC || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80) {
+                return .localNetwork
+            }
+            return .publicInternet
+        }
+
         // A single-label DNS name is not proof of LAN scope: DNS may resolve it publicly.
-        if host.hasSuffix(".local") || host.hasPrefix("fc") || host.hasPrefix("fd")
-            || (host.hasPrefix("fe") && (host.dropFirst(2).first.map { "89ab".contains($0) } ?? false)) {
+        if host.hasSuffix(".local") {
             return .localNetwork
         }
 
         return .publicInternet
+    }
+
+    private static let ipv6LoopbackBytes: [UInt8] = Array(repeating: 0, count: 15) + [1]
+
+    /// The 16 address bytes when `host` is an IPv6 literal, nil for DNS names and IPv4. A zone
+    /// suffix (`fe80::1%en0`) names an interface, not part of the address, so it is dropped first.
+    private static func ipv6Bytes(_ host: String) -> [UInt8]? {
+        guard host.contains(":") else { return nil }
+        let address = host.split(separator: "%", maxSplits: 1, omittingEmptySubsequences: false)
+            .first.map(String.init) ?? host
+        var storage = in6_addr()
+        let parsed = address.withCString { inet_pton(AF_INET6, $0, &storage) }
+        guard parsed == 1 else { return nil }
+        return withUnsafeBytes(of: storage) { Array($0) }
     }
 
     private static func ipv4Octets(_ host: String) -> [Int]? {
@@ -185,6 +214,9 @@ nonisolated enum OpenAICompatibleEndpointError: LocalizedError, Equatable {
     case invalidBaseURL
     case insecurePublicHTTP
     case emptyModelName
+    /// The configured server is not the one the user approved with Connect. The payload is the
+    /// configured base URL, shown so the user can recognize (or reject) the server before approving.
+    case unapprovedServer(String)
 
     var errorDescription: String? {
         switch self {
@@ -194,6 +226,8 @@ nonisolated enum OpenAICompatibleEndpointError: LocalizedError, Equatable {
             return "Public endpoints must use HTTPS. HTTP is limited to this Mac or the local network."
         case .emptyModelName:
             return "Choose or enter a model before generating suggestions."
+        case .unapprovedServer(let baseURL):
+            return "Press Connect to confirm \(baseURL) before Cotabby sends it any text."
         }
     }
 }
@@ -221,11 +255,18 @@ enum OpenAICompatibleConnectionState: Equatable {
 }
 
 /// Narrow credential boundary so production uses Keychain while tests use an in-memory fake.
+///
+/// The approved-server record lives here too, beside the key, rather than in UserDefaults: any
+/// process running as the same user can rewrite the defaults, so a record there could not tell
+/// Cotabby which server the user actually approved.
 @MainActor
 protocol OpenAICompatibleCredentialStoring: AnyObject {
     func readAPIKey() throws -> String?
     func saveAPIKey(_ apiKey: String?) throws
     func deleteAPIKey() throws
+    /// The `OpenAICompatibleOriginApproval.record` last saved, or nil when no record exists yet.
+    func readApprovedOriginRecord() throws -> String?
+    func saveApprovedOriginRecord(_ record: String) throws
 }
 
 /// Process-local credential store used by isolated settings tests and previews.
@@ -233,9 +274,11 @@ protocol OpenAICompatibleCredentialStoring: AnyObject {
 @MainActor
 final class InMemoryOpenAICompatibleCredentialStore: OpenAICompatibleCredentialStoring {
     private var apiKey: String?
+    private var approvedOriginRecord: String?
 
-    init(apiKey: String? = nil) {
+    init(apiKey: String? = nil, approvedOriginRecord: String? = nil) {
         self.apiKey = apiKey
+        self.approvedOriginRecord = approvedOriginRecord
     }
 
     // Xcode 26.0–26.3 can generate an invalid isolated deinitializer for a class stored behind a
@@ -252,5 +295,11 @@ final class InMemoryOpenAICompatibleCredentialStore: OpenAICompatibleCredentialS
 
     func deleteAPIKey() throws {
         apiKey = nil
+    }
+
+    func readApprovedOriginRecord() throws -> String? { approvedOriginRecord }
+
+    func saveApprovedOriginRecord(_ record: String) throws {
+        approvedOriginRecord = record
     }
 }
