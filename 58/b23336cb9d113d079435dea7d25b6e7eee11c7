@@ -1,0 +1,88 @@
+Cotabby/Services/Presentation/HostPixelCapture.swift
+  s_b9af9eb54478c8::t_b7814ae22d7ca1 1-138
+  s_b9af9eb54478c8::t_7cecf4fa79edbc 139
+CotabbyTests/Support/Utilities/BoundedCacheTests.swift
+  s_b9af9eb54478c8::t_6ae5dc14ccecdb 1-52
+Cotabby/Support/Utilities/BoundedCache.swift
+  s_b9af9eb54478c8::t_5e4dfd7bb1e0bb 1-36
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_dbd6c7795de282 90,218-219,233,359,489,556,647,802,853,878,1001,1060,1202,1323,1352,1371,1416,1581,1761,1883,1970,2357,3076,3283,3290,3293,4136,4149,4153,4239,4251,4305,4494,4507,4511,4597,4609,4663,4843
+Cotabby/App/Core/AppDelegate.swift
+  s_b9af9eb54478c8::t_98ad2febede505 254,279
+Cotabby/Models/Settings/CompletionRenderMode.swift
+  s_b9af9eb54478c8::t_bdba1a6c176985 18-20,23-25,50
+Cotabby/Services/Presentation/ActivationIndicatorController.swift
+  s_b9af9eb54478c8::t_a42469e27dac88 7-8,16,18-20,31-33,46,55,78-81,104
+Cotabby/Services/Presentation/ClickAwayMonitor.swift
+  s_b9af9eb54478c8::t_a18042a6432876 1-42
+Cotabby/Services/Presentation/EmojiPickerPanelController.swift
+  s_b9af9eb54478c8::t_0b872863502567 5-7,20-21,25,43,56-59,70-72
+Cotabby/Services/Presentation/FocusDebugOverlayController.swift
+  s_b9af9eb54478c8::t_db43bdec7e94d7 73-74
+Cotabby/Services/Presentation/GhostTextPanelView.swift
+  s_b9af9eb54478c8::t_6721bdd2992566 78-79,81-83
+Cotabby/Services/Presentation/HostBaselineCalibrator.swift
+  s_b9af9eb54478c8::t_c047fabfd29f7f 134,146,258-260,267,287,333,337,457-460,474
+Cotabby/Services/Presentation/InlinePreviewPanelController.swift
+  s_b9af9eb54478c8::t_f26fb4f2905969 20-22,28-29,33,53,62-65,70-72
+Cotabby/Services/Presentation/NonActivatingPanel.swift
+  s_b9af9eb54478c8::t_4a21346243ad27 1-71
+Cotabby/Services/Presentation/OverlayController.swift
+  s_b9af9eb54478c8::t_70574b701ccb2c 25,49,53-62,141,182,307,319,328-335,339-348,432-435,442,446,511-512,527,534-535,550-559,643,649,684-693,704,852,856-857,946,1158,1286,1295,1356-1378,1386,1394-1395,1398-1401,1426,1539,1543,1672
+Cotabby/Services/Presentation/PixelCaretLocator.swift
+  s_b9af9eb54478c8::t_c3200e4f6811e4 163,167,169,271-273,278,283-284,292,646-648,650,666,680,684
+Cotabby/Support/Presentation/Geometry/CaretLineRect.swift
+  s_b9af9eb54478c8::t_f8bdf9c8290521 1-16
+Cotabby/Support/Presentation/Geometry/DisplayCoordinateConverter.swift
+  s_b9af9eb54478c8::t_bddd432809063e 3,26,80-81,84,89,91
+Cotabby/Support/Presentation/Geometry/GhostBaselinePolicy.swift
+  s_b9af9eb54478c8::t_df01dbb1b6e4d9 98-105
+Cotabby/Support/Presentation/Geometry/MirrorOverlayLayout.swift
+  s_b9af9eb54478c8::t_f7d5fd7fb95b81 33-34,124,163,170-181,183-187,189-192,202-203,253-254
+Cotabby/Support/Presentation/Policy/CompletionRenderModePolicy.swift
+  s_b9af9eb54478c8::t_0cdd77a4b285f5 9-10,37-38,40-42,46,50-52,59,65-69,74
+Cotabby/Support/Presentation/Style/GhostFontResolver.swift
+  s_b9af9eb54478c8::t_09445a0897541b 163,177,237,265,294,379-381
+Cotabby/Support/Presentation/Style/GhostTextPalette.swift
+  s_b9af9eb54478c8::t_7af0123c90a654 1-74
+Cotabby/UI/Onboarding/OnboardingFeatureShowcase.swift
+  s_b9af9eb54478c8::t_5ccbccd97900cb 117,128,130,178,209,231,233
+Cotabby/UI/Onboarding/Welcome/WelcomeHeroDemo.swift
+  s_b9af9eb54478c8::t_e1364f39e3efb8 96,121,123
+Cotabby/UI/Overlays/SuggestionOverlayViews.swift
+  s_b9af9eb54478c8::t_5a9c73a11bca34 14,18,22,44-46,49-50,66
+Cotabby/UI/Settings/Components/Controls/GhostTextPreview.swift
+  s_b9af9eb54478c8::t_97f901c5d7e50d 11
+Cotabby/UI/Settings/Panes/AppearancePaneView.swift
+  s_b9af9eb54478c8::t_8a38b4a44e291d 417
+Cotabby/UI/Settings/Panes/HomePaneView.swift
+  s_b9af9eb54478c8::t_01c1757c0512d8 138
+CotabbyTests/Models/Settings/CompletionRenderModeTests.swift
+  s_b9af9eb54478c8::t_f62e96dede62c2 4-5,23-24
+CotabbyTests/Services/Presentation/ActivationIndicatorCaretTests.swift
+  s_b9af9eb54478c8::t_1308e27e4fc922 5-8,12,16,20-23
+CotabbyTests/Services/Presentation/HostBaselineCalibratorTypefaceTests.swift
+  s_b9af9eb54478c8::t_3d1944d7f5e8c2 93,96
+CotabbyTests/Support/Presentation/Geometry/MirrorOverlayLayoutTests.swift
+  s_b9af9eb54478c8::t_762bd1625db495 17
+CotabbyTests/Support/Presentation/Policy/CompletionRenderModePolicyTests.swift
+  s_b9af9eb54478c8::t_17a8aadc166aa8 8-11,24,30,55,57,59,61,74,81-82
+CotabbyTests/Support/Presentation/Style/GhostFontResolverTests.swift
+  s_b9af9eb54478c8::t_4b1f1e2d6f8ff0 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58b23336cb9d113d079435dea7d25b6e7eee11c7",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
