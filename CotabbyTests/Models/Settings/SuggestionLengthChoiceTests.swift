@@ -5,20 +5,15 @@ import XCTest
 /// flag plus curated preset) together, and for writing a choice back through the model's setters.
 @MainActor
 final class SuggestionLengthChoiceTests: XCTestCase {
-    private var suiteName: String!
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        suiteName = "cotabby.test.lengthChoice.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        suiteName = nil
         super.tearDown()
     }
 
