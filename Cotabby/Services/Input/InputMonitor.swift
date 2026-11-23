@@ -710,8 +710,6 @@ final class InputMonitor {
         let keyCode = keyEvent.keyCode
         let flags = keyEvent.flags
 
-        // Normalize to just the four bits we care about — `CGEventFlags` also carries caps lock,
-        // numeric pad, secondary fn, and device flags that must not influence shortcut equality.
         if recognizesAcceptance, let kind = acceptanceKind(for: keyEvent) {
             return CapturedInputEvent(kind: kind, keyCode: keyCode, characters: "", flags: flags)
         }
