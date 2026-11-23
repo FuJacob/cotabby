@@ -1,0 +1,43 @@
+CotabbyTests/App/Coordinators/InlineFeatures/EmojiPickerControllerTests.swift
+  s_9990f9098df800::t_bec6d27ba172dc 55-71
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_9990f9098df800::t_25fb93687dd678 410-427
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_dd2cb70cf5464d 701,904,918,1375,1741,2859,3710,4664,5064,5430
+Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift
+  s_9990f9098df800::t_446e3e6345d029 330-333,335-339,341,345,351-352,359
+Cotabby/App/Coordinators/InlineFeatures/MacroController.swift
+  s_9990f9098df800::t_b8c4d366a7451b 177-179,181,187,192
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_9990f9098df800::t_d8c1aad29b8476 193,451-452
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_9990f9098df800::t_18ffc23c542105 753-754
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_9990f9098df800::t_d3f608d029ae83 205-208,213-214,219-220,223
+Cotabby/Services/Suggestion/SuggestionInserter.swift
+  s_9990f9098df800::t_b7ca5cb60c17a2 3,11-17,25-29,32-37,76-77,85-90,157-161,168-171,200,217-263,267
+Cotabby/Support/Suggestion/Acceptance/InsertionTargetRevalidation.swift
+  s_9990f9098df800::t_c631265e4a30a9 1-83
+CotabbyTests/App/Coordinators/InlineFeatures/InlineFeatureTestDoubles.swift
+  s_9990f9098df800::t_fc661c4db5dc20 36-37,45-46,51-52,58-59,68-69,72,113-114,116,118
+CotabbyTests/Support/Suggestion/Acceptance/InsertionTargetRevalidationTests.swift
+  s_9990f9098df800::t_9e5db8df4de6dd 1-102
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_9990f9098df800::t_9934178f18bedd 153-154,157,159,163,165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cce412d653a698730b36a518e741e82e3e5cead4",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
