@@ -1,0 +1,79 @@
+ARCHITECTURE.md
+  s_b9af9eb54478c8::t_6293a2f5b4d5cb 145-146
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_58230d47bf8644 540,593,814,1060,1760-1761,1771-1772
+Cotabby/Models/Permissions/PermissionModels.swift
+  s_b9af9eb54478c8::t_76c5c8cdca1097 3-6
+Cotabby/Services/Focus/FocusTracker.swift
+  s_b9af9eb54478c8::t_dd3a575f7d7136 237
+Cotabby/Services/Focus/Resolution/AXTextGeometryResolver.swift
+  s_b9af9eb54478c8::t_bf9d4bab3f23a5 443,793-795
+Cotabby/Services/Permission/Guidance/PermissionGuidanceController.swift
+  s_b9af9eb54478c8::t_411551b51c4bca 41-42,54
+Cotabby/Services/Presentation/OverlayController.swift
+  s_b9af9eb54478c8::t_362bf052129609 1540
+Cotabby/Support/Logging/CotabbyDebugOptions.swift
+  s_b9af9eb54478c8::t_020794f900713c 147
+Cotabby/Support/Presentation/Geometry/DisplayCoordinateConverter.swift
+  s_b9af9eb54478c8::t_dbf90bdadbb752 3
+Cotabby/Support/Spelling/CurrentWordExtractor.swift
+  s_b9af9eb54478c8::t_e62d7bc2f8c223 4-5,18,37
+Cotabby/Support/Suggestion/Output/CompletionSeamGuard.swift
+  s_b9af9eb54478c8::t_8681b445a60829 84-88
+Cotabby/Support/Suggestion/Output/GhostSpaceBoundary.swift
+  s_b9af9eb54478c8::t_a880e6e4d94233 67,74,87,111
+Cotabby/Support/Suggestion/Request/CaretWordContext.swift
+  s_b9af9eb54478c8::t_3ebeb47193596c 40
+Cotabby/UI/Onboarding/OnboardingFeatureShowcase.swift
+  s_b9af9eb54478c8::t_cb45035fc77dc3 129,259
+Cotabby/UI/Onboarding/Welcome/WelcomeHeroDemo.swift
+  s_b9af9eb54478c8::t_4b3cf5267bf572 121
+Cotabby/UI/Overlays/SuggestionOverlayViews.swift
+  s_b9af9eb54478c8::t_4455b746f419d0 4-5,9-11,13-25,27-33,74
+Cotabby/UI/Settings/Components/Controls/GhostTextPreview.swift
+  s_b9af9eb54478c8::t_267ec46a8ed279 11
+Cotabby/UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift
+  s_b9af9eb54478c8::t_239d2fcc4358e4 5
+Cotabby/UI/Settings/Panes/AppearancePaneView.swift
+  s_b9af9eb54478c8::t_92721f5b28606f 417
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+OpenSource.swift
+  s_b9af9eb54478c8::t_e60b38c5032764 67
+CotabbyTests/Evals/LlamaSuggestionEvalTests.swift
+  s_b9af9eb54478c8::t_deaf2c4be1d121 207-208,210
+CotabbyTests/Models/Focus/FocusModelsTests.swift
+  s_b9af9eb54478c8::t_ab48934e4f5220 173
+CotabbyTests/Models/Focus/FocusTrackingModelTests.swift
+  s_b9af9eb54478c8::t_10337abea019c5 35
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_55bb176a3d0eca 516,519,522,525
+CotabbyTests/Models/Suggestion/ModelAndPresentationValueTests.swift
+  s_b9af9eb54478c8::t_db8a32e9e2f03d 65,81,85
+CotabbyTests/Services/Focus/Resolution/CaretRunPlacementTests.swift
+  s_b9af9eb54478c8::t_052edf06432222 20,24
+CotabbyTests/Support/Spelling/CurrentWordExtractorTests.swift
+  s_b9af9eb54478c8::t_e6cf565b4f9103 8,44,46,50-52,56-57,60
+CotabbyTests/Support/Suggestion/Acceptance/DoubleTapAcceptanceStateTests.swift
+  s_b9af9eb54478c8::t_10feb2895b2832 46,48-51
+CotabbyTests/Support/Suggestion/Output/CompletionSeamGuardTests.swift
+  s_b9af9eb54478c8::t_4fe90d4c8f9325 761-794
+CotabbyTests/Support/Suggestion/Output/GhostSpaceBoundaryTests.swift
+  s_b9af9eb54478c8::t_6b13aa80cbf5dd 7-8,36
+CotabbyTests/Support/Suggestion/Session/SuggestionContinuationPlanTests.swift
+  s_b9af9eb54478c8::t_a8f5b8dadd0483 159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7cf73cef110468c5d12c946b15bc0b35f4a4ee01",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
