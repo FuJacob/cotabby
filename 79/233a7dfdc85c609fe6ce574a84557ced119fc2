@@ -1,0 +1,82 @@
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_6c9afb680485ed::t_9b6040948cd1e8 85-86
+  s_36cc5900625df0::t_ef077d2c527250 88,406
+AGENTS.md
+  s_6c9afb680485ed::t_270c6ded111d47 174
+ARCHITECTURE.md
+  s_6c9afb680485ed::t_21e421686953a6 351-353
+CONTRIBUTING.md
+  s_6c9afb680485ed::t_5ea55e007cc290 143
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_6c9afb680485ed::t_16b889c323e9b8 88
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_6c9afb680485ed::t_d0a2a609e139a1 1305,1321,1348
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_6c9afb680485ed::t_40d715921e2e30 264
+Cotabby/App/Core/AppDelegate.swift
+  s_6c9afb680485ed::t_7c6df1d04d0ca4 79
+Cotabby/Models/Permissions/PermissionModels.swift
+  s_6c9afb680485ed::t_885e8664f491a0 48,60,78
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_6c9afb680485ed::t_297d7e0c9bda02 19,21
+Cotabby/Services/Input/InputMonitor.swift
+  s_6c9afb680485ed::t_cab2f007496d6f 325
+Cotabby/Services/Permission/PermissionManager.swift
+  s_6c9afb680485ed::t_f8b42ad6eec60f 8-16,140,150,178-179
+Cotabby/Services/Presentation/HostFontRegistry.swift
+  s_6c9afb680485ed::t_b43210bbc29f2f 25
+Cotabby/Support/Input/AcceptTapLifecycle.swift
+  s_6c9afb680485ed::t_ceca1d2f20ad76 29
+Cotabby/Support/Onboarding/OnboardingProgress.swift
+  s_6c9afb680485ed::t_b175dc39bad9cd 60
+Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift
+  s_6c9afb680485ed::t_f56907f48d7375 18,43-44,79,100,124,147
+Cotabby/UI/Settings/Panes/PermissionsPaneView.swift
+  s_6c9afb680485ed::t_6e37eea537a167 4-6,15,22-23
+Cotabby/UI/Settings/SettingsIndex.swift
+  s_6c9afb680485ed::t_d27d6b73d8628e 324,413,651
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_6c9afb680485ed::t_fcf7ff6ea05523 48,51,61
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_6c9afb680485ed::t_dc47988580af93 410,413-414,418,422-423
+CotabbyTests/Models/Permissions/PermissionModelsTests.swift
+  s_6c9afb680485ed::t_b6f5d0890a0349 8-9
+CotabbyTests/Support/Focus/Applications/TerminalAppDetectorTests.swift
+  s_6c9afb680485ed::t_83b33dd151fda6 77,87,98,108
+CotabbyTests/Support/Suggestion/Request/SuggestionAvailabilityEvaluatorTests.swift
+  s_6c9afb680485ed::t_e83e825738c364 16-17,69,82,176-177,193,200,204,211,216,242,246,249,257,269,283,291,308,316,324,331,354
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_6c9afb680485ed::t_01c2a640a3aee6 13,16,19-20
+FAQ.md
+  s_6c9afb680485ed::t_2f6e1590f0a1ec 90,95-96,105-107
+README.md
+  s_6c9afb680485ed::t_91aa2952ff323e 155
+project.yml
+  s_6c9afb680485ed::t_e7e70e375c9a5c 161
+scripts/kickstart.sh
+  s_6c9afb680485ed::t_4e7507279217d7 11,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79233a7dfdc85c609fe6ce574a84557ced119fc2",
+  "prompts": {},
+  "sessions": {
+    "s_36cc5900625df0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47c4a399-6812-45f1-bba1-249b82bfa0b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    },
+    "s_6c9afb680485ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f4d8f23-1274-47c8-a874-052b10554a98",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
