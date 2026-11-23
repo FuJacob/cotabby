@@ -36,7 +36,13 @@ final class TypingHistoryPhraseEngine: SuggestionGenerating {
         onPartial: (@MainActor (SuggestionResult) -> Void)?
     ) async throws -> SuggestionResult {
         let started = ProcessInfo.processInfo.systemUptime
-        if let phrase = history.phraseContinuation(for: request, engine: engineKind()) {
+        // Model output reaches the ghost through `SuggestionTextNormalizer`, which ends in the safety
+        // gate; a history phrase skips the normalizer, so it takes the same gate here. History is
+        // the user's own typing, but it can also come from an imported archive or from text pasted
+        // into a field, and an invisible or reordering scalar in it would make the ghost differ from
+        // what Tab types. A refused phrase falls through to the model like a phrase history lacks.
+        if let phrase = history.phraseContinuation(for: request, engine: engineKind()),
+           InsertionSafetyGate.isSafeToInsert(phrase) {
             CotabbyLogger.suggestion.debug(
                 "Answered from typing history",
                 metadata: ["request_id": .string(request.requestID), "engine": .string("history")]

@@ -270,6 +270,20 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         )
     }
 
+    /// Edge trimming removes format characters at either end, so only an interior one reaches the
+    /// gate. It must be refused there, not shown as ghost text that types in a different order.
+    func test_normalize_rejectsInteriorBidiOverrideAndZeroWidthSpace() {
+        let request = CotabbyTestFixtures.suggestionRequest(prefixText: "x")
+
+        for raw in ["see the\u{202E} report", "pass\u{200B}word"] {
+            XCTAssertEqual(
+                SuggestionTextNormalizer.normalizeDetailed(raw, for: request),
+                SuggestionNormalizationResult(text: "", suppression: .unsafeToInsert),
+                raw.debugDescription
+            )
+        }
+    }
+
     // MARK: - Seam whitespace and echo suppression
 
     /// Leading whitespace is kept only when the field does not already end in a space or tab, and
