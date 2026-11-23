@@ -1,0 +1,59 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_5d373b30ffeb75 78,80,300,324,412,588,665,786,793,858,911,1071,1110,1222,1264,1270,1280,1368,1430,1484,1490,1541,1646,1744,1899,1921,2306,2317,2671,2673-2674,2822-2829,3336,3661,3663,3768,3770,4823,4859,4868,4915,4944,4950,4988,5029,5054,5058,5073,5109
+Cotabby/Support/Runtime/Hardware/DeviceInfo.swift
+  s_b9af9eb54478c8::t_71dc1f6a65af69 47-53,77-82
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCaretPredictionTests.swift
+  s_b9af9eb54478c8::t_fd022b0be88eca 1-69
+CotabbyTests/Models/Context/LanguageSupportTests.swift
+  s_b9af9eb54478c8::t_fceff20699f9e7 41-56
+CotabbyTests/Models/Context/VisualContextModelsTests.swift
+  s_b9af9eb54478c8::t_47548794baae6f 4-10,12-16,19-23
+CotabbyTests/Models/Focus/FocusModelsTests.swift
+  s_b9af9eb54478c8::t_3cf600e7255eb2 7
+CotabbyTests/Models/Runtime/LlamaRuntimeModelsTests.swift
+  s_b9af9eb54478c8::t_2a3b6e2ca847e6 7
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_0c55f3270940d1 491-503,544-564,592-600
+CotabbyTests/Models/Suggestion/Request/FocusedInputContextTests.swift
+  s_b9af9eb54478c8::t_7afe213f602777 82-117
+CotabbyTests/Models/Suggestion/Session/ActiveSuggestionSessionTests.swift
+  s_b9af9eb54478c8::t_32d432597ec2db 1-142
+CotabbyTests/Models/Suggestion/Session/SuggestionPresentationModelsTests.swift
+  s_b9af9eb54478c8::t_f767907eac9da3 1-52
+CotabbyTests/Services/Suggestion/State/ContextBufferTests.swift
+  s_b9af9eb54478c8::t_1656b54a902911 5,7-10,12-13,15,17-18,22,24-30,32-37,40,44,46-48,50,54,56-61,64,68,70-71,73,75-77,82-83
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_b9af9eb54478c8::t_c7c26ad586f987 1,444-708
+CotabbyTests/Services/Suggestion/State/SuggestionWorkControllerTests.swift
+  s_b9af9eb54478c8::t_66656882d37e3f 1-109
+CotabbyTests/Support/Logging/CotabbyDebugOptionsTests.swift
+  s_b9af9eb54478c8::t_c85187ef871f7a 97-99,131-132
+CotabbyTests/Support/Onboarding/OnboardingFlowStepTests.swift
+  s_b9af9eb54478c8::t_aeac800bfe3729 4
+CotabbyTests/Support/Onboarding/OnboardingTemplateTests.swift
+  s_b9af9eb54478c8::t_a47c15f0b38c00 5,13
+CotabbyTests/Support/Presentation/Style/GhostTextColorPresetTests.swift
+  s_b9af9eb54478c8::t_9a47ff2ffbb58e 4-14,39-60
+CotabbyTests/Support/Runtime/Hardware/DeviceInfoTests.swift
+  s_b9af9eb54478c8::t_61c22ac7352e7a 5-7,11,14-20,22-25,28-29,31-34
+CotabbyTests/Support/Runtime/Hardware/HardwareCapabilityProbeTests.swift
+  s_b9af9eb54478c8::t_d5d84edaaff480 5-6,8,11
+CotabbyTests/Support/Spelling/SpellingDictionaryResourceTests.swift
+  s_b9af9eb54478c8::t_92010c2e61d06a 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7906bc5129547568bf6fe926000e8a42d53ad11a",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
