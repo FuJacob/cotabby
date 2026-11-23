@@ -20,10 +20,24 @@ final class LlamaRuntimeManager: ObservableObject {
     private let configuration: LlamaRuntimeConfiguration
     private let runtimeLocator: BundledRuntimeLocator
     private let core: LlamaRuntimeCore
-    private var startupTask: Task<PreparedLlamaRuntime, Error>?
-    private var startupModelFilename: String?
-    private var cachedRuntime: PreparedLlamaRuntime?
+    private let loadModel: ModelLoader
+    private var loadPhase: LoadPhase = .unloaded
     private var selectedModelFilename: String?
+
+    /// Loads one resolved model off the main actor. Production uses `LlamaRuntimeCore.prepare`;
+    /// tests substitute a controllable loader so the load lifecycle can be driven without a GGUF.
+    typealias ModelLoader = @Sendable (ResolvedLlamaRuntime, LlamaRuntimeConfiguration) throws -> PreparedLlamaRuntime
+
+    /// Where the manager is in loading the selected model.
+    private enum LoadPhase {
+        case unloaded
+        /// `id` is the load's identity. A load the manager has moved on from (a newer load
+        /// replaced it, or the runtime was stopped) still runs to completion natively, because
+        /// model loading does not observe cancellation; the identity is what keeps its late
+        /// result from being published over the current phase.
+        case loading(id: UUID, modelFilename: String, task: Task<PreparedLlamaRuntime, Error>)
+        case loaded(PreparedLlamaRuntime)
+    }
 
     /// Read-only view of the model currently selected for autocomplete generation. Used by
     /// downstream observers (the performance metrics recorder) that want to label a recorded
@@ -42,11 +56,16 @@ final class LlamaRuntimeManager: ObservableObject {
 
     init(
         configuration: LlamaRuntimeConfiguration,
-        runtimeLocator: BundledRuntimeLocator
+        runtimeLocator: BundledRuntimeLocator,
+        loadModel: ModelLoader? = nil
     ) {
         self.configuration = configuration
         self.runtimeLocator = runtimeLocator
-        core = LlamaRuntimeCore()
+        let core = LlamaRuntimeCore()
+        self.core = core
+        self.loadModel = loadModel ?? { resolvedRuntime, configuration in
+            try core.prepare(resolvedRuntime: resolvedRuntime, configuration: configuration)
+        }
         refreshAvailableModels()
     }
 
@@ -86,14 +105,12 @@ final class LlamaRuntimeManager: ObservableObject {
 
         selectedModelFilename = normalizedFilename
 
-        if cachedRuntime?.resolvedRuntime.modelFileURL.lastPathComponent == normalizedFilename {
+        if case .loaded(let runtime) = loadPhase,
+           runtime.resolvedRuntime.modelFileURL.lastPathComponent == normalizedFilename {
             return
         }
 
-        startupTask?.cancel()
-        startupTask = nil
-        startupModelFilename = nil
-        cachedRuntime = nil
+        unload()
 
         _ = try await preparedRuntime()
     }
@@ -215,57 +232,95 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     private func prepareForStop() {
-        startupTask?.cancel()
-        startupTask = nil
-        startupModelFilename = nil
-        cachedRuntime = nil
+        unload()
 
         diagnostics.lastLoadStatus = "Stopped"
         state = .idle
     }
 
-    /// Returns cached runtime metadata when available or performs one full preparation flow otherwise.
+    /// Forgets the loaded model or abandons the load in flight. Anyone still awaiting an abandoned
+    /// load receives `LlamaRuntimeError.cancelled`.
+    private func unload() {
+        if case .loading(_, _, let task) = loadPhase {
+            task.cancel()
+        }
+        loadPhase = .unloaded
+    }
+
+    /// Returns the loaded runtime for the selected model, joining a load already in flight for
+    /// it or starting one otherwise.
     private func preparedRuntime() async throws -> PreparedLlamaRuntime {
         let resolvedRuntime = try resolveSelectedRuntime()
         let requestedModelFilename = resolvedRuntime.modelFileURL.lastPathComponent
 
-        if let cachedRuntime,
-            cachedRuntime.resolvedRuntime.modelFileURL == resolvedRuntime.modelFileURL {
+        switch loadPhase {
+        case .loaded(let runtime) where runtime.resolvedRuntime.modelFileURL == resolvedRuntime.modelFileURL:
             CotabbyLogger.runtime.trace("Using cached runtime for \(requestedModelFilename)")
-            return cachedRuntime
-        }
-
-        // Deduplicate concurrent prepare calls for the same selected model, but cancel and
-        // replace the task if the requested model changed while startup was already in flight.
-        if let startupTask {
-            if startupModelFilename == requestedModelFilename {
-                CotabbyLogger.runtime.debug("Reusing in-flight startup for \(requestedModelFilename)")
-                return try await awaitPreparedRuntime(startupTask)
-            }
-
+            return runtime
+        case .loading(_, let modelFilename, let task) where modelFilename == requestedModelFilename:
+            // Concurrent prepare calls for the same model share one load.
+            CotabbyLogger.runtime.debug("Reusing in-flight startup for \(requestedModelFilename)")
+            return try await task.value
+        case .loading:
             CotabbyLogger.runtime.info("Model changed to \(requestedModelFilename), cancelling previous startup")
-            startupTask.cancel()
-            self.startupTask = nil
-            startupModelFilename = nil
+            unload()
+        case .loaded, .unloaded:
+            break
         }
-
-        cachedRuntime = nil
 
         diagnostics.lastError = nil
         diagnostics.lastLoadStatus = "Starting"
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
-        let startupTask = Task.detached { [core, configuration] in
-            try core.prepare(
-                resolvedRuntime: resolvedRuntime,
-                configuration: configuration
-            )
+        let loadID = UUID()
+        let task = Task<PreparedLlamaRuntime, Error> { [weak self, loadModel, configuration] in
+            let result: Result<PreparedLlamaRuntime, Error>
+            do {
+                // Detached so the blocking native load never runs on the main actor.
+                result = .success(try await Task.detached {
+                    try loadModel(resolvedRuntime, configuration)
+                }.value)
+            } catch {
+                result = .failure(error)
+            }
+            guard let self else {
+                throw LlamaRuntimeError.cancelled
+            }
+            return try self.finishLoad(loadID, result)
         }
-        self.startupTask = startupTask
-        startupModelFilename = requestedModelFilename
+        loadPhase = .loading(id: loadID, modelFilename: requestedModelFilename, task: task)
         CotabbyLogger.runtime.info("Loading \(resolvedRuntime.modelDisplayName) into memory")
         state = .loading("Loading \(resolvedRuntime.modelDisplayName) into memory.")
 
-        return try await awaitPreparedRuntime(startupTask)
+        return try await task.value
+    }
+
+    /// The single place a finished load is applied, so every caller awaiting it sees the same
+    /// outcome and the bootstrap state is published once. A load that is no longer the current
+    /// one publishes nothing.
+    private func finishLoad(
+        _ loadID: UUID,
+        _ result: Result<PreparedLlamaRuntime, Error>
+    ) throws -> PreparedLlamaRuntime {
+        guard case .loading(let currentID, _, _) = loadPhase, currentID == loadID else {
+            throw LlamaRuntimeError.cancelled
+        }
+
+        switch result {
+        case .success(let preparedRuntime):
+            loadPhase = .loaded(preparedRuntime)
+            apply(preparedRuntime)
+            return preparedRuntime
+        case .failure(let error):
+            loadPhase = .unloaded
+            if error is CancellationError {
+                throw LlamaRuntimeError.cancelled
+            }
+            let runtimeError = (error as? LlamaRuntimeError) ?? .unavailable(error.localizedDescription)
+            diagnostics.lastError = runtimeError.localizedDescription
+            diagnostics.lastLoadStatus = "Failed"
+            state = .failed(runtimeError.localizedDescription)
+            throw runtimeError
+        }
     }
 
     /// Resolves either the explicitly selected model or the default preferred model order.
@@ -276,41 +331,6 @@ final class LlamaRuntimeManager: ObservableObject {
                 selectedModelFilename: selectedModelFilename
             )
         } catch {
-            let runtimeError = LlamaRuntimeError.unavailable(error.localizedDescription)
-            diagnostics.lastError = runtimeError.localizedDescription
-            diagnostics.lastLoadStatus = "Failed"
-            state = .failed(runtimeError.localizedDescription)
-            throw runtimeError
-        }
-    }
-
-    /// Awaits the prepared runtime task and publishes the resulting bootstrap state.
-    private func awaitPreparedRuntime(
-        _ startupTask: Task<PreparedLlamaRuntime, Error>
-    ) async throws -> PreparedLlamaRuntime {
-        do {
-            // `Task.value` rethrows if startup failed; the manager converts those failures into
-            // user-facing bootstrap state below.
-            let preparedRuntime = try await startupTask.value
-            cachedRuntime = preparedRuntime
-            apply(preparedRuntime)
-            self.startupTask = nil
-            startupModelFilename = nil
-            return preparedRuntime
-        } catch is CancellationError {
-            self.startupTask = nil
-            startupModelFilename = nil
-            throw LlamaRuntimeError.cancelled
-        } catch let error as LlamaRuntimeError {
-            self.startupTask = nil
-            startupModelFilename = nil
-            diagnostics.lastError = error.localizedDescription
-            diagnostics.lastLoadStatus = "Failed"
-            state = .failed(error.localizedDescription)
-            throw error
-        } catch {
-            self.startupTask = nil
-            startupModelFilename = nil
             let runtimeError = LlamaRuntimeError.unavailable(error.localizedDescription)
             diagnostics.lastError = runtimeError.localizedDescription
             diagnostics.lastLoadStatus = "Failed"

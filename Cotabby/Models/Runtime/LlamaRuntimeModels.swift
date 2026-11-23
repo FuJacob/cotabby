@@ -187,6 +187,9 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
+    /// Whether the engine should compute per-token log-probabilities at all. They cost two
+    /// O(vocab) passes per token and only the confidence gate reads them.
+    nonisolated var computesLogprob: Bool { confidenceFloor > -.infinity }
 
     /// Minimum tokens generated before the sentence-boundary early stop may fire. Guards against
     /// degenerate instant stops (e.g. a lone leading period). Lives here so length presets can tune
