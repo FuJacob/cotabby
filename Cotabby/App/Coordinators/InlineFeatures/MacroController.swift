@@ -33,17 +33,9 @@ final class MacroController {
     private var currentResult: MacroResult?
     private var captureFocusSequence: UInt64?
     private var lastCaretRect: CGRect?
-    private var pendingDecision: PendingDecision?
-    private var longPauseTask: Task<Void, Never>?
+    private var pendingDecision: InlineCaptureKeyDecision?
+    private let idleTimer = InlineCaptureIdleTimer()
     private var cancellables = Set<AnyCancellable>()
-
-    private struct PendingDecision {
-        let keyCode: CGKeyCode
-        let consume: Bool
-    }
-
-    /// How long a capture may sit untouched before it self-cancels, so a stray preview never lingers.
-    private static let longPauseNanoseconds: UInt64 = 8_000_000_000
 
     var isCapturing: Bool { machine.isCapturing }
 
@@ -67,14 +59,14 @@ final class MacroController {
 
     func start() {
         panel.onClick = { [weak self] in self?.commitIfPossible() }
-        panel.onClickOutside = { [weak self] in self?.cancelCapture() }
+        panel.onClickOutside = { [weak self] in self?.teardownCapture() }
         focusModel.snapshotPublisher
             .sink { [weak self] snapshot in self?.handleFocusSnapshot(snapshot) }
             .store(in: &cancellables)
     }
 
     func stop() {
-        cancelCapture()
+        teardownCapture()
         cancellables.removeAll()
     }
 
@@ -83,7 +75,7 @@ final class MacroController {
     @discardableResult
     func observe(_ event: CapturedInputEvent) -> Bool {
         guard isEnabled() else {
-            if machine.isCapturing { cancelCapture() }
+            if machine.isCapturing { teardownCapture() }
             pendingDecision = nil
             return false
         }
@@ -93,52 +85,36 @@ final class MacroController {
         applyActions(output.actions)
 
         let involved = wasCapturing || machine.isCapturing
-        pendingDecision = involved ? PendingDecision(keyCode: event.keyCode, consume: output.consumesKey) : nil
+        pendingDecision = involved ? InlineCaptureKeyDecision(keyCode: event.keyCode, consume: output.consumesKey) : nil
         return involved
     }
 
     func decideCaptureKey(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
-        guard let pending = pendingDecision, pending.keyCode == keyEvent.keyCode else {
+        guard let decision = pendingDecision?.tapDecision(for: keyEvent) else {
             return .notHandled
         }
         pendingDecision = nil
-        return pending.consume ? .consume : .passThrough
+        return decision
     }
 
     private func triggerInput(for event: CapturedInputEvent) -> MacroTriggerInput {
-        let modifiers = ShortcutModifierMask(eventFlags: event.flags)
-        if modifiers.contains(.command) || modifiers.contains(.control) {
-            return .dismissExternally
-        }
-
-        // Commit on the user's configured word-accept binding, matched the same way the suggestion
-        // accept path matches it, so the macro commit stays consistent with accepting a word.
-        if isWordAcceptKey(InputMonitorKeyEvent(keyCode: event.keyCode, flags: event.flags)) {
-            return .commitKey
-        }
-
-        switch event.keyCode {
-        case 53:
-            return .escape
-        case 36, 76:                       // Return, Keypad Enter: dismiss and pass through
-            return .dismissExternally
-        case 123, 124, 125, 126:           // Arrows: caret moved, end capture
-            return .navigate
-        case 117:                          // Forward delete
-            return .dismissExternally
-        case 51:
-            // Option + Backspace deletes a whole word, which the single-character query model can't
-            // track, so treat it as a dismissal rather than a one-character backspace.
-            return modifiers.contains(.option) ? .dismissExternally : .backspace
-        default:
-            break
-        }
-
-        let characters = event.characters
-        if characters.count == 1, let character = characters.first, !character.isNewline {
+        // Commit on the user's configured word-accept binding, so the macro commit stays consistent
+        // with accepting a suggestion word.
+        switch InlineCommandKeyClassifier.classify(event, isWordAcceptKey: isWordAcceptKey) {
+        case let .character(character):
             return .character(character)
+        case .backspace:
+            return .backspace
+        case .commitKey:
+            return .commitKey
+        case .escape:
+            return .escape
+        case .arrow:
+            // The preview has nothing to navigate, so an arrow means the caret left the query.
+            return .navigate
+        case .dismissExternally:
+            return .dismissExternally
         }
-        return .dismissExternally
     }
 
     private func applyActions(_ actions: [MacroTriggerAction]) {
@@ -151,7 +127,7 @@ final class MacroController {
             case .commit:
                 commitIfPossible()
             case .cancel:
-                cancelCapture()
+                teardownCapture()
             }
         }
     }
@@ -159,7 +135,7 @@ final class MacroController {
     // MARK: - Capture lifecycle
 
     private func beginCapture() {
-        guard canTrigger(), let context = focusModel.snapshot.context else {
+        guard let context = InlineCaptureFocusGate.triggerableContext(in: focusModel.snapshot) else {
             // A `/` opened the trigger but the field is unsupported/secure or its AX context has not
             // resolved yet (AX is eventually consistent right after a focus change). Aborting here is
             // what looks to the user like "the macro preview sometimes does nothing"; log it so a
@@ -172,7 +148,7 @@ final class MacroController {
         lastCaretRect = context.caretRect
         currentQuery = ""
         currentResult = nil
-        armLongPauseTimer()
+        armIdleTimer()
         onCaptureStateChanged?()
     }
 
@@ -181,7 +157,7 @@ final class MacroController {
         currentQuery = query
         currentResult = engine.evaluate(query)
         presentOrHide()
-        armLongPauseTimer()
+        armIdleTimer()
     }
 
     private func presentOrHide() {
@@ -199,7 +175,7 @@ final class MacroController {
     /// inside the key's own tap callback.
     private func commitIfPossible() {
         guard let result = currentResult else {
-            cancelCapture()
+            teardownCapture()
             return
         }
         let deleteCount = 1 + currentQuery.utf16.count   // "/" + query
@@ -213,10 +189,6 @@ final class MacroController {
         }
     }
 
-    private func cancelCapture() {
-        teardownCapture()
-    }
-
     private func teardownCapture() {
         let wasActive = machine.isCapturing
         machine.reset()
@@ -225,8 +197,7 @@ final class MacroController {
         captureFocusSequence = nil
         lastCaretRect = nil
         pendingDecision = nil
-        longPauseTask?.cancel()
-        longPauseTask = nil
+        idleTimer.cancel()
         panel.hide()
         if wasActive {
             onCaptureStateChanged?()
@@ -235,31 +206,20 @@ final class MacroController {
 
     // MARK: - Focus and gating
 
-    private func canTrigger() -> Bool {
-        let snapshot = focusModel.snapshot
-        guard case .supported = snapshot.capability else { return false }
-        guard let context = snapshot.context, !context.isSecure else { return false }
-        return true
-    }
-
     private func handleFocusSnapshot(_ snapshot: FocusSnapshot) {
         guard machine.isCapturing else { return }
-        guard let context = snapshot.context,
-              !context.isSecure,
-              context.focusChangeSequence == captureFocusSequence else {
-            cancelCapture()
+        guard let context = InlineCaptureFocusGate.continuingContext(
+            in: snapshot,
+            focusChangeSequence: captureFocusSequence
+        ) else {
+            teardownCapture()
             return
         }
         lastCaretRect = context.caretRect
         presentOrHide()
     }
 
-    private func armLongPauseTimer() {
-        longPauseTask?.cancel()
-        longPauseTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: MacroController.longPauseNanoseconds)
-            guard !Task.isCancelled else { return }
-            self?.cancelCapture()
-        }
+    private func armIdleTimer() {
+        idleTimer.arm { [weak self] in self?.teardownCapture() }
     }
 }

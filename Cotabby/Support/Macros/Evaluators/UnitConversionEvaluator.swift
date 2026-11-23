@@ -8,14 +8,9 @@ import Foundation
 ///
 /// Tokens are resolved through an explicit table so ambiguous abbreviations are unsurprising:
 /// `m` is meters, `min` is not a unit here, `c` is Celsius, `oz` is ounce-mass with `floz` for
-/// fluid ounce. Output is locale formatted.
+/// fluid ounce. Output is locale-independent (`.` decimal, no grouping) so the inserted text reads
+/// the same way the query grammar is typed.
 struct UnitConversionEvaluator: MacroEvaluating {
-    private let locale: Locale
-
-    init(locale: Locale = .current) {
-        self.locale = locale
-    }
-
     func evaluate(_ query: String) -> MacroResult? {
         guard let (lhsRaw, rhsRaw) = ConversionSeparator.split(query) else { return nil }
         let lhs = lhsRaw.trimmingCharacters(in: .whitespaces)

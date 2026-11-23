@@ -94,8 +94,9 @@ struct EmojiPickerView: View {
 }
 
 /// One ribbon glyph. The selected cell gets a soft white chip (the calm Spotlight-style highlight);
-/// the rest are bare so the row reads as a clean line of emoji.
-private struct EmojiRibbonCell: View {
+/// the rest are bare so the row reads as a clean line of emoji. Internal so the onboarding demo
+/// renders the same cell the picker does.
+struct EmojiRibbonCell: View {
     let glyph: String
     let isSelected: Bool
 

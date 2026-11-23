@@ -142,7 +142,6 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
 /// The concrete configuration a template resolves to once runtime facts are known.
 /// `modelToDownload` is `nil` when the plan uses Apple Intelligence, since nothing is downloaded.
 struct ResolvedTemplatePlan: Equatable, Sendable {
-    let template: OnboardingTemplate
     let engine: SuggestionEngineKind
     let modelToDownload: DownloadableRuntimeModel?
     let wordCountPreset: SuggestionWordCountPreset
@@ -155,7 +154,6 @@ struct ResolvedTemplatePlan: Equatable, Sendable {
 /// `isDisabled` means the machine cannot reasonably run the template's model at all; `warning` is a
 /// softer "this will work but may be slow" note shown without blocking selection.
 struct OnboardingTemplateAvailability: Equatable, Sendable {
-    let template: OnboardingTemplate
     let isRecommended: Bool
     let isDisabled: Bool
     let warning: String?

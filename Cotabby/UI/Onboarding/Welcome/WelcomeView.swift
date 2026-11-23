@@ -51,8 +51,8 @@ struct WelcomeView: View {
     /// the tier cards resolve their plan against this.
     @State private var selectedEngine: SuggestionEngineKind
 
-    /// Probed once for the view's lifetime: installed memory and architecture don't change during
-    /// onboarding. `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
+    /// Probed once for the view's lifetime: installed memory doesn't change during onboarding.
+    /// `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
     /// than on every struct re-creation that an `@ObservedObject` publish (e.g. a download tick)
     /// causes.
     @State private var hardware = HardwareCapabilityProbe.current()
@@ -91,10 +91,6 @@ struct WelcomeView: View {
         )
     }
 
-    private var preferredWindowSize: NSSize {
-        step.preferredWindowSize
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             if let progressIndex = step.progressIndex {
@@ -112,7 +108,7 @@ struct WelcomeView: View {
         .frame(width: WelcomeStep.windowWidth)
         .background(OnboardingBackdrop())
         .onAppear {
-            onPreferredWindowSizeChange(preferredWindowSize)
+            onPreferredWindowSizeChange(step.preferredWindowSize)
             // Stamp the resume point for the step we open on. Matters when resuming directly onto
             // a later step: without this, quitting again before advancing would not re-persist it.
             onStepChange(step.rawValue)
@@ -120,7 +116,7 @@ struct WelcomeView: View {
         .onChange(of: step) { _, newStep in
             onStepChange(newStep.rawValue)
         }
-        .onChange(of: preferredWindowSize) { _, newValue in
+        .onChange(of: step.preferredWindowSize) { _, newValue in
             onPreferredWindowSizeChange(newValue)
         }
         // When the selected template's model finishes downloading, re-scan disk so the runtime
@@ -242,7 +238,8 @@ extension WelcomeView {
                 // With no curated tier chosen, the primary button becomes "Set up later" and applies
                 // the neutral Custom path under the hood, so the user is never blocked on a card.
                 continueTitle: selectedTemplate == nil ? "Set up later" : "Continue",
-                disabledHint: templateStepDisabledHint,
+                // Only reachable with a tier chosen whose Open Source download has not started yet.
+                disabledHint: "Hang on while your model starts downloading.",
                 onBack: { go(to: .permissions) },
                 onContinue: {
                     if selectedTemplate == nil {
@@ -536,13 +533,6 @@ extension WelcomeView {
         }
     }
 
-    /// Tooltip for the disabled primary button. Only reachable once a tier is chosen but its Open
-    /// Source download hasn't started yet — with no tier chosen the button is "Set up later" and
-    /// always enabled, so there is no longer a "pick something" hint.
-    fileprivate var templateStepDisabledHint: String {
-        "Hang on while your model starts downloading."
-    }
-
     fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {
         let base = OnboardingTemplateRecommender.resolvePlan(for: template, engine: selectedEngine)
         // Returning users on the Custom path with the OSS engine keep their currently selected local
@@ -559,7 +549,6 @@ extension WelcomeView {
             return base
         }
         return ResolvedTemplatePlan(
-            template: base.template,
             engine: base.engine,
             modelToDownload: currentModel,
             wordCountPreset: base.wordCountPreset,

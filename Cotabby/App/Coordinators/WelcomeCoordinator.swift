@@ -83,12 +83,11 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         userDefaults.integer(forKey: Self.onboardingCompletedVersionKey) >= Self.currentOnboardingVersion
     }
 
-    /// Presents the welcome wizard if the user has never completed onboarding.
+    /// Presents the welcome wizard if the user has not completed the current onboarding version.
     ///
-    /// Unlike the previous approach, the completion flag is set when the user finishes the wizard
-    /// (taps "Start Using Cotabby"), not when the window first appears. If the user closes the
-    /// window mid-flow or macOS prompts a restart for permissions, the wizard will reappear on
-    /// next launch so they don't lose their place.
+    /// Completion is stamped when the user finishes the wizard (taps "Start Using Cotabby"), not
+    /// when the window first appears. So if the user closes the window mid-flow, or macOS forces a
+    /// relaunch to apply a permission, the wizard reappears on next launch at the step they reached.
     func presentIfNeeded() {
         guard !isOnboardingCompleted else {
             return
@@ -148,13 +147,47 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         // immediately animates to another.
         let initialStep = WelcomeStep(rawValue: resumeStepIndex) ?? .welcome
 
+        let windowController = makeOnboardingWindowController(
+            title: "Welcome to Cotabby",
+            contentSize: initialStep.preferredWindowSize,
+            contentViewController: hostingController
+        )
+        welcomeWindowController = windowController
+        present(windowController)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let closingWindow = notification.object as? NSWindow else {
+            return
+        }
+
+        // Either window can have the drag-helper guidance overlay anchored to one of its buttons,
+        // so it must not outlive the window it points into.
+        if closingWindow == welcomeWindowController?.window {
+            permissionGuidanceController.dismiss()
+            welcomeWindowController = nil
+        } else if closingWindow == permissionReminderWindowController?.window {
+            permissionGuidanceController.dismiss()
+            permissionReminderWindowController = nil
+        }
+    }
+
+    /// Both onboarding surfaces share one window recipe: chromeless (hidden title over a
+    /// full-size content view) so the SwiftUI backdrop reads edge to edge, draggable from anywhere
+    /// because there is no visible title bar to grab, and kept alive after close because the
+    /// coordinator, not AppKit, decides when its controller is released.
+    private func makeOnboardingWindowController(
+        title: String,
+        contentSize: NSSize,
+        contentViewController: NSViewController
+    ) -> NSWindowController {
         let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: initialStep.preferredWindowSize),
+            contentRect: CGRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to Cotabby"
+        window.title = title
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -163,28 +196,16 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         window.level = .normal
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.delegate = self
-        window.contentViewController = hostingController
-
-        let windowController = NSWindowController(window: window)
-        welcomeWindowController = windowController
-
-        NSApp.activate(ignoringOtherApps: true)
-        windowController.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
+        window.contentViewController = contentViewController
+        return NSWindowController(window: window)
     }
 
-    func windowWillClose(_ notification: Notification) {
-        guard let closingWindow = notification.object as? NSWindow else {
-            return
-        }
-
-        if closingWindow == welcomeWindowController?.window {
-            permissionGuidanceController.dismiss()
-            welcomeWindowController = nil
-        } else if closingWindow == permissionReminderWindowController?.window {
-            permissionGuidanceController.dismiss()
-            permissionReminderWindowController = nil
-        }
+    /// Cotabby is a menu bar (accessory) app, so it has to activate itself before a window it
+    /// opens can become key; otherwise the window appears behind whatever app the user was in.
+    private func present(_ windowController: NSWindowController) {
+        NSApp.activate(ignoringOtherApps: true)
+        windowController.showWindow(nil)
+        windowController.window?.makeKeyAndOrderFront(nil)
     }
 
     /// Called when the user completes the full onboarding wizard ("Start Using Cotabby"). Stamps the
@@ -220,29 +241,13 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             )
         )
 
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: NSSize(width: 540, height: 420)),
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
+        let windowController = makeOnboardingWindowController(
+            title: "Cotabby — Permissions",
+            contentSize: NSSize(width: 540, height: 420),
+            contentViewController: hostingController
         )
-        window.title = "Cotabby — Permissions"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.level = .normal
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        window.delegate = self
-        window.contentViewController = hostingController
-
-        let windowController = NSWindowController(window: window)
         permissionReminderWindowController = windowController
-
-        NSApp.activate(ignoringOtherApps: true)
-        windowController.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
+        present(windowController)
     }
 
     private func dismissPermissionReminder() {

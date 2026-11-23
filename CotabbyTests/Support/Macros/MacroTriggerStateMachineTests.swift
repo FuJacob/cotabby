@@ -131,7 +131,7 @@ final class MacroTriggerStateMachineTests: XCTestCase {
     }
 
     func test_nonCharacterInputsWhileIdle_areIgnoredAndClearBoundaryMemory() {
-        let inputs: [MacroTriggerInput] = [.backspace, .commitKey, .escape, .navigate, .focusChanged, .dismissExternally]
+        let inputs: [MacroTriggerInput] = [.backspace, .commitKey, .escape, .navigate, .dismissExternally]
         for input in inputs {
             var sut = MacroTriggerStateMachine()
             _ = sut.reduce(.character("x"), hasInsertableResult: false)
@@ -171,8 +171,8 @@ final class MacroTriggerStateMachineTests: XCTestCase {
         }
     }
 
-    func test_navigationAndFocusEventsWhileCapturing_cancelWithoutConsuming() {
-        let inputs: [MacroTriggerInput] = [.navigate, .focusChanged, .dismissExternally]
+    func test_navigationAndExternalDismissalWhileCapturing_cancelWithoutConsuming() {
+        let inputs: [MacroTriggerInput] = [.navigate, .dismissExternally]
         for input in inputs {
             var sut = MacroTriggerStateMachine()
             openCapture(&sut)

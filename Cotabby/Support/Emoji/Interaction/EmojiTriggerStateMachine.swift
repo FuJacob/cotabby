@@ -1,17 +1,17 @@
 import Foundation
 
 /// File overview:
-/// The pure trigger state machine for the inline `:emoji:` picker (EMOJI.md §2). It owns only the
+/// The pure trigger state machine for the inline `:emoji:` picker. It owns only the
 /// capture lifecycle and the live query. Selection and match results live in `EmojiPickerController`
 /// because they depend on the matcher; the machine is told the current match count when it needs it.
 /// Given the same inputs it always produces the same transitions, so it is fully unit testable
 /// without Accessibility, CGEvent, or UI.
 ///
-/// Deliberate divergence from EMOJI.md §2.3: ordinary query characters are NOT consumed. They flow
-/// into the focused field and the controller reads the authoritative text from Accessibility at
-/// commit time. This keeps the active, gating event tap out of the ordinary-typing path (the
-/// issue #328 invariant that the base branch fixed) while still consuming navigation, commit, and
-/// Escape keys so the picker can be driven without the foreground app seeing them.
+/// Ordinary query characters are deliberately NOT consumed. They flow into the focused field and
+/// the controller reads the authoritative text from Accessibility at commit time. This keeps the
+/// active, gating event tap out of the ordinary-typing path (the issue #328 invariant) while still
+/// consuming navigation, commit, and Escape keys so the picker can be driven without the foreground
+/// app seeing them.
 nonisolated struct EmojiTriggerStateMachine {
     private(set) var state: EmojiTriggerState = .idle(previousCharacter: nil)
 
@@ -54,11 +54,11 @@ nonisolated struct EmojiTriggerStateMachine {
         case let .character(character):
             if character == Self.trigger, Self.isTriggerBoundary(previousCharacter) {
                 state = .capturing(query: "")
-                return Output(actions: [.open(query: "")], consumesKey: false)
+                return Output(actions: [.open], consumesKey: false)
             }
             state = .idle(previousCharacter: character)
             return .ignored
-        case .backspace, .navigate, .commitKey, .escape, .focusChanged, .dismissExternally:
+        case .backspace, .navigate, .commitKey, .escape, .dismissExternally:
             // Any non-character activity erases our knowledge of what precedes the caret, so the
             // next `:` is treated conservatively (no boundary) unless a fresh character re-establishes
             // one.
@@ -99,7 +99,7 @@ nonisolated struct EmojiTriggerStateMachine {
                 state = .idle(previousCharacter: nil)
                 return Output(actions: [.commit(.key)], consumesKey: true)
             }
-            // Nothing to insert: never steal Tab or Return from the focused app.
+            // Nothing to insert: never steal the word-accept key from the focused app.
             state = .idle(previousCharacter: nil)
             return Output(actions: [.cancel], consumesKey: false)
 
@@ -107,7 +107,7 @@ nonisolated struct EmojiTriggerStateMachine {
             state = .idle(previousCharacter: nil)
             return Output(actions: [.cancel], consumesKey: true)
 
-        case .focusChanged, .dismissExternally:
+        case .dismissExternally:
             state = .idle(previousCharacter: nil)
             return Output(actions: [.cancel], consumesKey: false)
         }
@@ -115,8 +115,8 @@ nonisolated struct EmojiTriggerStateMachine {
 
     private mutating func reduceCapturingCharacter(query: String, character: Character) -> Output {
         if character == Self.trigger {
-            // Mode B: the closing `:` of `:query:`. Let it reach the field; the controller replaces
-            // the whole `:query:` run on the next runloop tick (EMOJI.md §3.2, §5.5).
+            // The closing `:` of `:query:`. Let it reach the field; the controller replaces the
+            // whole `:query:` run on the next runloop tick, once the colon has landed.
             state = .idle(previousCharacter: nil)
             return Output(actions: [.commit(.closingColon)], consumesKey: false)
         }

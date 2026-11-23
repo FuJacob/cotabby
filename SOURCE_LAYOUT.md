@@ -33,7 +33,7 @@ Cotabby/
 │       └── WelcomeCoordinator.swift
 ├── Models/
 │   ├── Context/                      bounded context and visual-context values
-│   ├── Emoji/                        picker and usage values
+│   ├── Emoji/                        picker values and the persisted usage store
 │   ├── Focus/                        focus snapshots and tracking state
 │   ├── History/                      typing-history records, archive, and preferences
 │   ├── Input/                        keyboard event values
@@ -80,11 +80,12 @@ Cotabby/
 │   │   ├── Applications/             app, browser, domain, and terminal classification
 │   │   └── Capability/               supported-field capability resolution
 │   ├── History/                      history retrieval, phrase prediction, scrubbing, import
+│   ├── InlineCommands/               key and focus rules shared by emoji and macro capture
 │   ├── Input/                        composition, key-label, and selection helpers
 │   ├── Logging/                      debug options, request IDs, and JSONL handlers
 │   ├── Macros/
 │   │   └── Evaluators/               deterministic arithmetic/date/unit evaluators
-│   ├── Onboarding/                   pure onboarding recommendation rules
+│   ├── Onboarding/                   flow steps, recommendation rules, inline-prediction nudge
 │   ├── Presentation/
 │   │   ├── Geometry/                 caret, anchor, direction, and overlay layout
 │   │   ├── Policy/                   render-mode, fade, and stability decisions

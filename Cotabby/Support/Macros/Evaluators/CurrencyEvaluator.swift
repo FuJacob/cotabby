@@ -97,7 +97,8 @@ struct CurrencyEvaluator: MacroEvaluating {
 /// Approximate by design and refreshed when the app is updated; this never reaches the network, in
 /// keeping with Cotabby's on-device posture.
 struct CurrencyRateTable {
-    /// Human-readable "rates as of" marker, surfaced in settings/help so users know they are dated.
+    /// Human-readable "rates as of" marker. Provenance for the bundled numbers only; nothing in the
+    /// UI reads it, so refreshing the table means updating this alongside the rates.
     let asOf: String
     private let ratesPerUSD: [String: Double]
 

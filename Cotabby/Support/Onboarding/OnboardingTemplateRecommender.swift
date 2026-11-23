@@ -34,7 +34,6 @@ enum OnboardingTemplateRecommender {
             : downloadableModel(filename: template.openSourceModelFilename)
 
         return ResolvedTemplatePlan(
-            template: template,
             engine: engine,
             modelToDownload: model,
             wordCountPreset: template.wordCountPreset,
@@ -79,7 +78,6 @@ enum OnboardingTemplateRecommender {
         }
 
         return OnboardingTemplateAvailability(
-            template: template,
             isRecommended: template == recommended,
             isDisabled: isDisabled,
             warning: warning

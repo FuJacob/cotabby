@@ -7,7 +7,7 @@ import XCTest
 /// labelled with the target token exactly as the user typed it (lowercased). Cross-quantity requests
 /// must return nil so the currency family gets the same `->` string next.
 final class UnitConversionEvaluatorTests: XCTestCase {
-    private let sut = UnitConversionEvaluator(locale: Locale(identifier: "en_US"))
+    private let sut = UnitConversionEvaluator()
 
     // MARK: - Each quantity
 
