@@ -16,7 +16,7 @@ final class VisualContextCoordinator {
     private let screenshotContextGenerator: any ScreenshotContextGenerating
     private let screenRecordingPermissionProvider: @MainActor () -> Bool
     private let refreshIntervalNanoseconds: UInt64
-    private let excerptLifetimeNanoseconds: UInt64
+    private let excerptLifetimeSeconds: TimeInterval
     private let now: () -> TimeInterval
     private var configuration = VisualContextConfiguration.default
 
@@ -59,7 +59,7 @@ final class VisualContextCoordinator {
         self.screenshotContextGenerator = screenshotContextGenerator
         self.screenRecordingPermissionProvider = screenRecordingPermissionProvider
         self.refreshIntervalNanoseconds = refreshIntervalNanoseconds
-        self.excerptLifetimeNanoseconds = excerptLifetimeNanoseconds
+        self.excerptLifetimeSeconds = Double(excerptLifetimeNanoseconds) / 1_000_000_000
         self.now = now
     }
 
@@ -144,13 +144,11 @@ final class VisualContextCoordinator {
         if let provider = refreshContextProvider {
             let currentContext = provider()
             guard !Task.isCancelled, phase.session?.id == session.id else { return }
-            guard screenRecordingPermissionProvider(), let currentContext,
-                  currentContext.identity == snapshotContext.identity,
-                  currentContext.sessionIdentity.continues(snapshotContext.sessionIdentity), !currentContext.isSecure else {
+            guard let continuing = continuingContext(currentContext, field: session.field, surface: session.surface) else {
                 cancel()
                 return
             }
-            captureContext = currentContext
+            captureContext = continuing
         }
         capture(context: captureContext, session: session)
     }
@@ -183,14 +181,13 @@ final class VisualContextCoordinator {
                 if let provider = refreshContextProvider {
                     let liveContext = provider()
                     guard phase.session?.id == session.id else { return }
-                    guard screenRecordingPermissionProvider(), let liveContext,
-                          liveContext.identity == snapshotContext.identity,
-                          liveContext.sessionIdentity.continues(snapshotContext.sessionIdentity),
-                          !liveContext.isSecure else {
+                    guard let continuing = continuingContext(
+                        liveContext, field: snapshotContext.identity, surface: snapshotContext.sessionIdentity
+                    ) else {
                         cancel()
                         return
                     }
-                    fieldTexts.append(liveContext.precedingText + liveContext.trailingText)
+                    fieldTexts.append(continuing.precedingText + continuing.trailingText)
                 }
 
                 applyExcerpt(
@@ -232,16 +229,28 @@ final class VisualContextCoordinator {
             // Never cancel that replacement on behalf of this old timer. The session is re-read
             // here because a capture may have filled in surface facts since the timer was armed.
             guard let session = self.phase.session, session.id == sessionID else { return }
-            guard self.screenRecordingPermissionProvider(),
-                  let context = liveContext,
-                  context.identity == session.field,
-                  context.sessionIdentity.continues(session.surface),
-                  !context.isSecure else {
+            guard let context = self.continuingContext(liveContext, field: session.field, surface: session.surface) else {
                 self.cancel()
                 return
             }
             self.capture(context: context, session: session)
         }
+    }
+
+    /// The freshly read focus when the session may keep capturing from it: Screen Recording is still
+    /// granted, and the same field on the same surface is focused and not secure. Nil ends the
+    /// session: without the permission nothing can be captured, and no other field may ever
+    /// receive this session's screen text.
+    private func continuingContext(
+        _ live: FocusedInputSnapshot?,
+        field: FocusedInputIdentity,
+        surface: FocusedInputSessionIdentity
+    ) -> FocusedInputSnapshot? {
+        guard screenRecordingPermissionProvider(), let live, live.identity == field,
+              live.sessionIdentity.continues(surface), !live.isSecure else {
+            return nil
+        }
+        return live
     }
 
     /// Clears screenshot-derived context state, cancels any in-flight capture/OCR work, and
@@ -324,7 +333,7 @@ final class VisualContextCoordinator {
             return
         }
 
-        guard now() - capturedAt < Double(excerptLifetimeNanoseconds) / 1_000_000_000 else {
+        guard now() - capturedAt < excerptLifetimeSeconds else {
             didChangePhase(
                 phase.markUnavailable(reason: "Screen context expired before recognition completed.", sessionID: sessionID)
             )
@@ -373,7 +382,7 @@ final class VisualContextCoordinator {
     /// use monotonic uptime so changing the system clock cannot extend an excerpt's lifetime.
     private func expireExcerptIfNeeded() {
         guard let capturedAt = phase.excerptCapturedAt, let session = phase.session,
-              now() - capturedAt >= Double(excerptLifetimeNanoseconds) / 1_000_000_000 else { return }
+              now() - capturedAt >= excerptLifetimeSeconds else { return }
         didChangePhase(
             phase.markUnavailable(reason: "Screen context expired; waiting for a fresh capture.", sessionID: session.id)
         )
@@ -381,7 +390,7 @@ final class VisualContextCoordinator {
 
     private func scheduleExpiry(sessionID: UUID, capturedAt: TimeInterval) {
         tasks.expiry?.cancel()
-        let remaining = max(0, Double(excerptLifetimeNanoseconds) / 1_000_000_000 - (now() - capturedAt))
+        let remaining = max(0, excerptLifetimeSeconds - (now() - capturedAt))
         tasks.expiry = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000)) } catch { return }
             guard let self, self.phase.session?.id == sessionID,
