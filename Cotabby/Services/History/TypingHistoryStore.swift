@@ -107,8 +107,10 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// How long typing must pause before a background save; injectable so tests need not wait.
     private let saveDelayNanoseconds: UInt64
     private var records: [TypingHistoryRecord] = []
-    private var index: TypingHistoryIndex?
-    private var phrases: TypingHistoryPhrasePredictor?
+    /// Built together from one snapshot of `records` and replaced together, so examples and phrase
+    /// shortcuts never describe two different versions of the history. Nil until the first build
+    /// finishes and after Delete All.
+    private var search: SearchStructures?
     private var rebuildGeneration = 0
     private var saveTask: Task<Void, Never>?
     private var activeRecording: ActiveRecording?
@@ -122,6 +124,11 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// The examples most recently handed to a prompt, per field, so a new ranking that still rates
     /// them highly keeps the prompt (and its KV cache) unchanged. Cleared with `exampleCache`.
     private var shownExamples: (fieldKey: UInt64, examples: [String])?
+
+    nonisolated private struct SearchStructures: Sendable {
+        let index: TypingHistoryIndex
+        let phrases: TypingHistoryPhrasePredictor
+    }
 
     /// The field being typed in right now. Its raw text is kept here and only scrubbed and copied
     /// into `records` when saving or when focus moves on, so recording costs a string comparison
@@ -294,11 +301,10 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         let snapshot = records.filter { $0.id != activeID }
         Task { [weak self] in
             let built = await Task.detached(priority: .utility) {
-                (TypingHistoryIndex(records: snapshot), TypingHistoryPhrasePredictor(records: snapshot))
+                SearchStructures(index: TypingHistoryIndex(records: snapshot), phrases: TypingHistoryPhrasePredictor(records: snapshot))
             }.value
             guard let self, generation == self.rebuildGeneration else { return }
-            self.index = built.0
-            self.phrases = built.1
+            self.search = built
             self.invalidateExamples()
         }
     }
@@ -578,8 +584,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         records = []
         recordCount = 0
         savedChangeCount = changeCount
-        index = nil
-        phrases = nil
+        search = nil
         invalidateExamples()
         rebuildGeneration += 1
         // An import still reading its file stays in progress; it notices the deletion itself and
@@ -594,7 +599,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     // MARK: - SuggestionHistoryProviding
 
     func historyExamples(for context: FocusedInputContext, engine: SuggestionEngineKind) -> [String] {
-        guard preferences.isUsingHistory, engine != .openAICompatible, let index else { return [] }
+        guard preferences.isUsingHistory, engine != .openAICompatible, let index = search?.index else { return [] }
         let stableText = TypingHistoryQuery.stableText(from: context.precedingText)
         // The window title (an email subject, a document name) is the most stable topical signal a
         // field has, so it joins the query even before the first full block of words is typed.
@@ -655,7 +660,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     }
 
     func phraseContinuation(for request: SuggestionRequest, engine: SuggestionEngineKind) -> String? {
-        guard preferences.isUsingHistory, engine != .openAICompatible, let phrases else { return nil }
+        guard preferences.isUsingHistory, engine != .openAICompatible, let phrases = search?.phrases else { return nil }
         // Text after the caret on the same line would be pushed along by an inserted phrase; leave
         // those mid-line positions to the model, which sees the trailing text.
         let restOfLine = request.context.trailingText.prefix { !$0.isNewline }
