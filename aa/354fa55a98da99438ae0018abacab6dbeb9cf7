@@ -1,0 +1,35 @@
+Cotabby/Support/Suggestion/Acceptance/InsertionSafetyGate.swift
+  s_9990f9098df800::t_dc86e7b4f56554 4-5,13-20,25-28,35-45,47-48,51-52,54-65,68-108,110,112-150
+  s_9990f9098df800::t_9c168136c82e5c 66-67
+Cotabby/Services/Runtime/TypingHistoryPhraseEngine.swift
+  s_9990f9098df800::t_144681f6bd127c 39-45
+Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift
+  s_9990f9098df800::t_9e8231b0c511f9 25-26
+  s_9990f9098df800::t_c68734d51d7274 178-179
+CotabbyTests/Support/Suggestion/Output/SuggestionTextNormalizerTests.swift
+  s_9990f9098df800::t_c2f5eb6645108e 273-286
+CotabbyTests/Support/Suggestion/Acceptance/InsertionSafetyGateTests.swift
+  s_9990f9098df800::t_87a65adcfea7f1 5-8,40-159
+CotabbyTests/Services/Runtime/TypingHistoryPhraseEngineTests.swift
+  s_9990f9098df800::t_456043599bf75f 57-67
+CotabbyTests/Services/Input/InputSuppressionControllerTests.swift
+  s_9990f9098df800::t_687f6fbe822e72 75-110
+Cotabby/Services/Input/InputSuppressionController.swift
+  s_9990f9098df800::t_0e335fc938cf9d 26-35,75-76,78-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aa354fa55a98da99438ae0018abacab6dbeb9cf7",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
