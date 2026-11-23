@@ -307,7 +307,7 @@ final class SuggestionCoordinatorTypingPredictionTests: SuggestionCoordinatorRig
             defer { rig.coordinator.stop(); engine.finishAll() }
             rig.coordinator.schedulePrediction()
             await waitUntil { engine.requests.count == 1 }
-            if emojiCapture { rig.coordinator.emojiInputObserver = { _ in true } }
+            if emojiCapture { rig.coordinator.inlineCommandObserver = { _ in true } }
             _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(
                 kind: emojiCapture ? .textMutation : .dismissal, characters: emojiCapture ? ":" : ""))
             XCTAssertNil(rig.coordinator.typingPrediction)

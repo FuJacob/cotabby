@@ -305,7 +305,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         // under the picker, so it must be settled on the spot.
         let cases: [(name: String, prepare: (CoordinatorRig) -> Void, event: CapturedInputEvent)] = [
             ("mismatched typing", { _ in }, CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "x")),
-            ("emoji picker", { $0.coordinator.emojiInputObserver = { _ in true } },
+            ("emoji picker", { $0.coordinator.inlineCommandObserver = { _ in true } },
              CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: ":"))
         ]
         for testCase in cases {

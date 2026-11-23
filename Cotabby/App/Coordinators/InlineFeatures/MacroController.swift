@@ -18,7 +18,7 @@ final class MacroController {
     private let engine: MacroEngine
     private let panel: any InlinePreviewPresenting
     private let focusModel: any SuggestionFocusProviding
-    private let inserter: any EmojiTextInserting
+    private let inserter: any InlineCommandTextInserting
     private let isEnabled: () -> Bool
     private let acceptKeyLabel: () -> String?
     private let isWordAcceptKey: (InputMonitorKeyEvent) -> Bool
@@ -43,7 +43,7 @@ final class MacroController {
         engine: MacroEngine,
         panel: any InlinePreviewPresenting,
         focusModel: any SuggestionFocusProviding,
-        inserter: any EmojiTextInserting,
+        inserter: any InlineCommandTextInserting,
         isEnabled: @escaping () -> Bool,
         acceptKeyLabel: @escaping () -> String?,
         isWordAcceptKey: @escaping (InputMonitorKeyEvent) -> Bool

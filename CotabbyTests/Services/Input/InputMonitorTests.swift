@@ -268,7 +268,7 @@ final class InputMonitorTests: XCTestCase {
         for testCase in cases {
             let monitor = makeMonitor()
             let deciderResult = testCase.decider
-            monitor.emojiCaptureKeyDecider = { _ in deciderResult }
+            monitor.inlineCommandKeyDecider = { _ in deciderResult }
             monitor.shouldConsumeAcceptKeyProvider = { true }
             let delivered = recordKinds(on: monitor, accepts: true)
 

@@ -58,12 +58,13 @@ final class SuggestionCoordinator: ObservableObject {
     /// contexts return nil so correction ranking falls back to the system spell checker.
     let spellingLanguageResolver: SpellingLanguageResolver
 
-    /// Optional first-look hook the emoji picker installs to observe the keystroke stream. Called at
-    /// the very top of `handleInputEvent`, before any suggestion logic. Returns `true` when an emoji
-    /// capture is involved with this key, in which case the coordinator stands down so ghost text does
-    /// not compete with the picker. It never consumes keys here (the listen-only observer cannot);
-    /// consumption happens through `InputMonitor.emojiCaptureKeyDecider`.
-    var emojiInputObserver: ((CapturedInputEvent) -> Bool)?
+    /// Optional first-look hook for the inline-command features (emoji picker, macro preview) to
+    /// observe the keystroke stream. Called at the very top of `handleInputEvent`, before any
+    /// suggestion logic. Returns `true` when an inline capture is involved with this key, in which
+    /// case the coordinator stands down so ghost text does not compete with the capture's panel. It
+    /// never consumes keys here (the listen-only observer cannot);
+    /// consumption happens through `InputMonitor.inlineCommandKeyDecider`.
+    var inlineCommandObserver: ((CapturedInputEvent) -> Bool)?
 
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
