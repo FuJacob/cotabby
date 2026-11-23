@@ -111,6 +111,19 @@ final class CaretAdvanceSamplerTests: XCTestCase {
         XCTAssertNil(sampler.sample, "a second move with no text starts over")
     }
 
+    /// A second move within rounding of none is no move: the lead already held still goes to the
+    /// text that follows.
+    func testRoundingJitterAfterAnEarlyCaretKeepsItsLead() {
+        var sampler = CaretAdvanceSampler()
+        let x = typed("the user writes", after: "as", from: 500, advance: 7.5, into: &sampler)
+        sampler.observe(observation("asthe user writes", x: x + 7.5))
+        sampler.observe(observation("asthe user writes", x: x + 7.505))
+        sampler.observe(observation("asthe user writes!", x: x + 7.505))
+        XCTAssertEqual(sampler.sample?.text, "the user writes!")
+        XCTAssertEqual(sampler.sample?.width ?? 0, 7.5 * 16, accuracy: 0.001)
+        XCTAssertEqual(sampler.pendingCharacterCount, 0)
+    }
+
     func testAnIdlePollChangesNothing() {
         // Focus polls run every 80ms whether or not a key was pressed; a poll that saw no change
         // must not reset the evidence gathered so far.

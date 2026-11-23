@@ -9,20 +9,25 @@ import Logging
 /// the current field's sampler is kept.
 @MainActor
 final class CaretAdvanceSampleStore {
-    private var key: String?
-    private var sampler = CaretAdvanceSampler()
-    /// The last observation traced for this field, so the debug trace records only polls where the
-    /// caret's offset, position or text changed: a handful per keystroke, not twenty a second.
-    private var lastTraced: CaretAdvanceSampler.Observation?
+    /// Everything kept for one field. Replaced whole when the key changes, so a new field never
+    /// continues another's sample or trace.
+    private struct Entry {
+        /// Nil only before the first field.
+        var key: String?
+        var sampler = CaretAdvanceSampler()
+        /// The last observation traced for this field, so the debug trace records only polls where
+        /// the caret's offset, position or text changed: a handful per keystroke, not twenty a second.
+        var lastTraced: CaretAdvanceSampler.Observation?
+    }
+
+    private var entry = Entry()
 
     /// Feeds one poll for the field `key` and returns the sampler's current sample.
     func sample(forKey key: String, observation: CaretAdvanceSampler.Observation) -> CaretAdvanceSampler.Sample? {
-        if key != self.key {
-            self.key = key
-            sampler = CaretAdvanceSampler()
-            lastTraced = nil
+        if key != entry.key {
+            entry = Entry(key: key)
         }
-        let sample = sampler.observe(observation)
+        let sample = entry.sampler.observe(observation)
         trace(observation, sample: sample)
         return sample
     }
@@ -32,11 +37,11 @@ final class CaretAdvanceSampleStore {
     /// keystroke's text is published decides how a width sample pairs characters with advances.
     private func trace(_ observation: CaretAdvanceSampler.Observation, sample: CaretAdvanceSampler.Sample?) {
         guard CotabbyLogger.focus.logLevel <= .debug else { return }
-        if let lastTraced, lastTraced.documentCaret == observation.documentCaret,
+        if let lastTraced = entry.lastTraced, lastTraced.documentCaret == observation.documentCaret,
            abs(lastTraced.caretX - observation.caretX) < 0.01, lastTraced.precedingText == observation.precedingText {
             return
         }
-        lastTraced = observation
+        entry.lastTraced = observation
         // Typed pieces first: Xcode 26.3's type checker gave up on the mixed dictionary literal
         // when the optional-chaining and `Double(...)` conversions were inlined into it.
         let caretX = Double(observation.caretX)
@@ -52,7 +57,7 @@ final class CaretAdvanceSampleStore {
             "y": .stringConvertible(lineY),
             "tail": .string(tail),
             "positioned": .stringConvertible(observation.isPositioned),
-            "pending": .stringConvertible(sampler.pendingCharacterCount),
+            "pending": .stringConvertible(entry.sampler.pendingCharacterCount),
             "sample": .string(sampleText),
             "sample_w": .stringConvertible(sampleWidth),
             "sample_n": .stringConvertible(sampleCount)
