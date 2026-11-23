@@ -114,19 +114,33 @@ actor HostFontRegistry {
     /// with its own leaf certificate (Apple only issues those after binding the identifier to the
     /// developer's account), and Developer ID builds, whose leaf carries Microsoft's Team ID.
     nonisolated static func hostCodeRequirement(for bundleIdentifier: String) -> String {
+        codeRequirement(bundleIdentifier: bundleIdentifier, teamIdentifier: microsoftTeamIdentifier)
+    }
+
+    /// The requirement shape for any host whose bundled fonts Cotabby loads: the exact identifier,
+    /// published either through the Mac App Store or under `teamIdentifier`. Shared with
+    /// `HostBundledFontRegistry`, whose hosts have other publishers, so both registries apply one
+    /// trust rule.
+    nonisolated static func codeRequirement(bundleIdentifier: String, teamIdentifier: String) -> String {
         "identifier \"\(bundleIdentifier)\" and anchor apple generic and "
             + "(certificate leaf[field.1.2.840.113635.100.6.1.9] "
-            + "or certificate leaf[subject.OU] = \"\(microsoftTeamIdentifier)\")"
+            + "or certificate leaf[subject.OU] = \"\(teamIdentifier)\")"
     }
 
     /// Checks that the bundle at `bundleURL` is signed and satisfies `hostCodeRequirement`.
+    nonisolated static func bundleSatisfiesHostRequirement(at bundleURL: URL, bundleIdentifier: String) -> Bool {
+        bundleSatisfies(requirementText: hostCodeRequirement(for: bundleIdentifier), at: bundleURL)
+    }
+
+    /// Checks that the bundle at `bundleURL` is signed and satisfies `requirementText`.
     ///
     /// Validates the signature and the requirement but skips re-hashing the executable and every
     /// resource: a full seal check of a multi-gigabyte Office bundle costs seconds of I/O, and the
     /// trust decision this protects is "who published this bundle", which the signature answers.
     /// Tampering with a signed app's contents in place is what macOS's App Management protection
     /// guards against, and an attacker able to do that could already alter the app itself.
-    nonisolated static func bundleSatisfiesHostRequirement(at bundleURL: URL, bundleIdentifier: String) -> Bool {
+    /// Blocking disk I/O: callers run it off the main actor.
+    nonisolated static func bundleSatisfies(requirementText: String, at bundleURL: URL) -> Bool {
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(bundleURL as CFURL, [], &staticCode) == errSecSuccess,
               let staticCode
@@ -136,7 +150,7 @@ actor HostFontRegistry {
 
         var requirement: SecRequirement?
         guard SecRequirementCreateWithString(
-            hostCodeRequirement(for: bundleIdentifier) as CFString,
+            requirementText as CFString,
             [],
             &requirement
         ) == errSecSuccess,

@@ -1,4 +1,5 @@
 import AppKit
+import Security
 import XCTest
 @testable import Cotabby
 
@@ -80,5 +81,55 @@ final class HostBundledFontRegistryTests: XCTestCase {
         let registry = HostBundledFontRegistry()
         XCTAssertEqual(registry.candidateFontNames(forBundleIdentifier: "com.example.not-running"), [])
         XCTAssertEqual(registry.candidateFontNames(forBundleIdentifier: nil), [])
+    }
+
+    // MARK: - Host trust
+
+    /// A focused app controls both its bundle id and the files in its bundle, so only named hosts
+    /// may ever hand fonts to CoreText here, matched exactly like the requirement's identifier.
+    func testOnlyAllowlistedHostsAreTrusted() {
+        XCTAssertTrue(HostBundledFontRegistry.isTrustedHost(bundleIdentifier: "com.anthropic.claudefordesktop"))
+        for bundleIdentifier in [
+            "com.microsoft.VSCode", "md.obsidian", "com.google.Chrome",
+            "com.anthropic.claudefordesktop.evil", "COM.ANTHROPIC.CLAUDEFORDESKTOP", ""
+        ] {
+            XCTAssertFalse(HostBundledFontRegistry.isTrustedHost(bundleIdentifier: bundleIdentifier), bundleIdentifier)
+        }
+    }
+
+    func testEveryAllowlistedHostHasACompilableRequirementPinningItsIdentifierAndPublisher() {
+        XCTAssertFalse(HostBundledFontRegistry.trustedHostTeamIdentifiers.isEmpty)
+        for (bundleIdentifier, teamIdentifier) in HostBundledFontRegistry.trustedHostTeamIdentifiers {
+            let text = HostFontRegistry.codeRequirement(bundleIdentifier: bundleIdentifier, teamIdentifier: teamIdentifier)
+            var requirement: SecRequirement?
+            XCTAssertEqual(SecRequirementCreateWithString(text as CFString, [], &requirement), errSecSuccess, bundleIdentifier)
+            XCTAssertTrue(text.hasPrefix("identifier \"\(bundleIdentifier)\" and "), text)
+            XCTAssertTrue(text.contains("certificate leaf[subject.OU] = \"\(teamIdentifier)\""), text)
+        }
+    }
+
+    /// An allowlisted name is not enough: this test host is not signed by the host's publisher.
+    func testABundleNotSignedByTheHostsPublisherFailsTheTrustCheck() {
+        XCTAssertFalse(
+            HostBundledFontRegistry.bundleIsTrusted(at: Bundle.main.bundleURL, bundleIdentifier: "com.anthropic.claudefordesktop")
+        )
+        XCTAssertFalse(
+            HostBundledFontRegistry.bundleIsTrusted(at: Bundle.main.bundleURL, bundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+        )
+    }
+
+    func testInstalledClaudeDesktopPassesTheTrustCheck() throws {
+        let claude = URL(fileURLWithPath: "/Applications/Claude.app")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: claude.path), "Claude desktop is not installed")
+
+        XCTAssertTrue(HostBundledFontRegistry.bundleIsTrusted(at: claude, bundleIdentifier: "com.anthropic.claudefordesktop"))
+    }
+
+    /// The identifier pin: a genuine app from another publisher cannot stand in for the host.
+    func testAGenuineAppFromAnotherPublisherCannotStandInForTheHost() throws {
+        let other = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: other.path), "TextEdit is not installed")
+
+        XCTAssertFalse(HostBundledFontRegistry.bundleIsTrusted(at: other, bundleIdentifier: "com.anthropic.claudefordesktop"))
     }
 }

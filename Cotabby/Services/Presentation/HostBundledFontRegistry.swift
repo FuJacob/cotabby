@@ -23,6 +23,13 @@ import Logging
 /// bundle identifier, off the main actor, and its answer is cached for the process's life; until
 /// it lands the match proceeds with the installed candidates, as before.
 ///
+/// Trust: this is the same untrusted-input problem `HostFontRegistry` guards against. Parsing and
+/// registering a font hands a file from the focused app's bundle to CoreText inside Cotabby, which
+/// is unsandboxed and holds Accessibility, Input Monitoring and Screen Recording, and every
+/// non-browser app with a web field reaches this registry. So only allowlisted hosts are scanned,
+/// and only after their bundle passes the same code requirement `HostFontRegistry` applies (exact
+/// identifier, pinned publisher). Any other app keeps the installed candidates.
+///
 /// Owned by `HostTypefaceResolver` because the candidates are a presentation concern: they only
 /// matter when a ghost is about to be drawn in a stand-in face.
 @MainActor
@@ -33,10 +40,21 @@ final class HostBundledFontRegistry {
     static let maximumFiles = 40
     private static let fontExtensions: Set<String> = ["ttf", "otf", "ttc"]
 
+    /// Hosts whose bundled faces may be loaded, each with the Apple Team ID that must sign it.
+    /// Matched exactly, as the code requirement's identifier clause is. Add a host only for a
+    /// measured need (its editor is set in a face it bundles under `Contents/Resources`), together
+    /// with its publisher's Team ID.
+    nonisolated static let trustedHostTeamIdentifiers: [String: String] = [
+        // Claude desktop: its composer is set in the bundled Anthropic Sans (see the file overview).
+        "com.anthropic.claudefordesktop": "Q6L2SF6YDW"
+    ]
+
     /// How far the one scan of a bundle has got. A bundle identifier with no entry has not been
     /// asked about yet.
     private enum Scan {
         case scanning
+        /// The bundle failed the code-signature check: none of its font files are ever opened.
+        case untrusted
         /// PostScript names of the bundle's text faces, possibly none.
         case scanned([String])
     }
@@ -48,14 +66,34 @@ final class HostBundledFontRegistry {
     // allocated"). Nothing here needs main-actor cleanup, so a nonisolated deinit is equivalent.
     nonisolated deinit {}
 
+    /// Whether `bundleIdentifier` is a host whose bundled faces may ever be loaded. A cheap,
+    /// synchronous pre-check on the render path; the signature check still follows.
+    nonisolated static func isTrustedHost(bundleIdentifier: String) -> Bool {
+        trustedHostTeamIdentifiers[bundleIdentifier] != nil
+    }
+
+    /// Whether the bundle at `bundleURL` is a genuine build of the allowlisted `bundleIdentifier`,
+    /// by the `HostFontRegistry` code requirement with that host's publisher. Blocking disk I/O, so
+    /// it runs in the detached scan, before any font file is opened.
+    nonisolated static func bundleIsTrusted(at bundleURL: URL, bundleIdentifier: String) -> Bool {
+        guard let teamIdentifier = trustedHostTeamIdentifiers[bundleIdentifier] else { return false }
+        return HostFontRegistry.bundleSatisfies(
+            requirementText: HostFontRegistry.codeRequirement(bundleIdentifier: bundleIdentifier, teamIdentifier: teamIdentifier),
+            at: bundleURL
+        )
+    }
+
     /// PostScript names of the text faces bundled by the app `bundleIdentifier`, once scanned.
-    /// Empty until the scan for that bundle completes (it starts on the first call).
+    /// Empty until the scan for that bundle completes (it starts on the first call), and always
+    /// empty for a host that is not allowlisted or whose bundle fails the signature check.
     func candidateFontNames(forBundleIdentifier bundleIdentifier: String?) -> [String] {
-        guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return [] }
+        guard let bundleIdentifier, !bundleIdentifier.isEmpty,
+              Self.isTrustedHost(bundleIdentifier: bundleIdentifier)
+        else { return [] }
         switch scans[bundleIdentifier] {
         case .scanned(let names)?:
             return names
-        case .scanning?:
+        case .scanning?, .untrusted?:
             return []
         case nil:
             break
@@ -67,10 +105,28 @@ final class HostBundledFontRegistry {
         scans[bundleIdentifier] = .scanning
         Task { @MainActor [weak self] in
             let resources = bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
-            let names = await Task.detached(priority: .utility) {
-                Self.registerTextFaces(under: resources)
+            // The signature check reads the bundle's code signature from disk, so it shares the
+            // detached task with the scan, and it comes first so no font file of a bundle that
+            // fails it is ever opened. nil means it failed.
+            let scanned = await Task.detached(priority: .utility) { () -> [String]? in
+                guard Self.bundleIsTrusted(at: bundleURL, bundleIdentifier: bundleIdentifier) else {
+                    return nil
+                }
+                return Self.registerTextFaces(under: resources)
             }.value
             guard let self else { return }
+            guard let names = scanned else {
+                self.scans[bundleIdentifier] = .untrusted
+                CotabbyLogger.suggestion.info(
+                    "Host bundle failed the font trust check; keeping installed faces",
+                    metadata: [
+                        "stage": .string("host-fonts"),
+                        "bundle": .string(bundleIdentifier),
+                        "bundle_path": .string(bundleURL.path)
+                    ]
+                )
+                return
+            }
             self.scans[bundleIdentifier] = .scanned(names)
             CotabbyLogger.suggestion.debug(
                 "Host bundled fonts registered",
