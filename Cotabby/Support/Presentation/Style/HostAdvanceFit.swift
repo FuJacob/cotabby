@@ -56,11 +56,29 @@ nonisolated struct HostAdvanceFit: Equatable {
     /// captures, a wrong face) and is refused.
     static let maximumDeviation: CGFloat = 0.06
 
+    /// Which fit sizes the field: none until one spans `minimumSpan`, then that one, replaced at
+    /// most `maximumRefinements` times, each time by a fit spanning `refinementFactor` times as much.
+    private nonisolated enum Adoption: Equatable {
+        case none
+        case adopted(Fit, refinements: Int)
+    }
+
     private(set) var faceName: String?
     private(set) var lineKey: String?
     private(set) var captures: [Capture] = []
-    private(set) var adopted: Fit?
-    private(set) var refinements = 0
+    private var adoption = Adoption.none
+
+    /// The fit the field's ghost is sized from, once one has spanned enough.
+    var adopted: Fit? {
+        if case .adopted(let fit, _) = adoption { return fit }
+        return nil
+    }
+
+    /// How many times the adopted fit has been replaced by a longer one.
+    var refinements: Int {
+        if case .adopted(_, let replaced) = adoption { return replaced }
+        return 0
+    }
 
     /// Records a capture of the caret on the first line of a paragraph (`lineKey` names that line:
     /// the captures of one line share its start) and returns the fit when this capture adopted or
@@ -72,8 +90,7 @@ nonisolated struct HostAdvanceFit: Equatable {
     ) -> Fit? {
         if face.fontName != faceName {
             faceName = face.fontName
-            adopted = nil
-            refinements = 0
+            adoption = .none
             captures = []
         }
         if lineKey != self.lineKey {
@@ -88,11 +105,13 @@ nonisolated struct HostAdvanceFit: Equatable {
               abs(fit.pointSize / face.pointSize - 1) <= Self.maximumDeviation else {
             return nil
         }
-        if let adopted {
-            guard refinements < Self.maximumRefinements, fit.span >= adopted.span * Self.refinementFactor else { return nil }
-            refinements += 1
+        switch adoption {
+        case .none:
+            adoption = .adopted(fit, refinements: 0)
+        case .adopted(let previous, let replaced):
+            guard replaced < Self.maximumRefinements, fit.span >= previous.span * Self.refinementFactor else { return nil }
+            adoption = .adopted(fit, refinements: replaced + 1)
         }
-        adopted = fit
         return fit
     }
 
