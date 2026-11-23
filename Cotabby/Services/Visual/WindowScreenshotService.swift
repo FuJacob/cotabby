@@ -238,15 +238,8 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
     }
 
     private func convertBetweenAppKitAndCG(rect: CGRect) -> CGRect {
-        let desktopBounds = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) {
-            $0 = $0.union($1)
-        }
-        guard !desktopBounds.isNull else { return rect }
-        return CGRect(
-            x: rect.origin.x,
-            y: desktopBounds.maxY - rect.origin.y - rect.height,
-            width: rect.width,
-            height: rect.height
+        DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(
+            rect, primaryDisplayHeight: CGDisplayBounds(CGMainDisplayID()).height
         )
     }
 

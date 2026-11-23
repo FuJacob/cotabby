@@ -29,6 +29,18 @@ enum DisplayCoordinateConverter {
         return appKitRect(fromCoreGraphicsRect: rect, on: display)
     }
 
+    /// Flips a rect between AppKit's global space and CoreGraphics' global space; the flip is its
+    /// own inverse.
+    ///
+    /// Both spaces anchor their origin to the primary display (its bottom-left corner in AppKit,
+    /// its top-left in CoreGraphics), so the flip is about the primary display's height alone.
+    /// Flipping about the union of every screen instead is only right while no display reaches
+    /// above the primary's top: with a portrait monitor whose top sat 52pt above it (2026-11-22),
+    /// every pixel capture read 52pt below the text it asked for and found no ink.
+    static func flippedBetweenAppKitAndCoreGraphics(_ rect: CGRect, primaryDisplayHeight: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: primaryDisplayHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
     static func appKitRectsFromPixelRect(
         _ rect: CGRect,
         displays: [DisplayGeometry]
