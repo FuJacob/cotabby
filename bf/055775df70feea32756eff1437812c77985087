@@ -1,0 +1,84 @@
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_b9af9eb54478c8::t_2163fa63398ea6 466,483,662,667,677,680-682,690,693,696,701,703,705-707,709-710
+Cotabby/Support/Suggestion/Request/HostPublishPoll.swift
+  s_b9af9eb54478c8::t_1a56154abe1ecd 1-71
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorContinuityTests.swift
+  s_b9af9eb54478c8::t_b018bbe0aca908 184,224,282,309,345,441,452
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_cd3f07b1dc4772 426,439,448,453,456
+  s_b9af9eb54478c8::t_26a5fc7c05e06a 342-345,352-354,366-367,369-370,372,399-401,404,430-432,458,466,476,484,486
+CotabbyTests/Support/Suggestion/Session/PostExhaustionAcceptanceStateTests.swift
+  s_b9af9eb54478c8::t_b9f68ea5c745a0 49,54,75
+CotabbyTests/App/Coordinators/Suggestion/SuggestionConversationIsolationTests.swift
+  s_b9af9eb54478c8::t_a85c32c97e835e 46
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_b9af9eb54478c8::t_5861ce9d60b329 731
+  s_b9af9eb54478c8::t_cf851b618a6121 602
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_b9af9eb54478c8::t_2201cc50f086c6 341,372,376
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_b9af9eb54478c8::t_8c45aa957976dd 23,226,273,292,623,902,904-907,1449
+Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift
+  s_b9af9eb54478c8::t_b1ff02ddc4659f 18-19,23,52-53,57,59-78,97,106,112,119,125-127,135-137,139,143,154,163,224-225,228,230,246,258,269,280,289,299
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorWordCompletionTests.swift
+  s_b9af9eb54478c8::t_eb2e4a3ed506f9 228,241
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_b9af9eb54478c8::t_b089d9d5681605 168-170
+CotabbyTests/Support/Suggestion/Request/HostPublishPollTests.swift
+  s_b9af9eb54478c8::t_f14445ef4d680a 1-89
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionTypingTests.swift
+  s_b9af9eb54478c8::t_a3384dfd7da244 135
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Continuation.swift
+  s_b9af9eb54478c8::t_28ce1138186d6a 56-58,72,77,112,116,118,138,152
+CotabbyTests/App/Coordinators/Suggestion/SuggestionStateHelperTests.swift
+  s_b9af9eb54478c8::t_693e0381464674 112,246,269
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+TypingPrediction.swift
+  s_b9af9eb54478c8::t_4741c9b6e03c45 13
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_8a83bbba8fddfe 180,433,535,596,759,789,961,1038,1095,1245,1286,1373,1432,1556,1634,3296,3298,3300,3749,3751,3753,4288,4374,4406,4653,4739,4771,4983,5052,5077
+  s_b9af9eb54478c8::t_d1f69a71e15bd8 429,569,889,1453,1554,2720,3427,4289,4654,4984
+CotabbyTests/Evals/TypingExperienceEvalTests.swift
+  s_b9af9eb54478c8::t_2d42cc2862b1ca 215,217
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionReconciliationTests.swift
+  s_b9af9eb54478c8::t_771e6cd67112a5 27,41,65,71,79,97,107,117,135,155,179,189,202,221,240,250,266,289,299,315,324,340,349,363,370,388,403,415,431,437,450,465,480,482,488,521,549,584,593,609,614,637,661,683,691
+Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift
+  s_b9af9eb54478c8::t_ee40a20f58dc8c 6,16-18,30-31,33,42,67,73,99,108-109,111,141-158,167-172,174,176-196,200-203,212,216,224-225,233,235,237,239,244,251-252,264-265,269,272-273,282,287-289,301-302,318
+Cotabby/Support/Suggestion/Session/PostExhaustionAcceptanceState.swift
+  s_b9af9eb54478c8::t_2e195cae3af115 8-14,16-21,23-24,30,37-38,45,56,62
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_b9af9eb54478c8::t_0c7dba4f678d6d 139,202,246,291,342
+Cotabby/Support/Suggestion/Streaming/TypingPredictionCandidate.swift
+  s_b9af9eb54478c8::t_cb6f18ac03fa6a 18,22,38,43,94
+  s_b9af9eb54478c8::t_1937fdcf7d4bbf 20,26,37
+  s_b9af9eb54478c8::t_a54fc5fd984fe4 17,19,21,23-24,35-36,39-42,44-46
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.swift
+  s_b9af9eb54478c8::t_4f1d25f143e3bc 595,597,602
+Cotabby/Support/Suggestion/Session/HostPublicationLag.swift
+  s_b9af9eb54478c8::t_e59cff0bee1ff0 1-57
+Cotabby/Support/Suggestion/Session/PreparedContinuation.swift
+  s_b9af9eb54478c8::t_044462940b925c 1-73
+Cotabby/Support/Suggestion/Session/SpeculativeBet.swift
+  s_b9af9eb54478c8::t_b53f176748f45f 1-83
+CotabbyTests/Support/Suggestion/Session/HostPublicationLagTests.swift
+  s_b9af9eb54478c8::t_a9fa115b98e361 1-69
+CotabbyTests/Support/Suggestion/Session/PreparedContinuationTests.swift
+  s_b9af9eb54478c8::t_0510ee348295e8 1-80
+CotabbyTests/Support/Suggestion/Session/SpeculativeBetTests.swift
+  s_b9af9eb54478c8::t_30b0593d19aa8a 1-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf055775df70feea32756eff1437812c77985087",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
