@@ -117,4 +117,46 @@ final class GhostWrapBandPolicyForeignLineTests: XCTestCase {
         XCTAssertEqual(band.lowerBound, 101, accuracy: 0.001)
         XCTAssertEqual(band.upperBound, 621, accuracy: 0.001)
     }
+    // MARK: - The field's bottom edge
+
+    private func floorInput(caretX: CGFloat = 300, caretY: CGFloat, element: CGRect?) -> GhostWrapBandPolicy.Input {
+        GhostWrapBandPolicy.Input(
+            caretRect: CGRect(x: caretX, y: caretY, width: 1, height: 18),
+            elementFrame: element,
+            inputFrame: element,
+            lineLeft: nil,
+            screenVisibleFrame: screen
+        )
+    }
+
+    /// Rows may reach down to the field's own bottom edge, never below it (Safari's chat composer,
+    /// 2026-10-10: a second ghost row was drawn under the field).
+    func testFloorIsTheElementBottomWhenTheCaretIsInside() {
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretY: 210, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, 200, accuracy: 0.001)
+    }
+
+    func testFloorIgnoresAnElementThatDoesNotHoldTheCaret() {
+        // A frame that does not contain the caret describes some other box (a stale or outer frame);
+        // trusting it could hide rows the field really has room for.
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretY: 400, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, screen.minY + GhostWrapBandPolicy.screenMargin, accuracy: 0.001)
+    }
+
+    func testFloorIgnoresAnElementLevelWithTheCaretButBesideIt() {
+        // Same height as the caret, but the caret is 100pt right of it: some other box's bottom.
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretX: 700, caretY: 210, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, screen.minY + GhostWrapBandPolicy.screenMargin, accuracy: 0.001)
+    }
+
+    func testFloorHoldsForACaretOnTheElementRightEdge() {
+        // A caret after a full line sits on the element's right edge; it is still that element's caret.
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretX: 600, caretY: 210, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, 200, accuracy: 0.001)
+    }
+
+    func testFloorWithoutAnElementIsTheScreen() {
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretY: 400, element: nil))
+        XCTAssertEqual(floor, screen.minY + GhostWrapBandPolicy.screenMargin, accuracy: 0.001)
+    }
 }
