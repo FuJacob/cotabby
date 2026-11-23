@@ -44,7 +44,7 @@ struct MenuBarView: View {
         .frame(width: 340)
         .modifier(MenuBarWindowBackgroundModifier())
         .background(
-            MenuBarPresentationObserver(onPresent: refreshOnPresent)
+            MenuBarPresentationObserver { refreshOnPresent() }
         )
         .background(
             MenuBarPopoverDismisserBinder(
@@ -52,7 +52,7 @@ struct MenuBarView: View {
                 onWindowBind: configureMenuBarWindowIfNeeded
             )
         )
-        .onAppear(perform: refreshOnPresent)
+        .onAppear { refreshOnPresent() }
     }
 
     /// Permission grants, model files and the nudge's eligibility all change while the popover is
