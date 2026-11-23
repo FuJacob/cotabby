@@ -27,34 +27,6 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private var welcomeWindowController: NSWindowController?
     private var permissionReminderWindowController: NSWindowController?
 
-    /// Bump whenever onboarding is revamped enough that users who already finished an older version
-    /// should experience it again. `presentIfNeeded` re-shows the wizard for anyone whose stored
-    /// completed version is below this, and completing the wizard writes this value back.
-    private static let currentOnboardingVersion = 2
-
-    /// Stores the onboarding version the user last *completed* (reached "done" and dismissed), not a
-    /// yes/no flag. An absent key reads as `0`, so both brand-new users and users who finished an
-    /// older onboarding fall below `currentOnboardingVersion` and get the current flow exactly once.
-    ///
-    /// Replaces the legacy boolean `cotabbyOnboardingCompleted` key. That key is intentionally not
-    /// migrated: reading it as "version 1 completed" would let upgrading users skip the revamped
-    /// flow, which is the opposite of what a version bump is for.
-    private static let onboardingCompletedVersionKey = "cotabbyOnboardingCompletedVersion"
-
-    /// Furthest onboarding step the user has reached, stored as the step's raw index. Lets the wizard
-    /// *resume* instead of restarting when the user is pulled out mid-flow: granting Accessibility or
-    /// Input Monitoring on the permissions step typically only takes effect after the user quits and
-    /// relaunches Cotabby, which lands before the final "Start Using Cotabby" tap that stamps
-    /// completion. Without this, that relaunch drops them back at step one and onboarding repeats
-    /// every time (issue #314). Cleared on completion so a future version bump starts clean.
-    ///
-    /// The "2" suffix marks the second step-numbering scheme (the redesign folded the writing-style
-    /// step into "personalize", shifting every later raw index). Reading the old key would resume a
-    /// mid-flow user onto the wrong step, so the old key is abandoned rather than reinterpreted;
-    /// anyone caught mid-flow across the update restarts at the welcome step, which is the safe
-    /// outcome. Any future change to `WelcomeStep`'s numbering must bump this suffix again.
-    private static let onboardingProgressStepKey = "cotabbyOnboardingProgressStep2"
-
     init(
         permissionManager: PermissionManager,
         permissionGuidanceController: PermissionGuidanceController,
@@ -73,24 +45,19 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         self.userDefaults = userDefaults
     }
 
-    /// Whether the user completed the *current* onboarding version (reached "done" and dismissed).
-    ///
-    /// Versioned rather than boolean so a revamp can re-show the wizard: a stored value below
-    /// `currentOnboardingVersion` (including the `0` returned for an absent key) counts as not yet
-    /// completed. The legacy `hasShownWelcomeWindow` key is likewise not migrated, since it was set
-    /// at presentation time (before the user finished) and would skip profile and model selection.
-    private var isOnboardingCompleted: Bool {
-        userDefaults.integer(forKey: Self.onboardingCompletedVersionKey) >= Self.currentOnboardingVersion
+    /// Read fresh on every use rather than cached: UserDefaults is the source of truth, and the
+    /// wizard's own callbacks rewrite it while a window is open.
+    private var progress: OnboardingProgress {
+        OnboardingProgress.load(from: userDefaults)
     }
 
-    /// Presents the welcome wizard if the user has never completed onboarding.
+    /// Presents the welcome wizard if the user has not completed the current onboarding version.
     ///
-    /// Unlike the previous approach, the completion flag is set when the user finishes the wizard
-    /// (taps "Start Using Cotabby"), not when the window first appears. If the user closes the
-    /// window mid-flow or macOS prompts a restart for permissions, the wizard will reappear on
-    /// next launch so they don't lose their place.
+    /// Completion is stamped when the user finishes the wizard (taps "Start Using Cotabby"), not
+    /// when the window first appears. So if the user closes the window mid-flow, or macOS forces a
+    /// relaunch to apply a permission, the wizard reappears on next launch at the step they reached.
     func presentIfNeeded() {
-        guard !isOnboardingCompleted else {
+        guard !progress.isCompleted else {
             return
         }
 
@@ -101,7 +68,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// more required permissions are now missing (e.g., after a permission-prompted restart, or
     /// if the user later revoked a permission in System Settings).
     func presentPermissionReminderIfNeeded() {
-        guard isOnboardingCompleted,
+        guard progress.isCompleted,
               !permissionManager.requiredPermissionsGranted,
               permissionReminderWindowController == nil
         else {
@@ -119,7 +86,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let resumeStepIndex = userDefaults.integer(forKey: Self.onboardingProgressStepKey)
+        let progress = self.progress
 
         let hostingController = NSHostingController(
             rootView: WelcomeView(
@@ -135,42 +102,23 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
                 onDismiss: { [weak self] in
                     self?.completeOnboarding()
                 },
-                initialStepIndex: resumeStepIndex,
-                isReturningUser: userDefaults.integer(forKey: Self.onboardingCompletedVersionKey) > 0,
-                onStepChange: { [weak self] stepIndex in
-                    self?.recordProgress(stepIndex: stepIndex)
+                initialStep: progress.resumeStep,
+                isReturningUser: progress.isReturningUser,
+                onStepChange: { [weak self] step in
+                    self?.recordProgress(reaching: step)
                 }
             )
         )
 
-        // Size the window for the step the wizard actually opens on (the resume point, mirroring
-        // WelcomeView's own fallback for out-of-range indices) so it never flashes at one size and
-        // immediately animates to another.
-        let initialStep = WelcomeStep(rawValue: resumeStepIndex) ?? .welcome
-
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: initialStep.preferredWindowSize),
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
+        // Size the window for the step the wizard actually opens on (the resume point) so it never
+        // flashes at one size and immediately animates to another.
+        let windowController = makeOnboardingWindowController(
+            title: "Welcome to Cotabby",
+            contentSize: progress.resumeStep.preferredWindowSize,
+            contentViewController: hostingController
         )
-        window.title = "Welcome to Cotabby"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.level = .normal
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        window.delegate = self
-        window.contentViewController = hostingController
-
-        let windowController = NSWindowController(window: window)
         welcomeWindowController = windowController
-
-        NSApp.activate(ignoringOtherApps: true)
-        windowController.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
+        present(windowController)
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -178,6 +126,8 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
+        // Either window can have the drag-helper guidance overlay anchored to one of its buttons,
+        // so it must not outlive the window it points into.
         if closingWindow == welcomeWindowController?.window {
             permissionGuidanceController.dismiss()
             welcomeWindowController = nil
@@ -187,26 +137,55 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Called when the user completes the full onboarding wizard ("Start Using Cotabby"). Stamps the
-    /// current onboarding version so the wizard does not reappear until the next revamp bumps it.
-    /// This is the only thing that clears the gate: closing the window mid-flow leaves the stored
-    /// version unchanged, so the wizard returns on next launch.
+    /// Both onboarding surfaces share one window recipe: chromeless (hidden title over a
+    /// full-size content view) so the SwiftUI backdrop reads edge to edge, draggable from anywhere
+    /// because there is no visible title bar to grab, and kept alive after close because the
+    /// coordinator, not AppKit, decides when its controller is released.
+    private func makeOnboardingWindowController(
+        title: String,
+        contentSize: NSSize,
+        contentViewController: NSViewController
+    ) -> NSWindowController {
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: contentSize),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = title
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.level = .normal
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.delegate = self
+        window.contentViewController = contentViewController
+        return NSWindowController(window: window)
+    }
+
+    /// Cotabby is a menu bar (accessory) app, so it has to activate itself before a window it
+    /// opens can become key; otherwise the window appears behind whatever app the user was in.
+    private func present(_ windowController: NSWindowController) {
+        NSApp.activate(ignoringOtherApps: true)
+        windowController.showWindow(nil)
+        windowController.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Called when the user completes the full onboarding wizard ("Start Using Cotabby"). This is
+    /// the only thing that clears the gate: closing the window mid-flow leaves the stored progress
+    /// unchanged, so the wizard returns on next launch.
     private func completeOnboarding() {
-        userDefaults.set(Self.currentOnboardingVersion, forKey: Self.onboardingCompletedVersionKey)
-        // Drop the resume marker so reopening the wizard later (menu entry point, or a future version
-        // bump re-showing it) starts from the welcome step rather than the last step of this run.
-        userDefaults.removeObject(forKey: Self.onboardingProgressStepKey)
+        let current = progress
+        current.completing().save(to: userDefaults, replacing: current)
         permissionGuidanceController.dismiss()
         welcomeWindowController?.close()
     }
 
-    /// Persists the furthest step the wizard has reached. Monotonic: a user stepping back never
-    /// lowers the resume point, so closing the window always reopens at the deepest step they saw.
-    private func recordProgress(stepIndex: Int) {
-        guard stepIndex > userDefaults.integer(forKey: Self.onboardingProgressStepKey) else {
-            return
-        }
-        userDefaults.set(stepIndex, forKey: Self.onboardingProgressStepKey)
+    private func recordProgress(reaching step: WelcomeStep) {
+        let current = progress
+        current.reaching(step).save(to: userDefaults, replacing: current)
     }
 
     private func showPermissionReminder() {
@@ -220,29 +199,13 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             )
         )
 
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: NSSize(width: 540, height: 420)),
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
+        let windowController = makeOnboardingWindowController(
+            title: "Cotabby — Permissions",
+            contentSize: NSSize(width: 540, height: 420),
+            contentViewController: hostingController
         )
-        window.title = "Cotabby — Permissions"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.level = .normal
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        window.delegate = self
-        window.contentViewController = hostingController
-
-        let windowController = NSWindowController(window: window)
         permissionReminderWindowController = windowController
-
-        NSApp.activate(ignoringOtherApps: true)
-        windowController.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
+        present(windowController)
     }
 
     private func dismissPermissionReminder() {

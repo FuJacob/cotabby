@@ -30,9 +30,10 @@ struct WelcomeView: View {
     let permissionGuidanceController: PermissionGuidanceController
     let onPreferredWindowSizeChange: (NSSize) -> Void
     let onDismiss: () -> Void
-    /// Reports the current step's raw index up to the coordinator so it can persist a resume point.
-    /// The wizard is re-shown from this step if the user is pulled out before finishing (see #314).
-    let onStepChange: (Int) -> Void
+    /// Reports the step being shown up to the coordinator so it can persist a resume point. The
+    /// wizard is re-shown from the furthest reported step if the user is pulled out before
+    /// finishing (see #314).
+    let onStepChange: (WelcomeStep) -> Void
     /// True when this user has completed a prior onboarding version. The Custom path keeps the
     /// user's existing settings instead of overwriting them with template defaults, since they have
     /// already tuned Cotabby; advancing via "Set up later" preserves that.
@@ -51,8 +52,8 @@ struct WelcomeView: View {
     /// the tier cards resolve their plan against this.
     @State private var selectedEngine: SuggestionEngineKind
 
-    /// Probed once for the view's lifetime: installed memory and architecture don't change during
-    /// onboarding. `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
+    /// Probed once for the view's lifetime: installed memory doesn't change during onboarding.
+    /// `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
     /// than on every struct re-creation that an `@ObservedObject` publish (e.g. a download tick)
     /// causes.
     @State private var hardware = HardwareCapabilityProbe.current()
@@ -66,9 +67,9 @@ struct WelcomeView: View {
         permissionGuidanceController: PermissionGuidanceController,
         onPreferredWindowSizeChange: @escaping (NSSize) -> Void,
         onDismiss: @escaping () -> Void,
-        initialStepIndex: Int = 0,
+        initialStep: WelcomeStep = .welcome,
         isReturningUser: Bool = false,
-        onStepChange: @escaping (Int) -> Void = { _ in }
+        onStepChange: @escaping (WelcomeStep) -> Void = { _ in }
     ) {
         self.isReturningUser = isReturningUser
         _permissionManager = ObservedObject(wrappedValue: permissionManager)
@@ -80,19 +81,14 @@ struct WelcomeView: View {
         self.onPreferredWindowSizeChange = onPreferredWindowSizeChange
         self.onDismiss = onDismiss
         self.onStepChange = onStepChange
-        // Resume at the furthest step the user previously reached. An out-of-range or absent value
-        // (0) falls back to `.welcome`, so brand-new users still start at the beginning.
-        _step = State(initialValue: WelcomeStep(rawValue: initialStepIndex) ?? .welcome)
+        // Resume at the furthest step the user previously reached; brand-new users get `.welcome`.
+        _step = State(initialValue: initialStep)
         // Seed the engine before the first render so the template step never shows a frame of "Open
         // Source" selected on an Apple Intelligence-capable Mac and then snaps to it. Availability
         // is resolved well before onboarding appears, so reading it here is reliable.
         _selectedEngine = State(
             initialValue: foundationModelAvailabilityService.isAvailable ? .appleIntelligence : .llamaOpenSource
         )
-    }
-
-    private var preferredWindowSize: NSSize {
-        step.preferredWindowSize
     }
 
     var body: some View {
@@ -112,15 +108,15 @@ struct WelcomeView: View {
         .frame(width: WelcomeStep.windowWidth)
         .background(OnboardingBackdrop())
         .onAppear {
-            onPreferredWindowSizeChange(preferredWindowSize)
+            onPreferredWindowSizeChange(step.preferredWindowSize)
             // Stamp the resume point for the step we open on. Matters when resuming directly onto
             // a later step: without this, quitting again before advancing would not re-persist it.
-            onStepChange(step.rawValue)
+            onStepChange(step)
         }
         .onChange(of: step) { _, newStep in
-            onStepChange(newStep.rawValue)
+            onStepChange(newStep)
         }
-        .onChange(of: preferredWindowSize) { _, newValue in
+        .onChange(of: step.preferredWindowSize) { _, newValue in
             onPreferredWindowSizeChange(newValue)
         }
         // When the selected template's model finishes downloading, re-scan disk so the runtime
@@ -144,6 +140,14 @@ struct WelcomeView: View {
 // MARK: - Navigation
 
 extension WelcomeView {
+    /// Continue (and the welcome page's call-to-action). The flow is linear, so the destination is
+    /// always `WelcomeStep.next`; the last step has none and finishes through `onDismiss` instead.
+    fileprivate func advance() {
+        if let next = step.next {
+            go(to: next)
+        }
+    }
+
     /// All step changes flow through here so the slide direction and the spring are decided in one
     /// place. Reduce Motion swaps pages with no animation at all (the transition never plays).
     fileprivate func go(to newStep: WelcomeStep) {
@@ -224,51 +228,59 @@ extension WelcomeView {
         }
     }
 
+    /// Each step decides only whether Continue is enabled (and what it says); where Back and
+    /// Continue lead comes from the step order, so no step names its neighbours.
     @ViewBuilder
     fileprivate var stepFooter: some View {
         switch step {
         case .permissions:
-            WelcomeNavigation(
-                canGoBack: true,
+            navigation(
                 canContinue: permissionManager.requiredPermissionsGranted,
-                disabledHint: "Grant all permissions to continue.",
-                onBack: { go(to: .welcome) },
-                onContinue: { go(to: .template) }
+                disabledHint: "Grant all permissions to continue."
             )
         case .template:
-            WelcomeNavigation(
-                canGoBack: true,
+            navigation(
                 canContinue: canContinueFromTemplate,
                 // With no curated tier chosen, the primary button becomes "Set up later" and applies
                 // the neutral Custom path under the hood, so the user is never blocked on a card.
                 continueTitle: selectedTemplate == nil ? "Set up later" : "Continue",
-                disabledHint: templateStepDisabledHint,
-                onBack: { go(to: .permissions) },
-                onContinue: {
+                // Only reachable with a tier chosen whose Open Source download has not started yet.
+                disabledHint: "Hang on while your model starts downloading.",
+                beforeAdvancing: {
                     if selectedTemplate == nil {
                         applyTemplate(.custom)
                     }
-                    go(to: .personalize)
                 }
             )
         case .personalize:
-            WelcomeNavigation(
-                canGoBack: true,
+            navigation(
                 canContinue: !suggestionSettings.responseLanguages.isEmpty,
-                disabledHint: "Add at least one language so Cotabby knows what to write in.",
-                onBack: { go(to: .template) },
-                onContinue: { go(to: .keybind) }
+                disabledHint: "Add at least one language so Cotabby knows what to write in."
             )
         case .keybind:
-            WelcomeNavigation(
-                canGoBack: true,
-                canContinue: true,
-                onBack: { go(to: .personalize) },
-                onContinue: { go(to: .done) }
-            )
+            navigation(canContinue: true)
         case .welcome, .done:
             EmptyView()
         }
+    }
+
+    private func navigation(
+        canContinue: Bool,
+        continueTitle: String = "Continue",
+        disabledHint: String? = nil,
+        beforeAdvancing: @escaping () -> Void = {}
+    ) -> WelcomeNavigation {
+        let goBack: (() -> Void)? = step.previous.map { previous in { go(to: previous) } }
+        return WelcomeNavigation(
+            canContinue: canContinue,
+            continueTitle: continueTitle,
+            disabledHint: disabledHint,
+            onBack: goBack,
+            onContinue: {
+                beforeAdvancing()
+                advance()
+            }
+        )
     }
 }
 
@@ -311,7 +323,7 @@ extension WelcomeView {
                 .onboardingReveal(3)
 
                 WelcomeButton(title: "Get Started") {
-                    go(to: .permissions)
+                    advance()
                 }
                 .padding(.top, 4)
                 .onboardingReveal(4)
@@ -513,59 +525,19 @@ extension WelcomeView {
         return modelDownloadManager.state(for: model)
     }
 
-    /// Whether the template step's primary button is enabled. With no tier chosen it is always
-    /// enabled: the button reads "Set up later" and applies the neutral Custom path. With a tier
-    /// chosen, Apple Intelligence is immediately ready, while Open Source waits until that tier's
-    /// model download has at least started (it finishes in the background).
     fileprivate var canContinueFromTemplate: Bool {
-        guard let template = selectedTemplate else {
-            return true
-        }
-        let plan = resolvedPlan(for: template)
-        switch plan.engine {
-        case .appleIntelligence:
-            return true
-        case .llamaOpenSource:
-            // Allow continuing once the download is at least underway; it finishes in the background.
-            guard let state = selectedModelDownloadState else {
-                return false
-            }
-            return state == .downloaded || state.isDownloading
-        case .openAICompatible:
-            return true
-        }
-    }
-
-    /// Tooltip for the disabled primary button. Only reachable once a tier is chosen but its Open
-    /// Source download hasn't started yet — with no tier chosen the button is "Set up later" and
-    /// always enabled, so there is no longer a "pick something" hint.
-    fileprivate var templateStepDisabledHint: String {
-        "Hang on while your model starts downloading."
+        OnboardingTemplateRecommender.canContinueFromTemplateStep(
+            selectedPlan: selectedTemplate.map { resolvedPlan(for: $0) },
+            modelDownloadState: selectedModelDownloadState
+        )
     }
 
     fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {
-        let base = OnboardingTemplateRecommender.resolvePlan(for: template, engine: selectedEngine)
-        // Returning users on the Custom path with the OSS engine keep their currently selected local
-        // model instead of the static template default, so the done-step status and model activation
-        // reflect the settings applyTemplate actually preserves for them.
-        guard
-            template == .custom,
-            isReturningUser,
-            selectedEngine == .llamaOpenSource,
-            let currentFilename = runtimeModel.selectedModelFilename,
-            currentFilename != base.modelToDownload?.filename,
-            let currentModel = RuntimeModelCatalog.downloadableModels.first(where: { $0.filename == currentFilename })
-        else {
-            return base
-        }
-        return ResolvedTemplatePlan(
-            template: base.template,
-            engine: base.engine,
-            modelToDownload: currentModel,
-            wordCountPreset: base.wordCountPreset,
-            enablesFastMode: base.enablesFastMode,
-            enablesMultiLine: base.enablesMultiLine,
-            enablesClipboardContext: base.enablesClipboardContext
+        OnboardingTemplateRecommender.resolvePlan(
+            for: template,
+            engine: selectedEngine,
+            isReturningUser: isReturningUser,
+            currentModelFilename: runtimeModel.selectedModelFilename
         )
     }
 

@@ -26,7 +26,7 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
 
         let output = sut.reduce(.character(":"), selectableMatchCount: 0)
 
-        XCTAssertEqual(output.actions, [.open(query: "")])
+        XCTAssertEqual(output.actions, [.open])
         XCTAssertFalse(output.consumesKey)
         XCTAssertEqual(sut.state, .capturing(query: ""))
     }
@@ -37,7 +37,7 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
 
         let output = sut.reduce(.character(":"), selectableMatchCount: 0)
 
-        XCTAssertEqual(output.actions, [.open(query: "")])
+        XCTAssertEqual(output.actions, [.open])
         XCTAssertTrue(sut.isCapturing)
     }
 
@@ -126,7 +126,7 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         var afterSpace = EmojiTriggerStateMachine()
         open(&afterSpace)
         type("sm ", into: &afterSpace)
-        XCTAssertEqual(afterSpace.reduce(.character(":"), selectableMatchCount: 0).actions, [.open(query: "")])
+        XCTAssertEqual(afterSpace.reduce(.character(":"), selectableMatchCount: 0).actions, [.open])
 
         var afterPunctuation = EmojiTriggerStateMachine()
         open(&afterPunctuation)
@@ -151,9 +151,9 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         open(&sut)
         type("s", into: &sut, matchCount: 3)
 
-        let output = sut.reduce(.navigate(.down), selectableMatchCount: 3)
+        let output = sut.reduce(.navigate(.next), selectableMatchCount: 3)
 
-        XCTAssertEqual(output.actions, [.moveSelection(.down)])
+        XCTAssertEqual(output.actions, [.moveSelection(.next)])
         XCTAssertTrue(output.consumesKey)
         // Moving the selection leaves the typed query untouched.
         XCTAssertEqual(sut.state, .capturing(query: "s"))
@@ -164,7 +164,7 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         open(&sut)
         type("zz", into: &sut)
 
-        let output = sut.reduce(.navigate(.down), selectableMatchCount: 0)
+        let output = sut.reduce(.navigate(.next), selectableMatchCount: 0)
 
         XCTAssertEqual(output.actions, [.cancel])
         XCTAssertFalse(output.consumesKey)
@@ -237,18 +237,6 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         XCTAssertFalse(sut.isCapturing)
     }
 
-    func test_focusChange_cancelsWithoutConsuming() {
-        var sut = EmojiTriggerStateMachine()
-        open(&sut)
-        type("s", into: &sut, matchCount: 3)
-
-        let output = sut.reduce(.focusChanged, selectableMatchCount: 3)
-
-        XCTAssertEqual(output.actions, [.cancel])
-        XCTAssertFalse(output.consumesKey)
-        XCTAssertFalse(sut.isCapturing)
-    }
-
     func test_dismissExternally_cancels() {
         var sut = EmojiTriggerStateMachine()
         open(&sut)
@@ -257,12 +245,13 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         let output = sut.reduce(.dismissExternally, selectableMatchCount: 3)
 
         XCTAssertEqual(output.actions, [.cancel])
+        XCTAssertFalse(output.consumesKey)
         XCTAssertFalse(sut.isCapturing)
     }
 
     func test_nonCharacterInputsWhileIdle_areIgnoredAndEraseBoundaryKnowledge() {
         let inputs: [EmojiTriggerInput] = [
-            .backspace, .navigate(.down), .commitKey, .escape, .focusChanged, .dismissExternally
+            .backspace, .navigate(.next), .commitKey, .escape, .dismissExternally
         ]
         for input in inputs {
             var sut = EmojiTriggerStateMachine()
@@ -277,7 +266,7 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
             let reopened = sut.reduce(.character(":"), selectableMatchCount: 0)
             XCTAssertEqual(
                 reopened.actions,
-                [.open(query: "")],
+                [.open],
                 "input \(input) should erase the preceding-character memory"
             )
         }

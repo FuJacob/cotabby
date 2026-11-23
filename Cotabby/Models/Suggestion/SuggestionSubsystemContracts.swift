@@ -83,21 +83,22 @@ protocol SuggestionInputMonitoring: AnyObject {
     func setAcceptInterceptionActive(_ active: Bool)
 }
 
-/// The emoji picker's slice of the input monitor. Kept separate from `SuggestionInputMonitoring` so
-/// the suggestion coordinator stays unaware of emoji concerns and vice versa, even though one
-/// `InputMonitor` satisfies both.
+/// The inline-command features' (emoji picker and macro preview) slice of the input monitor. Kept
+/// separate from `SuggestionInputMonitoring` so the suggestion coordinator stays unaware of inline
+/// command concerns and vice versa, even though one `InputMonitor` satisfies both.
 @MainActor
-protocol EmojiInputIntercepting: AnyObject {
-    /// Per-key consume decision consulted by the active tap while an emoji capture is open. The
-    /// controller computes the decision during the observer pass and this closure returns it.
-    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)? { get set }
+protocol InlineCommandInputIntercepting: AnyObject {
+    /// Per-key consume decision consulted by the active tap while an inline capture is open. The
+    /// owning controller computes the decision during the observer pass and this closure returns
+    /// it. A single slot: `InlineCommandCoordinator` installs it and routes between features.
+    var inlineCommandKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)? { get set }
 
-    /// Keeps the active tap installed for the emoji-capture reason (parallel to the suggestion
+    /// Keeps the active tap installed while an inline capture is open (parallel to the suggestion
     /// overlay's `setAcceptInterceptionActive`).
     func setCaptureInterceptionActive(_ active: Bool)
 
-    /// True when the key matches the user's configured word-accept binding. The emoji picker commits
-    /// on this key so its commit stays consistent with accepting a suggestion word.
+    /// True when the key matches the user's configured word-accept binding. Inline captures commit
+    /// on this key so their commit stays consistent with accepting a suggestion word.
     func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool
 }
 
@@ -229,10 +230,10 @@ protocol SuggestionInserting: AnyObject {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 
-/// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal
-/// `:query`) with the chosen glyph in one suppressed synthetic burst.
+/// The inline-command features' slice of the inserter: replace a run of already-typed characters
+/// (the literal `:query` or `/query`) with the chosen text in one suppressed synthetic burst.
 @MainActor
-protocol EmojiTextInserting: AnyObject {
+protocol InlineCommandTextInserting: AnyObject {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 

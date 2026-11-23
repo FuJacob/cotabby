@@ -9,7 +9,7 @@ import Logging
 /// keeping them separate stops the suggestion state machine from growing emoji concerns.
 ///
 /// Data flow:
-/// - `observe(_:)` receives every keystroke (via `SuggestionCoordinator.emojiInputObserver`) and feeds
+/// - `observe(_:)` receives every keystroke (via `SuggestionCoordinator.inlineCommandObserver`) and feeds
 ///   the pure `EmojiTriggerStateMachine`. It records the per-key consume decision for the decider.
 /// - `decideCaptureKey(_:)` is the closure the active tap consults to swallow navigation/commit/Escape
 ///   keys. It returns the decision `observe(_:)` just computed for the same event.
@@ -33,8 +33,8 @@ final class EmojiPickerController {
     }
     private let panel: any EmojiPickerPanelPresenting
     private let focusModel: any SuggestionFocusProviding
-    private let inputMonitor: any EmojiInputIntercepting
-    private let inserter: any EmojiTextInserting
+    private let inputMonitor: any InlineCommandInputIntercepting
+    private let inserter: any InlineCommandTextInserting
     private let isEnabled: () -> Bool
     /// Live emoji-customization preferences (skin tone / gender / neutral variant), read at match time.
     private let emojiPreferences: () -> EmojiVariantPreferences
@@ -45,13 +45,12 @@ final class EmojiPickerController {
     /// `@MainActor`: it mutates main-actor `EmojiUsageStore` state.
     private let recordEmojiUsage: @MainActor (String) -> Void
 
-    private var currentQuery = ""
-    private var matches: [EmojiMatch] = []
-    private var selectedIndex = 0
-    private var captureFocusSequence: UInt64?
-    private var lastCaretRect: CGRect?
-    private var pendingDecision: PendingDecision?
-    private var longPauseTask: Task<Void, Never>?
+    /// The open capture, or `nil` while idle. Set when a `:` opens against a triggerable field and
+    /// cleared by `teardownCapture()`, so it tracks `machine.isCapturing` except inside one
+    /// `observe(_:)` pass, between the machine's own transition and `applyActions(_:)` catching up.
+    private var capture: EmojiCaptureSession?
+    private var pendingDecision: InlineCaptureKeyDecision?
+    private let idleTimer = InlineCaptureIdleTimer()
     private var cancellables = Set<AnyCancellable>()
 
     /// Whether an emoji capture is currently open. Read by `InlineCommandCoordinator` to keep the
@@ -63,24 +62,12 @@ final class EmojiPickerController {
     /// coordinator, not this controller, owns the input monitor's single interception flag.
     var onCaptureStateChanged: (() -> Void)?
 
-    /// The consume decision `observe(_:)` computed for one key, read back by `decideCaptureKey(_:)`
-    /// during the same event. The key code guards against a stale decision being applied to a later
-    /// key if the decider is ever called without a preceding observer pass.
-    private struct PendingDecision {
-        let keyCode: CGKeyCode
-        let consume: Bool
-    }
-
-    /// How long a capture may sit untouched before it self-cancels, so a panel never lingers if the
-    /// user walks away mid-query (EMOJI.md §2.2). Generous because the user may pause to read matches.
-    private static let longPauseNanoseconds: UInt64 = 8_000_000_000
-
     init(
         matcherProvider: @MainActor @escaping () -> EmojiMatcher,
         panel: any EmojiPickerPanelPresenting,
         focusModel: any SuggestionFocusProviding,
-        inputMonitor: any EmojiInputIntercepting,
-        inserter: any EmojiTextInserting,
+        inputMonitor: any InlineCommandInputIntercepting,
+        inserter: any InlineCommandTextInserting,
         isEnabled: @escaping () -> Bool,
         emojiPreferences: @escaping () -> EmojiVariantPreferences,
         emojiUsage: @MainActor @escaping () -> EmojiUsageSnapshot,
@@ -98,15 +85,15 @@ final class EmojiPickerController {
     }
 
     func start() {
-        // The accept-tap capture decider is owned by `InlineCommandCoordinator` (it is a single slot
-        // shared with the macro feature), so this controller no longer installs it here.
+        // The accept-tap capture decider is a single slot shared with the macro feature, so
+        // `InlineCommandCoordinator` installs it and routes to `decideCaptureKey(_:)`.
         panel.onSelectIndex = { [weak self] index in
             guard let self else { return }
-            self.selectedIndex = index
+            self.capture?.select(index: index)
             self.commitSelectedMatch()
         }
         panel.onClickOutside = { [weak self] in
-            self?.cancelCapture()
+            self?.teardownCapture()
         }
         focusModel.snapshotPublisher
             .sink { [weak self] snapshot in self?.handleFocusSnapshot(snapshot) }
@@ -114,7 +101,7 @@ final class EmojiPickerController {
     }
 
     func stop() {
-        cancelCapture()
+        teardownCapture()
         cancellables.removeAll()
     }
 
@@ -127,13 +114,13 @@ final class EmojiPickerController {
     @discardableResult
     func observe(_ event: CapturedInputEvent) -> Bool {
         guard isEnabled() else {
-            if machine.isCapturing { cancelCapture() }
+            if machine.isCapturing { teardownCapture() }
             pendingDecision = nil
             return false
         }
 
         let wasCapturing = machine.isCapturing
-        let output = machine.reduce(triggerInput(for: event), selectableMatchCount: matches.count)
+        let output = machine.reduce(triggerInput(for: event), selectableMatchCount: capture?.matches.count ?? 0)
         applyActions(output.actions)
 
         // The feature was involved if we were capturing before this key (covers commit/cancel that
@@ -142,73 +129,52 @@ final class EmojiPickerController {
         // `pendingDecision` carries the consume decision for the active tap; otherwise it is cleared so
         // the decider falls through to the suggestion accept path.
         let involved = wasCapturing || machine.isCapturing
-        pendingDecision = involved ? PendingDecision(keyCode: event.keyCode, consume: output.consumesKey) : nil
+        pendingDecision = involved ? InlineCaptureKeyDecision(keyCode: event.keyCode, consume: output.consumesKey) : nil
         return involved
     }
 
     /// Per-key consume decision for the active tap. Returns the decision computed by the matching
     /// observer pass, or `.notHandled` when no capture is involved so suggestion acceptance proceeds.
     func decideCaptureKey(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
-        guard let pending = pendingDecision, pending.keyCode == keyEvent.keyCode else {
+        guard let decision = pendingDecision?.tapDecision(for: keyEvent) else {
             return .notHandled
         }
         pendingDecision = nil
-        return pending.consume ? .consume : .passThrough
+        return decision
     }
 
     /// Translates a captured event into the machine's small input vocabulary. Mapping every key
     /// (even when idle) keeps the machine's boundary tracking accurate; the machine itself decides
     /// what matters in each state.
     private func triggerInput(for event: CapturedInputEvent) -> EmojiTriggerInput {
-        let modifiers = ShortcutModifierMask(eventFlags: event.flags)
-        if modifiers.contains(.command) || modifiers.contains(.control) {
-            return .dismissExternally
-        }
-
-        // Commit only on the user's configured word-accept binding (keyCode + modifiers), matched the
-        // same way the suggestion accept path matches it, so the picker stays consistent with
-        // accepting a word. Checked before the keyCode switch so a rebind wins (Tab by default), and
-        // so Return is no longer a commit key.
-        if inputMonitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: event.keyCode, flags: event.flags)) {
-            return .commitKey
-        }
-
-        switch event.keyCode {
-        case 53:
-            return .escape
-        case 36, 76:                      // Return, Keypad Enter: dismiss and pass through, never commit
-            return .dismissExternally
-        // The picker is now a horizontal ribbon, so Left/Right drive the selection alongside Up/Down.
-        // `.up` means "previous" and `.down` means "next" in the 1-D match list (the names predate the
-        // ribbon). With no matches the state machine lets these pass through, so the caret still moves.
-        case 126, 123:                    // Up, Left: previous glyph
-            return .navigate(.up)
-        case 125, 124:                    // Down, Right: next glyph
-            return .navigate(.down)
-        case 117:                         // Forward-Delete: text changed under the caret, end capture
-            return .dismissExternally
-        case 51:
-            // Option + Backspace deletes a whole word, which the single-character query model can't
-            // track, so treat it as a dismissal rather than a one-character backspace. (Command +
-            // Backspace is already handled by the modifier check above.)
-            return modifiers.contains(.option) ? .dismissExternally : .backspace
-        default:
-            break
-        }
-
-        let characters = event.characters
-        if characters.count == 1, let character = characters.first, !character.isNewline {
+        // Commit only on the user's configured word-accept binding, so the picker stays consistent
+        // with accepting a suggestion word and follows a rebind (Tab by default).
+        switch InlineCommandKeyClassifier.classify(event, isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }) {
+        case let .character(character):
             return .character(character)
+        case .backspace:
+            return .backspace
+        case .commitKey:
+            return .commitKey
+        case .escape:
+            return .escape
+        // The picker is a horizontal ribbon, so both arrow axes walk the same one-dimensional
+        // match list. With no matches the state machine lets these pass through, so the caret
+        // still moves.
+        case .arrow(.up), .arrow(.left):
+            return .navigate(.previous)
+        case .arrow(.down), .arrow(.right):
+            return .navigate(.next)
+        case .dismissExternally:
+            return .dismissExternally
         }
-        // Empty or multi-character keydowns (dead keys, IME) only matter as a cancel while capturing.
-        return .dismissExternally
     }
 
     private func applyActions(_ actions: [EmojiTriggerAction]) {
         for action in actions {
             switch action {
-            case let .open(query):
-                beginCapture(query: query)
+            case .open:
+                beginCapture()
             case let .updateQuery(query):
                 updateQuery(query)
             case let .moveSelection(move):
@@ -216,15 +182,15 @@ final class EmojiPickerController {
             case let .commit(mode):
                 commit(mode)
             case .cancel:
-                cancelCapture()
+                teardownCapture()
             }
         }
     }
 
     // MARK: - Capture lifecycle
 
-    private func beginCapture(query: String) {
-        guard canTrigger(), let context = focusModel.snapshot.context else {
+    private func beginCapture() {
+        guard let context = InlineCaptureFocusGate.triggerableContext(in: focusModel.snapshot) else {
             // A `:` opened the trigger but the field is unsupported/secure or its AX context has not
             // resolved yet (AX is eventually consistent right after a focus change). Aborting here
             // looks to the user like "the picker did nothing on the first try"; log it so that
@@ -233,34 +199,34 @@ final class EmojiPickerController {
             machine.reset()
             return
         }
-        captureFocusSequence = context.focusChangeSequence
-        lastCaretRect = context.caretRect
-        refreshMatches(query: query)
+        var session = EmojiCaptureSession(
+            focusChangeSequence: context.focusChangeSequence,
+            caretRect: context.caretRect
+        )
         // A bare ":" opens with an empty query and immediately shows the user's recents/popular set.
-        presentPanel()
-        armLongPauseTimer()
+        session.setResults(rankedMatches(for: ""), for: "")
+        capture = session
+        present(session)
+        armIdleTimer()
         onCaptureStateChanged?()
-        CotabbyLogger.suggestion.debug("emoji capture opened query=\"\(query)\" matches=\(matches.count)")
+        CotabbyLogger.suggestion.debug("emoji capture opened matches=\(session.matches.count)")
     }
 
     private func updateQuery(_ query: String) {
-        guard machine.isCapturing else { return }
-        refreshMatches(query: query)
-        // Reposition because the match count (and therefore the panel height) may have changed.
-        presentPanel()
-        armLongPauseTimer()
+        guard machine.isCapturing, var session = capture else { return }
+        session.setResults(rankedMatches(for: query), for: query)
+        capture = session
+        // Reposition because the match count (and therefore the panel width) may have changed.
+        present(session)
+        armIdleTimer()
     }
 
     private func moveSelection(_ move: EmojiSelectionMove) {
-        guard !matches.isEmpty else { return }
-        switch move {
-        case .up:
-            selectedIndex = (selectedIndex - 1 + matches.count) % matches.count
-        case .down:
-            selectedIndex = (selectedIndex + 1) % matches.count
-        }
-        panel.setSelectedIndex(selectedIndex)
-        armLongPauseTimer()
+        guard var session = capture else { return }
+        guard session.moveSelection(move) else { return }
+        capture = session
+        panel.setSelectedIndex(session.selectedIndex)
+        armIdleTimer()
     }
 
     private func commit(_ mode: EmojiCommitMode) {
@@ -272,29 +238,33 @@ final class EmojiPickerController {
         }
     }
 
-    /// Mode A: a consumed Tab/Return, or a row click. The field holds `:query`, so delete that run and
-    /// insert the highlighted glyph.
+    /// The consumed word-accept key, or a click on a glyph. The field holds `:query`, so delete that
+    /// run and insert the highlighted glyph.
     private func commitSelectedMatch() {
-        guard selectedIndex >= 0, selectedIndex < matches.count else {
-            CotabbyLogger.suggestion.debug("emoji commit (key) skipped: no selectable match query=\"\(currentQuery)\"")
-            cancelCapture()
+        guard let session = capture, let selected = session.selectedMatch else {
+            CotabbyLogger.suggestion.debug(
+                "emoji commit (key) skipped: no selectable match query=\"\(capture?.query ?? "")\""
+            )
+            teardownCapture()
             return
         }
-        let selected = matches[selectedIndex]
         let glyph = selected.glyph
-        let fallback = currentQuery.utf16.count + 1   // ":" + query
+        let fallback = session.query.utf16.count + 1   // ":" + query
         recordUsage(for: selected)
-        CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(currentQuery)\"")
+        CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(session.query)\"")
         teardownCapture()
         scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
     }
 
-    /// Mode B: the passed-through closing `:`. The field will hold `:query:` once the colon lands, so
-    /// defer one runloop tick, then measure and replace the whole run (EMOJI.md §3.2, §5.5).
+    /// The passed-through closing `:`. The field will hold `:query:` once the colon lands, so defer
+    /// one runloop tick, then measure and replace the whole run.
     private func commitClosingColon() {
-        let query = currentQuery
-        let match = bestMatchForClosingColon(query: query)
-        let fallback = query.utf16.count + 2   // ":" + query + ":"
+        guard let session = capture else {
+            teardownCapture()
+            return
+        }
+        let match = bestMatchForClosingColon(query: session.query)
+        let fallback = session.query.utf16.count + 2   // ":" + query + ":"
         teardownCapture()
         guard let match else { return }   // no match: leave the literal ":query:" untouched
         recordUsage(for: match)
@@ -308,21 +278,12 @@ final class EmojiPickerController {
         recordEmojiUsage(alias)
     }
 
-    private func cancelCapture() {
-        teardownCapture()
-    }
-
     private func teardownCapture() {
         let wasCapturing = machine.isCapturing
         machine.reset()
-        matches = []
-        selectedIndex = 0
-        currentQuery = ""
-        captureFocusSequence = nil
-        lastCaretRect = nil
+        capture = nil
         pendingDecision = nil
-        longPauseTask?.cancel()
-        longPauseTask = nil
+        idleTimer.cancel()
         panel.hide()
         // Notify the coordinator so it drops the input monitor's interception when no capture remains.
         if wasCapturing {
@@ -332,25 +293,22 @@ final class EmojiPickerController {
 
     // MARK: - Matching and presentation
 
-    private func refreshMatches(query: String) {
-        currentQuery = query
+    private func rankedMatches(for query: String) -> [EmojiMatch] {
         let usage = emojiUsage()
         // A bare ":" (empty query) shows the user's recents, padded with popular emoji, instead of
         // nothing; a typed query runs the ranked search with the same personal usage signal.
         let base = query.isEmpty
             ? matcher.recents(usage: usage)
             : matcher.matches(for: query, usage: usage)
-        matches = EmojiVariantResolver.resolve(base, preferences: emojiPreferences())
-        selectedIndex = 0
+        return EmojiVariantResolver.resolve(base, preferences: emojiPreferences())
     }
 
-    private func presentPanel() {
-        let caretRect = lastCaretRect ?? focusModel.snapshot.context?.caretRect ?? .zero
+    private func present(_ session: EmojiCaptureSession) {
         panel.show(
-            query: currentQuery,
-            matches: matches,
-            selectedIndex: selectedIndex,
-            caretRect: caretRect
+            query: session.query,
+            matches: session.matches,
+            selectedIndex: session.selectedIndex,
+            caretRect: session.caretRect
         )
     }
 
@@ -368,9 +326,8 @@ final class EmojiPickerController {
 
     /// Posts the delete+glyph replace on the next runloop tick. Both commit modes defer through here
     /// so the synthetic events are never posted re-entrantly from inside the keystroke's own tap
-    /// callback (EMOJI.md §4.4, §5.5). Posting them synchronously from the observer pass was the
-    /// source of the flaky "panel vanished but no emoji landed" Enter/Tab commits; deferring also
-    /// lets the field settle before we measure the run to delete.
+    /// callback: posting them synchronously from the observer pass makes the panel vanish with no
+    /// emoji landing. Deferring also lets the field settle before the run to delete is measured.
     private func scheduleReplaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
         DispatchQueue.main.async { [weak self] in
             self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16)
@@ -397,40 +354,25 @@ final class EmojiPickerController {
 
     // MARK: - Focus and gating
 
-    private func canTrigger() -> Bool {
-        let snapshot = focusModel.snapshot
-        guard case .supported = snapshot.capability else { return false }
-        guard let context = snapshot.context, !context.isSecure else { return false }
-        return true
-    }
-
     private func handleFocusSnapshot(_ snapshot: FocusSnapshot) {
-        guard machine.isCapturing else { return }
-        guard let context = snapshot.context,
-              !context.isSecure,
-              context.focusChangeSequence == captureFocusSequence else {
+        guard machine.isCapturing, var session = capture else { return }
+        guard let context = InlineCaptureFocusGate.continuingContext(
+            in: snapshot,
+            focusChangeSequence: session.focusChangeSequence
+        ) else {
             // The field changed (or went secure) under an open capture. This is the other common
             // "panel vanished mid-query" cause, so record it distinctly from a user cancel.
             CotabbyLogger.suggestion.debug("emoji capture cancelled: focus changed during capture")
-            cancelCapture()
+            teardownCapture()
             return
         }
         // Follow the caret as the user types the query.
-        lastCaretRect = context.caretRect
-        panel.show(
-            query: currentQuery,
-            matches: matches,
-            selectedIndex: selectedIndex,
-            caretRect: context.caretRect
-        )
+        session.caretRect = context.caretRect
+        capture = session
+        present(session)
     }
 
-    private func armLongPauseTimer() {
-        longPauseTask?.cancel()
-        longPauseTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: EmojiPickerController.longPauseNanoseconds)
-            guard !Task.isCancelled else { return }
-            self?.cancelCapture()
-        }
+    private func armIdleTimer() {
+        idleTimer.arm { [weak self] in self?.teardownCapture() }
     }
 }

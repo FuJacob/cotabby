@@ -120,12 +120,12 @@ final class InputMonitor {
     /// date/time disclosure click. No pointer event is consumed or modified.
     var onPointerDown: (@MainActor (CGPoint) -> Void)?
 
-    /// While an emoji capture session is active, the picker controller decides per key whether the
-    /// active tap should swallow it (navigation, Return/Tab, Escape) or let it reach the field
-    /// (query characters). `.notHandled` means no capture is active, so the accept tap falls through
+    /// While an inline-command capture (emoji picker or macro preview) is active, its controller
+    /// decides per key whether the active tap should swallow it (navigation, the commit key, Escape)
+    /// or let it reach the field (query characters). `.notHandled` means no capture is active, so the accept tap falls through
     /// to its normal accept-key logic. The decision is computed by the observer pass for the same
     /// event, so this closure is a fast, side-effect-free read.
-    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
+    var inlineCommandKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
 
     /// Reads the current word-accept binding atomically at event time.
     var acceptanceBindingProvider: @MainActor () -> (keyCode: CGKeyCode, modifiers: ShortcutModifierMask) = {
@@ -605,8 +605,8 @@ final class InputMonitor {
     /// means no capture is active, so the accept-key path takes over. Mirrors `handleAcceptTap`'s
     /// keydown branch without CoreGraphics event allocation.
     func resolveAcceptKeyDown(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
-        if let emojiCaptureKeyDecider {
-            let decision = emojiCaptureKeyDecider(keyEvent)
+        if let inlineCommandKeyDecider {
+            let decision = inlineCommandKeyDecider(keyEvent)
             if decision != .notHandled {
                 return decision
             }
@@ -780,7 +780,7 @@ final class InputMonitor {
 }
 
 extension InputMonitor: SuggestionInputMonitoring {}
-extension InputMonitor: EmojiInputIntercepting {}
+extension InputMonitor: InlineCommandInputIntercepting {}
 
 private extension CapturedInputEvent.Kind {
     /// Acceptance is the one event family that must be handled by the consuming tap, not the

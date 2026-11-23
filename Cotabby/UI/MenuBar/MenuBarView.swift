@@ -17,7 +17,6 @@ struct MenuBarView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
-    @ObservedObject var focusModel: FocusTrackingModel
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -45,11 +44,7 @@ struct MenuBarView: View {
         .frame(width: 340)
         .modifier(MenuBarWindowBackgroundModifier())
         .background(
-            MenuBarPresentationObserver {
-                permissionManager.refresh()
-                runtimeModel.refreshAvailableModels()
-                inlinePredictionNudge.refresh()
-            }
+            MenuBarPresentationObserver { refreshOnPresent() }
         )
         .background(
             MenuBarPopoverDismisserBinder(
@@ -57,11 +52,16 @@ struct MenuBarView: View {
                 onWindowBind: configureMenuBarWindowIfNeeded
             )
         )
-        .onAppear {
-            permissionManager.refresh()
-            runtimeModel.refreshAvailableModels()
-            inlinePredictionNudge.refresh()
-        }
+        .onAppear { refreshOnPresent() }
+    }
+
+    /// Permission grants, model files and the nudge's eligibility all change while the popover is
+    /// closed. `MenuBarExtra` may keep this view alive between openings, so `onAppear` alone misses
+    /// reopens; the presentation observer runs the same refresh whenever the panel shows again.
+    private func refreshOnPresent() {
+        permissionManager.refresh()
+        runtimeModel.refreshAvailableModels()
+        inlinePredictionNudge.refresh()
     }
 
     // MARK: - Header
@@ -72,7 +72,7 @@ struct MenuBarView: View {
             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                 .font(.headline)
 
-            if let appShortVersion {
+            if let appShortVersion = Bundle.main.cotabbyShortVersion {
                 Text(appShortVersion)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -93,12 +93,6 @@ struct MenuBarView: View {
                 .font(.subheadline)
         }
         .padding(.bottom, 12)
-    }
-
-    /// Short, user-facing app version (e.g. "0.4.2-beta") shown next to the title. Reads the bundle's
-    /// `CFBundleShortVersionString`, the same canonical source the About pane uses.
-    private var appShortVersion: String? {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
     private func configureMenuBarWindowIfNeeded(_ window: NSWindow) {
@@ -212,13 +206,13 @@ struct MenuBarView: View {
                     Picker("Length", selection: lengthChoiceBinding) {
                         ForEach(SuggestionWordCountPreset.allCases) { preset in
                             Text(preset.displayLabel)
-                                .tag(LengthChoice.preset(preset))
+                                .tag(SuggestionLengthChoice.preset(preset))
                         }
                         // The custom range stays editable from the Writing settings pane; selecting
                         // it here just flips the active mode and surfaces the current numbers so the
                         // user can tell at a glance which budget is in force.
                         Text("Custom (\(customRangeCompactLabel))")
-                            .tag(LengthChoice.custom)
+                            .tag(SuggestionLengthChoice.custom)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -285,7 +279,7 @@ struct MenuBarView: View {
     /// `CotabbyPermissionKind.isRequiredForAutocomplete`).
     @ViewBuilder
     private var permissionsCard: some View {
-        if !allPermissionsGranted {
+        if !permissionManager.allPermissionsGranted {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Permissions")
                     .font(.subheadline.weight(.medium))
@@ -413,31 +407,8 @@ struct MenuBarView: View {
         )
     }
 
-    /// One of the curated presets or the user's custom range. Backed by two pieces of state
-    /// (`selectedWordCountPreset` + `isUsingCustomWordCountRange`) so the menu can render and
-    /// mutate both with a single picker.
-    private enum LengthChoice: Hashable {
-        case preset(SuggestionWordCountPreset)
-        case custom
-    }
-
-    private var lengthChoiceBinding: Binding<LengthChoice> {
-        Binding(
-            get: {
-                suggestionSettings.isUsingCustomWordCountRange
-                    ? .custom
-                    : .preset(suggestionSettings.selectedWordCountPreset)
-            },
-            set: { choice in
-                switch choice {
-                case let .preset(preset):
-                    suggestionSettings.setUsingCustomWordCountRange(false)
-                    suggestionSettings.selectWordCountPreset(preset)
-                case .custom:
-                    suggestionSettings.setUsingCustomWordCountRange(true)
-                }
-            }
-        )
+    private var lengthChoiceBinding: Binding<SuggestionLengthChoice> {
+        suggestionSettings.binding(\.lengthChoice) { $0.selectLengthChoice($1) }
     }
 
     private var customRangeCompactLabel: String {
@@ -488,10 +459,6 @@ struct MenuBarView: View {
     }
 
     // MARK: - Derived state
-
-    private var allPermissionsGranted: Bool {
-        permissionManager.allPermissionsGranted
-    }
 
     /// Permission availability changes the displayed state without overwriting the user's choice.
     /// Granting Screen Recording restores that choice through the settings model.

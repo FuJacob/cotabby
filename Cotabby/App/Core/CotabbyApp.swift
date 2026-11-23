@@ -22,7 +22,6 @@ struct CotabbyApp: App {
                 permissionManager: appDelegate.permissionManager,
                 runtimeModel: appDelegate.runtimeModel,
                 modelDownloadManager: appDelegate.modelDownloadManager,
-                focusModel: appDelegate.focusModel,
                 permissionGuidanceController: appDelegate.permissionGuidanceController,
                 suggestionSettings: appDelegate.suggestionSettings,
                 foundationModelAvailabilityService: appDelegate.foundationModelAvailabilityService,

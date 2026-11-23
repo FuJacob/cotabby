@@ -50,7 +50,7 @@ nonisolated struct MacroTriggerStateMachine {
             }
             state = .idle(previousCharacter: character)
             return .ignored
-        case .backspace, .commitKey, .escape, .navigate, .focusChanged, .dismissExternally:
+        case .backspace, .commitKey, .escape, .navigate, .dismissExternally:
             state = .idle(previousCharacter: nil)
             return .ignored
         }
@@ -94,7 +94,7 @@ nonisolated struct MacroTriggerStateMachine {
             state = .idle(previousCharacter: nil)
             return Output(actions: [.cancel], consumesKey: true)
 
-        case .navigate, .focusChanged, .dismissExternally:
+        case .navigate, .dismissExternally:
             state = .idle(previousCharacter: nil)
             return Output(actions: [.cancel], consumesKey: false)
         }
@@ -111,14 +111,14 @@ nonisolated struct MacroTriggerStateMachine {
 }
 
 /// The reduced keystroke vocabulary the macro trigger machine understands. The controller translates
-/// raw `CapturedInputEvent`s plus focus signals into these.
+/// raw `CapturedInputEvent`s into these. Focus changes are not an input: they arrive outside the
+/// keystroke stream, so the controller tears the capture down and resets the machine.
 enum MacroTriggerInput: Equatable {
     case character(Character)
     case backspace
     case commitKey
     case escape
     case navigate
-    case focusChanged
     case dismissExternally
 }
 

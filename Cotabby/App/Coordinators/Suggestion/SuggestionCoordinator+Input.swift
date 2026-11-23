@@ -208,8 +208,8 @@ extension SuggestionCoordinator {
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
-        // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
-        if emojiInputObserver?(event) == true {
+        // panel. Consumption still happens through the active tap's `inlineCommandKeyDecider`.
+        if inlineCommandObserver?(event) == true {
             suggestionPresentationTiming.clear()
             if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil || typingPrediction != nil {
                 cancelPredictionWork()

@@ -11,35 +11,38 @@ import Logging
 /// elsewhere. That keeps lifecycle ownership easy to follow.
 @MainActor
 final class CotabbyAppEnvironment {
+    // `private` members are graph-internal: nothing outside the initializer reads them, but they
+    // stay stored because several are only weakly captured by the closures wired below and would
+    // otherwise deallocate as soon as `init` returns.
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     /// Temporarily pauses Calendar AX traversal only while its date/time editor is active.
-    let calendarAccessibilityCaptureGuard: CalendarAccessibilityCaptureGuard
+    private let calendarAccessibilityCaptureGuard: CalendarAccessibilityCaptureGuard
     let appUpdateManager: AppUpdateManager
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
-    let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
+    private let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
     /// Process-lifetime Low Power Mode observer shared with suggestion orchestration.
-    let lowPowerModeMonitor: LowPowerModeMonitor
+    private let lowPowerModeMonitor: LowPowerModeMonitor
     /// Detects when a composing input method (Japanese kana, Chinese pinyin, Korean hangul, ...) is
     /// active so `SuggestionInserter` commits accepted text through an IME-safe path instead of a
     /// synthetic keystroke the input method would swallow. See `KeyboardInputSourceMonitor`.
-    let keyboardInputSourceMonitor: KeyboardInputSourceMonitor
-    let clipboardContextProvider: ClipboardContextProvider
+    private let keyboardInputSourceMonitor: KeyboardInputSourceMonitor
+    private let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
-    let emojiPickerController: EmojiPickerController
-    let macroController: MacroController
+    private let emojiPickerController: EmojiPickerController
+    private let macroController: MacroController
     let inlineCommandCoordinator: InlineCommandCoordinator
-    let emojiUsageStore: EmojiUsageStore
+    private let emojiUsageStore: EmojiUsageStore
     let welcomeCoordinator: WelcomeCoordinator
-    let huggingFaceSearchService: HuggingFaceSearchService
-    let performanceMetricsStore: PerformanceMetricsStore
-    let qualityMetricsStore: SuggestionQualityMetricsStore
+    private let huggingFaceSearchService: HuggingFaceSearchService
+    private let performanceMetricsStore: PerformanceMetricsStore
+    private let qualityMetricsStore: SuggestionQualityMetricsStore
     let typingHistoryStore: TypingHistoryStore
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
@@ -222,8 +225,6 @@ final class CotabbyAppEnvironment {
                 suggestionSettings?.openAICompatibleModelName.nonEmpty
             }
         )
-        // Under `-cotabby-debug` with `cotabbyDebugForcedSuggestion` set, every request answers with
-        // that fixed text so ghost placement can be measured deterministically without a model.
         // Typing history owns its own encrypted archive. Inside the XCTest host it starts empty and
         // never opens the real archive or Keychain item, so tests cannot read or overwrite it.
         let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -235,6 +236,8 @@ final class CotabbyAppEnvironment {
             history: typingHistoryStore,
             engineKind: { [weak suggestionSettings] in suggestionSettings?.selectedEngine ?? .openAICompatible }
         )
+        // Under `-cotabby-debug` with `cotabbyDebugForcedSuggestion` set, every request answers with
+        // that fixed text so ghost placement can be measured deterministically without a model.
         let suggestionEngine: any SuggestionGenerating = DebugForcedSuggestionEngine.isConfigured()
             ? DebugForcedSuggestionEngine(wrapping: historyAwareEngine)
             : historyAwareEngine
@@ -338,7 +341,7 @@ final class CotabbyAppEnvironment {
             macro: macroController,
             inputMonitor: inputMonitor
         )
-        suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
+        suggestionCoordinator.inlineCommandObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false
         }
 

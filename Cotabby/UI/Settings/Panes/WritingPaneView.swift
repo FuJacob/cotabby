@@ -12,9 +12,9 @@ struct WritingPaneView: View {
             Section("Length") {
                 Picker(selection: lengthChoiceBinding) {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
-                        Text(preset.displayLabel).tag(LengthChoice.preset(preset))
+                        Text(preset.displayLabel).tag(SuggestionLengthChoice.preset(preset))
                     }
-                    Text("Custom range…").tag(LengthChoice.custom)
+                    Text("Custom range…").tag(SuggestionLengthChoice.custom)
                 } label: {
                     SettingsRowLabel(
                         title: "Length",
@@ -168,28 +168,8 @@ struct WritingPaneView: View {
         }
     }
 
-    private enum LengthChoice: Hashable {
-        case preset(SuggestionWordCountPreset)
-        case custom
-    }
-
-    private var lengthChoiceBinding: Binding<LengthChoice> {
-        Binding(
-            get: {
-                suggestionSettings.isUsingCustomWordCountRange
-                    ? .custom
-                    : .preset(suggestionSettings.selectedWordCountPreset)
-            },
-            set: { choice in
-                switch choice {
-                case let .preset(preset):
-                    suggestionSettings.setUsingCustomWordCountRange(false)
-                    suggestionSettings.selectWordCountPreset(preset)
-                case .custom:
-                    suggestionSettings.setUsingCustomWordCountRange(true)
-                }
-            }
-        )
+    private var lengthChoiceBinding: Binding<SuggestionLengthChoice> {
+        suggestionSettings.binding(\.lengthChoice) { $0.selectLengthChoice($1) }
     }
 
     /// A compact "type or step" control: a right-aligned numeric field paired with up/down arrows,

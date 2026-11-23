@@ -157,8 +157,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let version = Bundle.main.cotabbyShortVersion ?? "?"
+        let build = Bundle.main.cotabbyBuildNumber ?? "?"
         CotabbyLogger.app.info(
             "Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
         )

@@ -26,7 +26,7 @@ final class InlineCommandCoordinatorTests: XCTestCase {
 
     func test_startInstallsDeciderAndOrdinaryTypingIsNotClaimed() {
         let rig = makeRig()
-        XCTAssertNotNil(rig.monitor.emojiCaptureKeyDecider)
+        XCTAssertNotNil(rig.monitor.inlineCommandKeyDecider)
 
         XCTAssertFalse(rig.type("hi"))
         XCTAssertEqual(rig.decide(InlineFeatureKeys.characterKeyCode), .notHandled)
@@ -79,7 +79,7 @@ final class InlineCommandCoordinatorTests: XCTestCase {
 
         rig.coordinator.stop()
 
-        XCTAssertNil(rig.monitor.emojiCaptureKeyDecider)
+        XCTAssertNil(rig.monitor.inlineCommandKeyDecider)
         XCTAssertEqual(rig.monitor.captureActiveCalls.last, false)
     }
 
@@ -141,7 +141,7 @@ final class InlineCommandCoordinatorTests: XCTestCase {
         }
 
         func decide(_ keyCode: CGKeyCode) -> InputMonitorAcceptTapDecision? {
-            monitor.emojiCaptureKeyDecider?(InlineFeatureKeys.tapEvent(keyCode))
+            monitor.inlineCommandKeyDecider?(InlineFeatureKeys.tapEvent(keyCode))
         }
     }
 }

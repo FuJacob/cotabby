@@ -2,7 +2,7 @@ import Combine
 import CoreGraphics
 import XCTest
 // `@preconcurrency`: the fakes conform to `@MainActor` protocols whose closure properties (e.g.
-// `emojiCaptureKeyDecider`) are not `@Sendable`, which trips a cross-module Swift 6 sendability
+// `inlineCommandKeyDecider`) are not `@Sendable`, which trips a cross-module Swift 6 sendability
 // warning on the conformance. The suppression is test-only and does not affect production code.
 @preconcurrency @testable import Cotabby
 
@@ -81,8 +81,8 @@ final class InlineFeatureFocusStub: SuggestionFocusProviding {
 /// Input-monitor slice with a rebindable word-accept key (Tab, 48, by default) that records every
 /// interception toggle, so tests can assert the coordinator's "either feature is capturing" flag.
 @MainActor
-final class InlineFeatureInputMonitorStub: EmojiInputIntercepting {
-    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
+final class InlineFeatureInputMonitorStub: InlineCommandInputIntercepting {
+    var inlineCommandKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
     var wordAcceptKeyCode: CGKeyCode = 48
     private(set) var captureActiveCalls: [Bool] = []
 
@@ -97,7 +97,7 @@ final class InlineFeatureInputMonitorStub: EmojiInputIntercepting {
 
 /// Records each synthetic delete+insert the controllers request.
 @MainActor
-final class InlineFeatureRecordingInserter: EmojiTextInserting {
+final class InlineFeatureRecordingInserter: InlineCommandTextInserting {
     struct Call: Equatable {
         let deleteCount: Int
         let text: String
