@@ -14,7 +14,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
     private let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
 
     private static let allReasons: [CompletionRenderMode.MirrorReason] = [
-        .caretGeometryEstimated, .caretLayoutEstimated, .userPreference, .perAppOverride, .caretMidLine
+        .caretGeometryEstimated, .caretLayoutEstimated, .userPreference, .caretMidLine
     ]
 
     private func makeLayout(
@@ -64,7 +64,6 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
                 XCTAssertEqual(layout.panelFrame.maxY, 499, accuracy: 0.001, label)
                 XCTAssertEqual(layout.panelFrame.height, 29, label)
-                XCTAssertEqual(layout.reason, reason, label)
             }
         }
     }

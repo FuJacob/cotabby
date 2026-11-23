@@ -2,10 +2,9 @@ import AppKit
 import SwiftUI
 
 /// File overview:
-/// Owns the non-activating floating panel that renders the emoji picker near the caret. The window
-/// configuration mirrors `OverlayController`'s ghost-text panel (so it floats across spaces and
-/// fullscreen without stealing focus), with one deliberate difference: `ignoresMouseEvents` is false
-/// so the user can click a row.
+/// Owns the non-activating floating panel that renders the emoji picker near the caret. It is the
+/// interactive kind of `NonActivatingPanel`: unlike the ghost-text overlay it takes mouse events,
+/// so the user can click a row, and a click anywhere else dismisses it (EMOJI.md §6.4).
 ///
 /// The panel never becomes key. Keyboard navigation is driven entirely by the global event tap via
 /// the controller, so the picker works while the user keeps typing in another app. This controller is
@@ -18,32 +17,12 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
     /// Called when the user clicks anywhere outside the panel, so the controller can cancel capture.
     var onClickOutside: (() -> Void)?
 
-    private(set) var isVisible = false
+    /// Present exactly while the panel is up, so a click outside it can dismiss the picker.
+    private var clickAwayMonitor: ClickAwayMonitor?
 
     private let model = EmojiPickerViewModel()
 
-    private var localMouseMonitor: Any?
-    private var globalMouseMonitor: Any?
-
-    private lazy var panel: EmojiPickerPanel = {
-        let panel = EmojiPickerPanel(
-            contentRect: CGRect(origin: .zero, size: EmojiPickerMetrics.contentSize(matchCount: 0)),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        // Unlike the ghost-text overlay, the picker is interactive, so it must receive mouse events.
-        panel.ignoresMouseEvents = false
-        panel.animationBehavior = .none
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.hidesOnDeactivate = false
-        return panel
-    }()
+    private lazy var panel = NonActivatingPanel.makeInteractive(contentSize: EmojiPickerMetrics.contentSize(matchCount: 0))
 
     private lazy var hostingView: NSHostingView<EmojiPickerView> = {
         NSHostingView(
@@ -61,7 +40,7 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
         model.selectedIndex = selectedIndex
 
         let contentSize = EmojiPickerMetrics.contentSize(matchCount: matches.count)
-        let visibleFrame = targetVisibleFrame(for: caretRect)
+        let visibleFrame = NSScreen.visibleFrame(containing: caretRect)
         let frame = EmojiPickerPanelLayout.frame(
             caretRect: caretRect,
             contentSize: contentSize,
@@ -74,9 +53,10 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
 
-        if !isVisible {
-            isVisible = true
-            installClickMonitors()
+        if clickAwayMonitor == nil {
+            clickAwayMonitor = ClickAwayMonitor(panel: panel) { [weak self] in
+                self?.onClickOutside?()
+            }
         }
     }
 
@@ -87,56 +67,9 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
     }
 
     func hide() {
-        guard isVisible else { return }
-        isVisible = false
-        removeClickMonitors()
+        guard let clickAwayMonitor else { return }
+        clickAwayMonitor.remove()
+        self.clickAwayMonitor = nil
         panel.orderOut(nil)
     }
-
-    // MARK: - Screen selection
-
-    private func targetVisibleFrame(for caretRect: CGRect) -> CGRect {
-        let midpoint = CGPoint(x: caretRect.midX, y: caretRect.midY)
-        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(midpoint) }) {
-            return screen.visibleFrame
-        }
-        if let screen = NSScreen.screens.first(where: { $0.frame.intersects(caretRect) }) {
-            return screen.visibleFrame
-        }
-        return NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
-    }
-
-    // MARK: - Click-away dismissal (EMOJI.md §6.4)
-
-    private func installClickMonitors() {
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            // A click in any other application is, by definition, outside our panel.
-            self?.onClickOutside?()
-        }
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self else { return event }
-            if event.window !== self.panel {
-                self.onClickOutside?()
-            }
-            return event
-        }
-    }
-
-    private func removeClickMonitors() {
-        if let globalMouseMonitor {
-            NSEvent.removeMonitor(globalMouseMonitor)
-            self.globalMouseMonitor = nil
-        }
-        if let localMouseMonitor {
-            NSEvent.removeMonitor(localMouseMonitor)
-            self.localMouseMonitor = nil
-        }
-    }
-}
-
-/// Non-activating panel: clicking a row must never pull keyboard focus away from the app the user is
-/// typing in. `canBecomeKey` stays false, yet mouse-down is still delivered for row selection.
-private final class EmojiPickerPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 }

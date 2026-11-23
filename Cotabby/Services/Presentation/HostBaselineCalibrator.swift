@@ -2,7 +2,6 @@ import AppKit
 import CoreGraphics
 import Foundation
 import Logging
-import ScreenCaptureKit
 
 /// File overview:
 /// Measures where a web host really paints its text baseline, from the host's own pixels, so the
@@ -132,8 +131,7 @@ final class HostBaselineCalibrator {
     static let maximumCorrection: CGFloat = 4
     private static let cacheLimit = 64
 
-    private var cache: [Key: CGFloat] = [:]
-    private var cacheOrder: [Key] = []
+    private var cache = BoundedCache<Key, CGFloat>(limit: HostBaselineCalibrator.cacheLimit)
     private var typefaces: [TypefaceKey: TypefaceMatchRecord] = [:]
     /// Strips analyzed for a field that has no record yet without naming a face; a field whose
     /// text never matches any candidate (an uninstalled face) stops being asked after
@@ -145,7 +143,7 @@ final class HostBaselineCalibrator {
     /// Callers waiting on a measurement in flight, per key. A present that arrives while the
     /// generation-time prewarm is still capturing joins its measurement instead of being dropped.
     private var waiters: [Key: [@MainActor (Calibration) -> Void]] = [:]
-    private var shareableContent: SCShareableContent?
+    private let pixelCapture = HostPixelCapture()
 
     private let permissionCheck: () -> Bool
 
@@ -257,16 +255,16 @@ final class HostBaselineCalibrator {
     /// hands what it found to everyone waiting on the request's key (see `deliver`).
     private func measureStrip(_ strip: CGRect, for request: Request, attemptTypeface: Bool) async {
         do {
-            let (captured, strip) = try await capture(strip)
-            if Self.dumpsStrips {
-                Self.dumpStrip(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
+            let captured = try await pixelCapture.capture(strip)
+            if HostPixelCapture.dumpsCaptures {
+                Self.dumpStrip(captured, request: request, attemptTypeface: attemptTypeface)
             }
             let started = Date()
             if attemptTypeface { typefaceSearchInFlight = true }
             // Pixel analysis (row/column profiles, candidate renderings) runs off the main actor
             // so a focus poll never waits on it; only the bookkeeping in `deliver` touches state.
             let analysis = await Task.detached(priority: .userInitiated) {
-                Self.analyze(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
+                Self.analyze(captured, request: request, attemptTypeface: attemptTypeface)
             }.value
             if attemptTypeface { typefaceSearchInFlight = false }
             deliver(analysis, for: request, started: started)
@@ -286,7 +284,7 @@ final class HostBaselineCalibrator {
         let listeners = waiters.removeValue(forKey: key) ?? []
         guard let analysis else { return }
         if analysis.baselineAccepted {
-            store(analysis.baselineOffset, for: key)
+            cache.insert(analysis.baselineOffset, for: key)
         }
         if analysis.typefaceAttempted {
             // Only a strip the matcher actually searched, and whose letter bodies looked
@@ -316,12 +314,6 @@ final class HostBaselineCalibrator {
         }
     }
 
-    private struct CapturedStrip: Sendable {
-        let bitmap: RGBABitmap
-        /// Device pixels per point in the capture.
-        let scale: CGFloat
-    }
-
     private struct Analysis: Sendable {
         let baselineOffset: CGFloat
         let baselineAccepted: Bool
@@ -338,11 +330,11 @@ final class HostBaselineCalibrator {
     /// Reads the baseline (and, when asked, the typeface) out of the captured strip. Pure; nil when
     /// the strip held no usable text.
     private nonisolated static func analyze(
-        _ captured: CapturedStrip,
-        strip: CGRect,
+        _ captured: HostPixelCapture.Capture,
         request: Request,
         attemptTypeface: Bool
     ) -> Analysis? {
+        let strip = captured.region
         guard let measurement = InkBaselineAnalyzer.measure(captured.bitmap) else { return nil }
         let measuredPoints = CGFloat(measurement.baselineRow) / captured.scale
         let offset = baselineOffset(fromCaretTop: request.caretRect.maxY, stripTop: strip.maxY, measured: measuredPoints)
@@ -462,25 +454,10 @@ final class HostBaselineCalibrator {
 
     // MARK: - Strip dumps (developer diagnostics)
 
-    /// Debug-only: with `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES`, every
-    /// captured strip is written as a PNG plus a JSON sidecar (caret column, baseline request,
-    /// line text) under ~/Library/Logs/<app>/strips, so a typeface search that declined on a live
-    /// strip can be re-run offline on exactly the pixels it saw. Off by default; a session that
-    /// leaves it on writes a file per calibration.
-    private static let dumpsStrips = UserDefaults.standard.bool(forKey: "cotabbyDumpCalibrationStrips")
-
-    private nonisolated static func dumpStrip(_ captured: CapturedStrip, strip: CGRect, request: Request, attemptTypeface: Bool) {
-        let logs = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/\(ProcessInfo.processInfo.processName)/strips", isDirectory: true)
-        try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
-        let stamp = Int(Date().timeIntervalSince1970 * 1000)
-        let bitmap = captured.bitmap
-        guard let representation = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: bitmap.width, pixelsHigh: bitmap.height, bitsPerSample: 8, samplesPerPixel: 4,
-            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: bitmap.width * 4, bitsPerPixel: 32
-        ), let data = representation.bitmapData else { return }
-        bitmap.bytes.withUnsafeBufferPointer { data.update(from: $0.baseAddress!, count: bitmap.bytes.count) }
-        try? representation.representation(using: .png, properties: [:])?.write(to: logs.appendingPathComponent("strip-\(stamp).png"))
+    /// The sidecar carries what an offline re-run of the typeface search needs beside the pixels:
+    /// the caret column, the size the search was centred on, and the line's text.
+    private nonisolated static func dumpStrip(_ captured: HostPixelCapture.Capture, request: Request, attemptTypeface: Bool) {
+        let strip = captured.region
         let sidecar: [String: Any] = [
             "caret_column": Double((request.caretRect.minX - strip.minX) * captured.scale),
             "scale": Double(captured.scale),
@@ -494,93 +471,7 @@ final class HostBaselineCalibrator {
                 Double(request.caretRect.width), Double(request.caretRect.height)
             ]
         ]
-        if let json = try? JSONSerialization.data(withJSONObject: sidecar) {
-            try? json.write(to: logs.appendingPathComponent("strip-\(stamp).json"))
-        }
-    }
-
-    // MARK: - Capture
-
-    /// Captures `requested` snapped outward to the display's pixel grid, and returns the rect it
-    /// actually captured. A strip edge on a fractional pixel makes ScreenCaptureKit resample the
-    /// whole image (a sub-pixel phase that drifts across the width): measured 2026-09-10 on
-    /// Chrome's address bar, glyph stems came back four pixels wide instead of three and no
-    /// candidate face correlated above 0.3, while a pixel-aligned screenshot of the same text
-    /// scored 0.95. Whole pixels in, the copy is exact.
-    private func capture(_ requested: CGRect) async throws -> (CapturedStrip, CGRect) {
-        let content = try await currentShareableContent()
-        let desktop = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
-        let scale = NSScreen.screens.first { $0.frame.contains(CGPoint(x: requested.midX, y: requested.midY)) }?.backingScaleFactor ?? 2
-        let strip = Self.snappedToPixels(requested, scale: scale)
-        let stripCG = CGRect(x: strip.minX, y: desktop.maxY - strip.maxY, width: strip.width, height: strip.height)
-        guard let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: stripCG.midX, y: stripCG.midY)) }) else {
-            throw CalibrationError.noDisplay
-        }
-        let ownApplications = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        let filter = SCContentFilter(display: display, excludingApplications: ownApplications, exceptingWindows: [])
-        let configuration = SCStreamConfiguration()
-        configuration.sourceRect = stripCG.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
-        configuration.width = max(Int((strip.width * scale).rounded()), 1)
-        configuration.height = max(Int((strip.height * scale).rounded()), 1)
-        configuration.showsCursor = false
-        configuration.captureResolution = .best
-        let image = try await Self.captureImage(filter: filter, configuration: configuration)
-        guard let bitmap = RGBABitmap(image) else { throw CalibrationError.noImage }
-        // The image is `height` device pixels tall for `strip.height` points.
-        return (CapturedStrip(bitmap: bitmap, scale: CGFloat(image.height) / strip.height), strip)
-    }
-
-    /// `rect` grown outward to whole device pixels at `scale`.
-    nonisolated static func snappedToPixels(_ rect: CGRect, scale: CGFloat) -> CGRect {
-        guard scale > 0 else { return rect }
-        let minX = (rect.minX * scale).rounded(.down) / scale
-        let minY = (rect.minY * scale).rounded(.down) / scale
-        let maxX = (rect.maxX * scale).rounded(.up) / scale
-        let maxY = (rect.maxY * scale).rounded(.up) / scale
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-    }
-
-    private func currentShareableContent() async throws -> SCShareableContent {
-        if let shareableContent {
-            return shareableContent
-        }
-        let content: SCShareableContent = try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let content {
-                    continuation.resume(returning: content)
-                } else {
-                    continuation.resume(throwing: CalibrationError.noDisplay)
-                }
-            }
-        }
-        shareableContent = content
-        return content
-    }
-
-    private static func captureImage(filter: SCContentFilter, configuration: SCStreamConfiguration) async throws -> CGImage {
-        try await withCheckedThrowingContinuation { continuation in
-            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let image {
-                    continuation.resume(returning: image)
-                } else {
-                    continuation.resume(throwing: CalibrationError.noImage)
-                }
-            }
-        }
-    }
-
-    private func store(_ offset: CGFloat, for key: Key) {
-        if cache[key] == nil {
-            cacheOrder.append(key)
-            if cacheOrder.count > Self.cacheLimit {
-                cache.removeValue(forKey: cacheOrder.removeFirst())
-            }
-        }
-        cache[key] = offset
+        HostPixelCapture.dump(captured.bitmap, prefix: "strip", sidecar: sidecar)
     }
 
     private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int) {
@@ -635,10 +526,5 @@ final class HostBaselineCalibrator {
             "analysis_ms": .stringConvertible(elapsedMilliseconds)
         ]
         CotabbyLogger.suggestion.debug("Host typeface match", metadata: matchMetadata)
-    }
-
-    enum CalibrationError: Error {
-        case noDisplay
-        case noImage
     }
 }

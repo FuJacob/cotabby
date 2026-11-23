@@ -75,11 +75,12 @@ final class GhostTextPanelView: NSView {
         }
     }
 
-    /// The accept-key pill: same colors the SwiftUI keycap used, so the hint looks unchanged.
+    /// The accept-key pill, in the colors the card's SwiftUI `GhostKeycap` uses (`GhostTextPalette`),
+    /// so the hint looks the same in either display mode.
     private func drawKeycap(label: String, in rect: CGRect, dark: Bool) {
-        let background = dark ? NSColor(white: 0.18, alpha: 1) : NSColor(white: 0.95, alpha: 1)
-        let border = dark ? NSColor(white: 0.3, alpha: 1) : NSColor(white: 0.8, alpha: 1)
-        let text = dark ? NSColor(white: 0.65, alpha: 1) : NSColor(white: 0.45, alpha: 1)
+        let background = GhostTextPalette.keycapBackground(dark: dark)
+        let border = GhostTextPalette.keycapBorder(dark: dark)
+        let text = GhostTextPalette.automaticText(dark: dark)
         let path = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
         background.setFill()
         path.fill()

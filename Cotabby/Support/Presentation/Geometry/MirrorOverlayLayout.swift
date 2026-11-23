@@ -30,9 +30,8 @@ struct MirrorOverlayLayout: Equatable {
     /// when there is nothing to highlight) so the renderer can split safely on its length.
     let highlightedPrefix: String
 
-    /// Reading direction for the host text. The card lays out left-to-right even in RTL hosts so the
-    /// "[hint] [Tab]" pattern stays readable; the field is repeated as `isRightToLeft` for callers
-    /// that need to flip secondary chrome (Phase 3 prefix hint will use this).
+    /// Reading direction of the host text. `MirrorOverlayView` flips its layout direction from it,
+    /// so the keycap lands on the leading side of the suggestion the way an RTL reader expects.
     let isRightToLeft: Bool
 
     /// The user's bold/italic suggestion style (Settings → Appearance). Carried here, rather than
@@ -40,10 +39,6 @@ struct MirrorOverlayLayout: Equatable {
     /// bold suggestion measured as regular would be cut short by the trailing ellipsis.
     let isBold: Bool
     let isItalic: Bool
-
-    /// Which trigger surfaced this presentation. Plumbed through purely for diagnostics so the
-    /// debug overlay can show why mirror mode is up.
-    let reason: CompletionRenderMode.MirrorReason
 
     private enum Metrics {
         /// Fixed font size for the suggestion in the card. Sized for legibility at typical viewing
@@ -126,7 +121,7 @@ struct MirrorOverlayLayout: Equatable {
         // the caret is. Below the field the card cannot cover the text the guessed line may sit on.
         let fieldToStayOutsideOf = uncalibratedEstimateField(geometry: geometry, reason: reason)
         let anchorTopY = fieldToStayOutsideOf.map { $0.minY - Metrics.anchorGap }
-            ?? computeAnchorTopY(geometry: geometry, reason: reason)
+            ?? computeAnchorTopY(geometry: geometry)
         var originX = computeAnchorOriginX(geometry: geometry, cardWidth: cardWidth)
         // Card sits BELOW the field/caret. AppKit screen coordinates are bottom-up, so subtracting
         // the card height from the anchor's bottom edge places the card just under the anchor line.
@@ -165,70 +160,36 @@ struct MirrorOverlayLayout: Equatable {
             highlightedPrefix: highlightedPrefix,
             isRightToLeft: geometry.isRightToLeft,
             isBold: isBold,
-            isItalic: isItalic,
-            reason: reason
+            isItalic: isItalic
         )
     }
 
     /// The Y coordinate the card sits *under*. In AppKit's bottom-up coordinate system this is the
     /// bottom edge of the anchor minus the gap.
     ///
-    /// The anchor choice depends on *why* mirror mode is active:
-    ///
-    /// - `.caretGeometryEstimated` means the host did not expose a caret precise enough for inline
-    ///   glyphs. Its vertical line box is still useful: AXFrame-only single-line estimates center it
-    ///   inside the field, while multiline/full-frame estimates share the field's bottom edge.
-    /// - `.userPreference`, `.perAppOverride`, and `.caretMidLine` all mean the caret geometry is
-    ///   trustworthy (`.exact` or `.derived`); the card is up because the user pinned popup mode or
-    ///   the caret is mid-line. Anchoring to the field rect would waste the precise caret signal and
-    ///   land the card far below where the eye is, so we anchor to the caret rect instead, with the
-    ///   input field as a safety net only for the degenerate case where the caret rect is empty.
-    private static func computeAnchorTopY(
-        geometry: SuggestionOverlayGeometry,
-        reason: CompletionRenderMode.MirrorReason
-    ) -> CGFloat {
-        switch reason {
-        case .caretGeometryEstimated:
-            // `AXTextGeometryResolver.estimatedCaretRect` gives single-line fields a centered line
-            // box instead of the full control height. Anchoring to that rect removes the extra
-            // chrome padding that previously dropped omnibox popups by roughly one text row. For
-            // multiline or unrefined AXFrame fallbacks, caret.minY equals inputFrame.minY, so this
-            // preserves the old conservative field-bottom placement.
-            if hasCaretLine(geometry.caretRect) {
-                return geometry.caretRect.minY - Metrics.anchorGap
-            }
-            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
-                return inputFrame.minY - Metrics.anchorGap
-            }
-            return geometry.caretRect.minY - Metrics.anchorGap
+    /// The anchor is the caret's line whatever put the card up. Where the caret is trustworthy (the
+    /// user pinned the card, or the caret is mid-line) the card tracks the cursor like the inline
+    /// ghost does, instead of floating below the whole field. Where it is an estimate, its line box
+    /// is still the best anchor: `AXTextGeometryResolver.estimatedCaretRect` centers a single-line
+    /// field's box in the field chrome, which keeps an omnibox card from dropping a text row too
+    /// low, and gives multiline or full-frame fallbacks a box whose bottom is the field's own, so
+    /// they keep the conservative field-bottom placement. The caret rect already describes the full
+    /// line box, so no further line-height offset is added. An uncalibrated estimate never reaches
+    /// here: `uncalibratedEstimateField` anchors it under the field instead.
+    private static func computeAnchorTopY(geometry: SuggestionOverlayGeometry) -> CGFloat {
+        anchorRect(for: geometry).minY - Metrics.anchorGap
+    }
 
-        case .caretLayoutEstimated:
-            // The hidden-TextKit repair located the caret, so anchor to that estimated caret rect
-            // rather than the whole field — the popup should track the cursor, not float below the
-            // document. Keep the same tight visual gap used for trusted caret geometry: the caret
-            // rect already describes the full line box, so another line-height offset would create
-            // an unnecessary blank row between the typed line and the card. An uncalibrated line
-            // never reaches here: `uncalibratedEstimateField` anchors it under the field instead.
-            if hasCaretLine(geometry.caretRect) {
-                return geometry.caretRect.minY - Metrics.anchorGap
-            }
-            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
-                return inputFrame.minY - Metrics.anchorGap
-            }
-            return geometry.caretRect.minY - Metrics.anchorGap
-
-        case .userPreference, .perAppOverride, .caretMidLine, .inlineLayoutUnavailable:
-            // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
-            // popup tracks the cursor like the inline ghost does, instead of floating below the
-            // entire field.
-            if hasCaretLine(geometry.caretRect) {
-                return geometry.caretRect.minY - Metrics.anchorGap
-            }
-            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
-                return inputFrame.minY - Metrics.anchorGap
-            }
-            return geometry.caretRect.minY - Metrics.anchorGap
+    /// The caret's line when it has one (see `CGRect.describesCaretLine`), else the field, else the
+    /// caret rect as published: with no field frame either, it is the only position there is.
+    private static func anchorRect(for geometry: SuggestionOverlayGeometry) -> CGRect {
+        if geometry.caretRect.describesCaretLine {
+            return geometry.caretRect
         }
+        if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+            return inputFrame
+        }
+        return geometry.caretRect
     }
 
     /// The field the card must stay outside of, when the caret is a layout estimate whose line Y
@@ -238,8 +199,8 @@ struct MirrorOverlayLayout: Equatable {
     /// cover any of it, and it keeps the caret's x.
     ///
     /// Gated on the caret being a layout estimate (the quality, or the reason that reports it)
-    /// rather than on the reason alone, because `.alwaysMirror` reports `.userPreference` or
-    /// `.perAppOverride` whatever the caret quality. Trusted carets measured their own line and
+    /// rather than on the reason alone, because `.alwaysMirror` reports `.userPreference` whatever
+    /// the caret quality. Trusted carets measured their own line and
     /// never qualify. Nil without a usable field frame: then the caret line is the only anchor.
     private static func uncalibratedEstimateField(
         geometry: SuggestionOverlayGeometry,
@@ -278,17 +239,6 @@ struct MirrorOverlayLayout: Equatable {
         return overlapPinnedBelow <= overlapPinnedAbove ? minY : maxY
     }
 
-    /// Whether the caret rect describes a line to sit under. A caret has height and, from most
-    /// hosts, no width: Chromium's text-marker carets and many AppKit insertion points are zero
-    /// points wide, and `CGRect.isEmpty` calls any rect with a zero side empty. Read that way, every
-    /// mid-line card in Gmail's compose body was anchored under the whole body instead of the
-    /// caret, 440pt below it at the bottom of the screen (measured 2026-09-11, 13 presentations).
-    /// Only a caret with no height (the all-zero rect some hosts publish right after focus) is none.
-    static func hasCaretLine(_ caretRect: CGRect) -> Bool {
-        !caretRect.isNull && caretRect.height > 0
-            && caretRect.minX.isFinite && caretRect.minY.isFinite && caretRect.height.isFinite
-    }
-
     /// Places the card so the suggestion's first letter sits under the insertion point, the card
     /// padding reaching back past it: the suggestion reads as continuing from the caret, one line
     /// down. The insertion point is the caret rect's leading edge (`minX`), the convention the inline
@@ -300,12 +250,8 @@ struct MirrorOverlayLayout: Equatable {
         geometry: SuggestionOverlayGeometry,
         cardWidth: CGFloat
     ) -> CGFloat {
-        if hasCaretLine(geometry.caretRect) {
-            return geometry.isRightToLeft
-                ? geometry.caretRect.minX + Metrics.horizontalPadding - cardWidth
-                : geometry.caretRect.minX - Metrics.horizontalPadding
-        }
-        if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+        if !geometry.caretRect.describesCaretLine,
+           let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
             return inputFrame.midX - (cardWidth / 2)
         }
         return geometry.isRightToLeft

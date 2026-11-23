@@ -5,18 +5,15 @@ import XCTest
 /// Locks in the auto/explicit-preference rules so a regression in the policy is loud rather than
 /// a silent UX change. The policy is pure, so these tests do not touch AppKit.
 ///
-/// The rules, in order: a per-app override (when the bundle is known) replaces the global
-/// preference; `.auto` maps caret quality to a mode; and finally an *auto* inline result for a caret
-/// parked mid-line is promoted to the card, because inline ghost text would paint over the
-/// characters after the caret. Explicit inline pins keep their pick, and results already routed to
-/// the card keep their more specific reason.
+/// The rules, in order: an explicit preference pins its mode; `.auto` maps caret quality to a mode;
+/// and finally an *auto* inline result for a caret parked mid-line is promoted to the card, because
+/// inline ghost text would paint over the characters after the caret. Explicit inline pins keep
+/// their pick, and results already routed to the card keep their more specific reason.
 final class CompletionRenderModePolicyTests: XCTestCase {
 
     private struct Case {
         let label: String
         let preference: MirrorPreference
-        var overrides: [String: MirrorPreference] = [:]
-        var bundle: String? = "com.apple.TextEdit"
         let quality: CaretGeometryQuality
         var atEndOfLine = true
         let expected: CompletionRenderMode
@@ -24,16 +21,13 @@ final class CompletionRenderModePolicyTests: XCTestCase {
 
     private func assertModes(_ cases: [Case], file: StaticString = #filePath, line: UInt = #line) {
         for testCase in cases {
-            let policy = CompletionRenderModePolicy(
-                userPreference: testCase.preference,
-                perAppOverrides: testCase.overrides
-            )
+            let policy = CompletionRenderModePolicy(userPreference: testCase.preference)
             let geometry = CotabbyTestFixtures.overlayGeometry(
                 caretQuality: testCase.quality,
                 isCaretAtEndOfLine: testCase.atEndOfLine
             )
             XCTAssertEqual(
-                policy.mode(for: geometry, bundleIdentifier: testCase.bundle),
+                policy.mode(for: geometry),
                 testCase.expected,
                 testCase.label,
                 file: file,
@@ -58,46 +52,18 @@ final class CompletionRenderModePolicyTests: XCTestCase {
 
     func test_explicitPreferencesIgnoreCaretQualityAtEndOfLine() {
         assertModes([
-            Case(label: "always inline, estimated", preference: .alwaysInline, bundle: nil,
+            Case(label: "always inline, estimated", preference: .alwaysInline,
                  quality: .estimated, expected: .inline),
-            Case(label: "always inline, layout-estimated", preference: .alwaysInline, bundle: nil,
+            Case(label: "always inline, layout-estimated", preference: .alwaysInline,
                  quality: .layoutEstimated, expected: .inline),
-            Case(label: "always mirror, exact", preference: .alwaysMirror, bundle: nil,
+            Case(label: "always mirror, exact", preference: .alwaysMirror,
                  quality: .exact, expected: .mirror(reason: .userPreference)),
-            Case(label: "always mirror, estimated", preference: .alwaysMirror, bundle: nil,
+            Case(label: "always mirror, estimated", preference: .alwaysMirror,
                  quality: .estimated, expected: .mirror(reason: .userPreference))
         ])
     }
 
-    func test_perAppOverridesReplaceTheGlobalPreferenceOnlyForTheirBundle() {
-        let quirky = "com.example.QuirkyApp"
-        assertModes([
-            Case(label: "override forces mirror over auto", preference: .auto,
-                 overrides: [quirky: .alwaysMirror], bundle: quirky, quality: .exact,
-                 expected: .mirror(reason: .perAppOverride)),
-            Case(label: "other bundles keep the global rule", preference: .auto,
-                 overrides: [quirky: .alwaysMirror], bundle: "com.apple.TextEdit", quality: .exact,
-                 expected: .inline),
-            // Some hosts fall into `.estimated` but still render inline correctly, so users can opt
-            // out of the promotion per app.
-            Case(label: "override forces inline over the estimated trigger", preference: .auto,
-                 overrides: [quirky: .alwaysInline], bundle: quirky, quality: .estimated,
-                 expected: .inline),
-            Case(label: "override back to auto undoes a global mirror pin", preference: .alwaysMirror,
-                 overrides: [quirky: .auto], bundle: quirky, quality: .exact,
-                 expected: .inline),
-            Case(label: "global mirror for an unlisted bundle is a user-preference reason",
-                 preference: .alwaysMirror, overrides: [quirky: .alwaysInline],
-                 bundle: "com.apple.TextEdit", quality: .exact,
-                 expected: .mirror(reason: .userPreference)),
-            Case(label: "a nil bundle can only use the global preference", preference: .alwaysMirror,
-                 overrides: [quirky: .alwaysInline], bundle: nil, quality: .exact,
-                 expected: .mirror(reason: .userPreference))
-        ])
-    }
-
     func test_midLineCaretPromotesOnlyInlineResultsToTheCard() {
-        let pinned = "com.example.InlinePinned"
         assertModes([
             Case(label: "auto exact", preference: .auto, quality: .exact, atEndOfLine: false,
                  expected: .mirror(reason: .caretMidLine)),
@@ -105,28 +71,16 @@ final class CompletionRenderModePolicyTests: XCTestCase {
                  expected: .mirror(reason: .caretMidLine)),
             // An explicit inline pin is the user's call; the controller alone decides whether the
             // ghost can be drawn there without covering the host's text.
-            Case(label: "global inline pin", preference: .alwaysInline, bundle: nil, quality: .exact,
+            Case(label: "global inline pin", preference: .alwaysInline, quality: .exact,
                  atEndOfLine: false, expected: .inline),
-            Case(label: "per-app inline pin", preference: .auto, overrides: [pinned: .alwaysInline],
-                 bundle: pinned, quality: .exact, atEndOfLine: false,
-                 expected: .inline),
             // Already a card: the more specific original reason is retained, never relabeled.
             Case(label: "auto estimated", preference: .auto, quality: .estimated, atEndOfLine: false,
                  expected: .mirror(reason: .caretGeometryEstimated)),
             Case(label: "auto layout-estimated", preference: .auto, quality: .layoutEstimated,
                  atEndOfLine: false, expected: .mirror(reason: .caretLayoutEstimated)),
-            Case(label: "global mirror pin", preference: .alwaysMirror, bundle: nil, quality: .exact,
-                 atEndOfLine: false, expected: .mirror(reason: .userPreference)),
-            Case(label: "per-app mirror pin", preference: .auto, overrides: [pinned: .alwaysMirror],
-                 bundle: pinned, quality: .exact, atEndOfLine: false,
-                 expected: .mirror(reason: .perAppOverride))
+            Case(label: "global mirror pin", preference: .alwaysMirror, quality: .exact,
+                 atEndOfLine: false, expected: .mirror(reason: .userPreference))
         ])
-    }
-
-    func test_defaultPolicyIsAutoWithNoOverrides() {
-        let policy = CompletionRenderModePolicy()
-
-        XCTAssertEqual(policy, CompletionRenderModePolicy(userPreference: .auto, perAppOverrides: [:]))
     }
 
     // MARK: - User-facing preference metadata

@@ -23,11 +23,7 @@ enum DisplayCoordinateConverter {
         fromCoreGraphicsRect rect: CGRect,
         displays: [DisplayGeometry]
     ) -> CGRect? {
-        guard let display = bestDisplay(
-            for: rect,
-            displays: displays,
-            keyPath: \.coreGraphicsBounds
-        ) else {
+        guard let display = bestDisplay(for: rect, displays: displays) else {
             return nil
         }
 
@@ -81,24 +77,18 @@ enum DisplayCoordinateConverter {
         )
     }
 
-    private static func bestDisplay(
-        for rect: CGRect,
-        displays: [DisplayGeometry],
-        keyPath: KeyPath<DisplayGeometry, CGRect>
-    ) -> DisplayGeometry? {
+    /// The display whose CoreGraphics bounds hold the rect's centre, else the one it overlaps most.
+    private static func bestDisplay(for rect: CGRect, displays: [DisplayGeometry]) -> DisplayGeometry? {
         let midpoint = CGPoint(x: rect.midX, y: rect.midY)
 
-        if let containingDisplay = displays.first(where: {
-            $0[keyPath: keyPath].contains(midpoint)
-        }) {
+        if let containingDisplay = displays.first(where: { $0.coreGraphicsBounds.contains(midpoint) }) {
             return containingDisplay
         }
 
         return displays
-            .filter { $0[keyPath: keyPath].intersects(rect) }
+            .filter { $0.coreGraphicsBounds.intersects(rect) }
             .max { lhs, rhs in
-                intersectionArea(lhs[keyPath: keyPath], rect)
-                    < intersectionArea(rhs[keyPath: keyPath], rect)
+                intersectionArea(lhs.coreGraphicsBounds, rect) < intersectionArea(rhs.coreGraphicsBounds, rect)
             }
     }
 

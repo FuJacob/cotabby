@@ -1,8 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the render-mode diagnostics vocabulary: the log/debug-overlay label, which embeds the
-/// mirror reason's raw value, and the `isMirror` convenience the overlay controller branches on.
+/// Tests for the render-mode diagnostics vocabulary: the log label, which embeds the mirror
+/// reason's raw value, and the `isMirror` convenience `SuggestionOverlayPresenter` branches on.
 final class CompletionRenderModeTests: XCTestCase {
     func test_label_namesInlineOrMirrorWithItsReason() {
         XCTAssertEqual(CompletionRenderMode.inline.label, "inline")
@@ -20,8 +20,8 @@ final class CompletionRenderModeTests: XCTestCase {
             .caretGeometryEstimated,
             .caretLayoutEstimated,
             .caretMidLine,
-            .userPreference,
-            .perAppOverride
+            .inlineLayoutUnavailable,
+            .userPreference
         ]
         for reason in reasons {
             XCTAssertTrue(CompletionRenderMode.mirror(reason: reason).isMirror, "\(reason)")

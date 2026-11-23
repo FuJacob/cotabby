@@ -93,7 +93,7 @@ struct WelcomeHeroDemo: View {
             .lineLimit(1)
 
             if showGhost && !accepted {
-                HeroTabKeycap()
+                GhostKeycap(label: "Tab")
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
 
@@ -118,10 +118,9 @@ struct WelcomeHeroDemo: View {
         )
     }
 
-    /// The default inline ghost-text color, matching `OverlayController.ghostTextColor(for:)`'s fallback (replicated
-    /// the same way `OnboardingFeatureShowcase` does, since the original is private).
+    /// The default inline ghost-text color.
     private var ghostColor: Color {
-        colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
+        GhostTextPalette.automaticTextColor(dark: colorScheme == .dark)
     }
 
     private func runLoop() async {
@@ -186,26 +185,3 @@ struct WelcomeHeroDemo: View {
 
 /// One millisecond in nanoseconds, so the demo timings above read in milliseconds.
 private let nsPerMillisecond: UInt64 = 1_000_000
-
-/// Replica of the inline overlay's "Tab" keycap (the original in `OverlayController` is private),
-/// color-matched to the ghost text exactly like `OnboardingFeatureShowcase`'s copy.
-private struct HeroTabKeycap: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Text("Tab")
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.95))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(colorScheme == .dark ? Color(white: 0.3) : Color(white: 0.8), lineWidth: 1)
-            )
-            .fixedSize()
-    }
-}

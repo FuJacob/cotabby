@@ -19,19 +19,10 @@ final class OverlayController: SuggestionOverlayControlling {
 
     private let suggestionSettings: SuggestionSettingsModel
 
-    /// Optional injection seam for tests. When set, `currentRenderModePolicy` returns this directly
-    /// instead of building one from live settings. Production code leaves this nil.
-    private let renderModePolicyOverride: CompletionRenderModePolicy?
-
     /// Built from the live `mirrorPreference` setting at call time rather than cached, so the user's
     /// Settings/menu-bar toggle takes effect on the very next presentation.
     private var currentRenderModePolicy: CompletionRenderModePolicy {
-        if let renderModePolicyOverride {
-            return renderModePolicyOverride
-        }
-        return CompletionRenderModePolicy(
-            userPreference: suggestionSettings.mirrorPreference
-        )
+        CompletionRenderModePolicy(userPreference: suggestionSettings.mirrorPreference)
     }
 
     private(set) var state: OverlayState = .hidden(reason: "Overlay idle.") {
@@ -55,10 +46,18 @@ final class OverlayController: SuggestionOverlayControlling {
         let geometry: SuggestionOverlayGeometry
         var fontResolution: GhostFontResolver.Resolution
         var baselineOffsetFromTop: CGFloat
-        /// "policy" (font metrics rule), "calibrated" (measured from a strip of the host's pixels),
-        /// or "pixel" (read from the capture that placed the caret).
-        var baselineSource: String
+        var baselineSource: BaselineSource
         var layout: GhostTextLayout
+    }
+
+    /// Where a session's baseline came from; the raw values are the `baseline_source` log field.
+    private enum BaselineSource: String {
+        /// The font-metrics rule (`GhostBaselinePolicy`).
+        case policy
+        /// Measured from a strip of the host's pixels (`HostBaselineCalibrator`).
+        case calibrated
+        /// Read from the capture that placed the caret (`PixelCaretLocator`).
+        case pixel
     }
 
     private var inlineSession: InlineSession?
@@ -119,12 +118,10 @@ final class OverlayController: SuggestionOverlayControlling {
 
     init(
         suggestionSettings: SuggestionSettingsModel,
-        renderModePolicyOverride: CompletionRenderModePolicy? = nil,
         baselineCalibrator: HostBaselineCalibrator? = nil,
         faceMemoryDefaults: UserDefaults? = nil
     ) {
         self.suggestionSettings = suggestionSettings
-        self.renderModePolicyOverride = renderModePolicyOverride
         self.baselineCalibrator = baselineCalibrator
         self.faceMemoryDefaults = faceMemoryDefaults
         self.hostFaceMemory = HostFaceMemory(restoring: faceMemoryDefaults?.data(forKey: Self.faceMemoryDefaultsKey))
@@ -141,26 +138,7 @@ final class OverlayController: SuggestionOverlayControlling {
         faceMemoryDefaults?.set(hostFaceMemory.encoded(), forKey: Self.faceMemoryDefaultsKey)
     }
 
-    private lazy var panel: OverlayPanel = {
-        let panel = OverlayPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        // A non-activating panel lets Cotabby draw UI near the caret without stealing focus
-        // from the app the user is actively typing into.
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.ignoresMouseEvents = true
-        panel.hasShadow = false
-        // Ghost text should feel like immediate ink at the caret, not a window being presented.
-        panel.animationBehavior = .none
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        return panel
-    }()
+    private lazy var panel = NonActivatingPanel.makeDisplayOnly()
 
     /// Sizes and positions the overlay using the render mode the policy picks for this geometry.
     /// An inline pick that cannot be laid out honestly (the text needs a second row but the host
@@ -201,10 +179,7 @@ final class OverlayController: SuggestionOverlayControlling {
             reduceMotionEnabled: reduceMotionEnabled
         )
 
-        var mode = currentRenderModePolicy.mode(
-            for: geometry,
-            bundleIdentifier: geometry.bundleIdentifier
-        )
+        var mode = currentRenderModePolicy.mode(for: geometry)
 
         CotabbyLogger.suggestion.debug(
             "Show suggestion",
@@ -329,7 +304,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// reason the card must take over instead when no honest inline layout exists for this text and
     /// geometry, nil when the ghost is up.
     private func showInline(text: String, geometry: SuggestionOverlayGeometry) -> CompletionRenderMode.MirrorReason? {
-        let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
+        let renderer = geometry.hostRenderer
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
             font: fontResolution.font,
@@ -341,25 +316,8 @@ final class OverlayController: SuggestionOverlayControlling {
         // strip, which is cut around a box the frame arithmetic guessed.
         let pixelOffset = geometry.pixelBaselineOffset
         let cachedOffset = pixelOffset ?? calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
+        let baselineOffsetFromTop = cachedOffset ?? policyOffset
         let anchorCaretRect = Self.refinedCaretRect(for: geometry, font: fontResolution)
-        var session = InlineSession(
-            fullText: text,
-            consumedUTF16: 0,
-            anchorCaretRect: anchorCaretRect,
-            geometry: geometry,
-            fontResolution: fontResolution,
-            baselineOffsetFromTop: cachedOffset ?? policyOffset,
-            baselineSource: pixelOffset != nil ? "pixel" : (cachedOffset == nil ? "policy" : "calibrated"),
-            layout: GhostTextLayout(
-                rows: [],
-                font: fontResolution.font,
-                boxHeight: 0,
-                baselineOffsetFromTop: 0,
-                keycapFrame: nil,
-                isTruncated: false,
-                contentBounds: .zero
-            )
-        )
         // Text follows the caret on its line: an inline ghost there could only sit on the host's own
         // characters, so the card under the caret shows the suggestion instead (the policy already
         // picks it under `auto`; this covers an explicit inline preference).
@@ -367,11 +325,27 @@ final class OverlayController: SuggestionOverlayControlling {
             logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .caretMidLine)
             return .caretMidLine
         }
-        guard let layout = makeLayout(for: session) else {
+        guard let layout = makeLayout(
+            fullText: text,
+            consumedUTF16: 0,
+            anchorCaretRect: anchorCaretRect,
+            geometry: geometry,
+            fontResolution: fontResolution,
+            baselineOffsetFromTop: baselineOffsetFromTop
+        ) else {
             logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .inlineLayoutUnavailable)
             return .inlineLayoutUnavailable
         }
-        session.layout = layout
+        let session = InlineSession(
+            fullText: text,
+            consumedUTF16: 0,
+            anchorCaretRect: anchorCaretRect,
+            geometry: geometry,
+            fontResolution: fontResolution,
+            baselineOffsetFromTop: baselineOffsetFromTop,
+            baselineSource: pixelOffset != nil ? .pixel : (cachedOffset == nil ? .policy : .calibrated),
+            layout: layout
+        )
         inlineSession = session
         renderInline(session)
         // Built after the render so the request knows where the panel now covers the host.
@@ -412,12 +386,6 @@ final class OverlayController: SuggestionOverlayControlling {
         return rect
     }
 
-    /// The host's face by report or measurement; for a web field the host never named, a face the
-    /// host's own pixels matched earlier in this field replaces the system stand-in.
-    /// The pixel measurement this geometry needs, or nil when AX already placed the caret. Only a
-    /// caret at the end of its paragraph is measured: the paragraph's last inked line then ends at
-    /// the caret. A caret inside the paragraph keeps the existing card, which is honest about not
-    /// knowing where the caret is.
     /// Fields taller than this are not one line; the single-line measurement would read the wrong
     /// ink. Chrome's address bar is 24pt; a multi-row composer starts around twice that.
     static let singleLineFieldMaximumHeight: CGFloat = 44
@@ -461,23 +429,21 @@ final class OverlayController: SuggestionOverlayControlling {
         )
     }
 
+    /// The pixel measurement this geometry needs, or nil when AX already placed the caret: a caret
+    /// in a paragraph AX exposes as one union run, or one a single-line field could only estimate.
+    /// At the end of its line the caret is where the line's ink ends; with text after it, it is
+    /// found among the painted lines and places the card (`Request.caretIsMidLine`).
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
         guard !geometry.isRightToLeft else { return nil }
         // A caret with text after it on its line gets the card, whose anchor a union run's
         // Accessibility answer cannot give either (Claude's composer: the field's right edge); its
         // pixels can, from the text before it (see `PixelCaretLocator.Request.caretIsMidLine`).
         let midLine = !geometry.isCaretAtEndOfLine
-        let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
-        let resolution = resolveFont(for: geometry, renderer: renderer)
+        let resolution = resolveFont(for: geometry, renderer: geometry.hostRenderer)
         let font = resolution.font
         // The captures of a web field that reports no size measure its face's size (see
         // `recordAdvanceCapture`, `takesHostAdvance`).
-        let recordsAdvance = !midLine && Self.takesHostAdvance(
-            provenance: resolution.provenance,
-            isWebContentField: geometry.isWebContentField,
-            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
-            isSingleLineField: geometry.isSingleLineField
-        )
+        let recordsAdvance = !midLine && Self.takesHostAdvance(resolution, for: geometry)
         if let wrapped = geometry.wrappedRun {
             let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
                 ?? PixelCaretLocator.inkToCaretGap
@@ -542,6 +508,8 @@ final class OverlayController: SuggestionOverlayControlling {
         )
     }
 
+    /// The host's face by report or measurement; for a web field the host never named, a face the
+    /// host's own pixels matched earlier in this field replaces the system stand-in.
     private func resolveFont(
         for geometry: SuggestionOverlayGeometry,
         renderer: GhostBaselinePolicy.HostRenderer
@@ -556,14 +524,15 @@ final class OverlayController: SuggestionOverlayControlling {
             )
         )
         let judged = applyingTypefaceEvidence(resolution, for: geometry)
+        let zoom = zoomStep(for: geometry)
         let matched = Self.applyingMatchedTypeface(
             judged,
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
             widthSample: heldWidthSample(for: geometry),
             sizeMultiplier: ghostSizeMultiplier,
-            reportedSize: zoomStep(for: geometry).reportedSize,
-            zoomKind: zoomStep(for: geometry).kind
+            reportedSize: zoom.reportedSize,
+            zoomKind: zoom.kind
         )
         let sized = applyingHostAdvance(matched, for: geometry)
         let remembered = rememberingHostFace(sized.resolution, advanceMeasured: sized.advanceMeasured, for: geometry)
@@ -571,11 +540,6 @@ final class OverlayController: SuggestionOverlayControlling {
         return applyingUserSizeLimits(remembered)
     }
 
-    /// The user's ghost-size floor and ceiling (Settings → Appearance → Ghost Text Size Limits) are
-    /// absolute bounds over whatever the host resolution produced: they say what the user is willing
-    /// to read, so a host that reports 6pt or a runaway caret estimate cannot override them. The face
-    /// and provenance stay as resolved; only the size moves, and `HostFaceMemory` above already
-    /// recorded the unclamped host size so the field's own measurement is not polluted by the limit.
     /// The user's Ghost Text Size multiplier, or 1 when they asked for the host's own size. Every
     /// size path reads it through here, including the ones that divide it back out to recover the
     /// host size from a ghost size, so the two directions always agree.
@@ -583,6 +547,16 @@ final class OverlayController: SuggestionOverlayControlling {
         suggestionSettings.matchesHostTextSize ? 1 : CGFloat(suggestionSettings.ghostTextSizeMultiplier)
     }
 
+    /// `ghostSizeMultiplier` floored away from zero, for the paths that divide it back out of a
+    /// ghost size to recover the host's (and the one that multiplies it back in).
+    private var flooredSizeMultiplier: CGFloat { max(ghostSizeMultiplier, 0.01) }
+
+    /// The user's ghost-size floor and ceiling (Settings → Appearance → Ghost Text Size Limits) are
+    /// absolute bounds over whatever the host resolution produced: they say what the user is willing
+    /// to read, so a host that reports 6pt or a runaway caret estimate cannot override them. The face
+    /// and provenance stay as resolved; only the size moves, and `HostFaceMemory` already recorded
+    /// the unclamped host size (`resolveFont`) so the field's own measurement is not polluted by the
+    /// limit.
     private func applyingUserSizeLimits(_ resolution: GhostFontResolver.Resolution) -> GhostFontResolver.Resolution {
         // Matching the host's size sets the user's limits aside; only the legibility backstop stays.
         let matches = suggestionSettings.matchesHostTextSize
@@ -666,18 +640,13 @@ final class OverlayController: SuggestionOverlayControlling {
         _ resolution: GhostFontResolver.Resolution,
         for geometry: SuggestionOverlayGeometry
     ) -> (resolution: GhostFontResolver.Resolution, advanceMeasured: Bool) {
-        guard Self.takesHostAdvance(
-            provenance: resolution.provenance,
-            isWebContentField: geometry.isWebContentField,
-            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
-            isSingleLineField: geometry.isSingleLineField
-        ) else {
+        guard Self.takesHostAdvance(resolution, for: geometry) else {
             return (resolution, false)
         }
         let size: CGFloat
         if let fit = hostAdvanceFits[geometry.focusedInputIdentityKey], fit.faceName == resolution.font.fontName,
            let adopted = fit.adopted {
-            size = adopted.pointSize * max(ghostSizeMultiplier, 0.01)
+            size = adopted.pointSize * flooredSizeMultiplier
         } else if let key = hostStyleKey(for: geometry), let remembered = hostFaceMemory.face(for: key),
                   remembered.advanceMeasured == true, remembered.fontName == resolution.font.fontName {
             // Kept with the multiplier applied, under a key that includes it.
@@ -712,6 +681,16 @@ final class OverlayController: SuggestionOverlayControlling {
         return provenance == .pixelMatched || (isSingleLineField && provenance.isFallbackFace)
     }
 
+    /// `takesHostAdvance` for a resolution in the field `geometry` describes.
+    private static func takesHostAdvance(_ resolution: GhostFontResolver.Resolution, for geometry: SuggestionOverlayGeometry) -> Bool {
+        takesHostAdvance(
+            provenance: resolution.provenance,
+            isWebContentField: geometry.isWebContentField,
+            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
+            isSingleLineField: geometry.isSingleLineField
+        )
+    }
+
     /// Feeds a fresh capture of the caret on a paragraph's first line to its field's advance fit
     /// (`HostAdvanceFit`): only for requests `pixelCaretRequest` marked, only a caret right after a
     /// glyph (a trailing space's advance is the ghost's own, not a measurement), and only the
@@ -722,9 +701,7 @@ final class OverlayController: SuggestionOverlayControlling {
         guard request.recordsAdvance, !request.caretIsMidLine, measurement.lineIndex == 0, let face = request.font,
               let last = request.paragraphTextBeforeCaret.last, !last.isWhitespace,
               !request.paragraphTextBeforeCaret.contains(where: \.isNewline),
-              let hostFace = GhostFontResolver.font(
-                  named: face.fontName, size: face.pointSize / max(ghostSizeMultiplier, 0.01)
-              )
+              let hostFace = GhostFontResolver.font(named: face.fontName, size: face.pointSize / flooredSizeMultiplier)
         else { return }
         let identity = request.focusedInputIdentityKey
         var fit = hostAdvanceFits[identity] ?? HostAdvanceFit()
@@ -872,11 +849,12 @@ final class OverlayController: SuggestionOverlayControlling {
         if resolution.provenance == .hostSizeScaledSystem || resolution.provenance == .hostSizeSystem,
            evidence.scalingSample != nil {
             typefaceEvidence[identity] = evidence
+            let zoom = zoomStep(for: geometry)
             return Self.scaledSystemFace(
                 size: size,
                 evidence: evidence,
-                reportedSize: zoomStep(for: geometry).reportedSize,
-                zoomKind: zoomStep(for: geometry).kind,
+                reportedSize: zoom.reportedSize,
+                zoomKind: zoom.kind,
                 sizeMultiplier: multiplier
             )
         }
@@ -965,7 +943,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 by: sizeMultiplier
             )
         case .family(let family):
-            guard resolution.font.familyName != family, let font = GhostFontResolver.familyFont(family, size: size) else {
+            guard resolution.font.familyName != family, let font = GhostFontResolver.font(family: family, size: size) else {
                 return resolution
             }
             return userScaled(
@@ -1177,7 +1155,7 @@ final class OverlayController: SuggestionOverlayControlling {
            !panelCovers(request.runFrame) {
             pixelCaretLocator.locate(request) { _ in }
         }
-        let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
+        let renderer = geometry.hostRenderer
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
             font: fontResolution.font,
@@ -1305,7 +1283,7 @@ final class OverlayController: SuggestionOverlayControlling {
             var changed = false
             if session.geometry.pixelBaselineOffset == nil, abs(session.baselineOffsetFromTop - calibration.baselineOffset) > 0.01 {
                 session.baselineOffsetFromTop = calibration.baselineOffset
-                session.baselineSource = "calibrated"
+                session.baselineSource = .calibrated
                 changed = true
             }
             // The face goes through the path a present takes (`resolveFont`, which reads the match
@@ -1314,8 +1292,7 @@ final class OverlayController: SuggestionOverlayControlling {
             // size the field's caret advance had measured (`applyingHostAdvance`): Claude's Code
             // composer, which reports no size, drew the match's raw 15.48 for a frame between 15.34
             // frames after each of two matches two seconds apart (2026-09-11).
-            let renderer: GhostBaselinePolicy.HostRenderer = session.geometry.isWebContentField ? .webEngine : .textKit
-            let rematched = self.resolveFont(for: session.geometry, renderer: renderer)
+            let rematched = self.resolveFont(for: session.geometry, renderer: session.geometry.hostRenderer)
             if rematched.font != session.fontResolution.font {
                 session.fontResolution = rematched
                 changed = true
@@ -1376,7 +1353,29 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     private func makeLayout(for session: InlineSession) -> GhostTextLayout? {
-        let geometry = session.geometry
+        makeLayout(
+            fullText: session.fullText,
+            consumedUTF16: session.consumedUTF16,
+            anchorCaretRect: session.anchorCaretRect,
+            geometry: session.geometry,
+            fontResolution: session.fontResolution,
+            baselineOffsetFromTop: session.baselineOffsetFromTop
+        )
+    }
+
+    // swiftlint:disable function_parameter_count
+    /// The rows for `fullText` past its consumed prefix, anchored at the caret box the session was
+    /// first shown at. Takes the session's inputs rather than a session so the first layout exists
+    /// before the session does: a session is only ever created with a layout that can be drawn.
+    private func makeLayout(
+        fullText: String,
+        consumedUTF16: Int,
+        anchorCaretRect: CGRect,
+        geometry: SuggestionOverlayGeometry,
+        fontResolution: GhostFontResolver.Resolution,
+        baselineOffsetFromTop: CGFloat
+    ) -> GhostTextLayout? {
+        // swiftlint:enable function_parameter_count
         let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel(
             forBundleIdentifier: geometry.bundleIdentifier
         )
@@ -1384,7 +1383,7 @@ final class OverlayController: SuggestionOverlayControlling {
         // The user's bold/italic style is applied to the drawing face only. The plain host face
         // still measures what the host will render (the accepted prefix), so a styled ghost keeps
         // starting at the host's real caret after every accept.
-        let hostFont = session.fontResolution.font
+        let hostFont = fontResolution.font
         let drawingFont = GhostFontStyler.styled(
             hostFont,
             bold: suggestionSettings.isGhostTextBold,
@@ -1392,14 +1391,14 @@ final class OverlayController: SuggestionOverlayControlling {
         )
         return GhostTextLayout.make(
             GhostTextLayout.Input(
-                fullText: session.fullText,
-                consumedUTF16: session.consumedUTF16,
+                fullText: fullText,
+                consumedUTF16: consumedUTF16,
                 font: drawingFont,
                 measuringFont: drawingFont == hostFont ? nil : hostFont,
-                anchorTopLeft: CGPoint(x: session.anchorCaretRect.minX, y: session.anchorCaretRect.maxY),
-                boxHeight: session.anchorCaretRect.height,
-                baselineOffsetFromTop: session.baselineOffsetFromTop,
-                linePitch: linePitch(for: geometry, fontSize: session.fontResolution.font.pointSize),
+                anchorTopLeft: CGPoint(x: anchorCaretRect.minX, y: anchorCaretRect.maxY),
+                boxHeight: anchorCaretRect.height,
+                baselineOffsetFromTop: baselineOffsetFromTop,
+                linePitch: linePitch(for: geometry, fontSize: hostFont.pointSize),
                 wrapBand: wrapBand(for: geometry),
                 isRightToLeft: geometry.isRightToLeft,
                 // A second row would paint over the host's own following lines; with text below
@@ -1424,7 +1423,7 @@ final class OverlayController: SuggestionOverlayControlling {
     private func linePitch(for geometry: SuggestionOverlayGeometry, fontSize: CGFloat) -> CGFloat? {
         let key = geometry.isWebContentField ? hostStyleKey(for: geometry) : nil
         // The ghost's size carries the user's multiplier; the host's line-height does not.
-        let hostSize = fontSize / max(ghostSizeMultiplier, 0.01)
+        let hostSize = fontSize / flooredSizeMultiplier
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0,
            HostFaceMemory.isPlausiblePitch(measured, pointSize: hostSize) {
             if geometry.hostTextMetrics?.linePitchIsFromParagraphBox == true {
@@ -1537,11 +1536,11 @@ final class OverlayController: SuggestionOverlayControlling {
     private func ghostTextColor(for geometry: SuggestionOverlayGeometry) -> NSColor {
         let opacity = CGFloat(suggestionSettings.ghostTextOpacity)
         if geometry.isCorrection {
-            return SuggestionCorrectionStyle.nsColor(isDark: isDarkAppearance).withAlphaComponent(opacity)
+            return GhostTextPalette.correction(dark: isDarkAppearance).withAlphaComponent(opacity)
         }
         let base = SuggestionTextColorCodec.nsColor(fromHex: suggestionSettings.customSuggestionTextColorHex)
             ?? fieldGhostColor(from: geometry.resolvedFieldStyle)
-            ?? (isDarkAppearance ? NSColor(white: 0.65, alpha: 1) : NSColor(white: 0.45, alpha: 1))
+            ?? GhostTextPalette.automaticText(dark: isDarkAppearance)
         return base.withAlphaComponent(opacity)
     }
 
@@ -1670,7 +1669,7 @@ final class OverlayController: SuggestionOverlayControlling {
             "font_provenance": .string(session.fontResolution.provenance.rawValue),
             "width_agreement": .stringConvertible(Double(session.fontResolution.widthAgreement)),
             "baseline_offset": .stringConvertible(Double(session.baselineOffsetFromTop)),
-            "baseline_source": .string(session.baselineSource),
+            "baseline_source": .string(session.baselineSource.rawValue),
             "caret_x": .stringConvertible(Double(session.anchorCaretRect.minX)),
             "caret_x_reported": .stringConvertible(Double(session.geometry.caretRect.minX)),
             "caret_top": .stringConvertible(Double(session.anchorCaretRect.maxY)),
@@ -1750,9 +1749,4 @@ final class OverlayController: SuggestionOverlayControlling {
             ]
         )
     }
-}
-
-private final class OverlayPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 }

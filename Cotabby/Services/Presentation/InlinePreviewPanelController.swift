@@ -17,38 +17,20 @@ protocol InlinePreviewPresenting: AnyObject {
 
 /// File overview:
 /// Owns the non-activating floating panel that renders the single-row macro preview near the caret.
-/// The window configuration mirrors the emoji picker (floats across spaces and fullscreen without
-/// stealing focus), with `ignoresMouseEvents` false so the user can click to accept. Positioning
-/// reuses `EmojiPickerPanelLayout` (flip-above and on-screen clamping).
+/// Like the emoji picker's it is the interactive kind of `NonActivatingPanel`, so the user can click
+/// to accept without the click pulling keyboard focus out of the app they are typing in.
+/// Positioning reuses `EmojiPickerPanelLayout` (flip-above and on-screen clamping).
 @MainActor
 final class InlinePreviewPanelController: InlinePreviewPresenting {
     var onClick: (() -> Void)?
     var onClickOutside: (() -> Void)?
 
-    private(set) var isVisible = false
+    /// Present exactly while the panel is up, so a click outside it can cancel the preview.
+    private var clickAwayMonitor: ClickAwayMonitor?
 
     private let model = InlinePreviewViewModel()
-    private var localMouseMonitor: Any?
-    private var globalMouseMonitor: Any?
 
-    private lazy var panel: InlinePreviewPanel = {
-        let panel = InlinePreviewPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 120, height: 30),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.ignoresMouseEvents = false
-        panel.animationBehavior = .none
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.hidesOnDeactivate = false
-        return panel
-    }()
+    private lazy var panel = NonActivatingPanel.makeInteractive(contentSize: CGSize(width: 120, height: 30))
 
     private lazy var hostingView: NSHostingView<InlinePreviewView> = {
         NSHostingView(
@@ -68,7 +50,7 @@ final class InlinePreviewPanelController: InlinePreviewPresenting {
         hostingView.layoutSubtreeIfNeeded()
         let fitting = hostingView.fittingSize
         let contentSize = CGSize(width: max(fitting.width, 44), height: max(fitting.height, 30))
-        let visibleFrame = targetVisibleFrame(for: caretRect)
+        let visibleFrame = NSScreen.visibleFrame(containing: caretRect)
         let frame = EmojiPickerPanelLayout.frame(
             caretRect: caretRect,
             contentSize: contentSize,
@@ -77,58 +59,17 @@ final class InlinePreviewPanelController: InlinePreviewPresenting {
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
 
-        if !isVisible {
-            isVisible = true
-            installClickMonitors()
+        if clickAwayMonitor == nil {
+            clickAwayMonitor = ClickAwayMonitor(panel: panel) { [weak self] in
+                self?.onClickOutside?()
+            }
         }
     }
 
     func hide() {
-        guard isVisible else { return }
-        isVisible = false
-        removeClickMonitors()
+        guard let clickAwayMonitor else { return }
+        clickAwayMonitor.remove()
+        self.clickAwayMonitor = nil
         panel.orderOut(nil)
     }
-
-    private func targetVisibleFrame(for caretRect: CGRect) -> CGRect {
-        let midpoint = CGPoint(x: caretRect.midX, y: caretRect.midY)
-        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(midpoint) }) {
-            return screen.visibleFrame
-        }
-        if let screen = NSScreen.screens.first(where: { $0.frame.intersects(caretRect) }) {
-            return screen.visibleFrame
-        }
-        return NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
-    }
-
-    private func installClickMonitors() {
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.onClickOutside?()
-        }
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self else { return event }
-            if event.window !== self.panel {
-                self.onClickOutside?()
-            }
-            return event
-        }
-    }
-
-    private func removeClickMonitors() {
-        if let globalMouseMonitor {
-            NSEvent.removeMonitor(globalMouseMonitor)
-            self.globalMouseMonitor = nil
-        }
-        if let localMouseMonitor {
-            NSEvent.removeMonitor(localMouseMonitor)
-            self.localMouseMonitor = nil
-        }
-    }
-}
-
-/// Non-activating panel: clicking to accept must never pull keyboard focus away from the app the user
-/// is typing in.
-private final class InlinePreviewPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 }
