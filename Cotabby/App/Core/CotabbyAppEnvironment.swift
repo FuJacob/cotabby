@@ -413,7 +413,8 @@ final class CotabbyAppEnvironment {
         // The global-toggle hotkey is the exception: its tap is install-on-demand so a user who
         // never binds it pays zero per-keystroke cost. Install/uninstall whenever the binding
         // crosses the unbound/bound boundary or when the key code itself changes.
-        suggestionSettings.$globalToggleKeyCode
+        suggestionSettings.$globalToggleBinding
+            .map { $0.keyCode }
             .removeDuplicates()
             .sink { [weak inputMonitor] _ in
                 inputMonitor?.refreshToggleTap()
@@ -474,7 +475,7 @@ final class CotabbyAppEnvironment {
             return
         }
 
-        let profile = isPluggedIn ? suggestionSettings.pluggedInProfile : suggestionSettings.batteryProfile
+        let profile = suggestionSettings.powerProfile(for: PowerSource(isPluggedIn: isPluggedIn))
 
         switch profile {
         case .appleIntelligence:

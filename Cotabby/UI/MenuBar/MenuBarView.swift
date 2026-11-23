@@ -475,11 +475,7 @@ struct MenuBarView: View {
     /// power-source observer then applies it to the runtime, so no direct `selectModel`/`selectEngine`
     /// call is needed here.
     private func applyProfileForCurrentPowerSource(_ profile: PowerProfile) {
-        if powerSourceMonitor.isPluggedIn {
-            suggestionSettings.setPluggedInProfile(profile)
-        } else {
-            suggestionSettings.setBatteryProfile(profile)
-        }
+        suggestionSettings.setPowerProfile(profile, for: PowerSource(isPluggedIn: powerSourceMonitor.isPluggedIn))
     }
 
     private var runtimePickerDisabled: Bool {

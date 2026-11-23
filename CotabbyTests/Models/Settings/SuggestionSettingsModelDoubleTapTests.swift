@@ -49,6 +49,60 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         XCTAssertEqual(reloaded.fullAcceptanceKeyCode, SuggestionSettingsModel.disabledKeyCode)
     }
 
+    /// The slot is one value in memory but still two facts on disk. These are the exact values
+    /// earlier builds wrote, so a build on either side of this change reads the other's defaults.
+    func test_slotIsPersistedAsTheSameKeyTripleAndFlag() {
+        let model = makeModel()
+
+        model.setDoubleTapFullAcceptance()
+        assertPersistedSlot(keyCode: 65_535, modifiers: 0, label: "None", doubleTap: true)
+
+        model.setFullAcceptanceKey(keyCode: 48, modifiers: [.option], label: "⌥ Tab")
+        assertPersistedSlot(
+            keyCode: 48,
+            modifiers: Int(ShortcutModifierMask.option.rawValue),
+            label: "⌥ Tab",
+            doubleTap: false
+        )
+
+        model.clearFullAcceptanceKey()
+        assertPersistedSlot(keyCode: 65_535, modifiers: 0, label: "None", doubleTap: false)
+    }
+
+    private func assertPersistedSlot(
+        keyCode: Int,
+        modifiers: Int,
+        label: String,
+        doubleTap: Bool,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(defaults.object(forKey: "cotabbyFullAcceptanceKeyCode") as? Int, keyCode, line: line)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyFullAcceptanceKeyModifiers") as? Int, modifiers, line: line)
+        XCTAssertEqual(defaults.string(forKey: "cotabbyFullAcceptanceKeyLabel"), label, line: line)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyDoubleTapAcceptsEntireSuggestion") as? Bool, doubleTap, line: line)
+    }
+
+    /// A double-tap flag saved while Accept Word was bound stays set if Accept Word is later
+    /// unbound by recording "no key" directly; it is inert until a key is bound again.
+    func test_doubleTapSurvivesAsInertWhenAcceptWordIsRecordedAsNoKey() {
+        let model = makeModel()
+        model.setDoubleTapFullAcceptance()
+
+        model.setAcceptanceKey(
+            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            modifiers: [],
+            label: SuggestionSettingsModel.disabledKeyLabel
+        )
+
+        XCTAssertTrue(model.doubleTapAcceptsEntireSuggestion)
+        XCTAssertFalse(model.isDoubleTapFullAcceptanceActive)
+        XCTAssertTrue(makeModel().doubleTapAcceptsEntireSuggestion)
+
+        model.setAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
+        XCTAssertTrue(model.isDoubleTapFullAcceptanceActive)
+        XCTAssertEqual(model.fullAcceptanceDisplayLabel, "Return Return")
+    }
+
     func test_recordingAOnePressKeyReplacesTheDoubleTap() {
         let model = makeModel()
         model.setDoubleTapFullAcceptance()
