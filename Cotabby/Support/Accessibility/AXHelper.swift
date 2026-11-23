@@ -835,11 +835,20 @@ enum AXHelper {
     /// actually owning the focused text element. Resolving identity from the element's pid is the
     /// only way to attribute the focused field to the real owner.
     static func owningApplication(of element: AXUIElement) -> NSRunningApplication? {
+        guard let pid = processIdentifier(of: element) else {
+            return nil
+        }
+        return NSRunningApplication(processIdentifier: pid)
+    }
+
+    /// The pid of the process that serves `element`, or nil when it cannot be read. The pid is stored
+    /// in the element reference itself, so this is a local read, not a round-trip into the host.
+    static func processIdentifier(of element: AXUIElement) -> pid_t? {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else {
             return nil
         }
-        return NSRunningApplication(processIdentifier: pid)
+        return pid
     }
 
     /// Returns the focused element scoped to a specific application process. Some web inputs that
