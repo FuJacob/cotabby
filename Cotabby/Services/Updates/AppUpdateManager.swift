@@ -8,7 +8,7 @@ import Sparkle
 /// framework that talks to the network, persists updater preferences, and may present system UI.
 ///
 /// We keep it in `Services/` so the rest of the app only depends on a tiny, explicit surface:
-/// `start()` for lifecycle wiring and `checkForUpdates()` for a future settings screen.
+/// `start()` for lifecycle wiring and `checkForUpdates()` for the menu and About pane's manual check.
 @MainActor
 final class AppUpdateManager {
     /// The updater is created once and retained for the lifetime of the process, just like the
@@ -82,7 +82,7 @@ final class AppUpdateManager {
         #endif
     }
 
-    /// Future UI surfaces, such as Settings, should call this method instead of touching Sparkle
+    /// UI surfaces (the menu bar item, the About pane) call this instead of touching Sparkle
     /// directly. That keeps the rest of the codebase decoupled from Sparkle APIs.
     func checkForUpdates() {
         guard isStarted else {

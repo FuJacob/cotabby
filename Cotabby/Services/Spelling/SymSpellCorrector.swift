@@ -7,7 +7,7 @@ import Logging
 /// queue only when needed. Until a requested language is ready, lookup returns nil and the caller
 /// falls back to `NSSpellChecker`.
 ///
-/// `nonisolated` + `@unchecked Sendable` (mirroring `LlamaRuntimeCore`/`FileLogWriter`) because the
+/// `nonisolated` + `@unchecked Sendable` (mirroring `LlamaRuntimeCore`/`JSONLFileWriter`) because the
 /// builds run off the main actor while `bestCorrection` is called from it. The lock protects cache
 /// publication, loading state, and LRU metadata. Each `SymSpell` becomes immutable before entering
 /// the cache, so readers can safely query a retained instance after releasing the lock.

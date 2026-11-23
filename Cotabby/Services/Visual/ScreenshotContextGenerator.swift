@@ -36,9 +36,11 @@ protocol ScreenshotContextGenerating {
 
 @MainActor
 final class ScreenshotContextGenerator: ScreenshotContextGenerating {
-    private enum ContextSource: String {
-        case ocrFallback = "ocr_fallback"
-    }
+    /// Capture succeeded but nothing usable was readable; the session reports this as unavailable
+    /// rather than failed because a later refresh of the same field may well find text.
+    private static let noVisibleTextError = ScreenshotContextGenerationError.unavailable(
+        "The screenshot did not contain enough visible text to build prompt context."
+    )
 
     private let screenshotService: any WindowScreenshotCapturing
     private let textExtractor: (any ScreenTextExtracting)?
@@ -106,23 +108,17 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
             try Task.checkCancellation()
         } catch ScreenTextExtractionError.noRecognizedText {
             guard let windowTitle = screenshot.windowTitle else {
-                throw ScreenshotContextGenerationError.unavailable(
-                    "The screenshot did not contain enough visible text to build prompt context."
-                )
+                throw Self.noVisibleTextError
             }
 
             let normalizedTitle = normalizeRecognizedText(windowTitle, configuration: configuration)
             guard hasMeaningfulSignal(normalizedTitle, configuration: configuration)
             else {
-                throw ScreenshotContextGenerationError.unavailable(
-                    "The screenshot did not contain enough visible text to build prompt context."
-                )
+                throw Self.noVisibleTextError
             }
 
             let finalTitleContext = boundedSummaryText(normalizedTitle, configuration: configuration)
-            CotabbyLogger.app.debug(
-                "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalTitleContext.count)"
-            )
+            CotabbyLogger.app.debug("Visual context ready source=window_title chars=\(finalTitleContext.count)")
             return VisualContextExcerpt(text: finalTitleContext)
         } catch is CancellationError {
             throw CancellationError()
@@ -188,13 +184,11 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
 
         let finalContextText = boundedSummaryText(normalizedText, configuration: configuration)
         guard hasMeaningfulSignal(finalContextText, configuration: configuration) else {
-            throw ScreenshotContextGenerationError.unavailable(
-                "The screenshot did not contain enough visible text to build prompt context."
-            )
+            throw Self.noVisibleTextError
         }
 
         CotabbyLogger.app.debug(
-            "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalContextText.count)",
+            "Visual context ready source=ocr chars=\(finalContextText.count)",
             metadata: [
                 "ocr": .string(reusedExtraction ? "cached" : "fresh"),
                 "field_lines_dropped": .stringConvertible(droppedFieldLineCount)
@@ -207,7 +201,7 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     // MARK: - Extraction cache
 
     /// FNV-1a over a strided sample of the image bytes, mixed with the dimensions. Sampling every
-    /// 16th byte keeps the hash sub-millisecond on Retina crops while still touching every row;
+    /// 17th byte keeps the hash sub-millisecond on Retina crops while still touching every row;
     /// any real content change moves enough antialiased pixels that a stride collision is
     /// vanishingly unlikely, and the worst case of one is reusing OCR text for a window whose
     /// pixels barely changed. `nil` (no readable backing data) simply disables caching.

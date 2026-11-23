@@ -298,6 +298,6 @@ protocol VisualContextCoordinating: AnyObject {
     var refreshContextProvider: (() -> FocusedInputSnapshot?)? { get set }
 
     func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot, configuration: VisualContextConfiguration)
-    func cancel(resetState: Bool)
+    func cancel()
     func excerpt(for context: FocusedInputContext) -> String?
 }

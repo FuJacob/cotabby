@@ -31,8 +31,6 @@ nonisolated enum CotypistExportImporter {
         let domain: String?
     }
 
-    /// Texts shorter than this after scrubbing are fragments ("ok", "?") with nothing to learn.
-    static let minimumCharacters = 20
     private static let groupingPrefixLength = 40
     /// Share of a shorter text's words that must appear in a longer text of the same group for the
     /// shorter one to count as an earlier snapshot of it. Edits between snapshots change a few
@@ -55,7 +53,7 @@ nonisolated enum CotypistExportImporter {
             let (text, typedLength) = TypingHistoryScrubber.scrub(
                 before: row.textUpToCursor ?? "", after: row.textAfterCursor ?? ""
             )
-            guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumCharacters else { continue }
+            guard TypingHistoryRecord.isWorthKeeping(text) else { continue }
             let bundleIdentifier = normalizedBundleIdentifier(row.appBundleIdentifier)
             let createdAt = parseDate(row.createdAt, using: dateFormatters) ?? Date(timeIntervalSince1970: 0)
             let record = TypingHistoryRecord(

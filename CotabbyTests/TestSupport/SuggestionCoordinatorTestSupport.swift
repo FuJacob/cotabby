@@ -245,15 +245,15 @@ final class RigVisualContextCoordinator: VisualContextCoordinating {
     var onInjectedContextReady: ((FocusedInputIdentity) -> Void)?
     var refreshContextProvider: (() -> FocusedInputSnapshot?)?
     private(set) var startedSessions: [FocusedInputSnapshot] = []
-    private(set) var cancelCalls: [Bool] = []
+    private(set) var cancelCount = 0
     var excerptValue: String?
 
     func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot, configuration: VisualContextConfiguration) {
         startedSessions.append(snapshotContext)
     }
 
-    func cancel(resetState: Bool) {
-        cancelCalls.append(resetState)
+    func cancel() {
+        cancelCount += 1
     }
 
     func excerpt(for context: FocusedInputContext) -> String? {

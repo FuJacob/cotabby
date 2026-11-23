@@ -92,17 +92,6 @@ nonisolated struct TypingHistoryIndex: Sendable {
         let passage: String
     }
 
-    /// Returns up to `limit` passages from past writing that best match the query, each at most
-    /// `maxCharacters` long, best first. A one-off lookup over every match; the store ranks once
-    /// per block of words with `candidates(for:)` instead.
-    func examples(for query: TypingHistoryQuery, limit: Int = 2, maxCharacters: Int = 320) -> [String] {
-        Self.examples(
-            from: candidates(for: query, maxCandidates: Int.max, maxCharacters: maxCharacters),
-            currentFieldText: query.currentFieldText,
-            limit: limit
-        )
-    }
-
     /// The best `limit` passages among `candidates` that are not another version of the field's
     /// own text, without repeats.
     ///

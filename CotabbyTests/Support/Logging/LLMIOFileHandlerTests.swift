@@ -26,8 +26,8 @@ final class LLMIOFileHandlerTests: XCTestCase {
     private var logURL: URL { directory.appendingPathComponent("llm-io.jsonl") }
     private var rotatedURL: URL { directory.appendingPathComponent("llm-io.jsonl.1") }
 
-    private func makeWriter(cap: UInt64? = nil) -> LLMIOFileWriter {
-        LLMIOFileWriter(sizeCapBytes: cap, fileURL: logURL)
+    private func makeWriter(cap: UInt64 = JSONLFileWriter.defaultSizeCapBytes) -> JSONLFileWriter {
+        JSONLFileWriter(fileName: "llm-io.jsonl", sizeCapBytes: cap, fileURL: logURL)
     }
 
     private func emit(

@@ -308,7 +308,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
     }
 
     private func extracted(_ lines: [OCRTextHygiene.OCRLine]) -> ExtractedScreenText {
-        ExtractedScreenText(text: lines.map(\.text).joined(separator: "\n"), lineCount: lines.count, lines: lines)
+        ExtractedScreenText(text: lines.map(\.text).joined(separator: "\n"), lines: lines)
     }
 
     /// Mirrors the real extractor: one OCR line per text line, with a confidence above the hygiene

@@ -29,8 +29,8 @@ final class VisualContextStartCoalescerTests: XCTestCase {
             ("same element, new sequence", id("field", 2), id("field", 1), false, true, id("other", 5), .start),
             // macOS recycles element hashes, so a matching sequence alone is not the same field.
             ("recycled sequence, different element", id("other", 1), id("field", 1), false, true, nil, .start),
-            ("active blocked, permission granted", id("field", 1), id("field", 1), true, true, nil,
-             .recoverPermissionThenStart),
+            // A grant for the field that owns the blocked session restarts it.
+            ("active blocked, permission granted", id("field", 1), id("field", 1), true, true, nil, .start),
             ("active blocked, permission missing", id("field", 1), id("field", 1), true, false, nil, .ignore),
             // Recovery applies only to the field that owns the blocked session.
             ("blocked session belongs to another field", id("new", 2), id("field", 1), true, true, nil, .start),

@@ -61,12 +61,6 @@ nonisolated enum TypingHistoryScrubber {
         return (typed + rest, typed.count)
     }
 
-    static func scrub(_ text: String) -> String {
-        let result = redact(text, boundary: 0).text
-        guard result.count > maximumRecordCharacters else { return result }
-        return String(result.suffix(maximumRecordCharacters))
-    }
-
     /// Replaces every secret-like span and reports where `boundary` (a UTF-16 offset into `text`)
     /// lands in the result.
     private static func redact(_ text: String, boundary: Int) -> (text: String, boundary: Int) {

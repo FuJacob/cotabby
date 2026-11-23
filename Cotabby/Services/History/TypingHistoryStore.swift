@@ -38,9 +38,6 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// Oldest records are dropped past this many. Retrieval and the phrase table stay small enough
     /// to rebuild in a second or two, and very old writing says little about how the user writes now.
     static let maximumRecords = 20_000
-    /// Fields with less text than this are not worth keeping ("ok", a search term).
-    static let minimumRecordedCharacters = 20
-
     private let vault: TypingHistoryVault
     /// Every write and delete goes through this so a deletion can never be undone by a save that
     /// was already running (see `TypingHistoryWriter`).
@@ -308,7 +305,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
                 fieldKey: fieldKey,
                 recordID: UUID(),
                 bundleIdentifier: input.bundleIdentifier,
-                domain: SurfaceContextComposer.registrableDomain(from: input.focusedURLString),
+                domain: SurfaceContextComposer.siteHost(from: input.focusedURLString),
                 createdAt: Date(),
                 rawText: text,
                 rawTypedLength: typedLength,
@@ -329,7 +326,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// There, only a new window title together with nothing of the old window left in the new one
     /// marks another document (a different note or file shown in the same view).
     private func holdsNewDocument(_ active: ActiveRecording, input: FocusedInputSnapshot, text: String) -> Bool {
-        if Self.isWorthKeeping(active.rawText) {
+        if TypingHistoryRecord.isWorthKeeping(active.rawText) {
             guard input.precedingTextMayBeTruncated else { return !Self.keepsMostOf(active.rawText, in: text) }
             return active.windowTitle != input.windowTitle && !Self.sharesContent(active.rawText, with: text)
         }
@@ -370,7 +367,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
         let changed = materializeActiveRecording()
         // Only writing worth keeping can be resumed; remembering an emptied field would replace the
         // entry for the text it held before.
-        if Self.isWorthKeeping(finished.rawText) {
+        if TypingHistoryRecord.isWorthKeeping(finished.rawText) {
             recentRecordings[finished.fieldKey] = finished
             if recentRecordings.count > Self.maximumRecentRecordings, let oldest = recentRecordings.values
                 .min(by: { $0.createdAt < $1.createdAt }) {
@@ -382,11 +379,6 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             scheduleSave()
             rebuildSearchStructures()
         }
-    }
-
-    /// Fields with less text than `minimumRecordedCharacters` are not worth keeping.
-    private static func isWorthKeeping(_ text: String) -> Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumRecordedCharacters
     }
 
     /// Whether `new` keeps at least half of `old` in place: their common start plus common end.
@@ -436,7 +428,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             before: String(active.rawText[..<split]), after: String(active.rawText[split...])
         )
         let existingIndex = records.firstIndex { $0.id == active.recordID }
-        guard Self.isWorthKeeping(text) else {
+        guard TypingHistoryRecord.isWorthKeeping(text) else {
             // The user deleted the field's text down to nothing worth keeping.
             if let existingIndex {
                 records.remove(at: existingIndex)
@@ -555,7 +547,7 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
             candidates = index.candidates(for: TypingHistoryQuery(
                 text: queryText,
                 bundleIdentifier: context.bundleIdentifier,
-                domain: SurfaceContextComposer.registrableDomain(from: context.focusedURLString),
+                domain: SurfaceContextComposer.siteHost(from: context.focusedURLString),
                 currentFieldText: context.precedingText
             ))
             exampleCache = (cacheKey, candidates)

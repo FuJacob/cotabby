@@ -110,13 +110,13 @@ nonisolated enum CotabbyLogger {
             "min_log_level": .string(CotabbyDebugOptions.minimumLogLevel.rawValue),
             "file_sinks": .stringConvertible(fileSinksInstalled)
         ]
-        // Only touch the file writers when sinks are actually installed: referencing `.shared` opens
+        // Only touch the file writers when sinks are actually installed: referencing a shared writer opens
         // the on-disk handle, which must never happen in the default (no-sink) configuration.
         if fileSinksInstalled {
-            if let path = FileLogWriter.shared.fileURL?.path {
+            if let path = JSONLFileWriter.events.fileURL?.path {
                 metadata["event_log"] = .string(path)
             }
-            if let path = LLMIOFileWriter.shared.fileURL?.path {
+            if let path = JSONLFileWriter.llmIO.fileURL?.path {
                 metadata["llm_io_log"] = .string(path)
             }
         }

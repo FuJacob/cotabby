@@ -272,7 +272,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
 
         XCTAssertEqual(rig.coordinator.state, .disabled("Cotabby is disabled in TestApp."))
-        XCTAssertTrue(rig.visualContext.cancelCalls.isEmpty, "Focus-level disables are transient; keep the OCR session")
+        XCTAssertEqual(rig.visualContext.cancelCount, 0, "Focus-level disables are transient; keep the OCR session")
     }
 
     func test_handleSupportedSnapshot_recoversFromDisabledAndClearsOnFieldChange() async {
@@ -378,7 +378,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         rig.coordinator.handleSupportedSnapshot(bareSnapshot)
 
         XCTAssertEqual(rig.coordinator.state, .disabled("No focused text input."))
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
     }
 
     func test_handleSupportedSnapshot_withActiveSessionReconcilesInsteadOfClearing() {
@@ -417,7 +417,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             rig.coordinator.state,
             .disabled("Input Monitoring permission is required before Cotabby can react to typing.")
         )
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
 
         rig.permissionProvider.inputMonitoringGranted = true
         rig.permissionProvider.inputSubject.send(true)
@@ -432,7 +432,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
 
         rig.coordinator.handlePermissionChange()
 
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
     }
 
     // MARK: - Low Power Mode changes
@@ -443,7 +443,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         rig.lowPowerModeProvider.setLowPowerModeEnabled(true)
 
         XCTAssertEqual(rig.coordinator.state, .disabled("Cotabby is paused because Low Power Mode is on."))
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
     }
 
     func test_lowPowerModePublisher_leavesPipelineRunningWhenAutoDisableOptedOut() {

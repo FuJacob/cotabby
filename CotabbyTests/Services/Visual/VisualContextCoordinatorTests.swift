@@ -12,7 +12,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var notifications = 0
         coordinator.onInjectedContextReady = { _ in notifications += 1 }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { generator.contexts.count >= 1 && coordinator.status == .ready }
         live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Updated draft")
         try await waitUntil { generator.contexts.count >= 2 }
@@ -33,7 +33,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var notifications = 0
         coordinator.onInjectedContextReady = { _ in notifications += 1 }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { notifications == 1 }
 
         live = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please review the attached")
@@ -58,7 +58,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var notifications = 0
         coordinator.onInjectedContextReady = { _ in notifications += 1 }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        defer { coordinator.cancel(); generator.pending?.resume(); generator.pending = nil }
         try await waitUntil { notifications == 1 }
 
         generator.suspendNext = true
@@ -82,7 +82,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var notifications = 0
         coordinator.onInjectedContextReady = { _ in notifications += 1 }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
 
         // The same screen read again with a truncated title flickering: the prompt keeps the
@@ -106,7 +106,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
         coordinator.refreshContextProvider = { snapshot }
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         allowed = false
         try await waitUntil { coordinator.status == .idle }
@@ -120,7 +120,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var live = CotabbyTestFixtures.focusedInputSnapshot()
         coordinator.refreshContextProvider = { live }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         live = CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "other", focusChangeSequence: 2)
         try await waitUntil { coordinator.status == .idle }
@@ -139,7 +139,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         try await waitUntil { generator.pending != nil }
         XCTAssertEqual(coordinator.status, .ready)
         XCTAssertEqual(coordinator.latestExcerpt, "Project agenda and deadline")
-        coordinator.cancel(resetState: true)
+        coordinator.cancel()
         let completedBeforeResume = generator.completedCount
         generator.pending?.resume()
         generator.pending = nil
@@ -156,7 +156,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
         coordinator.refreshContextProvider = { snapshot }
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .default)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         try await waitUntil { generator.contexts.count >= 2 }
         XCTAssertTrue(generator.configurations.allSatisfy { $0 == .default })
@@ -171,7 +171,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var live = unreadable
         coordinator.refreshContextProvider = { live }
         coordinator.startSessionIfNeeded(for: unreadable, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         let readableContext = FocusedInputContext(snapshot: readable, generation: 1)
         XCTAssertNil(
@@ -193,7 +193,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var published: String?
         coordinator.onStateChange = { _, excerpt in published = excerpt }
         coordinator.startSessionIfNeeded(for: live, configuration: .local)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         XCTAssertNotNil(published)
 
@@ -217,7 +217,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
         coordinator.refreshContextProvider = { snapshot }
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
-        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        defer { coordinator.cancel(); generator.pending?.resume(); generator.pending = nil }
         try await waitUntil { coordinator.status == .ready }
         generator.suspendNext = true
         try await waitUntil { generator.pending != nil }
@@ -240,7 +240,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
             excerptLifetimeNanoseconds: 80_000_000
         )
         coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(), configuration: .default)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         try await waitUntil { coordinator.status == .ready }
         try await waitUntil { coordinator.latestExcerpt == nil }
         XCTAssertEqual(coordinator.status, .unavailable("Screen context expired; waiting for a fresh capture."))
@@ -253,7 +253,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         coordinator.refreshContextProvider = { live }
         generator.suspendNext = true
         coordinator.startSessionIfNeeded(for: live, configuration: .default)
-        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        defer { coordinator.cancel(); generator.pending?.resume(); generator.pending = nil }
         try await waitUntil { generator.pending != nil }
         live = CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2)
         coordinator.startSessionIfNeeded(for: live, configuration: .default)
@@ -279,7 +279,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
 
         // Pending duplicate: ignored while the settle delay is still running.
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
@@ -302,7 +302,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let coordinator = makeCoordinator(generator)
         let empty = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "", fieldPlaceholder: "Type / for commands.")
         let typed = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "df", fieldPlaceholder: nil)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         coordinator.startSessionIfNeeded(for: empty, configuration: .local)
         try await waitUntil { coordinator.status == .ready }
 
@@ -319,7 +319,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
     func test_churningFocusOnlyCapturesTheSettledField() async throws {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
 
         coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 1), configuration: .local)
         coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), configuration: .local)
@@ -333,7 +333,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         var allowed = false
         let coordinator = makeCoordinator(generator, permission: { allowed })
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
 
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
         let parked = VisualContextStatus.unavailable(
@@ -366,7 +366,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
 
             XCTAssertNil(coordinator.latestExcerpt)
             XCTAssertEqual(published.last, expectedStatus)
-            coordinator.cancel(resetState: true)
+            coordinator.cancel()
         }
     }
 
@@ -374,7 +374,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
-        defer { coordinator.cancel(resetState: true) }
+        defer { coordinator.cancel() }
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
         try await waitUntil { coordinator.status == .ready }
 

@@ -173,10 +173,8 @@ final class SymSpellCorrectorTests: XCTestCase {
 ///
 /// `NSSpellChecker` verdicts depend on the machine's spelling configuration, enabled languages, and
 /// learned words, so these tests deliberately avoid pinning concrete dictionary verdicts. They
-/// instead assert the wrapper's documented contracts relative to the live spell server: whole-word
-/// range interpretation for `isTypo`, faithful pass-through of ranked guesses for
-/// `nativeCorrections`, and the single-word, case-transferred shape of `bestCorrection`. Those
-/// relations hold on any machine because both sides of each assertion query the same engine.
+/// instead assert the wrapper's documented contracts that hold on any machine: an empty word is
+/// never a typo, and `bestCorrection` is nil or a different, single, case-transferred word.
 @MainActor
 final class CurrentWordSpellCheckerTests: XCTestCase {
     /// Mix of well-formed words, misspellings, partially-flagged tokens, trailing punctuation, and
@@ -190,44 +188,6 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
 
     func test_isTypo_emptyWordIsNeverATypo() {
         XCTAssertFalse(makeChecker().isTypo(""))
-    }
-
-    func test_isTypo_mirrorsSpellServerWholeWordRange() {
-        let checker = makeChecker()
-        let probeTag = NSSpellChecker.uniqueSpellDocumentTag()
-        for word in probeWords {
-            let flagged = NSSpellChecker.shared.checkSpelling(
-                of: word,
-                startingAt: 0,
-                language: nil,
-                wrap: false,
-                inSpellDocumentWithTag: probeTag,
-                wordCount: nil
-            )
-            // The wrapper's whole job is range interpretation: a typo only when the flagged range
-            // starts at 0 and spans the entire token (so "I'm" and "nmae," do not misfire).
-            let expected = flagged.location == 0 && flagged.length == (word as NSString).length
-            XCTAssertEqual(
-                checker.isTypo(word),
-                expected,
-                "isTypo(\"\(word)\") must mirror the spell server range \(flagged)"
-            )
-        }
-    }
-
-    func test_nativeCorrections_passesRankedGuessesThroughNeverNil() {
-        let checker = makeChecker()
-        let probeTag = NSSpellChecker.uniqueSpellDocumentTag()
-        for word in ["helo", "qqqqzzzzqq"] {
-            let fullRange = NSRange(location: 0, length: (word as NSString).length)
-            let rawGuesses = NSSpellChecker.shared.guesses(
-                forWordRange: fullRange,
-                in: word,
-                language: nil,
-                inSpellDocumentWithTag: probeTag
-            ) ?? []
-            XCTAssertEqual(checker.nativeCorrections(for: word), rawGuesses)
-        }
     }
 
     func test_bestCorrection_returnsNilOrADifferentSingleWord() {

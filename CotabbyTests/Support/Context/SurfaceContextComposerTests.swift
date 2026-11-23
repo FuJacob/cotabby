@@ -243,12 +243,12 @@ final class SurfaceContextComposerTests: XCTestCase {
 
     func testDomainExtractionDropsPathQueryAndWWW() {
         XCTAssertEqual(
-            SurfaceContextComposer.registrableDomain(from: "https://www.mail.google.com/u/0/?compose=new"),
+            SurfaceContextComposer.siteHost(from: "https://www.mail.google.com/u/0/?compose=new"),
             "mail.google.com"
         )
-        XCTAssertEqual(SurfaceContextComposer.registrableDomain(from: "https://Docs.Example.COM/x"), "docs.example.com")
+        XCTAssertEqual(SurfaceContextComposer.siteHost(from: "https://Docs.Example.COM/x"), "docs.example.com")
         for input in [nil, "", "not a url", "mailto:jane@example.com"] as [String?] {
-            XCTAssertNil(SurfaceContextComposer.registrableDomain(from: input), "input \(input ?? "nil")")
+            XCTAssertNil(SurfaceContextComposer.siteHost(from: input), "input \(input ?? "nil")")
         }
     }
 

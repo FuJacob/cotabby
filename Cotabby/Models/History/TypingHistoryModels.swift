@@ -43,6 +43,15 @@ nonisolated struct TypingHistoryRecord: Codable, Equatable, Sendable, Identifiab
         guard let typedLength, typedLength < text.count else { return text }
         return String(text.prefix(typedLength))
     }
+
+    /// Texts shorter than this are fragments ("ok", "?", a search term) with nothing to learn.
+    static let minimumCharacters = 20
+
+    /// One threshold for live recording and import, so an imported fragment is never kept that
+    /// the recorder itself would have dropped.
+    static func isWorthKeeping(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumCharacters
+    }
 }
 
 /// The encrypted file's plaintext payload. Versioned so a future format change can migrate rather

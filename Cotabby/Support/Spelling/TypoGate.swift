@@ -43,8 +43,9 @@ enum TypoGate {
         guard settings.suppressCompletionsOnTypo else {
             return .proceed
         }
-        // Tolerate one trailing space so a just-finished word remains actionable: automatic mode can
-        // apply it, while offer mode can keep the green correction alive after Space.
+        // Only a word committed by a delimiter is judged (see `CaretWordContext.committedWord`):
+        // automatic mode applies the fix after a bare Space, offer mode keeps the green correction
+        // alive across the delimiter, and a still-growing word is never flagged.
         guard let current = CaretWordContext.committedWord(in: precedingText) else {
             return .proceed
         }

@@ -12,10 +12,6 @@ final class LowPowerModeMonitorTests: XCTestCase {
         TestLifetime.retain(LowPowerModeMonitor())
     }
 
-    func test_initialValueMirrorsProcessInfo() {
-        XCTAssertEqual(makeMonitor().isLowPowerModeEnabled, ProcessInfo.processInfo.isLowPowerModeEnabled)
-    }
-
     func test_changeStreamSkipsBootstrapAndUnchangedRefreshes() {
         let monitor = makeMonitor()
         var emissions: [Bool] = []

@@ -21,7 +21,7 @@ extension SuggestionCoordinator {
         settleDeferredScreenContextChange()
         cancelPredictionWork()
         resetCachedGenerationContext()
-        visualContextCoordinator.cancel(resetState: true)
+        visualContextCoordinator.cancel()
         hideOverlay(reason: "Overlay hidden because Cotabby stopped observing suggestions.")
         inputMonitor.onEvent = nil
         inputMonitor.onSuppressedSyntheticInput = nil
@@ -42,7 +42,7 @@ extension SuggestionCoordinator {
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
-        visualContextCoordinator.cancel(resetState: true)
+        visualContextCoordinator.cancel()
         retireSuggestion(reason: "Overlay hidden because the runtime model is switching.", clearDiagnostics: true)
     }
 
@@ -65,7 +65,7 @@ extension SuggestionCoordinator {
         retireSuggestion(reason: "Overlay hidden because autocomplete settings changed.", clearDiagnostics: true)
 
         // Cancel any obsolete context, then restart only when the subsystem is not disabled.
-        visualContextCoordinator.cancel(resetState: true)
+        visualContextCoordinator.cancel()
         if let focusedSnapshot = focusModel.snapshot.context {
             startVisualContextIfAllowed(for: focusedSnapshot, focusSnapshot: focusModel.snapshot)
         }

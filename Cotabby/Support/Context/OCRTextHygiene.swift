@@ -20,8 +20,8 @@ nonisolated enum OCRTextHygiene {
     /// A single recognized OCR line paired with the recognizer's confidence for that line.
     ///
     /// Confidence is carried alongside the text because the cheapest, highest-signal filter
-    /// (`dropLowConfidence`) needs it. The orchestrating extractor currently discards Vision's
-    /// per-candidate confidence; surfacing it into this value type is what lets filter #1 run.
+    /// (`dropLowConfidence`) needs it. `ScreenTextExtractor` supplies Vision's per-candidate
+    /// confidence for every line it recognizes.
     struct OCRLine: Equatable, Sendable {
         let text: String
         let confidence: Float
@@ -205,13 +205,7 @@ nonisolated enum OCRTextHygiene {
     /// Both the field text and each OCR line pass through this so that case differences and OCR
     /// spacing artifacts (`Hello   World` vs `hello world`) still match during stripping.
     private static func normalize(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        let collapsed = lowercased.replacingOccurrences(
-            of: #"\s+"#,
-            with: " ",
-            options: .regularExpression
-        )
-        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+        PromptContextSanitizer.collapseInlineWhitespace(in: text.lowercased())
     }
 
     // MARK: - Top-level pipeline
@@ -265,7 +259,7 @@ nonisolated enum OCRTextHygiene {
     /// with or without one trailing caret glyph (joined to the last word or read as a word of its
     /// own), is the user's own edit. Only new lines count. A line that disappears is not evidence:
     /// a growing field scrolls the page, and OCR drops lines it read last time.
-    /// ponytail: a switch to a conversation that shows nothing new (empty, sharing all its chrome)
+    /// Known gap: a switch to a conversation that shows nothing new (empty, sharing all its chrome)
     /// goes unreported; count lost substantive lines too if that case turns up in practice.
     ///
     /// Pass the field's text from both sides of the screenshot (read before capture and after OCR),

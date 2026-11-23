@@ -7,7 +7,7 @@ import Logging
 /// acceptance, and compatibility-relevant pointer presses. This is the boundary between raw
 /// CGEvents and Cotabby's smaller input-event vocabulary.
 ///
-/// `CapturedInputEvent` now lives in `Models/InputModels.swift` so the rest of the app can depend
+/// `CapturedInputEvent` lives in `Models/Input/InputModels.swift` so the rest of the app can depend
 /// on the semantic event type without importing this event-tap implementation.
 
 /// Snapshot of the key data `InputMonitor` needs after a raw `CGEvent` enters the tap callback.
@@ -41,7 +41,66 @@ enum InputMonitorAcceptTapDecision: Equatable {
     case consume
 }
 
-/// Installs two taps:
+/// One installed CGEvent tap: the mach port plus the run-loop source that delivers its callbacks.
+/// The two only make sense together, so pairing them means a tap can never be half torn down.
+private struct EventTap {
+    private let port: CFMachPort
+    private let runLoopSource: CFRunLoopSource?
+
+    /// Creates an enabled session tap whose callbacks arrive on the main run loop. `owner` is
+    /// passed unretained as the callback's `userInfo`; the owner must invalidate the tap before it
+    /// goes away.
+    static func install(
+        place: CGEventTapPlacement,
+        options: CGEventTapOptions,
+        mask: CGEventMask,
+        owner: InputMonitor,
+        callback: CGEventTapCallBack
+    ) -> EventTap? {
+        guard let port = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: place,
+            options: options,
+            eventsOfInterest: mask,
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(owner).toOpaque()
+        ) else {
+            return nil
+        }
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
+        if let source {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        CGEvent.tapEnable(tap: port, enable: true)
+        return EventTap(port: port, runLoopSource: source)
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        CGEvent.tapEnable(tap: port, enable: enabled)
+    }
+
+    func invalidate() {
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        CFMachPortInvalidate(port)
+    }
+}
+
+/// Virtual key codes the classifier treats by behavior rather than by character.
+private enum ClassifiedKeyCodes {
+    /// Left, Right, Down, Up.
+    static let arrows: Set<CGKeyCode> = [123, 124, 125, 126]
+    /// Backspace and forward delete.
+    static let deletions: Set<CGKeyCode> = [51, 117]
+    /// Escape, Return, Keypad Enter.
+    static let dismissals: Set<CGKeyCode> = [53, 36, 76]
+    /// A, Z, X, V: with Command held these select-all, undo, cut, and paste, all of which change
+    /// the field's text or selection.
+    static let commandMutations: Set<CGKeyCode> = [0, 6, 7, 9]
+}
+
+/// Installs three taps:
 /// - A steady-state `.listenOnly` observer at the head of the chain. Listen-only taps do not gate
 ///   event delivery on the callback's return, so a slow main actor cannot stall input in unrelated
 ///   apps (DaVinci Resolve's Spacebar play/pause is the canonical victim of an active tap here — see
@@ -50,6 +109,7 @@ enum InputMonitorAcceptTapDecision: Equatable {
 ///   This is the only path that consumes events, so it also owns acceptance side effects. Keeping
 ///   insertion and consumption in the same callback prevents the coordinator from hiding the overlay
 ///   before the tap has decided what to do with the original key.
+/// - A `.defaultTap` toggle tap at the head, installed only while a global-toggle hotkey is bound.
 @MainActor
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
@@ -102,11 +162,9 @@ final class InputMonitor {
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
-    private var observerTap: CFMachPort?
-    private var observerRunLoopSource: CFRunLoopSource?
+    private var observerTap: EventTap?
 
-    private var acceptTap: CFMachPort?
-    private var acceptRunLoopSource: CFRunLoopSource?
+    private var acceptTap: EventTap?
     /// Whether `acceptTap` is currently intercepting. Between suggestions the tap is disabled
     /// rather than destroyed (see `updateAcceptTapState`), so this distinguishes an intentional
     /// pause from the system disabling it on timeout, which the callback re-enables.
@@ -115,8 +173,7 @@ final class InputMonitor {
     /// Dedicated consuming tap for the global-toggle hotkey. Lives independently of the accept tap
     /// because it must fire even when no suggestion is visible — and even when Cotabby is globally
     /// disabled, since the whole purpose of the hotkey is to flip that switch back on.
-    private var toggleTap: CFMachPort?
-    private var toggleRunLoopSource: CFRunLoopSource?
+    private var toggleTap: EventTap?
 
     /// Tracks whether the consuming tap currently owns accept-key semantics. This is separate
     /// from "a suggestion exists": the observer should only suppress accept-key callbacks when a
@@ -150,9 +207,13 @@ final class InputMonitor {
         refresh()
     }
 
-    /// Removes both taps and stops observing keyboard events.
+    /// Removes every tap and stops observing keyboard events.
     func stop() {
         CotabbyLogger.app.info("Input monitor stopping")
+        removeAllTaps()
+    }
+
+    private func removeAllTaps() {
         destroyAcceptTap()
         destroyToggleTap()
         destroyObserverTap()
@@ -166,9 +227,7 @@ final class InputMonitor {
             installObserverTapIfNeeded()
             refreshToggleTap()
         } else {
-            destroyAcceptTap()
-            destroyToggleTap()
-            destroyObserverTap()
+            removeAllTaps()
         }
     }
 
@@ -311,28 +370,18 @@ final class InputMonitor {
             }
         }
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+        guard let tap = EventTap.install(
             place: .headInsertEventTap,
             options: .listenOnly,
-            eventsOfInterest: CGEventMask(mask),
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+            mask: CGEventMask(mask),
+            owner: self,
+            callback: callback
         ) else {
             CotabbyLogger.app.warning("Failed to create CGEvent observer tap — Input Monitoring permission may be missing")
             return
         }
-        CotabbyLogger.app.info("CGEvent observer tap installed (listen-only)")
-
         observerTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        observerRunLoopSource = source
-
-        if let source {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        CGEvent.tapEnable(tap: tap, enable: true)
+        CotabbyLogger.app.info("CGEvent observer tap installed (listen-only)")
     }
 
     private func installAcceptTapIfNeeded() {
@@ -340,7 +389,7 @@ final class InputMonitor {
         // only guarantees the tap exists and is intercepting.
         if let acceptTap {
             if !acceptTapEnabled {
-                CGEvent.tapEnable(tap: acceptTap, enable: true)
+                acceptTap.setEnabled(true)
                 acceptTapEnabled = true
                 CotabbyLogger.app.debug("CGEvent accept tap re-enabled")
             }
@@ -362,29 +411,19 @@ final class InputMonitor {
         // Tail-append so this tap runs *after* the head-inserted observer. The observer is
         // listen-only and intentionally ignores acceptance keys, so the default tap remains the
         // single place where accept insertion and original-key consumption are decided.
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+        guard let tap = EventTap.install(
             place: .tailAppendEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(mask),
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+            mask: CGEventMask(mask),
+            owner: self,
+            callback: callback
         ) else {
             CotabbyLogger.app.warning("Failed to create CGEvent accept tap")
             return
         }
-        CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only)")
-
         acceptTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        acceptRunLoopSource = source
-
-        if let source {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        CGEvent.tapEnable(tap: tap, enable: true)
         acceptTapEnabled = true
+        CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only)")
     }
 
     /// Stops the accept tap from intercepting without releasing it, so the next visible
@@ -392,7 +431,7 @@ final class InputMonitor {
     private func disableAcceptTap() {
         isAcceptTapOwningAcceptKeys = false
         guard let acceptTap, acceptTapEnabled else { return }
-        CGEvent.tapEnable(tap: acceptTap, enable: false)
+        acceptTap.setEnabled(false)
         acceptTapEnabled = false
         CotabbyLogger.app.debug("CGEvent accept tap disabled")
     }
@@ -418,73 +457,42 @@ final class InputMonitor {
         // tap) gets a chance to consume the keystroke. The callback returns `nil` only when the
         // event matches the bound hotkey, so unrelated keys still drain through to the rest of the
         // chain in their normal order.
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+        guard let tap = EventTap.install(
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(mask),
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+            mask: CGEventMask(mask),
+            owner: self,
+            callback: callback
         ) else {
             CotabbyLogger.app.warning("Failed to create CGEvent toggle tap")
             return
         }
-        CotabbyLogger.app.info("CGEvent toggle tap installed (active, toggle-hotkey only)")
-
         toggleTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        toggleRunLoopSource = source
-
-        if let source {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        CGEvent.tapEnable(tap: tap, enable: true)
+        CotabbyLogger.app.info("CGEvent toggle tap installed (active, toggle-hotkey only)")
     }
 
     private func destroyObserverTap() {
-        if let source = observerRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        observerRunLoopSource = nil
-
-        if let tap = observerTap {
-            CFMachPortInvalidate(tap)
-        }
+        observerTap?.invalidate()
         observerTap = nil
     }
 
     private func destroyAcceptTap() {
         isAcceptTapOwningAcceptKeys = false
-        guard acceptTap != nil || acceptRunLoopSource != nil else {
+        guard let acceptTap else {
             return
         }
-        if let source = acceptRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        acceptRunLoopSource = nil
-
-        if let tap = acceptTap {
-            CFMachPortInvalidate(tap)
-        }
-        acceptTap = nil
+        acceptTap.invalidate()
+        self.acceptTap = nil
         acceptTapEnabled = false
         CotabbyLogger.app.info("CGEvent accept tap removed")
     }
 
     private func destroyToggleTap() {
-        guard toggleTap != nil || toggleRunLoopSource != nil else {
+        guard let toggleTap else {
             return
         }
-        if let source = toggleRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-        toggleRunLoopSource = nil
-
-        if let tap = toggleTap {
-            CFMachPortInvalidate(tap)
-        }
-        toggleTap = nil
+        toggleTap.invalidate()
+        self.toggleTap = nil
         CotabbyLogger.app.info("CGEvent toggle tap removed")
     }
 
@@ -497,9 +505,7 @@ final class InputMonitor {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             CotabbyLogger.app.warning("Toggle tap was disabled by system, re-enabling")
-            if let toggleTap {
-                CGEvent.tapEnable(tap: toggleTap, enable: true)
-            }
+            toggleTap?.setEnabled(true)
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
@@ -537,9 +543,7 @@ final class InputMonitor {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             CotabbyLogger.app.warning("Observer tap was disabled by system, re-enabling")
-            if let observerTap {
-                CGEvent.tapEnable(tap: observerTap, enable: true)
-            }
+            observerTap?.setEnabled(true)
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
@@ -622,7 +626,7 @@ final class InputMonitor {
             // Only undo a system-initiated disable; a tap Cotabby paused between suggestions stays off.
             if let acceptTap, acceptTapEnabled {
                 CotabbyLogger.app.warning("Accept tap was disabled by system, re-enabling")
-                CGEvent.tapEnable(tap: acceptTap, enable: true)
+                acceptTap.setEnabled(true)
             }
             return Unmanaged.passUnretained(event)
 
@@ -775,28 +779,27 @@ final class InputMonitor {
 
         // We classify events by behavior instead of raw key codes alone.
         // That keeps the prediction layer coupled to "what happened" rather than "which key fired."
-        if [123, 124, 125, 126].contains(keyCode) {
+        if ClassifiedKeyCodes.arrows.contains(keyCode) {
             return CapturedInputEvent(kind: .navigation, keyCode: keyCode, characters: "", flags: flags)
         }
 
-        // Backspace (51) and forward-delete (117) mutate field content. Return (36) and Keypad
-        // Enter (76) intentionally fall through to the dismissal block below alongside Escape.
+        // Backspace and forward delete mutate field content. Return and Keypad Enter
+        // intentionally fall through to the dismissal block below alongside Escape.
         // Enter often acts as navigation rather than text input (Find Bar next-match, single-line
         // form submit, chat send), and even in multi-line fields the next character typed will
         // schedule a fresh prediction anyway — regenerating on Enter itself just masks the user's
         // post-Enter action with a stale overlay.
-        if [51, 117].contains(keyCode) {
+        if ClassifiedKeyCodes.deletions.contains(keyCode) {
             return CapturedInputEvent(kind: .textMutation, keyCode: keyCode, characters: "", flags: flags)
         }
 
-        // 53 = Escape, 36 = Return, 76 = Keypad Enter.
-        if [53, 36, 76].contains(keyCode) {
+        if ClassifiedKeyCodes.dismissals.contains(keyCode) {
             return CapturedInputEvent(kind: .dismissal, keyCode: keyCode, characters: "", flags: flags)
         }
 
         if flags.contains(.maskCommand) {
-            let mutationShortcutKeyCodes: Set<CGKeyCode> = [0, 6, 7, 9]
-            let kind: CapturedInputEvent.Kind = mutationShortcutKeyCodes.contains(keyCode) ? .shortcutMutation : .dismissal
+            let kind: CapturedInputEvent.Kind =
+                ClassifiedKeyCodes.commandMutations.contains(keyCode) ? .shortcutMutation : .dismissal
             return CapturedInputEvent(kind: kind, keyCode: keyCode, characters: "", flags: flags)
         }
 

@@ -8,7 +8,6 @@ import Foundation
 /// different Y-axis origin from AppKit. This snapshot stores the converted frame plus the visible
 /// screen frame needed to clamp overlay placement safely on multi-monitor setups.
 struct SystemSettingsWindowSnapshot: Equatable {
-    let processIdentifier: pid_t
     let frame: CGRect
     let visibleFrame: CGRect
 }
@@ -24,7 +23,7 @@ enum SystemSettingsWindowLocator {
         let displayBounds: CGRect
     }
 
-    static var isFrontmost: Bool {
+    private static var isFrontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
     }
 
@@ -69,7 +68,6 @@ enum SystemSettingsWindowLocator {
             }
 
             return SystemSettingsWindowSnapshot(
-                processIdentifier: ownerPID,
                 frame: frame,
                 visibleFrame: convertedGeometry.visibleFrame
             )
