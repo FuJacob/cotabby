@@ -7,7 +7,6 @@ import Foundation
 /// Human-readable lifecycle states surfaced to the UI during runtime bootstrap.
 enum RuntimeBootstrapState: Equatable, Sendable {
     case idle
-    case starting(String)
     case loading(String)
     case ready(String)
     case failed(String)
@@ -16,8 +15,7 @@ enum RuntimeBootstrapState: Equatable, Sendable {
         switch self {
         case .idle:
             return "Idle"
-        case .starting(let detail),
-            .loading(let detail),
+        case .loading(let detail),
             .ready(let detail),
             .failed(let detail):
             return detail
@@ -47,7 +45,7 @@ struct RuntimeModelOption: Equatable, Hashable, Sendable, Identifiable {
     var actualModelName: String { filename }
 }
 
-/// Downloadable model metadata used by onboarding and menu-based model installation.
+/// Downloadable model metadata used by onboarding and the Settings model catalog.
 /// The source URL is the transfer identity, while `filename` is the flat on-disk destination.
 /// Keeping those identities separate prevents repositories that publish the same leaf filename
 /// from sharing pause, cancellation, or resume state.
@@ -65,15 +63,10 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     /// rationale as `expectedSizeBytes`. HuggingFace exposes this as the
     /// `x-linked-etag` response header on its CDN URLs.
     let sha256: String?
-    let alternateFilenames: [String]
 
     var id: String { downloadURL.absoluteString }
     var actualModelName: String { filename }
     var approximateSizeLabel: String { String(format: "~%.1f GB", approximateSizeInGigabytes) }
-
-    var allKnownFilenames: [String] {
-        [filename] + alternateFilenames
-    }
 
     init(
         filename: String,
@@ -81,8 +74,7 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         downloadURL: URL,
         approximateSizeInGigabytes: Double,
         expectedSizeBytes: Int64? = nil,
-        sha256: String? = nil,
-        alternateFilenames: [String] = []
+        sha256: String? = nil
     ) {
         self.filename = filename
         self.displayName = displayName
@@ -90,7 +82,6 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         self.approximateSizeInGigabytes = approximateSizeInGigabytes
         self.expectedSizeBytes = expectedSizeBytes
         self.sha256 = sha256
-        self.alternateFilenames = alternateFilenames
     }
 }
 
@@ -227,20 +218,15 @@ struct LlamaGenerationOutput: Equatable, Sendable {
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.
 struct ResolvedLlamaRuntime: Equatable, Sendable {
-    let runtimeDirectoryURL: URL
     let modelFileURL: URL
     let modelDisplayName: String
 }
 
-/// Operator-facing runtime metadata used by the menu and startup diagnostics.
+/// The runtime manager's record of its most recent load and failure. Nothing in the UI renders
+/// it; it exists so tests and eval harnesses can ask which model loaded and why a load failed.
+/// Load parameters (context window, threads, GPU layers) are in the `Model loaded` log line.
 struct LlamaRuntimeDiagnostics: Equatable, Sendable {
-    var runtimeDirectoryPath: String?
     var modelFilePath: String?
-    var backendName: String?
-    var contextWindowTokens: Int?
-    var batchSize: Int?
-    var threadCount: Int?
-    var gpuLayerCount: Int?
     var lastLoadStatus: String?
     var lastError: String?
 }

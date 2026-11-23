@@ -111,7 +111,6 @@ enum SuggestionRequestFactory {
         // prompt string is only consumed by the llama engine and the endpoint.
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefixText,
-            applicationName: context.applicationName,
             userName: userName,
             // The endpoint backend shares this renderer, but adding document-tail content to a
             // network request needs its own disclosure and consent. Keep this new context local;

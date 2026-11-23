@@ -55,8 +55,7 @@ enum PhrasePredictionScreenContext {
         let languages = LanguageCatalog.normalize(settings.responseLanguages)
         let compactLanguage = languages.isEmpty ? nil : "Usual language: " + languages.joined(separator: ", ") + "."
         let prompt = BaseCompletionPromptRenderer.prompt(
-            prefixText: request.prefixText, applicationName: context.applicationName,
-            userName: request.userName, trailingText: context.trailingText,
+            prefixText: request.prefixText, userName: request.userName, trailingText: context.trailingText,
             maxSuffixCharacters: request.maxSuffixCharacters, customRules: request.customRules,
             extendedContext: request.extendedContext,
             languageInstruction: promptVariant == "compact-language" ? compactLanguage : request.languageInstruction,

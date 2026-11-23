@@ -67,7 +67,6 @@ final class TypingHistoryPromptTests: XCTestCase {
     func test_basePromptQuotesExamplesBeforeTheCaretText() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "The POC is",
-            applicationName: "Mail",
             userName: nil,
             historyExamples: ["The Imperum POC starts Monday."]
         )
@@ -79,7 +78,6 @@ final class TypingHistoryPromptTests: XCTestCase {
     func test_historySectionIsDroppedWholeRatherThanCutMidQuote() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: String(repeating: "word ", count: 30),
-            applicationName: "Mail",
             userName: nil,
             historyExamples: [String(repeating: "earlier ", count: 40)],
             contextBudget: 200
@@ -90,9 +88,9 @@ final class TypingHistoryPromptTests: XCTestCase {
 
     func test_basePromptWithoutExamplesIsUnchanged() {
         XCTAssertEqual(
-            BaseCompletionPromptRenderer.prompt(prefixText: "The POC is", applicationName: "Mail", userName: nil),
+            BaseCompletionPromptRenderer.prompt(prefixText: "The POC is", userName: nil),
             BaseCompletionPromptRenderer.prompt(
-                prefixText: "The POC is", applicationName: "Mail", userName: nil, historyExamples: []
+                prefixText: "The POC is", userName: nil, historyExamples: []
             )
         )
     }

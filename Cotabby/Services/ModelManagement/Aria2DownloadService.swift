@@ -1,7 +1,6 @@
 import Foundation
 
 nonisolated enum Aria2DownloadError: LocalizedError, Equatable {
-    case executableNotFound
     case invalidFilename
     case cancelled
     case paused
@@ -9,8 +8,6 @@ nonisolated enum Aria2DownloadError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .executableNotFound:
-            return "aria2c executable was not found on the system."
         case .invalidFilename:
             return "The model filename is not valid."
         case .cancelled:
@@ -38,12 +35,8 @@ nonisolated final class Aria2DownloadService: @unchecked Sendable {
         from url: URL,
         filename: String,
         stagingDirectory: URL,
-        executableURL: URL? = nil,
-        locator: @Sendable () -> URL? = { Aria2Locator.executableURL() }
+        executableURL: URL
     ) async throws -> URL {
-        guard let executableURL = executableURL ?? locator() else {
-            throw Aria2DownloadError.executableNotFound
-        }
         let outputFilename = (filename as NSString).lastPathComponent
         guard !outputFilename.isEmpty,
               outputFilename != ".",

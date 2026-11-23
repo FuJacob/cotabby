@@ -26,32 +26,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
         }
     }
 
-    func test_downloadThrowsExecutableNotFoundWhenNoLocatorMatch() async {
-        let service = Aria2DownloadService { _ in }
-        let stagingDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: stagingDir) }
-
-        do {
-            _ = try await service.download(
-                from: URL(string: "https://example.com/model.gguf")!,
-                filename: "model.gguf",
-                stagingDirectory: stagingDir,
-                executableURL: nil,
-                locator: { nil }
-            )
-            XCTFail("Expected executableNotFound error")
-        } catch let error as Aria2DownloadError {
-            XCTAssertEqual(error, .executableNotFound)
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
-        }
-    }
-
     func test_aria2DownloadError_localizedDescription() {
-        XCTAssertEqual(
-            Aria2DownloadError.executableNotFound.errorDescription,
-            "aria2c executable was not found on the system."
-        )
         XCTAssertEqual(
             Aria2DownloadError.invalidFilename.errorDescription,
             "The model filename is not valid."

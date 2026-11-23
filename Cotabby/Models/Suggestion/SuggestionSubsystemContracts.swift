@@ -157,7 +157,6 @@ extension SuggestionGenerating {
 protocol LlamaRuntimeGenerating: AnyObject {
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
     ) async throws -> LlamaGenerationOutput
     /// Streaming variant: `onPartialRawText` receives the cumulative raw completion after each
@@ -166,7 +165,6 @@ protocol LlamaRuntimeGenerating: AnyObject {
     /// its confidence fields describe the whole generation (partials are pre-gate by nature).
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput
@@ -174,24 +172,23 @@ protocol LlamaRuntimeGenerating: AnyObject {
     /// Decodes `prompt` into the native prompt cache without sampling any tokens, so the next
     /// `generate` whose prompt extends this one only decodes the typed delta. Best-effort warmup:
     /// callers treat failures as "no cache primed", never as a user-facing error.
-    func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws
+    func prefill(prompt: String, options: LlamaGenerationOptions) async throws
 }
 
 extension LlamaRuntimeGenerating {
     /// Default no-op so test fakes that only exercise the generate/cancel contract keep compiling;
     /// the production manager overrides this with a real prompt prefill.
-    func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws {}
+    func prefill(prompt: String, options: LlamaGenerationOptions) async throws {}
 }
 
 extension LlamaRuntimeGenerating {
     /// Default for fakes that only exercise the single-shot contract: ignore the partial hook.
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput {
-        try await generate(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options)
+        try await generate(prompt: prompt, options: options)
     }
 }
 

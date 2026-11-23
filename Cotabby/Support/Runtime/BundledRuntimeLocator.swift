@@ -3,7 +3,6 @@ import Foundation
 /// File overview:
 /// Resolves which local model assets Cotabby should load from user-managed storage.
 /// This keeps startup deterministic while ensuring large model files are never required in the app bundle.
-///
 enum BundledRuntimeLocatorError: LocalizedError {
     case runtimeDirectoryMissing(String)
     case modelMissing(String)
@@ -22,13 +21,9 @@ enum BundledRuntimeLocatorError: LocalizedError {
 }
 
 /// Resolves locally installed model assets from user-writable runtime directories.
-/// GGUF models are single files in `LlamaRuntime/`.
+/// GGUF models are single files in `LlamaRuntime/`. Despite the name, nothing is read from the
+/// app bundle: `bundle` only supplies the app name that scopes the Application Support folder.
 struct BundledRuntimeLocator {
-    private struct RuntimeCandidate {
-        let runtimeDirectoryURL: URL
-        let modelDirectoryURL: URL
-    }
-
     static let runtimeFolderName = "LlamaRuntime"
 
     let bundle: Bundle
@@ -142,11 +137,12 @@ struct BundledRuntimeLocator {
     ) throws -> ResolvedLlamaRuntime {
         var lastError: Error?
 
-        // We try candidates in order so explicit runtime overrides can opt into custom directories.
-        for candidate in runtimeCandidates(for: configuration) {
+        // Directories are tried in order, so a model missing from Cotabby's own folder can still
+        // resolve from an additive source such as the LM Studio library.
+        for directoryURL in searchDirectories(for: configuration) {
             do {
                 let modelOptions = try availableModels(
-                    candidate: candidate,
+                    in: directoryURL,
                     preferredModelNames: configuration.preferredModelNames
                 )
 
@@ -163,10 +159,13 @@ struct BundledRuntimeLocator {
                 } else if let firstOption = modelOptions.first {
                     selectedOption = firstOption
                 } else {
-                    throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
+                    throw BundledRuntimeLocatorError.modelMissing(directoryURL.path)
                 }
 
-                return resolvedRuntime(from: selectedOption, candidate: candidate)
+                return ResolvedLlamaRuntime(
+                    modelFileURL: selectedOption.url,
+                    modelDisplayName: selectedOption.displayName
+                )
             } catch {
                 lastError = error
             }
@@ -177,19 +176,19 @@ struct BundledRuntimeLocator {
                 "No runtime candidates were available.")
     }
 
-    /// Lists all GGUF models in deterministic display order, merged across every runtime candidate.
+    /// Lists all GGUF models in deterministic display order, merged across every search directory.
     ///
-    /// Merging (rather than returning the first non-empty candidate) is what makes the LM Studio
+    /// Merging (rather than returning the first non-empty directory) is what makes the LM Studio
     /// source additive: the picker shows Cotabby's own models plus the LM Studio library together.
-    /// Candidate order is preserved (Cotabby's directory first) and duplicate filenames are deduped,
+    /// Directory order is preserved (Cotabby's directory first) and duplicate filenames are deduped,
     /// keeping the first occurrence so the authoritative directory wins a name collision.
     func availableModels(configuration: LlamaRuntimeConfiguration) -> [RuntimeModelOption] {
         var merged: [RuntimeModelOption] = []
         var seenFilenames = Set<String>()
 
-        for candidate in runtimeCandidates(for: configuration) {
+        for directoryURL in searchDirectories(for: configuration) {
             guard let modelOptions = try? availableModels(
-                candidate: candidate,
+                in: directoryURL,
                 preferredModelNames: configuration.preferredModelNames
             ) else {
                 continue
@@ -203,81 +202,44 @@ struct BundledRuntimeLocator {
         return merged
     }
 
-    /// Enumerates runtime directories. By default we load from the user-managed model directory and,
-    /// when the user enabled it, additionally from the LM Studio library.
-    /// An explicit `runtimeDirectoryPath` can override this for tests or advanced local setups.
-    private func runtimeCandidates(for configuration: LlamaRuntimeConfiguration)
-        -> [RuntimeCandidate] {
+    /// The directories to scan. An explicit `runtimeDirectoryPath` replaces the default search set
+    /// for tests or advanced local setups.
+    private func searchDirectories(for configuration: LlamaRuntimeConfiguration) -> [URL] {
         if let runtimeDirectoryPath = configuration.runtimeDirectoryPath,
             !runtimeDirectoryPath.isEmpty {
-            let runtimeDirectoryURL = URL(fileURLWithPath: runtimeDirectoryPath, isDirectory: true)
-            return [
-                RuntimeCandidate(
-                    runtimeDirectoryURL: runtimeDirectoryURL,
-                    modelDirectoryURL: runtimeDirectoryURL
-                )
-            ]
+            return [URL(fileURLWithPath: runtimeDirectoryPath, isDirectory: true)]
         }
-
-        let userDir = Self.userRuntimeDirectoryURL(bundle: bundle)
-        var candidates: [RuntimeCandidate] = [
-            RuntimeCandidate(
-                runtimeDirectoryURL: userDir,
-                modelDirectoryURL: userDir
-            )
-        ]
-        if let lmStudio = Self.enabledLMStudioModelsDirectory() {
-            candidates.append(
-                RuntimeCandidate(
-                    runtimeDirectoryURL: lmStudio,
-                    modelDirectoryURL: lmStudio
-                )
-            )
-        }
-        return candidates
+        return Self.runtimeSearchDirectories(bundle: bundle)
     }
 
-    /// Enumerates and orders all GGUF models for one runtime candidate.
+    /// Enumerates and orders all GGUF models in one directory.
     /// Preferred names come first; user-added GGUF files are appended alphabetically.
     private func availableModels(
-        candidate: RuntimeCandidate,
+        in directoryURL: URL,
         preferredModelNames: [String]
     ) throws -> [RuntimeModelOption] {
-        let fileManager = FileManager.default
         var isDirectory = ObjCBool(false)
-
         guard
-            fileManager.fileExists(
-                atPath: candidate.runtimeDirectoryURL.path, isDirectory: &isDirectory),
+            FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
             isDirectory.boolValue
         else {
-            throw BundledRuntimeLocatorError.runtimeDirectoryMissing(
-                candidate.runtimeDirectoryURL.path)
-        }
-
-        var isModelDirectory = ObjCBool(false)
-        guard
-            fileManager.fileExists(
-                atPath: candidate.modelDirectoryURL.path, isDirectory: &isModelDirectory),
-            isModelDirectory.boolValue
-        else {
-            throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
-        }
-
-        let discoveredModelURLs = Self.discoverGGUFModelURLs(in: candidate.modelDirectoryURL)
-
-        guard !discoveredModelURLs.isEmpty else {
-            throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
+            throw BundledRuntimeLocatorError.runtimeDirectoryMissing(directoryURL.path)
         }
 
         // Recursive discovery can surface the same filename from two nested repos. Dedupe by
-        // filename keeping the first occurrence so a name collision resolves deterministically and
-        // the keyed lookup below cannot trap on duplicate keys.
+        // filename keeping the first occurrence so a name collision resolves deterministically.
+        var discoveredOptions: [RuntimeModelOption] = []
         var modelOptionsByFilename: [String: RuntimeModelOption] = [:]
-        for modelURL in discoveredModelURLs {
+        for modelURL in Self.discoverGGUFModelURLs(in: directoryURL) {
             let filename = modelURL.lastPathComponent
             guard modelOptionsByFilename[filename] == nil else { continue }
-            modelOptionsByFilename[filename] = RuntimeModelOption(filename: filename, url: modelURL)
+            let option = RuntimeModelOption(filename: filename, url: modelURL)
+            modelOptionsByFilename[filename] = option
+            discoveredOptions.append(option)
+        }
+
+        guard !discoveredOptions.isEmpty else {
+            throw BundledRuntimeLocatorError.modelMissing(directoryURL.path)
         }
 
         var orderedModels: [RuntimeModelOption] = []
@@ -295,43 +257,13 @@ struct BundledRuntimeLocator {
 
         // Custom user-added GGUF files are appended so they stay selectable without being
         // explicitly listed in preferredModelNames.
-        let sortedDiscoveredModels =
-            discoveredModelURLs
-            .map { modelURL in
-                RuntimeModelOption(
-                    filename: modelURL.lastPathComponent,
-                    url: modelURL
-                )
-            }
-            .sorted { lhs, rhs in
-                lhs.filename.localizedCaseInsensitiveCompare(rhs.filename) == .orderedAscending
-            }
-
-        for modelOption in sortedDiscoveredModels {
-            guard seenFilenames.insert(modelOption.filename).inserted else {
-                continue
-            }
-
+        let sortedDiscoveredModels = discoveredOptions.sorted { lhs, rhs in
+            lhs.filename.localizedCaseInsensitiveCompare(rhs.filename) == .orderedAscending
+        }
+        for modelOption in sortedDiscoveredModels where seenFilenames.insert(modelOption.filename).inserted {
             orderedModels.append(modelOption)
         }
 
-        // Defensive fallback for unexpected directory listing anomalies.
-        if orderedModels.isEmpty {
-            throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
-        }
-
         return orderedModels
-    }
-
-    /// Builds the concrete runtime asset paths for one chosen model option.
-    private func resolvedRuntime(
-        from modelOption: RuntimeModelOption,
-        candidate: RuntimeCandidate
-    ) -> ResolvedLlamaRuntime {
-        ResolvedLlamaRuntime(
-            runtimeDirectoryURL: candidate.runtimeDirectoryURL,
-            modelFileURL: modelOption.url,
-            modelDisplayName: modelOption.displayName
-        )
     }
 }

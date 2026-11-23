@@ -141,24 +141,23 @@ final class ModelDownloadManagerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: ambiguousLegacyDirectory.path))
     }
 
-    /// An install under any known alias short-circuits `download` without starting a transfer, and
+    /// An installed destination short-circuits `download` without starting a transfer, and
     /// deleting that file lets the untracked dynamic state fall back to "not installed".
-    func test_downloadOfInstalledAliasPublishesDownloadedThenDeleteReturnsToIdle() throws {
-        let aliasName = "cotabby-test-alias-\(UUID().uuidString).gguf"
-        try "installed".write(to: tempDir.appendingPathComponent(aliasName), atomically: true, encoding: .utf8)
+    func test_downloadOfInstalledModelPublishesDownloadedThenDeleteReturnsToIdle() throws {
+        let filename = "cotabby-test-\(UUID().uuidString).gguf"
+        try "installed".write(to: tempDir.appendingPathComponent(filename), atomically: true, encoding: .utf8)
         let manager = makeManager()
         let model = DownloadableRuntimeModel(
-            filename: "cotabby-test-\(UUID().uuidString).gguf",
-            displayName: "Aliased",
-            downloadURL: try XCTUnwrap(URL(string: "https://example.com/aliased.gguf")),
-            approximateSizeInGigabytes: 1,
-            alternateFilenames: [aliasName]
+            filename: filename,
+            displayName: "Installed",
+            downloadURL: try XCTUnwrap(URL(string: "https://example.com/installed.gguf")),
+            approximateSizeInGigabytes: 1
         )
 
         manager.download(model)
         XCTAssertEqual(manager.modelStates[model.id], .downloaded)
 
-        manager.deleteModel(filename: aliasName)
+        manager.deleteModel(filename: filename)
         XCTAssertNil(manager.modelStates[model.id])
         XCTAssertEqual(manager.state(for: model), .idle)
     }
