@@ -1,0 +1,25 @@
+Cotabby/Services/Presentation/ActivationIndicatorController.swift
+  s_b9af9eb54478c8::t_cf58d3e30a0103 83
+Cotabby/Services/Presentation/FocusDebugOverlayController.swift
+  s_b9af9eb54478c8::t_cf9b88e9b96888 33-42,115,216-222,286,391
+Cotabby/Services/Presentation/NonActivatingPanel.swift
+  s_b9af9eb54478c8::t_9d5886ae0609d0 58-61,63-68
+Cotabby/Support/Presentation/Style/HostAdvanceFit.swift
+  s_b9af9eb54478c8::t_ca0d0567958f2a 59-65,69-81,93,108-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5f2863c754cf251c6175eb1e877dc89569e1dce",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

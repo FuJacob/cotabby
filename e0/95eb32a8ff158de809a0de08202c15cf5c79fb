@@ -1,0 +1,43 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_d53b8fd172ea89 76,352,1075,1516,1658,2501,3559,4585,4982,5348
+Cotabby/Services/Presentation/HostBundledFontRegistry.swift
+  s_b9af9eb54478c8::t_fb8c9fb2c4b65d 26
+Cotabby/Services/Presentation/HostTypefaceResolver.swift
+  s_b9af9eb54478c8::t_86bc1ae847c82a 1-776
+Cotabby/Services/Presentation/HostZoomLadderResolver.swift
+  s_b9af9eb54478c8::t_d0accaf4be9c4b 12
+Cotabby/Services/Presentation/OverlayController.swift
+  s_b9af9eb54478c8::t_587626e7de8385 12,81-82,87-89,99-103,105-106,108-111,284,403,418,421-422,539,564,569,584-585,645-648,651,756,870-871
+Cotabby/Services/Presentation/PixelCaretLocator.swift
+  s_b9af9eb54478c8::t_751ec06f8ca110 67,386
+Cotabby/Support/Presentation/Style/GhostFontResolver.swift
+  s_b9af9eb54478c8::t_f9d221ded57309 380
+Cotabby/Support/Presentation/Style/GhostFontSizeLimits.swift
+  s_b9af9eb54478c8::t_33b9d7d9eea443 10
+Cotabby/Support/Presentation/Style/HostAdvanceFit.swift
+  s_b9af9eb54478c8::t_05af486444357d 25
+Cotabby/Support/Presentation/Style/HostZoomLadder.swift
+  s_b9af9eb54478c8::t_f1807c60e2af45 18
+Cotabby/Support/Presentation/Style/TypefaceEvidence.swift
+  s_b9af9eb54478c8::t_d8bf4b01148bfc 22
+CotabbyTests/Services/Presentation/HostTypefaceResolverTests.swift
+  s_b9af9eb54478c8::t_990423f605b74e 5-7,9,23-25,36-37,43,54,62,67,78,86,100,116,128,133,148,159,169,180,184,189,202,211,223
+CotabbyTests/Support/Presentation/Style/HostFaceMemoryTests.swift
+  s_b9af9eb54478c8::t_760b79af98a5d3 181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e095eb32a8ff158de809a0de08202c15cf5c79fb",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
