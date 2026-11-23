@@ -1,0 +1,51 @@
+Cotabby/Support/Runtime/Hardware/DeviceInfo.swift
+  s_b9af9eb54478c8::t_f7073598ebedd5 47-53,77-82
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCaretPredictionTests.swift
+  s_b9af9eb54478c8::t_a02f377c68a70d 1-69
+CotabbyTests/Models/Context/LanguageSupportTests.swift
+  s_b9af9eb54478c8::t_ad4707e9c6f147 41-56
+CotabbyTests/Models/Context/VisualContextModelsTests.swift
+  s_b9af9eb54478c8::t_ccb64ec6cd2881 4-14,17-24,27-32
+CotabbyTests/Models/Runtime/LlamaRuntimeModelsTests.swift
+  s_b9af9eb54478c8::t_b0eb40111c9887 7
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_5c2d6e0e3cdfe0 491-503,544-564,592-600
+CotabbyTests/Models/Suggestion/Request/FocusedInputContextTests.swift
+  s_b9af9eb54478c8::t_a18dfd6e765fd3 82-117
+CotabbyTests/Models/Suggestion/Session/ActiveSuggestionSessionTests.swift
+  s_b9af9eb54478c8::t_61ea0eaa343621 1-157
+CotabbyTests/Services/Suggestion/State/ContextBufferTests.swift
+  s_b9af9eb54478c8::t_38407b7ff60ff2 5,7-10,12-13,15,17-18,22,24-30,32-37,40,44,46-48,50,54,56-61,64,68,70-71,73,75-77,82-83
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_b9af9eb54478c8::t_2811b0df571a9e 1,444-708
+CotabbyTests/Services/Suggestion/State/SuggestionWorkControllerTests.swift
+  s_b9af9eb54478c8::t_fa3a3a3c3cfb98 1-109
+CotabbyTests/Support/Logging/CotabbyDebugOptionsTests.swift
+  s_b9af9eb54478c8::t_25825199a1010f 97-99,131-132
+CotabbyTests/Support/Onboarding/OnboardingFlowStepTests.swift
+  s_b9af9eb54478c8::t_09458ca880ca1d 4
+CotabbyTests/Support/Onboarding/OnboardingTemplateTests.swift
+  s_b9af9eb54478c8::t_f10e01e85b67f0 5,13
+CotabbyTests/Support/Presentation/Style/GhostTextColorPresetTests.swift
+  s_b9af9eb54478c8::t_ff4acf35d4308a 4-14,39-60
+CotabbyTests/Support/Runtime/Hardware/DeviceInfoTests.swift
+  s_b9af9eb54478c8::t_6169fffe311006 5-7,11,14-20,22-25,28-29,31-34
+CotabbyTests/Support/Runtime/Hardware/HardwareCapabilityProbeTests.swift
+  s_b9af9eb54478c8::t_1e9dc631d61884 5-6,8,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1263651cc1e05394a0c6e41b0d6e9b6dac0e80f",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
