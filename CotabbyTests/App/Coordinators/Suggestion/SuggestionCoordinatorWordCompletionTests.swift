@@ -126,7 +126,11 @@ final class SuggestionCoordinatorWordCompletionTests: SuggestionCoordinatorRigTe
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
 
-    func testAcceptedCorrectionWaitsForPublishedTextAndQueuesNextTab() async {
+    /// The second Tab lands while the corrected word is still publishing: no session exists, the
+    /// overlay is hidden, and the next words are only a prefetch. It is owned (focus stays in the
+    /// field) but does not accept them; they are first presented when the publish lands, and the
+    /// next press, made with them on screen, accepts the first word.
+    func testAcceptedCorrectionWaitsForPublishedTextAndSwallowsTheRapidTab() async {
         let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1,
                 suggestWithinWords: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true)))
@@ -147,8 +151,13 @@ final class SuggestionCoordinatorWordCompletionTests: SuggestionCoordinatorRigTe
         XCTAssertNil(rig.interactionState.activeSession)
 
         publishText("Please receive ", in: rig)
-        await waitUntil { !rig.inserter.insertedChunks.isEmpty }
+        await waitUntil { rig.interactionState.activeSession != nil }
         XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Please receive "])
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty, "The held Tab predates the continuation it would accept")
+        XCTAssertEqual(rig.overlayController.shownTexts.last, "the package")
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, ["the"])
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " package")
     }
@@ -194,7 +203,7 @@ final class SuggestionCoordinatorWordCompletionTests: SuggestionCoordinatorRigTe
 
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "Rapid Tab is held while the continuation regenerates.")
-        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasHeldPress)
 
         // The user starts the next word before anything new appears. The held Tab answered the
         // earlier text, so the suggestion for this new text must wait for its own acceptance.

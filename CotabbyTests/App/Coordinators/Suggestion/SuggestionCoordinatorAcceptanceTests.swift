@@ -247,6 +247,45 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertNil(rig.interactionState.activeSession)
     }
 
+    // MARK: - Truncated ghost
+
+    func test_fullAcceptInsertsOnlyThePaintedHeadAndOffersTheRestNext() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again and more")
+        // A host that offers one row painted only the head that fits.
+        rig.overlayController.truncatedDisplayText = " world again"
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world again"], "Text the user never saw must not be typed")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " and more")
+        XCTAssertEqual(rig.overlayController.shownTexts.last, " and more", "The rest becomes the next ghost")
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world again", " and more"])
+    }
+
+    func test_rapidTabAfterTheWholePaintedHeadIsAcceptedIsOwnedUntilTheRestIsShown() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again and more")
+        rig.overlayController.truncatedDisplayText = " world again"
+        rig.overlayController.defersPresentations = true
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        XCTAssertEqual(rig.overlayController.heldPresentationText, " and more")
+
+        // Nothing of " and more" is on screen yet: the press is owned, inserts nothing, and keeps
+        // the session, instead of typing unseen text or handing the host a focus-moving Tab.
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world again"])
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " and more")
+
+        rig.overlayController.defersPresentations = false
+        rig.overlayController.landHeldPresentation()
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world again", " and"])
+    }
+
     // MARK: - Post-accept hold against screen-context refresh
 
     func test_screenContextChangeRightAfterAnAcceptKeepsTheTailBeingAccepted() {
@@ -494,11 +533,11 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
             "The accept tap must keep owning Tab while the continuation regenerates."
         )
 
-        // The rapid second Tab lands before the continuation regenerates. It must be swallowed and
-        // queued, never forwarded to the host as a real Tab that moves focus.
+        // The rapid second Tab lands before the continuation regenerates. It must be swallowed,
+        // never forwarded to the host as a real Tab that moves focus.
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
-        XCTAssertEqual(rig.inserter.insertedChunks, [" today"], "The second Tab is queued, not inserted.")
-        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today"], "The second Tab is swallowed, not inserted.")
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasHeldPress)
     }
 
     func test_postExhaustionWindowReleasesAcceptKeyWhenOverlayHides() {
@@ -512,7 +551,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         rig.coordinator.invalidateActiveSuggestion(reason: "Focus moved to another field.")
 
         XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
-        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasHeldPress)
         XCTAssertFalse(rig.inputMonitor.shouldConsumeAcceptKeyProvider())
         XCTAssertFalse(
             rig.coordinator.acceptCurrentSuggestion(),
@@ -552,31 +591,54 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         )
     }
 
-    func test_queuedPostExhaustionAcceptInsertsNextWordWhenContinuationArrives() {
+    func test_heldPostExhaustionPressDoesNotAcceptTheContinuationThatEndsTheWindow() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " world again")
-        // Simulate a Tab that was swallowed and queued while this continuation was still loading;
-        // `apply` calls `flushQueuedPostExhaustionAcceptIfNeeded` once the suggestion is on screen.
+        // Simulate a Tab that was swallowed while this continuation was still loading;
+        // `presentFreshResult` ends the window once the suggestion has been handed to the overlay.
         rig.coordinator.postExhaustionAcceptanceState.arm()
-        rig.coordinator.postExhaustionAcceptanceState.queueAcceptIfArmed()
+        rig.coordinator.postExhaustionAcceptanceState.holdPressIfArmed()
 
-        rig.coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+        rig.coordinator.endPostExhaustionWindowForFreshSuggestion()
 
-        XCTAssertEqual(rig.inserter.insertedChunks, [" world"], "The queued Tab should accept the first word.")
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty, "A press made before the text existed must not accept it")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world again")
         XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
-        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasHeldPress)
     }
 
-    func test_flushWithoutAQueuedPressInsertsNothing() {
+    func test_endingTheWindowWithoutAHeldPressInsertsNothing() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " world again")
         rig.coordinator.postExhaustionAcceptanceState.arm()
 
-        rig.coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+        rig.coordinator.endPostExhaustionWindowForFreshSuggestion()
 
         XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
         XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed, "A fresh suggestion ends the window")
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world again")
+    }
+
+    func test_tabSwallowedDuringRegenerationLeavesTheContinuationForTheNextPress() async {
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        rig.engine.resultProvider = { request in
+            SuggestionResult(generation: request.generation, rawText: " and more", text: " and more", latency: 0.01)
+        }
+        startVisibleSession(in: rig, fullText: " today")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "The rapid Tab is owned, not leaked to the host")
+
+        // The host publishes the accepted word and the continuation reaches the overlay.
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind today"))
+        await waitUntil { rig.interactionState.activeSession != nil }
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today"], "The swallowed Tab predates the continuation")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " and more")
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+
+        // A press made with the continuation on screen accepts it as usual.
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today", " and"])
     }
 
     // MARK: - Bookkeeping

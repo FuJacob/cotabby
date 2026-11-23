@@ -176,9 +176,11 @@ remains authoritative and can replace or suppress provisional text.
 Normal sessions support exact type-through, word or phrase acceptance, full-tail acceptance, CJK-aware
 segmentation, punctuation handling, optional trailing space, and speculative generation after final
 acceptance. When rapid Tab presses cross the exhausted-tail regeneration gap,
-PostExhaustionAcceptanceState can queue at most one unseen accept and has a generation-keyed backstop
-that returns Tab ownership to the host. Corrections commit atomically rather than exposing partial
-acceptance.
+PostExhaustionAcceptanceState swallows them (so focus stays in the field) without ever replaying one
+as an accept of the continuation it predates, and has a generation-keyed backstop that returns Tab
+ownership to the host. One press never inserts past the head of the suggestion the overlay actually
+painted (`SuggestionOverlayControlling.truncatedDisplayText`). Corrections commit atomically rather
+than exposing partial acceptance.
 
 ## Focus and Accessibility
 

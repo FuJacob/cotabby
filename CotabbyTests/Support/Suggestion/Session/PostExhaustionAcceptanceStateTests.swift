@@ -8,72 +8,72 @@ final class PostExhaustionAcceptanceStateTests: XCTestCase {
     func test_armOpensFreshWindowAndInvalidatesPreviousBackstop() {
         var state = PostExhaustionAcceptanceState()
         let firstGeneration = state.arm()
-        state.queueAcceptIfArmed()
+        state.holdPressIfArmed()
 
         let secondGeneration = state.arm()
 
         XCTAssertTrue(state.isArmed)
-        XCTAssertFalse(state.hasQueuedAccept)
+        XCTAssertFalse(state.hasHeldPress)
         XCTAssertFalse(state.ownsBackstop(generation: firstGeneration))
         XCTAssertTrue(state.ownsBackstop(generation: secondGeneration))
     }
 
-    func test_acceptQueuesOnlyWhileWindowIsArmed() {
+    func test_pressIsHeldOnlyWhileWindowIsArmed() {
         var state = PostExhaustionAcceptanceState()
 
-        XCTAssertFalse(state.queueAcceptIfArmed())
+        XCTAssertFalse(state.holdPressIfArmed())
         state.arm()
-        XCTAssertTrue(state.queueAcceptIfArmed())
-        XCTAssertTrue(state.queueAcceptIfArmed())
-        XCTAssertTrue(state.hasQueuedAccept)
+        XCTAssertTrue(state.holdPressIfArmed())
+        XCTAssertTrue(state.holdPressIfArmed())
+        XCTAssertTrue(state.hasHeldPress)
     }
 
     func test_clearClosesWindowAndInvalidatesCapturedBackstop() {
         var state = PostExhaustionAcceptanceState()
         let generation = state.arm()
-        state.queueAcceptIfArmed()
+        state.holdPressIfArmed()
 
         state.clear()
 
         XCTAssertFalse(state.isArmed)
-        XCTAssertFalse(state.hasQueuedAccept)
+        XCTAssertFalse(state.hasHeldPress)
         XCTAssertFalse(state.ownsBackstop(generation: generation))
     }
 
-    func test_consumeQueuedAcceptAtomicallyClosesWindow() {
-        var queuedState = PostExhaustionAcceptanceState()
-        queuedState.arm()
-        queuedState.queueAcceptIfArmed()
+    func test_consumeHeldPressAtomicallyClosesWindow() {
+        var heldState = PostExhaustionAcceptanceState()
+        heldState.arm()
+        heldState.holdPressIfArmed()
 
-        XCTAssertTrue(queuedState.consumeQueuedAccept())
-        XCTAssertFalse(queuedState.isArmed)
+        XCTAssertTrue(heldState.consumeHeldPress())
+        XCTAssertFalse(heldState.isArmed)
 
         var emptyState = PostExhaustionAcceptanceState()
         emptyState.arm()
-        XCTAssertFalse(emptyState.consumeQueuedAccept())
+        XCTAssertFalse(emptyState.consumeHeldPress())
         XCTAssertFalse(emptyState.isArmed)
     }
 
     func test_consumeInvalidatesTheCapturedBackstopAndClosesTheWindowForLaterPresses() {
         var state = PostExhaustionAcceptanceState()
         let generation = state.arm()
-        state.queueAcceptIfArmed()
+        state.holdPressIfArmed()
 
-        XCTAssertTrue(state.consumeQueuedAccept())
+        XCTAssertTrue(state.consumeHeldPress())
 
         // The timeout scheduled by `arm()` is now stale, so it cannot release Tab ownership twice.
         XCTAssertFalse(state.ownsBackstop(generation: generation))
-        // A press after the regenerated accept belongs to the host, not to a closed window.
-        XCTAssertFalse(state.queueAcceptIfArmed())
-        // And consuming again cannot replay the single queued accept.
-        XCTAssertFalse(state.consumeQueuedAccept())
+        // A press after the window closed belongs to the host, not to a closed window.
+        XCTAssertFalse(state.holdPressIfArmed())
+        // And consuming again cannot report the same held press twice.
+        XCTAssertFalse(state.consumeHeldPress())
     }
 
-    func test_consumeWithoutAnArmedWindowNeverOwesAnAccept() {
+    func test_consumeWithoutAnArmedWindowReportsNoHeldPress() {
         var state = PostExhaustionAcceptanceState()
-        XCTAssertFalse(state.queueAcceptIfArmed())
+        XCTAssertFalse(state.holdPressIfArmed())
         XCTAssertFalse(state.isArmed)
-        XCTAssertFalse(state.consumeQueuedAccept())
+        XCTAssertFalse(state.consumeHeldPress())
     }
 
     func test_generationsAreUniqueAcrossArmAndClearCycles() {

@@ -24,9 +24,9 @@ extension SuggestionCoordinator {
     /// With double-tap enabled, the first press still accepts one word immediately, and a second
     /// press within `DoubleTapAcceptanceState.window` on the same suggestion accepts what remains.
     /// Promoting the second press instead of delaying the first keeps single-word acceptance as fast
-    /// as before; the pair still commits the whole suggestion. The queued post-exhaustion accept
-    /// calls `acceptCurrentSuggestion` directly, so a Tab buffered during regeneration never turns
-    /// into an accept-everything of a continuation the user has not seen yet.
+    /// as before; the pair still commits the whole suggestion. A press held during post-exhaustion
+    /// regeneration is never replayed at all (see `endPostExhaustionWindowForFreshSuggestion`), so
+    /// it can neither accept nor double-tap a continuation the user has not seen yet.
     ///
     /// `isAutorepeat` marks a key-down the system generated because the key is held. Those keep
     /// accepting word by word, as holding the key always has, but a held key is one long press:
@@ -128,18 +128,23 @@ extension SuggestionCoordinator {
         // text to validation so a rapid second Tab accepts the tail Cotabby is about to paint
         // instead of mismatching, tearing the session down, and leaking Tab into the host.
         let heldPresentationText = overlayController.heldPresentationText
+        // The ghost on a host that offers one row paints only the head that fits; one press may
+        // insert only that head, never the unseen rest the session still holds.
+        let truncatedDisplayText = overlayController.truncatedDisplayText
         let preparation: SuggestionAcceptancePreparation
         if fullText {
             preparation = interactionState.prepareFullAcceptance(
                 from: rawContext,
                 overlayState: overlayState,
-                heldPresentationText: heldPresentationText
+                heldPresentationText: heldPresentationText,
+                truncatedDisplayText: truncatedDisplayText
             )
         } else {
             preparation = interactionState.prepareAcceptance(
                 from: rawContext,
                 overlayState: overlayState,
                 heldPresentationText: heldPresentationText,
+                truncatedDisplayText: truncatedDisplayText,
                 granularity: primaryGranularity,
                 autoAcceptTrailingPunctuation: settingsSnapshot.autoAcceptTrailingPunctuation
             )
@@ -170,6 +175,17 @@ extension SuggestionCoordinator {
 
         case let .invalid(reason):
             return passTabThrough(reason: reason)
+
+        case let .unshown(reason):
+            // Own the key and insert nothing: the text this press would take is not on screen yet,
+            // and the session stays so the present that shows it can land. Passing the key through
+            // instead would tear down a live suggestion and move focus out of the field.
+            let workID = currentWorkID
+            let generation = latestGenerationNumber
+            deferAcceptanceBookkeeping { [weak self] in
+                self?.logStage("\(keyName)-held-unshown", workID: workID, generation: generation, message: reason)
+            }
+            return true
         }
 
         // Reconcile the word boundary against the *live* preceding text instead of trusting the
@@ -244,7 +260,7 @@ extension SuggestionCoordinator {
                 )
             }
             // Keep owning Tab while the continuation regenerates so a fast follow-up press is
-            // swallowed and queued instead of leaking into the host app as a real Tab. Must run
+            // swallowed instead of leaking into the host app as a real Tab. Must run
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
             // turns interception off; arming re-asserts it. See `armPostExhaustionAcceptance`.
             let expected = SpeculativeAcceptanceContext.optimisticSnapshot(
@@ -396,19 +412,21 @@ extension SuggestionCoordinator {
     }
 
     /// Handles the accept key when no buffered session exists. During the brief post-exhaustion
-    /// regeneration window we keep owning the key and queue the press so rapid Tabbing keeps
-    /// inserting words across the exhaustion boundary; otherwise the key passes through to the host.
+    /// regeneration window we keep owning the key and swallow the press; otherwise the key passes
+    /// through to the host.
     private func handleAcceptWithoutActiveSession(keyName: String) -> Bool {
         // A final-chunk accept tears the session down and regenerates the continuation
         // asynchronously (see the `.exhausted` branch). While that regen is in flight we keep owning
-        // Tab instead of leaking it into the host app as a real Tab.
-        if postExhaustionAcceptanceState.queueAcceptIfArmed() {
+        // Tab instead of leaking it into the host app as a real Tab. The press is not saved up for
+        // the continuation: it was made before that text existed, so it cannot be a decision to
+        // accept it.
+        if postExhaustionAcceptanceState.holdPressIfArmed() {
             logStage(
                 "\(keyName)-held-for-regen",
                 workID: currentWorkID,
                 generation: latestGenerationNumber,
-                message: "Held a rapid \(keyName) during post-acceptance regeneration; "
-                    + "the next continuation will accept its first word."
+                message: "Swallowed a rapid \(keyName) during post-acceptance regeneration; "
+                    + "the next continuation must be shown before a press can accept it."
             )
             return true
         }
@@ -602,26 +620,25 @@ extension SuggestionCoordinator {
         clearPostExhaustionAcceptanceWindow()
     }
 
-    /// Once a regenerated continuation is on screen, accepts its first word if the user pressed Tab
-    /// while it was still loading. Keeps rapid Tabbing inserting words across the exhaustion boundary
-    /// instead of stalling. Bounded to one queued accept so mashing Tab cannot run away. Called at the
-    /// end of `presentFreshResult`, after the new session and overlay exist.
-    func flushQueuedPostExhaustionAcceptIfNeeded() {
-        // Consuming also ends the window when no press was queued, invalidating the backstop now that
-        // normal acceptance has resumed with a fresh visible suggestion.
-        let shouldAccept = postExhaustionAcceptanceState.consumeQueuedAccept()
-        guard shouldAccept else { return }
-        // A queued accept can still legitimately fail (the new continuation no longer reconciles with
-        // live AX, or insertion fails). `acceptSuggestion` cleans up its own state on failure, so log
-        // the rare miss for diagnosis instead of letting the swallowed Tab vanish without a trace.
-        if !acceptCurrentSuggestion() {
-            logStage(
-                "flush-queued-accept-failed",
-                workID: currentWorkID,
-                generation: latestGenerationNumber,
-                message: "Flushed a queued post-exhaustion Tab, but the follow-up acceptance returned false."
-            )
-        }
+    /// Ends the post-exhaustion window once a regenerated continuation has been handed to the
+    /// overlay. Called at the end of `presentFreshResult`, after the new session exists.
+    ///
+    /// A press swallowed during the window is dropped here, not replayed as an accept. It was made
+    /// before this continuation existed, and replaying it would insert the continuation's first
+    /// word in the same run-loop turn it is first presented, or while the overlay is still holding
+    /// it off screen for a caret read: text the user never saw. Delivering the press to the host
+    /// late is no better, since a Tab there moves focus out of the field, which is what the window
+    /// exists to prevent. The next press, made with the new ghost on screen, accepts as usual.
+    /// Ending the window also invalidates the backstop now that normal acceptance has resumed.
+    func endPostExhaustionWindowForFreshSuggestion() {
+        guard postExhaustionAcceptanceState.consumeHeldPress() else { return }
+        logStage(
+            "held-press-dropped",
+            workID: currentWorkID,
+            generation: latestGenerationNumber,
+            message: "Dropped a Tab held during post-acceptance regeneration instead of accepting the "
+                + "continuation it predates."
+        )
     }
 
     /// Advances the active session from the user's directly typed characters when they match the

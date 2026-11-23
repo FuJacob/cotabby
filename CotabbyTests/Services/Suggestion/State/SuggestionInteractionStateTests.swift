@@ -114,6 +114,79 @@ final class SuggestionInteractionStateTests: XCTestCase {
         XCTAssertEqual(chunk, " world again")
     }
 
+    func test_prepareFullAcceptance_stopsAtThePaintedHeadOfATruncatedGhost() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        _ = state.startSession(
+            fullText: " world again and more",
+            liveContext: FocusedInputContext(snapshot: snapshot, generation: 1),
+            latency: 0.05
+        )
+
+        // A host that offers one row painted only the head that fits.
+        let preparation = state.prepareFullAcceptance(
+            from: snapshot,
+            overlayState: visibleOverlay(text: " world again and more", for: snapshot),
+            truncatedDisplayText: " world again"
+        )
+
+        guard case let .ready(_, _, chunk) = preparation else {
+            return XCTFail("Expected ready preparation")
+        }
+        XCTAssertEqual(chunk, " world again", "The unseen rest stays in the session as the next offer")
+    }
+
+    func test_prepareAcceptance_phraseStopsAtThePaintedHeadButAWordInsideItIsUnchanged() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        _ = state.startSession(
+            fullText: " world again and more.",
+            liveContext: FocusedInputContext(snapshot: snapshot, generation: 1),
+            latency: 0.05
+        )
+        let overlay = visibleOverlay(text: " world again and more.", for: snapshot)
+
+        guard case let .ready(_, _, phrase) = state.prepareAcceptance(
+            from: snapshot, overlayState: overlay, truncatedDisplayText: " world again", granularity: .phrase
+        ) else {
+            return XCTFail("Expected ready preparation")
+        }
+        guard case let .ready(_, _, word) = state.prepareAcceptance(
+            from: snapshot, overlayState: overlay, truncatedDisplayText: " world again", granularity: .word
+        ) else {
+            return XCTFail("Expected ready preparation")
+        }
+
+        XCTAssertEqual(phrase, " world again")
+        XCTAssertEqual(word, " world")
+    }
+
+    func test_prepareAcceptance_holdsTheKeyWhenNoneOfTheTailHasBeenPainted() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        _ = state.startSession(
+            fullText: " and more",
+            liveContext: FocusedInputContext(snapshot: snapshot, generation: 1),
+            latency: 0.05
+        )
+
+        // The overlay still shows the previous presentation, whose painted head was all accepted,
+        // while it holds the present for this tail.
+        let preparation = state.prepareAcceptance(
+            from: snapshot,
+            overlayState: visibleOverlay(text: " world again and more", for: snapshot),
+            heldPresentationText: " and more",
+            truncatedDisplayText: " world again",
+            granularity: .word
+        )
+
+        guard case let .unshown(reason) = preparation else {
+            return XCTFail("Expected the key to be held, not accepted or passed through")
+        }
+        XCTAssertTrue(reason.contains("shown"))
+        XCTAssertEqual(state.activeSession?.remainingText, " and more", "The session survives the held key")
+    }
+
     func test_reconcileActiveSession_withoutASessionReturnsNil() {
         let state = makeState()
         XCTAssertNil(state.reconcileActiveSession(with: CotabbyTestFixtures.focusedInputSnapshot()))
