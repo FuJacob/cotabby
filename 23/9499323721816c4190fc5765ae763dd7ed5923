@@ -1,0 +1,27 @@
+AGENTS.md
+  s_9990f9098df800::t_69d086262805f0 148-149
+ARCHITECTURE.md
+  s_9990f9098df800::t_7ac10fe72c0299 456,458-459
+Cotabby/Services/Presentation/HostBundledFontRegistry.swift
+  s_9990f9098df800::t_424eb10ea61ee6 26-32,43-51,60-76,78-79,81-83,95-102,104,108-118
+Cotabby/Services/Presentation/HostFontRegistry.swift
+  s_9990f9098df800::t_4002a8adf6a14a 111-118,121,125-129,136-137,147
+CotabbyTests/Services/Presentation/HostBundledFontRegistryTests.swift
+  s_9990f9098df800::t_5a879c68dca2c6 2,85-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "239499323721816c4190fc5765ae763dd7ed5923",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
