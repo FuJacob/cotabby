@@ -1,0 +1,110 @@
+Cotabby/UI/Settings/Components/Controls/CustomRulesEditor.swift
+  s_b9af9eb54478c8::t_0aea713dccb903 6,11-12,16-17,19-34
+Cotabby/UI/Settings/Components/Controls/LanguageTagsEditor.swift
+  s_b9af9eb54478c8::t_8e68667cb28613 4-6,11-12,16-17,19-44
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_031aa67765125a 794-806
+  s_b9af9eb54478c8::t_5fff63ee466864 109,159,185-187,235-236,708,743,745,768-769,779,810,812,817,819,834-835,885,896,900,911,934,936,939,941,954,956,963,965,968,970,975,979,981,987,989,991,1008
+Cotabby/Models/Settings/AcceptanceShortcuts.swift
+  s_b9af9eb54478c8::t_1555d52fd45dd6 60-62
+  s_b9af9eb54478c8::t_e6a642d13af84f 13-26
+  s_b9af9eb54478c8::t_32311f83cc910e 49-55
+  s_b9af9eb54478c8::t_92b4c932d1c13b 123-135,141-142,147-153
+  s_b9af9eb54478c8::t_85cf9a6da524f3 154
+Cotabby/Models/Settings/SuggestionSettingsModel.swift
+  s_b9af9eb54478c8::t_b0e2aab2583514 1643
+  s_b9af9eb54478c8::t_1da3462284a676 1660
+  s_b9af9eb54478c8::t_af087978329e4a 1426-1427
+  s_b9af9eb54478c8::t_ebf41e074214ab 972,976
+  s_b9af9eb54478c8::t_b9b48c23232400 464
+  s_b9af9eb54478c8::t_5193fa9f563ed6 1273,1277
+  s_b9af9eb54478c8::t_5046fbb7b32800 1004,1008,1017-1021,1027-1030
+  s_b9af9eb54478c8::t_3f36b6ae424cf7 1387-1388
+  s_b9af9eb54478c8::t_401a2a14379a2a 509
+  s_b9af9eb54478c8::t_315ce1d6aba68c 1290
+  s_b9af9eb54478c8::t_f6ff93799ee3d5 1031,1436-1439,1449-1452,1458-1467,1473
+  s_b9af9eb54478c8::t_f4b82a99abf114 270,354,1032,1708,1770,1773
+Cotabby/UI/Settings/Components/Controls/TagListEditor.swift
+  s_b9af9eb54478c8::t_d53e5e2e751132 1-104
+Cotabby/Support/Settings/SuggestionSettingsStore.swift
+  s_b9af9eb54478c8::t_ac3cf72a1d4cd7 432
+  s_b9af9eb54478c8::t_947dcc9ef3f460 1081-1087,1090-1109,1112-1122
+  s_b9af9eb54478c8::t_65464e28b53807 21
+  s_b9af9eb54478c8::t_01544f9603254d 700-702
+  s_b9af9eb54478c8::t_aadddf2bc081e9 12-13
+  s_b9af9eb54478c8::t_56d1cb6a63397d 627-633
+CotabbyTests/Models/Settings/AcceptanceShortcutsTests.swift
+  s_b9af9eb54478c8::t_80d2bbd6bb3fe5 171-183
+  s_b9af9eb54478c8::t_5881da44972858 135-154
+Cotabby/Models/Settings/SuggestionSettingsData.swift
+  s_b9af9eb54478c8::t_16ba6e5f3ef3f3 123-125
+CotabbyTests/Support/Settings/SuggestionSettingsStoreTests.swift
+  s_b9af9eb54478c8::t_a67c1485fd3350 202,204-248
+  s_b9af9eb54478c8::t_f838da8a0737d3 191-192,201,203,455,459,870-872
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_a773ed8e92468f 165,883,1528,2322,4804,5203
+Cotabby/Models/Context/CustomRulesCatalog.swift
+  s_b9af9eb54478c8::t_4220c7061aa00c 8,28
+Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+  s_b9af9eb54478c8::t_b5eb15fe11ee07 58
+Cotabby/Support/Settings/KeyRecorderState.swift
+  s_b9af9eb54478c8::t_1aa206efa3a567 63,86,103
+Cotabby/UI/Onboarding/Welcome/WelcomeKeybindStepView.swift
+  s_b9af9eb54478c8::t_ec5365b091ee1f 48-50,66-67,71,90,112
+Cotabby/UI/Settings/Components/Controls/ContextLivePreviewField.swift
+  s_b9af9eb54478c8::t_ecf79e25c7f240 16-19
+Cotabby/UI/Settings/Components/Controls/KeyRecorderView.swift
+  s_b9af9eb54478c8::t_bede3230c2f400 20,34
+Cotabby/UI/Settings/Components/KeybindRow.swift
+  s_b9af9eb54478c8::t_188a00a203027c 19
+Cotabby/UI/Settings/Panes/About/AboutPaneView.swift
+  s_b9af9eb54478c8::t_ebdfa8a349c083 5-7
+Cotabby/UI/Settings/Panes/AppearancePaneView.swift
+  s_b9af9eb54478c8::t_c4fb1665a41025 4-7,66-68,186-188,213-215,231-233,249-251
+Cotabby/UI/Settings/Panes/AppsPaneView.swift
+  s_b9af9eb54478c8::t_e66672e8047abe 129-130,213,326,330-332,390-403,405,411-412,420-427,429
+Cotabby/UI/Settings/Panes/ContextPaneView.swift
+  s_b9af9eb54478c8::t_a9c6e0a900bd8b 7,9,11-14,98-99,160,178,186
+Cotabby/UI/Settings/Panes/EmojiPaneView.swift
+  s_b9af9eb54478c8::t_036f41d5d51a97 4-6
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift
+  s_b9af9eb54478c8::t_487027fa1585bb 98-105,133
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift
+  s_b9af9eb54478c8::t_bc2f1d2defc462 16-18,29-31
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView.swift
+  s_b9af9eb54478c8::t_844b5f8f83905d 7-10
+Cotabby/UI/Settings/Panes/GeneralPaneView.swift
+  s_b9af9eb54478c8::t_5caa22b50e625d 6,43-45,131
+Cotabby/UI/Settings/Panes/ShortcutsPaneView.swift
+  s_b9af9eb54478c8::t_cf2216597adfcb 35,37,72,85,189
+Cotabby/UI/Settings/Panes/WritingPaneView.swift
+  s_b9af9eb54478c8::t_ce7159357d0387 4-6,31-32,72-76,135-138
+CotabbyTests/Models/Context/ExtendedContextTests.swift
+  s_b9af9eb54478c8::t_e40004b9e784b5 42,46
+CotabbyTests/Models/Settings/ShortcutConflictTests.swift
+  s_b9af9eb54478c8::t_87d4c7d5856153 55
+CotabbyTests/Models/Settings/SuggestionSettingsModelDoubleTapTests.swift
+  s_b9af9eb54478c8::t_d857901566e7d1 31,41,49,92,94,121,125,136,182,185,193
+CotabbyTests/Support/Input/ShortcutResolverTests.swift
+  s_b9af9eb54478c8::t_0476f92a58f944 46,48,54,56
+CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+  s_b9af9eb54478c8::t_b281f7e3d61adb 232
+CotabbyTests/Support/Settings/KeyRecorderStateTests.swift
+  s_b9af9eb54478c8::t_6c41f4d9f8953e 10,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8842a64cdb18eeed6176ef879238f453c187ab95",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
