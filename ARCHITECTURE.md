@@ -258,7 +258,9 @@ text. Posting events is not treated as proof of success; the later AX snapshot i
 - [OpenAICompatibleSuggestionEngine.swift](Cotabby/Services/Runtime/OpenAICompatible/OpenAICompatibleSuggestionEngine.swift)
   for completion/chat APIs and SSE streams. The default is loopback Ollama at
   http://127.0.0.1:11434/v1; LAN and public HTTPS endpoints are supported, while insecure public HTTP
-  is rejected.
+  is rejected. `OpenAICompatibleAPIClient` uses its own ephemeral session (no cookies, cache, or stored
+  credentials), follows redirects only on the same server, and bounds every stream's line size, total
+  bytes, text, and duration (`OpenAICompatibleTransportPolicy`).
 
 LlamaRuntimeCore is a nonisolated lock/condition-protected native boundary, not a Swift actor. Its
 autocomplete lock serializes cache/decode state, and its lifecycle condition prevents shutdown from
