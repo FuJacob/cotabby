@@ -1,0 +1,57 @@
+CotabbyTests/Support/Accessibility/AXDumpValuePreviewTests.swift
+  s_9990f9098df800::t_88f910f1ace864 1-30
+Cotabby/Support/Accessibility/AXDumpValuePreview.swift
+  s_9990f9098df800::t_b27053a50a452e 1-27
+Cotabby/Support/Logging/CotabbyDebugArtifacts.swift
+  s_9990f9098df800::t_54b3e0a27ce390 1-45,46-180,183-186,189-202
+CotabbyTests/Support/Logging/CotabbyDebugArtifactsTests.swift
+  s_9990f9098df800::t_be110a68b318a7 1-12,16-18,19-56,57-170
+AGENTS.md
+  s_9990f9098df800::t_dddd9ca413d455 263-264,266-269,276-280,282-289,323
+ARCHITECTURE.md
+  s_9990f9098df800::t_36ba2e5b4d1e94 543-544,548-552
+CONTRIBUTING.md
+  s_9990f9098df800::t_a20c0ece537475 307-309
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_fa433c56a7f00b 372,460,543,725,828,847,1597,1670,1708,1820,2192,2887,3124,3446,4490,4556,4891,4957,5292,5344
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_9990f9098df800::t_23e514484379d9 238-240,243
+Cotabby/Services/Focus/Chromium/AXTreeDumpWriter.swift
+  s_9990f9098df800::t_4b8d4ba7cdfed0 7-8,12-17,34-36,49,57-58,62,76-78,81-83,87,91-92,95-96,104,106,116-117,122-126,133-139,144-150,161,163-164,167-168,185,196
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_9990f9098df800::t_19c1f8ff0bc9ec 107-109,163-164,169,571-573,575
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_9990f9098df800::t_175a23624931ef 327-330,332-334,346-350,357-360,362-363
+Cotabby/Support/Logging/CotabbyDebugOptions.swift
+  s_9990f9098df800::t_e80103df91976f 8-11,29-40
+Cotabby/Support/Logging/FileLogHandler.swift
+  s_9990f9098df800::t_9fe97f55304e0b 97,130-132,135-137,139,144-154,156-157
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_9990f9098df800::t_e06ecf824e103a 37,99-116
+Cotabby/UI/Settings/Panes/TypingHistorySectionView.swift
+  s_9990f9098df800::t_be087400dcc223 71-74
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_9990f9098df800::t_4aadb8346a1441 287-320
+CotabbyTests/Support/Logging/CotabbyDebugOptionsTests.swift
+  s_9990f9098df800::t_38403fdd397ab2 40-49
+CotabbyTests/Support/Logging/FileLogHandlerTests.swift
+  s_9990f9098df800::t_dca968c40fe518 242-288
+SOURCE_LAYOUT.md
+  s_9990f9098df800::t_08a5ddb5838be7 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e313c473e0bf28d2e27abbcef82b5c59a2acaff6",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
