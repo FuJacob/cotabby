@@ -1,19 +1,20 @@
 # Manually republish the Sparkle appcast to GitHub Pages.
 #
-# Use this when the Pages custom domain changes or when you need to redeploy
-# without cutting a new release. It downloads the appcast.xml from the latest
-# GitHub Release and publishes it to Pages with the configured CNAME.
+# Use this when you need to redeploy the feed without cutting a new release. It
+# takes appcast.xml from the newest successful Release run that published one
+# and redeploys it, byte for byte, to Pages with the production CNAME.
+#
+# The domain is fixed rather than an input: SUFeedURL in CotabbyInfo.plist
+# points every install at updates.cotabby.app, so deploying a different CNAME
+# could only take the feed offline. Change it here and in release.yml together.
+#
+# Run artifacts expire (90 days by default), so this can only restore a feed
+# whose Release run is still within retention.
 
 name: Republish Pages
 
 on:
   workflow_dispatch:
-    inputs:
-      custom_domain:
-        description: "Custom domain for the CNAME file (e.g. updates.cotabby.app)"
-        required: true
-        default: "updates.cotabby.app"
-        type: string
 
 permissions:
   contents: read
@@ -24,6 +25,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  PAGES_CUSTOM_DOMAIN: updates.cotabby.app
+
 jobs:
   republish:
     runs-on: ubuntu-latest
@@ -31,51 +35,74 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Download appcast.xml from latest release
+      # The github-pages environment already limits deploys to main and v*
+      # tags; failing here says so before any download.
+      - name: Require main or a release tag
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" && "${GITHUB_REF}" != refs/tags/v* ]]; then
+            echo "::error::Run Republish Pages from main or a v* tag, not ${GITHUB_REF}." >&2
+            exit 1
+          fi
+
+      - name: Download appcast.xml from the latest published release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          # Find the latest release that has an appcast in its artifacts.
-          # The release workflow uploads appcast.xml inside the release-artifacts bundle,
-          # but it also publishes appcast.xml to Pages. We can reconstruct it from the
-          # release assets or fall back to the repo's existing Pages deployment.
-
-          # Try downloading from the latest release artifacts
-          LATEST_RUN=$(gh run list \
-            --repo "${{ github.repository }}" \
+          # Candidates are Release runs from reviewed refs only: tag pushes
+          # (release.yml's push trigger is v* tags) and manual runs dispatched
+          # from main. A run from any other branch, which could have run a
+          # modified copy of release.yml, is never used.
+          candidates="$(gh run list \
+            --repo "${GITHUB_REPOSITORY}" \
             --workflow release.yml \
             --status success \
-            --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId')
+            --limit 50 \
+            --json databaseId,event,headBranch,headSha \
+            --jq '.[]
+              | select((.event == "push" and (.headBranch | test("^v[0-9]+\\.[0-9]+\\.[0-9]+")))
+                       or (.event == "workflow_dispatch" and .headBranch == "main"))
+              | "\(.databaseId) \(.event) \(.headBranch) \(.headSha)"')"
 
-          if [ -n "$LATEST_RUN" ]; then
-            echo "Downloading appcast from release run $LATEST_RUN"
-            gh run download "$LATEST_RUN" \
-              --repo "${{ github.repository }}" \
+          while read -r run_id event head_branch head_sha; do
+            [[ -n "${run_id}" ]] || continue
+
+            # A branch can share a tag's name. For a push run, require that the
+            # tag exists and points at the commit the run built.
+            if [[ "${event}" == "push" ]]; then
+              tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/tags/${head_branch}" --jq .sha 2>/dev/null || true)"
+              if [[ "${tag_sha}" != "${head_sha}" ]]; then
+                echo "Skipping run ${run_id}: tag ${head_branch} does not point at ${head_sha}."
+                continue
+              fi
+            fi
+
+            # Dry runs and test prereleases publish no appcast, so keep looking.
+            rm -rf artifacts
+            if gh run download "${run_id}" \
+              --repo "${GITHUB_REPOSITORY}" \
               --name release-artifacts \
-              --dir artifacts/ || true
-          fi
+              --dir artifacts/ 2>/dev/null \
+              && [[ -f artifacts/appcast.xml ]]; then
+              echo "Using appcast.xml from Release run ${run_id} (${head_branch})."
+              cp artifacts/appcast.xml appcast.xml
+              break
+            fi
+          done <<< "${candidates}"
 
-          if [ -f artifacts/appcast.xml ]; then
-            echo "Found appcast.xml from release artifacts"
-            cp artifacts/appcast.xml appcast.xml
-          else
-            echo "::error::No appcast.xml found in latest release artifacts. Run a full release first."
+          if [[ ! -f appcast.xml ]]; then
+            echo "::error::No retained Release run from main or a v* tag has an appcast.xml. Run a full release first."
             exit 1
           fi
 
       - name: Prepare Pages artifact
-        env:
-          CUSTOM_DOMAIN: ${{ inputs.custom_domain }}
         run: |
           set -euo pipefail
           mkdir -p pages/Cotabby
           cp appcast.xml pages/appcast.xml
           cp appcast.xml pages/Cotabby/appcast.xml
-          printf '%s\n' "${CUSTOM_DOMAIN}" > pages/CNAME
+          printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > pages/CNAME
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -91,13 +118,13 @@ jobs:
 
       - name: Summary
         env:
-          CUSTOM_DOMAIN: ${{ inputs.custom_domain }}
+          PAGE_URL: ${{ steps.deploy.outputs.page_url }}
         run: |
           {
             echo "### Pages Republished"
             echo "| Field | Value |"
             echo "|-------|-------|"
-            echo "| Custom domain | ${CUSTOM_DOMAIN} |"
-            echo "| Appcast URL | https://${CUSTOM_DOMAIN}/appcast.xml |"
-            echo "| Pages URL | ${{ steps.deploy.outputs.page_url }} |"
+            echo "| Custom domain | ${PAGES_CUSTOM_DOMAIN} |"
+            echo "| Appcast URL | https://${PAGES_CUSTOM_DOMAIN}/appcast.xml |"
+            echo "| Pages URL | ${PAGE_URL} |"
           } >> "${GITHUB_STEP_SUMMARY}"
