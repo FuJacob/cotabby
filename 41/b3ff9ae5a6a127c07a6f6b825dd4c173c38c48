@@ -1,0 +1,23 @@
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionReconciliationTests.swift
+  s_b9af9eb54478c8::t_e638872b157bd8 421,436-437,533
+CotabbyTests/App/Coordinators/Suggestion/SuggestionStateHelperTests.swift
+  s_b9af9eb54478c8::t_30df6d413539b5 289
+CotabbyTests/Support/Suggestion/Output/CompletionSeamGuardTests.swift
+  s_b9af9eb54478c8::t_59c095aa128b61 448,461,467,477,492,504,516,681
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41b3ff9ae5a6a127c07a6f6b825dd4c173c38c48",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

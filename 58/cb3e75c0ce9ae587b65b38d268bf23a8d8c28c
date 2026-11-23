@@ -1,0 +1,69 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_95a0ee9371611b 194,616,676,1008,1048,1050,1054,1112,1130,1693,1764,1969,1980,2693,3395,4147,4210,4336,4507,4570,4696,4901
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_b9af9eb54478c8::t_cad989269965ae 87-88,93,196,232-235,383,459,476-479,539,612,717,731,789,821,855,921
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Continuation.swift
+  s_b9af9eb54478c8::t_93bcacfdb89fdb 59-62
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_738faf6d78dec0 27,37,65-66,70,99,115-116,173,176-177,183,290
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Lifecycle.swift
+  s_b9af9eb54478c8::t_e31566f5a81f59 46,65,69-70,73,86
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_b9af9eb54478c8::t_9deac7a8025974 34,36,54,109,119-120,123,143,161,209,294-295,298,357-359,385,427,432-480,577,597,640,660,670,744,760-762,775,811,822-823,825,863,869-871,946,969-971,998,1037,1049,1091,1096,1111,1113-1114,1203,1216-1219,1247,1251,1254,1321-1346,1367-1374,1387-1388,1425-1433,1438,1459,1465-1478,1483,1485,1495,1499,1501-1504,1554,1574
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+TypingPrediction.swift
+  s_b9af9eb54478c8::t_35a515b82ede51 38,69-71
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_b9af9eb54478c8::t_3f50b4d3360a52 70-72,75-77,79
+Cotabby/Services/Suggestion/SuggestionInserter.swift
+  s_b9af9eb54478c8::t_e506a9968edf08 11-12,130-131
+Cotabby/Services/Suggestion/SuggestionOverlayPresenter.swift
+  s_b9af9eb54478c8::t_678dd244e657c0 6-8,17-19,21-24,29,32-33,39,43,46
+Cotabby/Support/Focus/Capability/FocusCapabilityFlickerGate.swift
+  s_b9af9eb54478c8::t_9bb21aa2d9a2f4 13
+Cotabby/Support/Presentation/Geometry/CaretLayoutRepair.swift
+  s_b9af9eb54478c8::t_81008ab4c202a9 1-104,106-210
+Cotabby/Support/Presentation/Geometry/PredictedCaretAdvance.swift
+  s_b9af9eb54478c8::t_7771e5704123f9 1-85
+Cotabby/Support/Suggestion/Request/EngineLatencyTracker.swift
+  s_b9af9eb54478c8::t_52f4353c323243 1-37
+Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift
+  s_b9af9eb54478c8::t_cb7c4673ebb36e 10-12,14,148-150
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCaretLayoutRepairTests.swift
+  s_b9af9eb54478c8::t_1cae7bc8e9ab1e 28,54,72,100,134,148,168,193,219,247,282,307,336,365,395,416,438,444
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.swift
+  s_b9af9eb54478c8::t_998c9565f67d3b 39,153,158,301,304
+CotabbyTests/App/Coordinators/Suggestion/SuggestionStateHelperTests.swift
+  s_b9af9eb54478c8::t_acedb8eaf8ab35 466,472,478,484,490,506,512,517,524,534-536,540,546,559-560,569,581,598,615,629
+CotabbyTests/Models/Suggestion/ModelAndPresentationValueTests.swift
+  s_b9af9eb54478c8::t_8ab061568a12ae 65,81,89
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_b9af9eb54478c8::t_adcf224feb8ace 242
+CotabbyTests/Support/Focus/Applications/TerminalAppDetectorTests.swift
+  s_b9af9eb54478c8::t_2e5b846f1a0c26 94-96,100-101
+CotabbyTests/Support/Suggestion/Acceptance/DoubleTapAcceptanceStateTests.swift
+  s_b9af9eb54478c8::t_950f171cf2b759 55
+CotabbyTests/Support/Suggestion/Acceptance/InsertedTextAdvanceTests.swift
+  s_b9af9eb54478c8::t_65203fb87dc167 60,67
+CotabbyTests/Support/Suggestion/Output/CompletionSeamGuardTests.swift
+  s_b9af9eb54478c8::t_59c095aa128b61 448,461,467,477,492,504,516,681,761,795-813,815-816
+CotabbyTests/Support/Suggestion/Request/EngineLatencyTrackerTests.swift
+  s_b9af9eb54478c8::t_dc7dedabf050e8 1-66
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionReconciliationTests.swift
+  s_b9af9eb54478c8::t_ef38289cc64983 249,408
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58cb3e75c0ce9ae587b65b38d268bf23a8d8c28c",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
