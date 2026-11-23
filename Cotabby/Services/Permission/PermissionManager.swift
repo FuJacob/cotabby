@@ -117,26 +117,25 @@ final class PermissionManager: ObservableObject {
     /// ultimately granted to the current app's code identity. Calling the native request API first
     /// makes macOS resolve that identity itself instead of relying only on a file dragged into the
     /// Settings table.
-    @discardableResult
-    func requestSystemAccess(for permission: CotabbyPermissionKind) -> Bool {
-        let granted: Bool
-
+    ///
+    /// The request calls' own answers are dropped: `refresh()` re-reads every permission right
+    /// after, and callers decide from that published state.
+    func requestSystemAccess(for permission: CotabbyPermissionKind) {
         switch permission {
         case .accessibility:
             let options = [
                 kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
             ] as CFDictionary
-            granted = AXIsProcessTrustedWithOptions(options)
+            _ = AXIsProcessTrustedWithOptions(options)
 
         case .inputMonitoring:
-            granted = CGRequestListenEventAccess()
+            _ = CGRequestListenEventAccess()
 
         case .screenRecording:
-            granted = CGRequestScreenCaptureAccess()
+            _ = CGRequestScreenCaptureAccess()
         }
 
         refresh()
-        return granted
     }
 
     /// Returns the latest cached grant state for a specific permission kind.
