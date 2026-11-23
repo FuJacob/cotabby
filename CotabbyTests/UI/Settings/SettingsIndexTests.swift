@@ -90,4 +90,23 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertEqual(SettingsItem.developmentDebugOverlays.category, .general)
     }
     #endif
+
+    // MARK: - Search query
+
+    func test_searchQuery_whitespaceOnlyTextIsBlankAndMatchesNothing() {
+        let query = SettingsSearchQuery(text: "  \n ")
+
+        XCTAssertTrue(query.isBlank)
+        XCTAssertTrue(query.results().isEmpty)
+    }
+
+    func test_searchQuery_matchesOnTheTrimmedTextAndHonorsTheLimit() {
+        let query = SettingsSearchQuery(text: "  ghost text  ")
+
+        XCTAssertFalse(query.isBlank)
+        XCTAssertEqual(query.trimmed, "ghost text")
+        XCTAssertEqual(query.results(), SettingsItem.results(for: "ghost text"))
+        XCTAssertGreaterThan(query.results().count, 2)
+        XCTAssertEqual(query.results(limit: 2), Array(SettingsItem.results(for: "ghost text").prefix(2)))
+    }
 }

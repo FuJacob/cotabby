@@ -21,16 +21,8 @@ extension EngineAndModelPaneView {
             guard case .failed(let detail) = runtimeModel.state else { return nil }
             return SettingsPaneCallout(tone: .warning, message: detail)
         case .openAICompatible:
-            do {
-                let configuration = try suggestionSettings.openAICompatibleConfiguration
-                guard !configuration.modelName.isEmpty else {
-                    return SettingsPaneCallout(
-                        tone: .warning,
-                        message: OpenAICompatibleEndpointError.emptyModelName.localizedDescription
-                    )
-                }
-            } catch {
-                return SettingsPaneCallout(tone: .warning, message: error.localizedDescription)
+            if let configurationError = suggestionSettings.openAICompatibleConfigurationError {
+                return SettingsPaneCallout(tone: .warning, message: configurationError)
             }
             guard let detail = openAICompatibleConnectionModel.state.failureDetail else { return nil }
             return SettingsPaneCallout(tone: .warning, message: detail)

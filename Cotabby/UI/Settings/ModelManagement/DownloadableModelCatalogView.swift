@@ -87,7 +87,12 @@ private struct DownloadableModelRow: View {
 
                 Spacer(minLength: 0)
 
-                modelActionButton
+                ModelDownloadActionButton(
+                    state: state,
+                    onDownload: onDownload,
+                    onPause: onPause,
+                    onCancel: onCancel
+                )
             }
 
             if state.isDownloading || state.isPaused {
@@ -124,38 +129,6 @@ private struct DownloadableModelRow: View {
                 .foregroundStyle(.red)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    @ViewBuilder
-    private var modelActionButton: some View {
-        switch state {
-        case .idle:
-            Button("Get") { onDownload() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-        case .downloading, .paused:
-            ModelDownloadTransferControls(
-                state: state,
-                onResume: onDownload,
-                onPause: onPause,
-                onCancel: onCancel
-            )
-        case .downloaded:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.system(size: 16))
-        case .failed:
-            // Refresh symbol gives the button a visual cue that it's not just
-            // any "tap to do something"; pairs with the warning row below to
-            // reinforce "something went wrong, try again."
-            Button {
-                onDownload()
-            } label: {
-                Label("Retry", systemImage: "arrow.counterclockwise")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
     }
 

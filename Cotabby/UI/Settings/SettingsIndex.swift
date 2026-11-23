@@ -698,6 +698,30 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     }
 }
 
+/// The text typed into a settings search field. Both search surfaces (the sidebar and Home) hold
+/// one, so "is there a query" and "what does it match" are answered by the same rule and the two
+/// cannot disagree about whitespace-only input.
+struct SettingsSearchQuery: Equatable {
+    var text = ""
+
+    var trimmed: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whitespace alone is not a query: the surface keeps showing its idle content.
+    var isBlank: Bool {
+        trimmed.isEmpty
+    }
+
+    /// Matches most relevant first, optionally capped. The list a surface renders and the item its
+    /// Return key opens must both come from here so the key always opens what the list shows.
+    func results(limit: Int? = nil) -> [SettingsItem] {
+        let ranked = SettingsItem.results(for: trimmed)
+        guard let limit else { return ranked }
+        return Array(ranked.prefix(limit))
+    }
+}
+
 /// Feeds the catalog's fields to the pure ranker without the ranker importing this UI type.
 extension SettingsItem: SettingsSearchable {
     var searchTitle: String { title }

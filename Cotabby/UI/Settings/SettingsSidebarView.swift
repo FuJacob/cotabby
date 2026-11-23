@@ -1,16 +1,16 @@
 import SwiftUI
 
 /// File overview:
-/// Sidebar of the Settings window. A search field sits at the top with breathing room above it,
+/// Sidebar of the Settings window. The app name and version sit at the top, then a search field,
 /// then the content: with no query, the category rows in visually clustered groups (each row a
 /// tinted icon tile plus label, with an optional attention dot); with a query, the individual
 /// settings that match, ranked by relevance. Selecting a result reveals that exact setting in its
 /// pane (scroll plus pulse) and clears the search.
 ///
 /// Why a hand-rolled search field instead of `.searchable`:
-/// `.searchable(placement: .sidebar)` pins its field flush to the top of the column with no way to
-/// add padding above it, so it collides with the title bar. A plain field gives full control over
-/// the top inset while keeping the same look. Ranking lives in `SettingsSearchRanker`; the catalog
+/// `.searchable(placement: .sidebar)` pins its field flush to the top of the column, leaving no
+/// room for the app header above it. A plain field can sit anywhere in the column while keeping
+/// the same look. Ranking lives in `SettingsSearchRanker`; the catalog
 /// in `SettingsItem`.
 ///
 /// Why groups carry no header text: labeled headers were tried and their indentation chrome ate
@@ -21,14 +21,14 @@ struct SettingsSidebarView: View {
     let attentionCategories: Set<SettingsCategory>
     let onQuit: () -> Void
 
-    @State private var searchText = ""
+    @State private var search = SettingsSearchQuery()
 
     var body: some View {
         VStack(spacing: 0) {
             appHeader
             searchField
 
-            if trimmedQuery.isEmpty {
+            if search.isBlank {
                 categoryList
             } else {
                 searchResultsList
@@ -46,25 +46,21 @@ struct SettingsSidebarView: View {
         .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 420)
     }
 
-    private var trimmedQuery: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Search field with deliberate top padding so it clears the title bar instead of butting
-    /// against it.
+    /// No top padding: the app header above provides the clearance from the title bar, and a tight
+    /// gap makes the field read as the head of the same group as the category rows beneath it.
     private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField("Search settings", text: $searchText)
+            TextField("Search settings", text: $search.text)
                 .textFieldStyle(.plain)
                 .onSubmit(openTopResult)
 
-            if !trimmedQuery.isEmpty {
+            if !search.isBlank {
                 Button {
-                    searchText = ""
+                    search.text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -77,19 +73,16 @@ struct SettingsSidebarView: View {
         .padding(.vertical, 6)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 10)
-        // The app header above now provides the clearance from the title bar; keep only a small gap
-        // here so the field reads as the head of the same group as the category rows beneath it.
-        .padding(.top, 0)
         .padding(.bottom, 4)
     }
 
     /// "Cotabby" wordmark with the app version in small secondary text beside it, sitting above the
-    /// search field. The top padding clears the title bar (the search field used to own that space).
+    /// search field. The top padding clears the title bar.
     private var appHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("Cotabby")
                 .font(.title3.weight(.semibold))
-            if let version = appVersionText {
+            if let version = Bundle.main.cotabbyDisplayVersion {
                 Text(version)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -99,11 +92,6 @@ struct SettingsSidebarView: View {
         .padding(.horizontal, 12)
         .padding(.top, 24)
         .padding(.bottom, 8)
-    }
-
-    /// Short marketing version (e.g. "v1.0"), or nil if the bundle has no version string.
-    private var appVersionText: String? {
-        Bundle.main.cotabbyDisplayVersion
     }
 
     /// Keeps process-level recovery actions available even when the menu bar icon is hidden. The
@@ -140,17 +128,11 @@ struct SettingsSidebarView: View {
         .listStyle(.sidebar)
     }
 
-    /// Single source for the rendered results AND the Return-key action, so the key always opens
-    /// exactly what the list shows.
-    private var searchResults: [SettingsItem] {
-        SettingsItem.results(for: trimmedQuery)
-    }
-
     private var searchResultsList: some View {
-        let results = searchResults
+        let results = search.results()
         return List {
             if results.isEmpty {
-                Text("No settings match \u{201C}\(trimmedQuery)\u{201D}")
+                Text("No settings match \u{201C}\(search.trimmed)\u{201D}")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(results) { item in
@@ -169,13 +151,13 @@ struct SettingsSidebarView: View {
     /// Return inside the field commits the best match so search works without reaching for the
     /// pointer.
     private func openTopResult() {
-        guard let top = searchResults.first else { return }
+        guard let top = search.results().first else { return }
         open(top)
     }
 
     private func open(_ item: SettingsItem) {
         navigation.reveal(item)
-        searchText = ""
+        search.text = ""
     }
 
     @ViewBuilder

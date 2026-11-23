@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// File overview:
-/// "Writing" detail pane of the redesigned Settings window. Owns how the completion reads:
+/// "Writing" detail pane. Owns how the completion reads:
 /// preferred length, profile (display name), preferred response languages, and the user's custom
 /// style rules.
 struct WritingPaneView: View {
@@ -49,7 +49,7 @@ struct WritingPaneView: View {
             // What an accept inserts beyond the bare word. These shape the written output, so they sit
             // with Writing rather than General; the accept keys themselves live in the Shortcuts pane.
             Section("Acceptance") {
-                Toggle(isOn: autoAcceptTrailingPunctuationBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.autoAcceptTrailingPunctuation) { $0.setAutoAcceptTrailingPunctuation($1) }) {
                     SettingsRowLabel(
                         title: "Accept Punctuation With Word",
                         description: "When you accept a word, also accept the punctuation that follows it " +
@@ -59,7 +59,7 @@ struct WritingPaneView: View {
                 }
                 .settingsItem(.acceptPunctuation)
 
-                Toggle(isOn: addSpaceAfterAcceptBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.addSpaceAfterAccept) { $0.setAddSpaceAfterAccept($1) }) {
                     SettingsRowLabel(
                         title: "Add Space After Accepting",
                         description: "When accepting a suggestion finishes a word, also add a space so you can " +
@@ -80,7 +80,7 @@ struct WritingPaneView: View {
             // all three toggles at the same visual level, so it was not obvious the gate governed the
             // other two.
             Section("Typos") {
-                Toggle(isOn: suppressCompletionsOnTypoBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.suppressCompletionsOnTypo) { $0.setSuppressCompletionsOnTypo($1) }) {
                     SettingsRowLabel(
                         title: "Hide Suggestions on Typo",
                         description: "Pauses normal completions when a finished word looks misspelled. " +
@@ -93,7 +93,7 @@ struct WritingPaneView: View {
 
             if suggestionSettings.suppressCompletionsOnTypo {
                 Section("Corrections") {
-                    Toggle(isOn: offerTypoCorrectionsBinding) {
+                    Toggle(isOn: suggestionSettings.binding(\.offerTypoCorrections) { $0.setOfferTypoCorrections($1) }) {
                         SettingsRowLabel(
                             title: "Offer Corrections on Typo",
                             description: "After you finish a word, shows a green replacement you can apply with your accept key.",
@@ -102,7 +102,7 @@ struct WritingPaneView: View {
                     }
                     .settingsItem(.offerTypoCorrections)
 
-                    Toggle(isOn: automaticallyFixTyposBinding) {
+                    Toggle(isOn: suggestionSettings.binding(\.automaticallyFixTypos) { $0.setAutomaticallyFixTypos($1) }) {
                         SettingsRowLabel(
                             title: "Automatically Fix Typos",
                             description: "After you press Space, replaces a misspelled word without requiring your accept key.",
@@ -166,41 +166,6 @@ struct WritingPaneView: View {
                 }
             }
         }
-    }
-
-    private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.autoAcceptTrailingPunctuation },
-            set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
-        )
-    }
-
-    private var addSpaceAfterAcceptBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.addSpaceAfterAccept },
-            set: { suggestionSettings.setAddSpaceAfterAccept($0) }
-        )
-    }
-
-    private var suppressCompletionsOnTypoBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.suppressCompletionsOnTypo },
-            set: { suggestionSettings.setSuppressCompletionsOnTypo($0) }
-        )
-    }
-
-    private var offerTypoCorrectionsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.offerTypoCorrections },
-            set: { suggestionSettings.setOfferTypoCorrections($0) }
-        )
-    }
-
-    private var automaticallyFixTyposBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.automaticallyFixTypos },
-            set: { suggestionSettings.setAutomaticallyFixTypos($0) }
-        )
     }
 
     private enum LengthChoice: Hashable {

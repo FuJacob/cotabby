@@ -207,10 +207,12 @@ struct SuggestionSettingsStore {
     /// Every persisted-preference key this store owns, in one place so `resetToDefaults` clears the
     /// full set. App state that is deliberately *not* a preference lives under other keys and is
     /// intentionally excluded: onboarding progress, the one-time login-item default flag, the lifetime
-    /// accepted-word count, emoji usage history, and the performance/quality metrics. A new preference
-    /// key must be added here; `test_resetToDefaults_clearsAllKeysAndReloadsDefaults` fails if one is
-    /// missed. The legacy single-language key is included so a reset also scrubs a value a migration
-    /// would otherwise resurrect.
+    /// accepted-word count, emoji usage history, and the performance/quality metrics.
+    /// `menuBarIconVisibleDefaultsKey` is also absent, so a reset leaves a hidden menu bar icon hidden.
+    /// A new preference key must be added here and dirtied in
+    /// `test_resetToDefaults_clearsAllKeysAndReloadsDefaults`, which only catches a missing key for
+    /// the fields it writes. The legacy single-language key is included so a reset also scrubs a
+    /// value a migration would otherwise resurrect.
     private static let allPreferenceDefaultsKeys: [String] = [
         isGloballyEnabledDefaultsKey,
         pauseStateDefaultsKey,
@@ -300,7 +302,7 @@ struct SuggestionSettingsStore {
     /// reach existing installs on the very next launch. Do not reorder or prune the resolution branches
     /// without a matching migration test; each one protects an existing user's settings.
     func load(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
-        let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
+        let resolvedGloballyEnabled = bool(forKey: Self.isGloballyEnabledDefaultsKey, default: true)
         // Expired pauses are discarded during launch so a Mac that was asleep or powered off past
         // the deadline never comes back in a stale disabled state.
         let persistedPauseState = userDefaults.data(forKey: Self.pauseStateDefaultsKey)
@@ -310,53 +312,44 @@ struct SuggestionSettingsStore {
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
         // Off by default: a fast second Tab has always accepted one more word, and turning it into a
         // whole-suggestion accept is an opt-in change to that muscle memory.
-        let resolvedDoubleTapAcceptsEntireSuggestion =
-            userDefaults.object(forKey: Self.doubleTapFullAcceptanceDefaultsKey) as? Bool ?? false
+        let resolvedDoubleTapAcceptsEntireSuggestion = bool(forKey: Self.doubleTapFullAcceptanceDefaultsKey, default: false)
         // Off by default: Tab has always accepted wherever a suggestion shows.
-        let resolvedTabLeavesSingleLineFields =
-            userDefaults.object(forKey: Self.tabLeavesSingleLineFieldsDefaultsKey) as? Bool ?? false
+        let resolvedTabLeavesSingleLineFields = bool(forKey: Self.tabLeavesSingleLineFieldsDefaultsKey, default: false)
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
             modeString != ActivationIndicatorMode.hidden.rawValue
         } else {
-            userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
+            bool(forKey: Self.showCaretIndicatorDefaultsKey, default: true)
         }
-        let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
+        let resolvedShowAcceptanceHint = bool(forKey: Self.showAcceptanceHintDefaultsKey, default: true)
         // Defaults to false so ghost text stays out of terminals out of the box, matching how
         // standalone terminal apps are already skipped. Existing installs (no key) get the same.
-        let resolvedSuggestInIntegratedTerminals =
-            userDefaults.object(forKey: Self.suggestInIntegratedTerminalsDefaultsKey) as? Bool ?? false
+        let resolvedSuggestInIntegratedTerminals = bool(forKey: Self.suggestInIntegratedTerminalsDefaultsKey, default: false)
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
-        let resolvedGhostTextOpacity: Double = if userDefaults.object(forKey: Self.ghostTextOpacityDefaultsKey) == nil {
-            Self.defaultGhostTextOpacity
-        } else {
-            Self.clampedGhostTextOpacity(userDefaults.double(forKey: Self.ghostTextOpacityDefaultsKey))
-        }
-        let resolvedGhostTextSizeMultiplier: Double =
-            if userDefaults.object(forKey: Self.ghostTextSizeMultiplierDefaultsKey) == nil {
-                Self.defaultGhostTextSizeMultiplier
-            } else {
-                Self.clampedGhostTextSizeMultiplier(userDefaults.double(forKey: Self.ghostTextSizeMultiplierDefaultsKey))
-            }
+        let resolvedGhostTextOpacity = clampedDouble(
+            forKey: Self.ghostTextOpacityDefaultsKey,
+            default: Self.defaultGhostTextOpacity,
+            clamp: { Self.clampedGhostTextOpacity($0) }
+        )
+        let resolvedGhostTextSizeMultiplier = clampedDouble(
+            forKey: Self.ghostTextSizeMultiplierDefaultsKey,
+            default: Self.defaultGhostTextSizeMultiplier,
+            clamp: { Self.clampedGhostTextSizeMultiplier($0) }
+        )
         let ghostFontSizeBounds = resolvedGhostFontSizeBounds()
 
-        let resolvedEngine = userDefaults
-            .string(forKey: Self.selectedEngineDefaultsKey)
-            .flatMap(SuggestionEngineKind.init(rawValue:))
-            ?? .llamaOpenSource
+        let resolvedEngine = rawValue(forKey: Self.selectedEngineDefaultsKey, default: SuggestionEngineKind.llamaOpenSource)
         let resolvedOpenAICompatibleBaseURL = userDefaults
             .string(forKey: Self.openAICompatibleBaseURLDefaultsKey)
             ?? OpenAICompatibleEndpointConfiguration.defaultBaseURLString
         let resolvedOpenAICompatibleModelName = userDefaults
             .string(forKey: Self.openAICompatibleModelNameDefaultsKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let resolvedOpenAICompatibleAPIMode = userDefaults
-            .string(forKey: Self.openAICompatibleAPIModeDefaultsKey)
-            .flatMap(OpenAICompatibleAPIMode.init(rawValue:))
-            ?? .chatCompletions
+        let resolvedOpenAICompatibleAPIMode =
+            rawValue(forKey: Self.openAICompatibleAPIModeDefaultsKey, default: OpenAICompatibleAPIMode.chatCompletions)
         let resolvedWordCountPreset: SuggestionWordCountPreset = {
             let storedRaw = userDefaults.string(forKey: Self.selectedWordCountPresetDefaultsKey)
             // Migrate the retired "3-7" raw value to its replacement "4-7" so users who picked
@@ -368,32 +361,26 @@ struct SuggestionSettingsStore {
             return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:))
                 ?? configuration.defaultWordCountPreset
         }()
-        let resolvedUsingCustomWordCountRange =
-            userDefaults.object(forKey: Self.usingCustomWordCountRangeDefaultsKey) as? Bool ?? false
+        let resolvedUsingCustomWordCountRange = bool(forKey: Self.usingCustomWordCountRangeDefaultsKey, default: false)
         let resolvedCustomRange: SuggestionWordRange = SuggestionWordRange.clamped(
             low: userDefaults.object(forKey: Self.customWordCountLowWordsDefaultsKey) as? Int
                 ?? Self.defaultCustomWordCountLowWords,
             high: userDefaults.object(forKey: Self.customWordCountHighWordsDefaultsKey) as? Int
                 ?? Self.defaultCustomWordCountHighWords
         )
-        let resolvedClipboardContextEnabled =
-            userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
+        let resolvedClipboardContextEnabled = bool(forKey: Self.clipboardContextEnabledDefaultsKey, default: false)
         // Defaults to true: knowing the app/window/domain is the difference between on-topic and
         // generic suggestions, the data never leaves the device, and the capture is one cached
         // Accessibility read per field. Users who want fully context-free prompts can switch it off.
-        let resolvedSurfaceContextEnabled =
-            userDefaults.object(forKey: Self.surfaceContextEnabledDefaultsKey) as? Bool ?? true
+        let resolvedSurfaceContextEnabled = bool(forKey: Self.surfaceContextEnabledDefaultsKey, default: true)
         // Defaults to false so the visual-context pipeline keeps running for existing users; opting
         // into fast mode turns it off.
-        let resolvedFastModeEnabled =
-            userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        let resolvedFastModeEnabled = bool(forKey: Self.fastModeEnabledDefaultsKey, default: false)
         // Hiding a completion on a misspelled current word and offering a fix remain the default
         // behavior. Automatic replacement is deliberately opt-in because it mutates host-app text
         // without a confirmation key.
-        let resolvedSuppressCompletionsOnTypo =
-            userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
-        let resolvedOfferTypoCorrections =
-            userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
+        let resolvedSuppressCompletionsOnTypo = bool(forKey: Self.suppressCompletionsOnTypoDefaultsKey, default: true)
+        let resolvedOfferTypoCorrections = bool(forKey: Self.offerTypoCorrectionsDefaultsKey, default: true)
         let resolvedEnabledSpellingDictionaryCodes: [String] = {
             guard userDefaults.object(forKey: Self.spellingDictionaryCodesDefaultsKey) != nil else {
                 return SpellingDictionaryCatalog.defaultEnabledCodes
@@ -402,30 +389,22 @@ struct SuggestionSettingsStore {
                 userDefaults.stringArray(forKey: Self.spellingDictionaryCodesDefaultsKey) ?? []
             )
         }()
-        let resolvedAutomaticallyFixTypos =
-            userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? false
+        let resolvedAutomaticallyFixTypos = bool(forKey: Self.automaticallyFixTyposDefaultsKey, default: false)
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
-        let resolvedPerformanceTrackingEnabled =
-            userDefaults.object(forKey: Self.performanceTrackingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedPerformanceTrackingEnabled = bool(forKey: Self.performanceTrackingEnabledDefaultsKey, default: false)
         // Existing installs lack this key; defaulting to true keeps the feature opt-out.
-        let resolvedLowPowerModeAutoDisableEnabled =
-            userDefaults.object(forKey: Self.lowPowerModeAutoDisableDefaultsKey) as? Bool ?? true
+        let resolvedLowPowerModeAutoDisableEnabled = bool(forKey: Self.lowPowerModeAutoDisableDefaultsKey, default: true)
         // Existing installs keep the status item unless the user explicitly hides it. Hiding the
         // item must never terminate the accessory app because autocomplete continues in the background.
-        let resolvedMenuBarIconVisible =
-            userDefaults.object(forKey: Self.menuBarIconVisibleDefaultsKey) as? Bool ?? true
+        let resolvedMenuBarIconVisible = bool(forKey: Self.menuBarIconVisibleDefaultsKey, default: true)
         // Default to visible so existing installs keep the running-word-count badge they're used
         // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
-        let resolvedMenuBarWordCountVisible =
-            userDefaults.object(forKey: Self.menuBarWordCountVisibleDefaultsKey) as? Bool ?? true
+        let resolvedMenuBarWordCountVisible = bool(forKey: Self.menuBarWordCountVisibleDefaultsKey, default: true)
         // Default `.auto` keeps existing users on the byte-for-byte original inline rendering for
         // hosts that report exact/derived caret geometry; only `.estimated` hosts see the new popup
         // card. Power users can pin one mode from Settings or the menu bar.
-        let resolvedMirrorPreference = userDefaults
-            .string(forKey: Self.mirrorPreferenceDefaultsKey)
-            .flatMap(MirrorPreference.init(rawValue:))
-            ?? .auto
+        let resolvedMirrorPreference = rawValue(forKey: Self.mirrorPreferenceDefaultsKey, default: MirrorPreference.auto)
         let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
             configuration.defaultUserName ?? ""
         } else {
@@ -459,56 +438,37 @@ struct SuggestionSettingsStore {
             LanguageCatalog.defaultLanguages
         }
 
-        let resolvedDebounceMilliseconds: Int = {
-            let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
-                ?? configuration.debounceMilliseconds
-            // Existing installs may have the old 50ms first-launch default persisted. Cap at the
-            // shipped default so the latency improvement reaches them — the stepper is hidden from
-            // the UI today, so any persisted value is a previous default rather than a user choice.
-            let capped = min(raw, configuration.debounceMilliseconds)
-            return max(10, min(500, capped))
-        }()
-        let resolvedFocusPollIntervalMilliseconds: Int = {
-            let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
-                ?? configuration.focusPollIntervalMilliseconds
-            // Cap persisted values at the shipped default so a default lowering reaches existing
-            // installs (anyone on the previous 80ms default gets the 50ms speedup on next launch).
-            // The stepper is hidden from the UI today, so any persisted value is a previous default
-            // rather than a user-chosen override.
-            let capped = min(raw, configuration.focusPollIntervalMilliseconds)
-            return max(10, min(500, capped))
-        }()
+        let resolvedDebounceMilliseconds = cappedMilliseconds(
+            forKey: Self.debounceMillisecondsDefaultsKey,
+            shippedDefault: configuration.debounceMilliseconds
+        )
+        let resolvedFocusPollIntervalMilliseconds = cappedMilliseconds(
+            forKey: Self.focusPollIntervalMillisecondsDefaultsKey,
+            shippedDefault: configuration.focusPollIntervalMilliseconds
+        )
 
-        let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+        let resolvedMultiLineEnabled = bool(forKey: Self.multiLineEnabledDefaultsKey, default: false)
         // Preserve word-completion behavior for existing installs while allowing users to wait
         // until a word boundary before a new suggestion is generated.
-        let resolvedSuggestWithinWords = userDefaults.object(forKey: Self.suggestWithinWordsDefaultsKey) as? Bool ?? true
+        let resolvedSuggestWithinWords = bool(forKey: Self.suggestWithinWordsDefaultsKey, default: true)
         // Existing installs keep the phrase preview; users can choose a quieter word-at-a-time view.
-        let resolvedShowFollowingWords = userDefaults.object(forKey: Self.showFollowingWordsDefaultsKey) as? Bool ?? true
-        let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
-        let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
-        let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
-            .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
-        let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
-            .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
-        let resolvedAutoAcceptTrailingPunctuation =
-            userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
+        let resolvedShowFollowingWords = bool(forKey: Self.showFollowingWordsDefaultsKey, default: true)
+        let resolvedEmojiPickerEnabled = bool(forKey: Self.emojiPickerEnabledDefaultsKey, default: true)
+        let resolvedMacroExpansionEnabled = bool(forKey: Self.macroExpansionEnabledDefaultsKey, default: true)
+        let resolvedPreferredEmojiSkinTone = rawValue(forKey: Self.preferredEmojiSkinToneDefaultsKey, default: EmojiSkinTone.neutral)
+        let resolvedPreferredEmojiGender = rawValue(forKey: Self.preferredEmojiGenderDefaultsKey, default: EmojiGender.neutral)
+        let resolvedAutoAcceptTrailingPunctuation = bool(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey, default: true)
         // Defaults to false so the WYSIWYG accept behavior is unchanged for existing installs; the
         // trailing space is opt-in from Settings.
-        let resolvedAddSpaceAfterAccept =
-            userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
+        let resolvedAddSpaceAfterAccept = bool(forKey: Self.addSpaceAfterAcceptDefaultsKey, default: false)
         // Missing keys opt existing installations into prediction reuse; an explicit false survives reload.
-        let resolvedPredictAheadWhileTyping =
-            userDefaults.object(forKey: Self.predictAheadWhileTypingDefaultsKey) as? Bool ?? true
+        let resolvedPredictAheadWhileTyping = bool(forKey: Self.predictAheadWhileTypingDefaultsKey, default: true)
         // Streaming is opt-in; prediction reuse works independently when a user hides partials.
-        let resolvedStreamSuggestionsWhileGenerating =
-            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
+        let resolvedStreamSuggestionsWhileGenerating = bool(forKey: Self.streamWhileGeneratingDefaultsKey, default: false)
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
         // ghost text to snap in instantly can turn it off, and the overlay suppresses it under
         // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
-        let resolvedFadeInSuggestions =
-            userDefaults.object(forKey: Self.fadeInSuggestionsDefaultsKey) as? Bool
-                ?? Self.defaultFadeInSuggestions
+        let resolvedFadeInSuggestions = bool(forKey: Self.fadeInSuggestionsDefaultsKey, default: Self.defaultFadeInSuggestions)
         let persistedFadeInDurationSeconds: Double? =
             if userDefaults.object(forKey: Self.fadeInDurationSecondsDefaultsKey) == nil {
                 nil
@@ -563,25 +523,17 @@ struct SuggestionSettingsStore {
         // Default `.word` preserves the pre-feature behavior for existing installs that have no
         // value persisted yet. Invalid persisted values fall back to `.word` rather than crashing
         // so a hand-edited UserDefault can't strand the user.
-        let resolvedAcceptanceGranularity = userDefaults
-            .string(forKey: Self.acceptanceGranularityDefaultsKey)
-            .flatMap(AcceptanceGranularity.init(rawValue:))
-            ?? .word
+        let resolvedAcceptanceGranularity = rawValue(forKey: Self.acceptanceGranularityDefaultsKey, default: AcceptanceGranularity.word)
 
-        let resolvedPowerBasedModelSwitchingEnabled =
-            userDefaults.object(forKey: Self.powerModelSwitchingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedPowerBasedModelSwitchingEnabled = bool(forKey: Self.powerModelSwitchingEnabledDefaultsKey, default: false)
         // On by default: falling back is what Cotabby has always done for unsupported languages.
-        let resolvedAppleLanguageFallbackEnabled =
-            userDefaults.object(forKey: Self.appleLanguageFallbackEnabledDefaultsKey) as? Bool ?? true
-        let resolvedKeepsFallbackModelLoaded =
-            userDefaults.object(forKey: Self.keepFallbackModelLoadedDefaultsKey) as? Bool ?? false
-        let resolvedBatteryEngine = userDefaults.string(forKey: Self.batteryEngineDefaultsKey)
-            .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
+        let resolvedAppleLanguageFallbackEnabled = bool(forKey: Self.appleLanguageFallbackEnabledDefaultsKey, default: true)
+        let resolvedKeepsFallbackModelLoaded = bool(forKey: Self.keepFallbackModelLoadedDefaultsKey, default: false)
+        let resolvedBatteryEngine = rawValue(forKey: Self.batteryEngineDefaultsKey, default: SuggestionEngineKind.llamaOpenSource)
         let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
         let resolvedBatteryEndpointModelName = userDefaults
             .string(forKey: Self.batteryEndpointModelNameDefaultsKey) ?? ""
-        let resolvedPluggedInEngine = userDefaults.string(forKey: Self.pluggedInEngineDefaultsKey)
-            .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
+        let resolvedPluggedInEngine = rawValue(forKey: Self.pluggedInEngineDefaultsKey, default: SuggestionEngineKind.llamaOpenSource)
         let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""
         let resolvedPluggedInEndpointModelName = userDefaults
             .string(forKey: Self.pluggedInEndpointModelNameDefaultsKey) ?? ""
@@ -777,6 +729,46 @@ struct SuggestionSettingsStore {
         userDefaults.removeObject(forKey: "cotabbyCustomIndicatorImageData")
 
         return data
+    }
+
+    // MARK: - Read helpers
+
+    /// An absent key (or a value of the wrong type) reads as the default. `UserDefaults.bool`
+    /// cannot express that: it reads an absent key as `false`, which would silently flip every
+    /// default-on preference off for an install that has never written the key.
+    private func bool(forKey key: String, default defaultValue: Bool) -> Bool {
+        userDefaults.object(forKey: key) as? Bool ?? defaultValue
+    }
+
+    /// An unknown raw value falls back to the default rather than failing, so a value written by a
+    /// newer build (or edited by hand) cannot strand the user on launch.
+    private func rawValue<Value: RawRepresentable>(
+        forKey key: String,
+        default defaultValue: Value
+    ) -> Value where Value.RawValue == String {
+        userDefaults.string(forKey: key).flatMap(Value.init(rawValue:)) ?? defaultValue
+    }
+
+    /// Key presence is checked first because `UserDefaults.double` reads an absent key as 0, which
+    /// a clamp would turn into the range minimum instead of the intended default.
+    private func clampedDouble(
+        forKey key: String,
+        default defaultValue: Double,
+        clamp: (Double) -> Double
+    ) -> Double {
+        guard userDefaults.object(forKey: key) != nil else {
+            return defaultValue
+        }
+        return clamp(userDefaults.double(forKey: key))
+    }
+
+    /// Reads a cadence in milliseconds, capped at the shipped default so that lowering a default
+    /// reaches existing installs on their next launch (the old 50ms debounce and 80ms focus poll
+    /// were persisted as first-launch defaults). The steppers are hidden from the UI today, so any
+    /// persisted value is a previous default rather than a user choice.
+    private func cappedMilliseconds(forKey key: String, shippedDefault: Int) -> Int {
+        let raw = userDefaults.object(forKey: key) as? Int ?? shippedDefault
+        return max(10, min(500, min(raw, shippedDefault)))
     }
 
     // MARK: - Reset
@@ -1155,7 +1147,7 @@ struct SuggestionSettingsStore {
             )
         }
 
-        return sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
+        return sortedByDisplayName(Array(rulesByBundleIdentifier.values))
     }
 
     // MARK: - Per-app shortcut override decoding
@@ -1191,15 +1183,15 @@ struct SuggestionSettingsStore {
             )
         }
 
-        return sortedPerAppShortcutOverrides(Array(byBundle.values))
+        return sortedByDisplayName(Array(byBundle.values))
     }
 
     // MARK: - Pure value normalizers (shared with the facade's setters)
 
-    static func sortedDisabledAppRules(
-        _ rules: [DisabledApplicationRule]
-    ) -> [DisabledApplicationRule] {
-        rules.sorted {
+    /// Orders per-application entries the way Settings lists them: by display name ignoring case,
+    /// with the bundle identifier breaking ties so equal names never reorder between launches.
+    static func sortedByDisplayName<Entry: ApplicationScopedSetting>(_ entries: [Entry]) -> [Entry] {
+        entries.sorted {
             if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
                 return $0.bundleIdentifier < $1.bundleIdentifier
             }
@@ -1208,16 +1200,12 @@ struct SuggestionSettingsStore {
         }
     }
 
-    static func sortedPerAppShortcutOverrides(
-        _ overrides: [PerAppShortcutOverride]
-    ) -> [PerAppShortcutOverride] {
-        overrides.sorted {
-            if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
-                return $0.bundleIdentifier < $1.bundleIdentifier
-            }
-
-            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
+    /// Adds `entry`, replacing any existing entry for the same app, and returns the list in its
+    /// listed order. One entry per bundle identifier is the invariant every reader relies on.
+    static func upserting<Entry: ApplicationScopedSetting>(_ entry: Entry, into entries: [Entry]) -> [Entry] {
+        var entriesByBundleIdentifier = Dictionary(uniqueKeysWithValues: entries.map { ($0.bundleIdentifier, $0) })
+        entriesByBundleIdentifier[entry.bundleIdentifier] = entry
+        return sortedByDisplayName(Array(entriesByBundleIdentifier.values))
     }
 
     static func normalizedBundleIdentifier(_ bundleIdentifier: String?) -> String? {
@@ -1277,18 +1265,16 @@ struct SuggestionSettingsStore {
     /// `load()` so that function's branch count stays under the complexity limit; the resolution is
     /// self-contained, which makes it a natural thing to lift out.
     private func resolvedGhostFontSizeBounds() -> (floor: Double, ceiling: Double) {
-        let storedFloor: Double =
-            if userDefaults.object(forKey: Self.ghostFontSizeFloorDefaultsKey) == nil {
-                Self.defaultGhostFontSizeFloor
-            } else {
-                Self.clampedGhostFontSizeFloor(userDefaults.double(forKey: Self.ghostFontSizeFloorDefaultsKey))
-            }
-        let storedCeiling: Double =
-            if userDefaults.object(forKey: Self.ghostFontSizeCeilingDefaultsKey) == nil {
-                Self.defaultGhostFontSizeCeiling
-            } else {
-                Self.clampedGhostFontSizeCeiling(userDefaults.double(forKey: Self.ghostFontSizeCeilingDefaultsKey))
-            }
+        let storedFloor = clampedDouble(
+            forKey: Self.ghostFontSizeFloorDefaultsKey,
+            default: Self.defaultGhostFontSizeFloor,
+            clamp: { Self.clampedGhostFontSizeFloor($0) }
+        )
+        let storedCeiling = clampedDouble(
+            forKey: Self.ghostFontSizeCeilingDefaultsKey,
+            default: Self.defaultGhostFontSizeCeiling,
+            clamp: { Self.clampedGhostFontSizeCeiling($0) }
+        )
 
         let repairedCeiling = max(storedCeiling, storedFloor)
         return (min(storedFloor, repairedCeiling), repairedCeiling)
@@ -1349,3 +1335,14 @@ struct SuggestionSettingsStore {
         return String(context.prefix(maximumExtendedContextCharacters))
     }
 }
+
+/// A persisted setting scoped to one application: identified by its bundle identifier and listed
+/// under its display name. Lets the store sort and upsert disabled-app rules and per-app shortcut
+/// overrides with one rule instead of a copy per type.
+protocol ApplicationScopedSetting {
+    var bundleIdentifier: String { get }
+    var displayName: String { get }
+}
+
+extension DisabledApplicationRule: ApplicationScopedSetting {}
+extension PerAppShortcutOverride: ApplicationScopedSetting {}

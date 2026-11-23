@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// File overview:
-/// "Shortcuts" detail pane of the redesigned Settings window. Surfaces the two keybindings that
-/// drive suggestion acceptance: word-by-word and full-suggestion.
+/// "Shortcuts" detail pane: how much one accept press takes (the Mode picker), the Accept Word,
+/// Accept Entire Suggestion, and Toggle Cotabby keybindings, and whether Tab is handed back to
+/// single-line fields.
 struct ShortcutsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -111,7 +112,7 @@ struct ShortcutsPaneView: View {
                 // name, address, and search inputs. Only plain Tab is affected; other keys still accept.
                 // Stays editable while a double tap accepts everything: that mode only pauses it in
                 // apps that inherit the double tap, and apps with their own full-accept key still use it.
-                Toggle(isOn: tabLeavesSingleLineFieldsBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.tabLeavesSingleLineFields) { $0.setTabLeavesSingleLineFields($1) }) {
                     SettingsRowLabel(
                         title: "Tab Moves to Next Field",
                         description: tabLeavesSingleLineFieldsDescription,
@@ -175,13 +176,6 @@ struct ShortcutsPaneView: View {
     }
 
     private static let tabKeyCode: CGKeyCode = 48
-
-    private var tabLeavesSingleLineFieldsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.tabLeavesSingleLineFields },
-            set: { suggestionSettings.setTabLeavesSingleLineFields($0) }
-        )
-    }
 
     /// The Accept Word key, offered to the recorder as a double press. Nil while Accept Word is
     /// unbound, because there is then no key to press twice.

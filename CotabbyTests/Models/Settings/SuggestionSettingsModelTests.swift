@@ -480,6 +480,26 @@ final class SuggestionSettingsModelTests: XCTestCase {
         }
     }
 
+    func test_openAICompatibleConfigurationError_namesWhatBlocksTheEndpoint() {
+        let model = makeModel()
+        model.setOpenAICompatibleBaseURL("http://localhost:1234/v1")
+
+        // A valid URL with no model chosen still cannot serve a request.
+        XCTAssertEqual(
+            model.openAICompatibleConfigurationError,
+            OpenAICompatibleEndpointError.emptyModelName.localizedDescription
+        )
+
+        model.setOpenAICompatibleModelName("local-model")
+        XCTAssertNil(model.openAICompatibleConfigurationError)
+
+        model.setOpenAICompatibleBaseURL("ftp://example.com/v1")
+        XCTAssertEqual(
+            model.openAICompatibleConfigurationError,
+            OpenAICompatibleEndpointError.invalidBaseURL.localizedDescription
+        )
+    }
+
     // MARK: - Spelling dictionaries
 
     func test_setSpellingDictionary_togglesMembershipKeepsCatalogOrderAndPersists() {

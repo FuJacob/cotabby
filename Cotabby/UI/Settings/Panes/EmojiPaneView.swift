@@ -11,7 +11,7 @@ struct EmojiPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Emoji Picker") {
-                Toggle(isOn: emojiPickerEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isEmojiPickerEnabled) { $0.setEmojiPickerEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Inline Emoji Picker",
                         description: "Type a name like :smile to search inline, then press your accept-word " +
@@ -72,65 +72,39 @@ struct EmojiPaneView: View {
         }
     }
 
-    // MARK: - Bindings
-
-    private var emojiPickerEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isEmojiPickerEnabled },
-            set: { suggestionSettings.setEmojiPickerEnabled($0) }
-        )
-    }
-
     // MARK: - Option buttons
 
-    @ViewBuilder
     private func skinToneOption(for tone: EmojiSkinTone) -> some View {
-        let isSelected = suggestionSettings.preferredEmojiSkinTone == tone
-
-        Button {
+        emojiOptionButton(
+            glyph: tone.sampleGlyph,
+            isSelected: suggestionSettings.preferredEmojiSkinTone == tone,
+            help: "\(tone.displayName) skin tone"
+        ) {
             suggestionSettings.setPreferredEmojiSkinTone(tone)
-        } label: {
-            ZStack(alignment: .bottomTrailing) {
-                Text(tone.sampleGlyph)
-                    .font(.system(size: 19))
-                    .frame(width: 34, height: 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.06))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? Color.accentColor : Color.primary.opacity(0.16),
-                                lineWidth: isSelected ? 2 : 1
-                            )
-                    )
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .background(Circle().fill(Color(nsColor: .controlBackgroundColor)))
-                        .offset(x: 3, y: 3)
-                }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .help("\(tone.displayName) skin tone")
-        .accessibilityLabel("\(tone.displayName) skin tone")
-        .accessibilityValue(isSelected ? "Selected" : "")
     }
 
-    @ViewBuilder
     private func emojiGenderOption(for gender: EmojiGender) -> some View {
-        let isSelected = suggestionSettings.preferredEmojiGender == gender
-
-        Button {
+        emojiOptionButton(
+            glyph: gender.sampleGlyph,
+            isSelected: suggestionSettings.preferredEmojiGender == gender,
+            help: "\(gender.displayName) variant"
+        ) {
             suggestionSettings.setPreferredEmojiGender(gender)
-        } label: {
+        }
+    }
+
+    /// One selectable glyph tile, shared by the skin-tone and people-style rows so both select
+    /// and announce themselves the same way.
+    private func emojiOptionButton(
+        glyph: String,
+        isSelected: Bool,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             ZStack(alignment: .bottomTrailing) {
-                Text(gender.sampleGlyph)
+                Text(glyph)
                     .font(.system(size: 19))
                     .frame(width: 34, height: 30)
                     .background(
@@ -156,8 +130,8 @@ struct EmojiPaneView: View {
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help("\(gender.displayName) variant")
-        .accessibilityLabel("\(gender.displayName) variant")
+        .help(help)
+        .accessibilityLabel(help)
         .accessibilityValue(isSelected ? "Selected" : "")
     }
 }

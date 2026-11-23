@@ -29,9 +29,9 @@ struct GhostTextPreview: View {
     var isBold: Bool = false
     var isItalic: Bool = false
 
-    /// Representative base size the multiplier scales in the preview. Sits near the lower end of
-    /// the overlay's real `[14, 24]` caret-derived band, matching typical small-to-medium text
-    /// fields where most users encounter ghost text in practice.
+    /// Representative base size the multiplier scales in the preview: typical small-to-medium
+    /// text-field text, where most users encounter ghost text in practice, and inside the default
+    /// floor and ceiling so the preview is not clamped out of the box.
     static let baseFontSize: CGFloat = 16
 
     /// The whole sentence reads naturally with the ghost half completing the typed half, and labels

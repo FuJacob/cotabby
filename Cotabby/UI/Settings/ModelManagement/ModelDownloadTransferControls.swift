@@ -1,8 +1,57 @@
 import SwiftUI
 
-/// Shared pause, resume, cancel, and progress presentation for model download rows.
-/// Catalog and Hugging Face rows supply their own idle/downloaded actions but render active
-/// transfers identically through these views.
+/// The trailing control of a model download row: Get, the transfer controls, an installed
+/// checkmark, or Retry. The recommended catalog and the Hugging Face browser both render it from
+/// `ModelDownloadState`, so a model reads the same wherever it is listed.
+struct ModelDownloadActionButton: View {
+    let state: ModelDownloadState
+    /// True when the file is already on disk whatever the download state says. An active
+    /// transfer still wins, so a re-download in progress keeps its controls.
+    var isInstalled = false
+    let onDownload: () -> Void
+    let onPause: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        if isInstalled && !state.isDownloading && !state.isPaused {
+            installedCheckmark
+        } else {
+            switch state {
+            case .idle:
+                Button("Get") { onDownload() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            case .downloading, .paused:
+                ModelDownloadTransferControls(
+                    state: state,
+                    onResume: onDownload,
+                    onPause: onPause,
+                    onCancel: onCancel
+                )
+            case .downloaded:
+                installedCheckmark
+            case .failed:
+                // The refresh symbol pairs with the row's failure text to read as "try again"
+                // rather than a generic action.
+                Button {
+                    onDownload()
+                } label: {
+                    Label("Retry", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private var installedCheckmark: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+            .font(.system(size: 16))
+    }
+}
+
+/// Shared pause, resume, cancel, and progress presentation for an active model download.
 struct ModelDownloadTransferControls: View {
     let state: ModelDownloadState
     let onResume: () -> Void

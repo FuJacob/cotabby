@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Searchable HuggingFace GGUF model browser embedded in the Settings "Local Models" section.
-/// Users search for repos, drill into one to see available GGUF quantizations, and download
-/// directly into Cotabby's model directory via the existing ModelDownloadManager.
+/// Searchable HuggingFace GGUF model browser embedded in the Engine & Model pane's Open Source
+/// section. Users search for repos, drill into one to see available GGUF quantizations, and
+/// download directly into Cotabby's model directory via the existing ModelDownloadManager.
 struct HuggingFaceModelBrowserView: View {
     @ObservedObject var searchService: HuggingFaceSearchService
     @ObservedObject var modelDownloadManager: ModelDownloadManager
@@ -135,7 +135,6 @@ struct HuggingFaceModelBrowserView: View {
                         ) {
                             HFFileRow(
                                 file: file,
-                                repoId: repoId,
                                 state: modelDownloadManager.state(for: model),
                                 isInstalled: modelDownloadManager.isModelInstalled(model),
                                 onDownload: {
@@ -216,7 +215,6 @@ private struct HFSearchResultRow: View {
 
 private struct HFFileRow: View {
     let file: HFRepoFile
-    let repoId: String
     let state: ModelDownloadState
     let isInstalled: Bool
     let onDownload: () -> Void
@@ -238,7 +236,13 @@ private struct HFFileRow: View {
 
                 Spacer(minLength: 0)
 
-                actionButton
+                ModelDownloadActionButton(
+                    state: state,
+                    isInstalled: isInstalled,
+                    onDownload: onDownload,
+                    onPause: onPause,
+                    onCancel: onCancel
+                )
             }
 
             if state.isDownloading || state.isPaused {
@@ -251,44 +255,6 @@ private struct HFFileRow: View {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(.quaternary.opacity(0.3))
         )
-    }
-
-    @ViewBuilder
-    private var actionButton: some View {
-        if isInstalled && !state.isDownloading && !state.isPaused {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.system(size: 16))
-        } else {
-            switch state {
-            case .idle:
-                Button("Get") { onDownload() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-
-            case .downloading, .paused:
-                ModelDownloadTransferControls(
-                    state: state,
-                    onResume: onDownload,
-                    onPause: onPause,
-                    onCancel: onCancel
-                )
-
-            case .downloaded:
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 16))
-
-            case .failed:
-                Button {
-                    onDownload()
-                } label: {
-                    Label("Retry", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
     }
 
     private var fileDetailText: String {
