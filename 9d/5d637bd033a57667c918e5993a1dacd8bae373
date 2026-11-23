@@ -1,0 +1,21 @@
+CotabbyTests/Support/Accessibility/AXHelperTests.swift
+  s_9990f9098df800::t_4064d9025381a9 245-248,250-254,257-259,261-263,265-267,274-275,277,281-291
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_9990f9098df800::t_f8596adfe88d80 148,156,165-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d5d637bd033a57667c918e5993a1dacd8bae373",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
