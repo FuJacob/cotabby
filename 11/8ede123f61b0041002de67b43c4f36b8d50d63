@@ -1,0 +1,61 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_20075e26a9c18c 91,132,308,326,391,437,568,575,598,609,812,824,826,852,866,984,1116,1148,1261,1316,1440,1463,1467,1546,1623,1718,1794,2576,2603,2678,2825,2828,3147,3193,3393,3396,3400,3403,4243-4244,4251,4351,4375,4606-4607,4614,4714,4738,4954,4960,5042,5059,5063,5195
+Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift
+  s_b9af9eb54478c8::t_b2025e04fe68b0 48-51,92,123,202-205,207-209,212,216-218,220,225-228,244-247,252,254,262-267,284,296,303,306,308-311,358,361,370-372
+Cotabby/App/Coordinators/InlineFeatures/MacroController.swift
+  s_b9af9eb54478c8::t_f60095688b0ff4 32-35,84,147-150,156-159,163-166,170,178,182,184,196,208,211,216-218
+Cotabby/App/Coordinators/WelcomeCoordinator.swift
+  s_b9af9eb54478c8::t_9282f2c0bc5a50 48-51,60,71,89,105-108,113-114,117,176-178,180-181,186-188
+Cotabby/Support/Emoji/Interaction/EmojiCaptureSession.swift
+  s_b9af9eb54478c8::t_bb6bfd1c435b04 1-59
+Cotabby/Support/InlineCommands/InlineCaptureFocusGate.swift
+  s_b9af9eb54478c8::t_148554e6c87a57 24
+Cotabby/Support/Macros/MacroCaptureSession.swift
+  s_b9af9eb54478c8::t_fdd83f53001c46 1-36
+Cotabby/Support/Onboarding/DemoTypingPhase.swift
+  s_b9af9eb54478c8::t_daa4896633ac39 1-107
+Cotabby/Support/Onboarding/OnboardingFlowSteps.swift
+  s_b9af9eb54478c8::t_3b7668c1275fd5 4-6,8-15,28-51,53,55
+Cotabby/Support/Onboarding/OnboardingProgress.swift
+  s_b9af9eb54478c8::t_1802ad9cab9431 1-112
+Cotabby/Support/Onboarding/OnboardingTemplateRecommender.swift
+  s_b9af9eb54478c8::t_17b01f09488c46 46-102
+Cotabby/UI/Onboarding/DemoTypingPlayer.swift
+  s_b9af9eb54478c8::t_961394e5ef7281 1-48
+Cotabby/UI/Onboarding/OnboardingFeatureShowcase.swift
+  s_b9af9eb54478c8::t_88788295d227ad 18-19,90,95-105,110,112,114,119,140,143,157,164-183,195,209,215,219-221,223,226,236-238,247-259,267,281,284,289,292,416,418
+Cotabby/UI/Onboarding/OnboardingStyle.swift
+  s_b9af9eb54478c8::t_089d71b69d48b9 241-242,252
+Cotabby/UI/Onboarding/Welcome/WelcomeHeroDemo.swift
+  s_b9af9eb54478c8::t_def7f4eb4c5aa3 9-11,19,39-52,85,96,98,104,137,141-147,158
+Cotabby/UI/Onboarding/Welcome/WelcomeView.swift
+  s_b9af9eb54478c8::t_896c577fe6ed5a 33-36,70,72,84-85,114,117,143-150,231-232,237,239,242,249,256,258,261,266-284,326,529-532,536-540
+CotabbyTests/Support/Emoji/Interaction/EmojiCaptureSessionTests.swift
+  s_b9af9eb54478c8::t_63b72dc38da0bd 1-90
+CotabbyTests/Support/Macros/MacroCaptureSessionTests.swift
+  s_b9af9eb54478c8::t_fa498f419f9432 1-47
+CotabbyTests/Support/Onboarding/DemoTypingPhaseTests.swift
+  s_b9af9eb54478c8::t_f4e89cfbcb1e68 1-97
+CotabbyTests/Support/Onboarding/OnboardingProgressTests.swift
+  s_b9af9eb54478c8::t_4d4713fe102633 1-149
+CotabbyTests/Support/Onboarding/OnboardingTemplateWizardRulesTests.swift
+  s_b9af9eb54478c8::t_b221052c75ddf4 1-111
+CotabbyTests/Support/Onboarding/WelcomeStepNavigationTests.swift
+  s_b9af9eb54478c8::t_ebbe85a448d180 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "118ede123f61b0041002de67b43c4f36b8d50d63",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
