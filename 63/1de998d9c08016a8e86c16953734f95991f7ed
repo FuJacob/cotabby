@@ -1,0 +1,67 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_6a9dd06b3a647f 298,429,943,1361,1438,3047,3789,4312,4665,4974
+Cotabby/Models/Runtime/LlamaRuntimeModels.swift
+  s_b9af9eb54478c8::t_a61f4b0e8c59c4 18,48,77,225-227
+Cotabby/Models/Runtime/RuntimeBootstrapModel.swift
+  s_b9af9eb54478c8::t_b927d16c0f7714 6-8,33-35,59-60,168-172
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_b9af9eb54478c8::t_19863620483146 175,181,191
+Cotabby/Services/ModelManagement/Aria2DownloadService.swift
+  s_b9af9eb54478c8::t_65cf19eeab31b0 38
+Cotabby/Services/ModelManagement/ModelDownloadManager.swift
+  s_b9af9eb54478c8::t_5d2228112ea58d 195,279,704
+Cotabby/Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift
+  s_b9af9eb54478c8::t_0c46db1ceda131 31-33,50,59,247
+Cotabby/Services/Runtime/Llama/LlamaRuntimeCore.swift
+  s_b9af9eb54478c8::t_cb365595f525a6 165,220,303,566-568
+Cotabby/Services/Runtime/Llama/LlamaRuntimeManager.swift
+  s_b9af9eb54478c8::t_2632c02e194a2d 6-8,15-17,30,57-60,67,80,106,177,183,209-211,287,322
+Cotabby/Services/Runtime/Llama/LlamaSuggestionEngine.swift
+  s_b9af9eb54478c8::t_4f4376723c87d1 53-56,58,60,62,66-69,75-83,101,106,143,244-245,248
+Cotabby/Services/Runtime/OpenAICompatible/OpenAICompatibleSuggestionEngine.swift
+  s_b9af9eb54478c8::t_dd2b9a34a7b22f 35
+Cotabby/Services/Runtime/SuggestionEngineRouter.swift
+  s_b9af9eb54478c8::t_a7c29fa5b47b1a 16,54,61,82,94,108,112-129,184,197-211
+Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+  s_b9af9eb54478c8::t_f11c5ba5851c8b 102-103
+Cotabby/Support/Runtime/BundledRuntimeLocator.swift
+  s_b9af9eb54478c8::t_816206affdf4cd 24-25,140-142,145,162,165-168,179,181,183,189,191,205-207,210,212,215,218,223,226,230-231,233,236-242,260-261,263-264
+Cotabby/Support/Runtime/RuntimeModelSelection.swift
+  s_b9af9eb54478c8::t_a7049999cca50c 1-18
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_b9af9eb54478c8::t_990b8bf295f295 487
+CotabbyTests/Evals/PhrasePredictionScreenContext.swift
+  s_b9af9eb54478c8::t_a713bbfe4fa881 58
+CotabbyTests/Models/Runtime/RuntimeBootstrapModelTests.swift
+  s_b9af9eb54478c8::t_c50f31669089ea 18-20,86,90-94,190,298-299,389,402
+CotabbyTests/Services/ModelManagement/ModelDownloadManagerTests.swift
+  s_b9af9eb54478c8::t_263d46bf0d206d 147,149-151,154-157,163
+CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
+  s_b9af9eb54478c8::t_52c6ea7276e1bf 13,33,55,100,108-109,111,119,123,170
+CotabbyTests/Services/Runtime/Llama/LlamaSuggestionEnginePrewarmTests.swift
+  s_b9af9eb54478c8::t_7b3110498f4f92 5-7,11,15,20,27,29-32,42-43,49-50,56,60-62,64
+CotabbyTests/Services/Runtime/Llama/LlamaSuggestionEngineTests.swift
+  s_b9af9eb54478c8::t_48fb94d4a4a5f9 59,73,77-79,91,96-97,120
+CotabbyTests/Services/Runtime/TypingHistoryPhraseEngineTests.swift
+  s_b9af9eb54478c8::t_bcc3ee502a09df 91,93
+CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+  s_b9af9eb54478c8::t_7dfc9de55236cb 20,254,333
+CotabbyTests/Support/Runtime/RuntimeModelSelectionTests.swift
+  s_b9af9eb54478c8::t_22be3d82be3ebd 4-19,23,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "631de998d9c08016a8e86c16953734f95991f7ed",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
