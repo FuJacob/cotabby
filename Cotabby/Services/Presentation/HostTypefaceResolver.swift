@@ -188,7 +188,7 @@ final class HostTypefaceResolver {
         return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first?.bundleURL
     }
 
-    /// A pixel-matched face in a web field that reports no size, or a single-line field's stand-in
+    /// A pixel-matched face in a web field that reports no size, or such a field's stand-in
     /// (`takesHostAdvance`), takes the size the field's own caret advance measured (`HostAdvanceFit`)
     /// or, until the field has measured one, the size an earlier field of the same style measured for
     /// the same face. The match's own size comes from a short
@@ -223,22 +223,24 @@ final class HostTypefaceResolver {
     }
 
     /// Whether a web field's ghost takes its size from the field's own caret advance
-    /// (`HostAdvanceFit`): only a field that reports no size, in a face its pixels named or, in a
-    /// single-line field, the stand-in. Chrome's address bar names no face, paints the system one,
-    /// and answers no bounds query; its caret-derived stand-in ran 7% large (15.5 where the caret's
-    /// own advance along five queries fitted 14.48 to 14.58, 2026-09-11), and no pixel match ever
-    /// names its face: the match reads a strip from the field's left edge, where the search icon
-    /// sits, not text. A
-    /// paragraph's stand-in stays out: its captures are fitted along one line in a face no pixel
-    /// has confirmed, and a wrong family fitted to width reads as the right one.
+    /// (`HostAdvanceFit`): only a field that reports no size, in a face its pixels named or in the
+    /// stand-in. Chrome's address bar names no face, paints the system one, and answers no bounds
+    /// query; its caret-derived stand-in ran 7% large (15.5 where the caret's own advance along
+    /// five queries fitted 14.48 to 14.58, 2026-09-11), and no pixel match ever names its face.
+    ///
+    /// A paragraph's stand-in is included for the same reason, more strongly: its size is a guess
+    /// from the line box, which assumes a line height near 1.17. Discord's composer sets 1.375, so
+    /// the guess ran 19% large (20.5 where 17 captures along one line fitted 17.22, 2026-11-22) and
+    /// no pixel match named its bundled face to correct it. The stand-in is not the host's family,
+    /// so the fit is of its width, not its height; `HostAdvanceFit` bounds how far such a fit may
+    /// move the size (see `caretBoxGuessMaximumShrink`).
     static func takesHostAdvance(
         provenance: GhostFontResolver.Provenance,
         isWebContentField: Bool,
-        reportsSize: Bool,
-        isSingleLineField: Bool
+        reportsSize: Bool
     ) -> Bool {
         guard isWebContentField, !reportsSize else { return false }
-        return provenance == .pixelMatched || (isSingleLineField && provenance.isFallbackFace)
+        return provenance == .pixelMatched || provenance.isFallbackFace
     }
 
     /// `takesHostAdvance` for a resolution in the field `geometry` describes.
@@ -246,8 +248,7 @@ final class HostTypefaceResolver {
         takesHostAdvance(
             provenance: resolution.provenance,
             isWebContentField: geometry.isWebContentField,
-            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
-            isSingleLineField: geometry.isSingleLineField
+            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil
         )
     }
 
@@ -269,7 +270,7 @@ final class HostTypefaceResolver {
         let lineKey = "\(Int(request.runFrame.minX.rounded()))|\(Int(measurement.lineRect.maxY.rounded()))"
         let adopted = fit.record(
             text: request.paragraphTextBeforeCaret, caretX: measurement.caretRect.minX, lineKey: lineKey, face: hostFace,
-            minimumSpan: request.advanceFitMinimumSpan
+            minimumSpan: request.advanceFitMinimumSpan, maximumShrink: request.advanceFitMaximumShrink
         )
         hostAdvanceFits[identity] = fit
         guard let adopted, CotabbyLogger.suggestion.logLevel <= .debug else { return }

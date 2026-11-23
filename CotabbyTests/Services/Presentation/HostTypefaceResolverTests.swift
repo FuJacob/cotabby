@@ -214,22 +214,27 @@ final class HostTypefaceResolverTests: XCTestCase {
         XCTAssertEqual(matched.font.pointSize, 14 * 1.0954451150103321 * 1.5, accuracy: 0.002)
     }
 
-    /// Chrome's address bar (2026-09-11): no reported size, the system face, no bounds answer, and a
-    /// pixel match that never names it; its caret-derived stand-in ran 7% large. A single-line
-    /// field's stand-in takes the size its caret's advance fits; a paragraph's does not, nor does a
-    /// field that reports its size or one outside web content.
-    func testASingleLineFieldsStandInTakesItsCaretsAdvance() {
-        func takes(_ provenance: GhostFontResolver.Provenance, web: Bool = true, reportsSize: Bool = false, singleLine: Bool) -> Bool {
-            HostTypefaceResolver.takesHostAdvance(
-                provenance: provenance, isWebContentField: web, reportsSize: reportsSize, isSingleLineField: singleLine
-            )
+    /// Chrome's address bar (2026-09-11) and Discord's composer (2026-11-22): no reported size, a
+    /// stand-in face, and a pixel match that never names the host's; the caret-derived size ran 7%
+    /// and 19% large. A web field's stand-in takes the size its caret's advance fits, single-line
+    /// or paragraph; a field that reports its size does not, nor one outside web content.
+    func testAWebFieldsStandInTakesItsCaretsAdvance() {
+        func takes(_ provenance: GhostFontResolver.Provenance, web: Bool = true, reportsSize: Bool = false) -> Bool {
+            HostTypefaceResolver.takesHostAdvance(provenance: provenance, isWebContentField: web, reportsSize: reportsSize)
         }
-        XCTAssertTrue(takes(.caretDerived, singleLine: true))
-        XCTAssertTrue(takes(.hostAdvanceFitted, singleLine: true), "a fitted face keeps refining")
-        XCTAssertFalse(takes(.caretDerived, singleLine: false))
-        XCTAssertTrue(takes(.pixelMatched, singleLine: false))
-        XCTAssertFalse(takes(.caretDerived, reportsSize: true, singleLine: true))
-        XCTAssertFalse(takes(.caretDerived, web: false, singleLine: true))
-        XCTAssertFalse(takes(.hostFace, singleLine: true), "a face the host named is its own")
+        XCTAssertTrue(takes(.caretDerived))
+        XCTAssertTrue(takes(.hostAdvanceFitted), "a fitted face keeps refining")
+        XCTAssertTrue(takes(.pixelMatched))
+        XCTAssertFalse(takes(.caretDerived, reportsSize: true))
+        XCTAssertFalse(takes(.caretDerived, web: false))
+        XCTAssertFalse(takes(.hostFace), "a face the host named is its own")
+    }
+
+    func testOnlyACaretDerivedSizeIsACaretBoxGuess() {
+        XCTAssertTrue(GhostFontResolver.Provenance.caretDerived.sizeIsCaretBoxGuess)
+        XCTAssertTrue(GhostFontResolver.Provenance.caretDerivedCalibrated.sizeIsCaretBoxGuess)
+        XCTAssertFalse(GhostFontResolver.Provenance.hostAdvanceFitted.sizeIsCaretBoxGuess, "a fitted size is measured")
+        XCTAssertFalse(GhostFontResolver.Provenance.hostRemembered.sizeIsCaretBoxGuess)
+        XCTAssertFalse(GhostFontResolver.Provenance.hostSizeSystem.sizeIsCaretBoxGuess)
     }
 }

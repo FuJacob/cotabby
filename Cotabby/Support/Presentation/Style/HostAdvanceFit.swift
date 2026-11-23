@@ -55,6 +55,13 @@ nonisolated struct HostAdvanceFit: Equatable {
     /// A fit further than this from the face's own size is not this face's line (another line's
     /// captures, a wrong face) and is refused.
     static let maximumDeviation: CGFloat = 0.06
+    /// How far below the assumed size a fit may land when that size was only guessed from the
+    /// caret's line box. The guess takes the box for a line height near 1.17; a host that sets a
+    /// taller one paints smaller text in the same box, 1.375 in Discord's composer (16% smaller)
+    /// and up to about 1.65 before this bound refuses it. Only downward: a line box bounds its
+    /// text from above, so a fit above the guess is a wider family (a monospace host measured in
+    /// the proportional stand-in), not larger text.
+    static let caretBoxGuessMaximumShrink: CGFloat = 0.30
 
     /// Which fit sizes the field: none until one spans `minimumSpan`, then that one, replaced at
     /// most `maximumRefinements` times, each time by a fit spanning `refinementFactor` times as much.
@@ -84,9 +91,16 @@ nonisolated struct HostAdvanceFit: Equatable {
     /// the captures of one line share its start) and returns the fit when this capture adopted or
     /// refined it. `face` is the ghost's face at the host size it currently assumes; a new face
     /// starts the field over, a new line starts its captures over. `minimumSpan` is `minimumSpan`
-    /// for a paragraph's line and `singleLineMinimumSpan` for a single-line field.
+    /// for a paragraph's line and `singleLineMinimumSpan` for a single-line field. `maximumShrink`
+    /// is how far below `face`'s size the fit may land: `maximumDeviation` for a size the host or
+    /// an earlier fit gave, `caretBoxGuessMaximumShrink` for one guessed from the caret's box.
     mutating func record(
-        text: String, caretX: CGFloat, lineKey: String, face: NSFont, minimumSpan: CGFloat = HostAdvanceFit.minimumSpan
+        text: String,
+        caretX: CGFloat,
+        lineKey: String,
+        face: NSFont,
+        minimumSpan: CGFloat = HostAdvanceFit.minimumSpan,
+        maximumShrink: CGFloat = HostAdvanceFit.maximumDeviation
     ) -> Fit? {
         if face.fontName != faceName {
             faceName = face.fontName
@@ -102,7 +116,7 @@ nonisolated struct HostAdvanceFit: Equatable {
             captures.removeFirst()
         }
         guard let fit = Self.fit(captures, face: face, minimumSpan: minimumSpan),
-              abs(fit.pointSize / face.pointSize - 1) <= Self.maximumDeviation else {
+              Self.accepts(fittedSize: fit.pointSize, assumedSize: face.pointSize, maximumShrink: maximumShrink) else {
             return nil
         }
         switch adoption {
@@ -113,6 +127,14 @@ nonisolated struct HostAdvanceFit: Equatable {
             adoption = .adopted(fit, refinements: replaced + 1)
         }
         return fit
+    }
+
+    /// Whether a fit is this face's line at all: within `maximumDeviation` above the assumed size
+    /// and `maximumShrink` below it.
+    static func accepts(fittedSize: CGFloat, assumedSize: CGFloat, maximumShrink: CGFloat) -> Bool {
+        guard assumedSize > 0 else { return false }
+        let deviation = fittedSize / assumedSize - 1
+        return deviation <= maximumDeviation && deviation >= -max(maximumShrink, maximumDeviation)
     }
 
     /// The host's size from `captures` of one line, advances measured in `face`: the Theil–Sen slope

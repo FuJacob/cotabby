@@ -48,6 +48,12 @@ enum GhostFontResolver {
         /// its size is the host's.
         case hostAdvanceFitted = "host_advance_fitted"
 
+        /// True when the size is only a guess from the caret's line box: no host answer, capture
+        /// or earlier field has measured it yet.
+        var sizeIsCaretBoxGuess: Bool {
+            self == .caretDerived || self == .caretDerivedCalibrated
+        }
+
         /// True when the face is a stand-in the host never named; a pixel match may replace it.
         var isFallbackFace: Bool {
             switch self {

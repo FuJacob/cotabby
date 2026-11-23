@@ -420,6 +420,10 @@ final class OverlayController: SuggestionOverlayControlling {
         // The captures of a web field that reports no size measure its face's size (see
         // `HostTypefaceResolver.recordAdvanceCapture`, `HostTypefaceResolver.takesHostAdvance`).
         let recordsAdvance = !midLine && HostTypefaceResolver.takesHostAdvance(resolution, for: geometry)
+        // A size guessed from the caret's box may be well above the host's (a tall CSS line height),
+        // so its fit is allowed further down than one refining a measured size.
+        let maximumShrink = resolution.provenance.sizeIsCaretBoxGuess
+            ? HostAdvanceFit.caretBoxGuessMaximumShrink : HostAdvanceFit.maximumDeviation
         if let wrapped = geometry.wrappedRun {
             let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
                 ?? PixelCaretLocator.inkToCaretGap
@@ -437,7 +441,8 @@ final class OverlayController: SuggestionOverlayControlling {
                     verticalPadding: Self.oneLineRunVerticalPadding,
                     font: font,
                     recordsAdvance: recordsAdvance,
-                    caretIsMidLine: midLine
+                    caretIsMidLine: midLine,
+                    advanceFitMaximumShrink: maximumShrink
                 )
             }
             return PixelCaretLocator.Request(
@@ -452,7 +457,8 @@ final class OverlayController: SuggestionOverlayControlling {
                 trailingInkGap: trailingInkGap,
                 font: font,
                 recordsAdvance: recordsAdvance,
-                caretIsMidLine: midLine
+                caretIsMidLine: midLine,
+                advanceFitMaximumShrink: maximumShrink
             )
         }
         // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
@@ -480,7 +486,8 @@ final class OverlayController: SuggestionOverlayControlling {
             font: font,
             recordsAdvance: recordsAdvance,
             // An address-bar query is often shorter than a paragraph's line ever gets.
-            advanceFitMinimumSpan: HostAdvanceFit.singleLineMinimumSpan
+            advanceFitMinimumSpan: HostAdvanceFit.singleLineMinimumSpan,
+            advanceFitMaximumShrink: maximumShrink
         )
     }
 
