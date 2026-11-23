@@ -8,7 +8,7 @@ import Foundation
 /// `commonLanguages` backs the tappable palette in `LanguageTagsEditor`; users can also add any
 /// language as free text, so storage is `[String]` of language names rather than a closed enum.
 /// `normalize` is the single chokepoint that keeps stored languages trimmed, de-duplicated, and
-/// capped (mirroring `CustomRulesCatalog`). `promptInstruction(for:)` turns the stored set into the
+/// capped (the `BoundedTagList` rule custom rules use too). `promptInstruction(for:)` turns the stored set into the
 /// hint the renderers inject; it deliberately never forces a language — it defers to the surrounding
 /// text and only falls back to the declared languages when that text is too short to tell, which is
 /// what protects mid-document code-switching while still steering cold-start completions.

@@ -114,8 +114,8 @@ final class FileLogHandlerTests: XCTestCase {
     }
 
     func test_log_derivesCategoryFromTheThirdLabelComponent() throws {
-        // Mirrors OSLogHandler so the JSON `category` matches Console.app. `maxSplits: 2` keeps any
-        // deeper components joined; labels without the reverse-DNS shape pass through unchanged.
+        // The same rule names OSLogHandler's category, so the JSON `category` matches Console.app.
+        // Deeper components stay joined; labels without the reverse-DNS shape pass through unchanged.
         let cases: [(label: String, category: String)] = [
             ("com.cotabby.runtime", "runtime"),
             ("com.cotabby.runtime.decode", "runtime.decode"),

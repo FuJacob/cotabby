@@ -9,9 +9,8 @@ import Logging
 /// The handler is only installed when `-cotabby-debug` is passed at launch (see
 /// `CotabbyLogger.bootstrap`). When the file grows past `sizeCapBytes` it is rotated: the
 /// current file becomes `cotabby.jsonl.1` (overwriting any prior rotation) and a fresh empty
-/// `cotabby.jsonl` is opened. The previous truncate-to-zero behavior threw away the *most
-/// recent* history at exactly the moment a debugger most needed it; one-step rotation keeps
-/// roughly the last 2× cap of events on disk.
+/// `cotabby.jsonl` is opened. Rotating instead of truncating keeps roughly the last 2× cap of
+/// events on disk, so the *most recent* history survives at exactly the moment a debugger needs it.
 
 /// Writer that owns one on-disk JSONL file handle. swift-log can call handlers from any thread,
 /// so an `NSLock` serializes writes and the size check that may trigger a rotation.
@@ -245,18 +244,11 @@ struct FileLogHandler: LogHandler {
             message: event.message,
             eventMetadata: event.metadata,
             handlerMetadata: metadata,
-            category: Self.category(from: label)
+            category: CotabbyLogger.category(forLabel: label)
         ) else {
             return
         }
         writer.write(line)
-    }
-
-    /// `com.cotabby.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
-    /// JSON `category` field lines up with what Console.app shows.
-    private static func category(from label: String) -> String {
-        let parts = label.split(separator: ".", maxSplits: 2)
-        return parts.count > 2 ? String(parts[2]) : label
     }
 }
 

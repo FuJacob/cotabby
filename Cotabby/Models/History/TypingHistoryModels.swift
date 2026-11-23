@@ -26,7 +26,8 @@ nonisolated struct TypingHistoryRecord: Codable, Equatable, Sendable, Identifiab
 
     let id: UUID
     let bundleIdentifier: String
-    /// Registrable web domain for browser fields ("claude.ai"), nil for native apps.
+    /// The site a browser field was on, as its host without `www.` ("claude.ai"; subdomains are
+    /// kept, see `SurfaceContextComposer.siteHost`). Nil for native apps.
     let domain: String?
     let createdAt: Date
     var updatedAt: Date

@@ -17,13 +17,7 @@ final class AppUpdateManager {
 
     private var isStarted = false
 
-    /// Sparkle persists this setting in user defaults, which take precedence over the value in
-    /// `CotabbyInfo.plist`. Reapplying the product policy repairs older installs that may have saved
-    /// a shorter development interval while the plist still gives fresh installs the same default.
-    private static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
-
     private static let debugCheckForUpdatesOnLaunchArgument = "-Cotabby-check-for-updates-on-launch"
-    private static let publicKeyPlaceholder = "REPLACE_WITH_GENERATED_SPARKLE_PUBLIC_ED_KEY"
 
     init() {
         // `startingUpdater: false` keeps lifecycle explicit. The app delegate decides when the
@@ -53,24 +47,26 @@ final class AppUpdateManager {
             return
         }
 
-        guard hasUsableConfiguration else {
+        if let problem = AppUpdateStartPolicy.configurationProblem(
+            feedURL: configuredString(forInfoDictionaryKey: "SUFeedURL"),
+            publicKey: configuredString(forInfoDictionaryKey: "SUPublicEDKey")
+        ) {
+            log(problem)
             log("Sparkle not started because updater configuration is incomplete.")
             return
         }
 
         // Configure the interval before starting so Sparkle's first scheduling decision uses the
-        // daily cadence together with its persisted last-check date.
+        // daily cadence together with its persisted last-check date. Sparkle persists this setting
+        // in user defaults, which take precedence over `CotabbyInfo.plist`, so reapplying it repairs
+        // older installs that saved a shorter development interval.
         let updater = updaterController.updater
-        updater.updateCheckInterval = Self.automaticCheckInterval
+        updater.updateCheckInterval = AppUpdateStartPolicy.automaticCheckInterval
         updaterController.startUpdater()
         isStarted = true
         log("Sparkle updater started.")
 
-        // Catch up immediately when the app returns after the daily interval. Recent launches leave
-        // the check to Sparkle's scheduler, so reopening Cotabby cannot bypass the daily cadence.
-        let shouldCatchUp = updater.lastUpdateCheckDate
-            .map { Date().timeIntervalSince($0) >= Self.automaticCheckInterval } ?? true
-        if shouldCatchUp {
+        if AppUpdateStartPolicy.needsCatchUpCheck(lastCheck: updater.lastUpdateCheckDate, now: Date()) {
             updater.checkForUpdatesInBackground()
         }
 
@@ -102,24 +98,6 @@ final class AppUpdateManager {
         #else
         true
         #endif
-    }
-
-    private var hasUsableConfiguration: Bool {
-        guard let feedURLString = configuredString(forInfoDictionaryKey: "SUFeedURL"),
-              URL(string: feedURLString) != nil
-        else {
-            log("Missing or invalid SUFeedURL.")
-            return false
-        }
-
-        guard let publicKey = configuredString(forInfoDictionaryKey: "SUPublicEDKey"),
-              publicKey != Self.publicKeyPlaceholder
-        else {
-            log("SUPublicEDKey is missing or still using the placeholder value.")
-            return false
-        }
-
-        return true
     }
 
     private func configuredString(forInfoDictionaryKey key: String) -> String? {

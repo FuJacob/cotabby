@@ -1,11 +1,9 @@
 import Foundation
 
 /// File overview:
-/// Shared value types for screenshot-derived prompt augmentation. These types keep the new
-/// "visual context" pipeline explicit instead of hiding it inside `SuggestionCoordinator`.
-///
-/// The design goal is to model screenshot context as session state, just like suggestion state.
-/// That makes stale-result handling and UI diagnostics much easier to reason about.
+/// Shared value types for screenshot-derived prompt augmentation, kept outside
+/// `SuggestionCoordinator` so the visual-context pipeline has its own explicit vocabulary. The
+/// session lifecycle itself is `VisualContextSessionPhase`.
 
 /// Tunables for converting a focused-input screenshot into OCR text for prompt injection.
 /// These values are intentionally separate from `SuggestionConfiguration` because they govern
@@ -50,8 +48,8 @@ nonisolated struct VisualContextConfiguration: Equatable, Sendable {
     )
 }
 
-/// High-level lifecycle for screenshot-derived prompt context.
-/// The coordinator publishes this directly so the menu can surface useful progress without
+/// High-level lifecycle for screenshot-derived prompt context, derived from
+/// `VisualContextSessionPhase` and published so the menu can surface useful progress without
 /// dumping low-level OCR or capture internals into the UI.
 nonisolated enum VisualContextStatus: Equatable, Sendable {
     case idle
@@ -60,7 +58,6 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
     case ready
     case unavailable(String)
     case failed(String)
-
 }
 
 /// The final visual-context excerpt eventually injected into the completion prompt.

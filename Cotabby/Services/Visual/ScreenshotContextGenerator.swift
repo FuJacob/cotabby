@@ -32,7 +32,7 @@ enum ScreenshotContextGenerationError: LocalizedError {
 protocol ScreenshotContextGenerating {
     func generateContext(
         for context: FocusedInputSnapshot,
-        configuration: VisualContextConfiguration?,
+        configuration: VisualContextConfiguration,
         onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)?
     ) async throws -> VisualContextExcerpt
 }
@@ -46,8 +46,9 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     )
 
     private let screenshotService: any WindowScreenshotCapturing
+    /// Nil in production: each pass then builds a `ScreenTextExtractor` sized by that pass's
+    /// configuration. Tests inject a fixed extractor.
     private let textExtractor: (any ScreenTextExtracting)?
-    private let configuration: VisualContextConfiguration
 
     /// Recent OCR extractions keyed by a pixel hash of the captured crop outside the focused field,
     /// so refocusing a window whose content has not changed, or typing into a field while the rest
@@ -67,24 +68,21 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     private static let extractionCacheLimit = 4
 
     init(
-        screenshotService: (any WindowScreenshotCapturing)? = nil,
-        textExtractor: (any ScreenTextExtracting)? = nil,
-        configuration: VisualContextConfiguration? = nil
+        screenshotService: any WindowScreenshotCapturing = WindowScreenshotService(),
+        textExtractor: (any ScreenTextExtracting)? = nil
     ) {
-        let actualConfig = configuration ?? .default
-        self.screenshotService = screenshotService ?? WindowScreenshotService()
+        self.screenshotService = screenshotService
         self.textExtractor = textExtractor
-        self.configuration = actualConfig
     }
 
-    /// Captures according to the selected engine's privacy profile and returns bounded text.
-    /// An override lives only for this call; switching engines cannot reuse a mutable configuration.
+    /// Captures according to the selected engine's privacy profile and returns bounded text. The
+    /// profile arrives with each call instead of living on the generator, so the engine that asked
+    /// for this pass alone decides how much of the screen it may read.
     func generateContext(
         for context: FocusedInputSnapshot,
-        configuration override: VisualContextConfiguration? = nil,
+        configuration: VisualContextConfiguration,
         onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)? = nil
     ) async throws -> VisualContextExcerpt {
-        let configuration = override ?? self.configuration
         let screenshot = try await captureScreenshot(for: context, configuration: configuration, onStatusChange: onStatusChange)
         try Task.checkCancellation()
 
