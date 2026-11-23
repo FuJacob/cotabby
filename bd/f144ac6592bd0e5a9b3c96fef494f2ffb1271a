@@ -1,0 +1,47 @@
+Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift
+  s_b9af9eb54478c8::t_48e8fce37a0d51 12,36-37,70-71
+Cotabby/App/Coordinators/InlineFeatures/InlineCommandCoordinator.swift
+  s_b9af9eb54478c8::t_b6d7d98b8f9680 9,17,22,32,42,46
+Cotabby/App/Coordinators/InlineFeatures/MacroController.swift
+  s_b9af9eb54478c8::t_916853b16b86ac 21,46
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_f454224902ebee 211-212
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_b9af9eb54478c8::t_02efb36cc0ac4b 61-67
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_b9af9eb54478c8::t_88608a5d8bb22e 344
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_b9af9eb54478c8::t_ee25d9d8d5ecba 86-88,90-94,96,100-101,233-234,236
+Cotabby/Services/Input/InputMonitor.swift
+  s_b9af9eb54478c8::t_057eebecab78a3 63-65,68,666-667,841
+Cotabby/Services/Suggestion/SuggestionInserter.swift
+  s_b9af9eb54478c8::t_7aef0db30c36c4 355
+CotabbyTests/App/Coordinators/InlineFeatures/InlineCommandCoordinatorTests.swift
+  s_b9af9eb54478c8::t_6ce7c8d555c51f 29,82,144
+CotabbyTests/App/Coordinators/InlineFeatures/InlineFeatureTestDoubles.swift
+  s_b9af9eb54478c8::t_8c3466c82849db 5,84-85,100
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_b9af9eb54478c8::t_9fc95f2914e5c8 308
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_b9af9eb54478c8::t_9e8789b77dde95 61
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorTypingPredictionTests.swift
+  s_b9af9eb54478c8::t_26c7d8a2721565 310
+CotabbyTests/Services/Input/InputMonitorTests.swift
+  s_b9af9eb54478c8::t_67d8f12af860f6 271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bdf144ac6592bd0e5a9b3c96fef494f2ffb1271a",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

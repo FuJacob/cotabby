@@ -1,0 +1,19 @@
+CotabbyTests/Models/Settings/SuggestionLengthChoiceTests.swift
+  s_b9af9eb54478c8::t_24afe13be2e2e8 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41c2e3ba7102d01e40812d9e70072395e5ca0829",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
