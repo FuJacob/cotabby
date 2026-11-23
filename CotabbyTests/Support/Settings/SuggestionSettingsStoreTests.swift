@@ -372,6 +372,22 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.load(configuration: .standard).matchesHostTextSize)
     }
 
+    func test_menuBarWordCountPeriod_defaultsToAllTimeAndRoundTrips() async {
+        let defaults = IsolatedUserDefaults.make()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertEqual(
+            store.load(configuration: .standard).menuBarWordCountPeriod, .allTime,
+            "an install that never chose keeps the lifetime badge it already shows"
+        )
+
+        store.saveMenuBarWordCountPeriod(.today)
+        XCTAssertEqual(store.load(configuration: .standard).menuBarWordCountPeriod, .today)
+
+        defaults.set("fortnightly", forKey: "cotabbyMenuBarWordCountPeriod")
+        XCTAssertEqual(store.load(configuration: .standard).menuBarWordCountPeriod, .allTime)
+    }
+
     func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
         let defaults = IsolatedUserDefaults.make()
 

@@ -600,6 +600,93 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.acceptedSuggestions, 1)
     }
 
+    func test_menuBarCountStartsAgainFromZeroOnANewDay() async {
+        let rig = retained(makeCoordinatorRig())
+        let firstDay = Date(timeIntervalSince1970: 1_800_000_000)
+        rig.coordinator.now = { firstDay }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        await waitUntil { rig.coordinator.todayTabAcceptedWordCount == 2 }
+
+        // Two days on, so the local day differs in every time zone the suite may run in.
+        rig.coordinator.now = { firstDay.addingTimeInterval(2 * 86_400) }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+
+        XCTAssertEqual(rig.coordinator.todayTabAcceptedWordCount, 0)
+        XCTAssertEqual(
+            rig.coordinator.userDefaults.integer(forKey: SuggestionCoordinator.dailyAcceptedWordCountDefaultsKey),
+            0
+        )
+        XCTAssertEqual(rig.coordinator.totalTabAcceptedWordCount, 2, "The lifetime total is not reset")
+    }
+
+    func test_wordsAcceptedBeforeMidnightDoNotCountAsTodayWhenBookkeepingRunsAfter() async {
+        let rig = retained(makeCoordinatorRig())
+        let firstDay = Date(timeIntervalSince1970: 1_800_000_000)
+        let laterDay = firstDay.addingTimeInterval(2 * 86_400)
+        rig.coordinator.now = { firstDay }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        // The counter update is deferred one main-queue hop. Cross midnight and let the day-change
+        // roll run first, as `NSCalendarDayChanged` can.
+        rig.coordinator.now = { laterDay }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+        await waitUntil { rig.coordinator.totalTabAcceptedWordCount == 2 }
+
+        XCTAssertEqual(rig.coordinator.dailyAcceptedWordCount.dayStamp, DailyWordCount.dayStamp(for: laterDay))
+        XCTAssertEqual(rig.coordinator.todayTabAcceptedWordCount, 0, "Yesterday's words must not show as today's")
+        XCTAssertEqual(
+            rig.coordinator.userDefaults.integer(forKey: SuggestionCoordinator.dailyAcceptedWordCountDefaultsKey),
+            0
+        )
+    }
+
+    func test_correctionAcceptedBeforeMidnightDoesNotCountAsTodayWhenTeardownCrossesIt() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve ")
+        ))
+        let firstDay = Date(timeIntervalSince1970: 1_800_000_000)
+        let laterDay = firstDay.addingTimeInterval(2 * 86_400)
+        rig.coordinator.now = { firstDay }
+        rig.coordinator.rollDailyAcceptedWordCountIfDayChanged()
+        startCorrectionSession(in: rig)
+        // Midnight passes while the accept retires the suggestion, after the replacement landed.
+        let coordinatorStateChange = rig.overlayController.onStateChange
+        rig.overlayController.onStateChange = { state in
+            if case .hidden = state { rig.coordinator.now = { laterDay } }
+            coordinatorStateChange?(state)
+        }
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        await waitUntil { rig.coordinator.totalTabAcceptedWordCount == 1 }
+
+        XCTAssertEqual(rig.inserter.replacements.count, 1)
+        XCTAssertEqual(rig.coordinator.todayTabAcceptedWordCount, 0, "The fix landed on the earlier day")
+    }
+
+    func test_launchOnALaterDayPersistsTheResetSoAClockMovedBackCannotRestoreIt() {
+        let defaults = IsolatedUserDefaults.make()
+        let firstDay = Date(timeIntervalSince1970: 1_800_000_000)
+        let firstDayStamp = DailyWordCount.dayStamp(for: firstDay)
+        defaults.set(40, forKey: SuggestionCoordinator.dailyAcceptedWordCountDefaultsKey)
+        defaults.set(firstDayStamp, forKey: SuggestionCoordinator.dailyAcceptedWordCountDayDefaultsKey)
+
+        // Launch two days later and accept nothing.
+        let laterLaunch = retained(makeCoordinatorRig(
+            userDefaults: defaults, now: { firstDay.addingTimeInterval(2 * 86_400) }))
+        XCTAssertEqual(laterLaunch.coordinator.todayTabAcceptedWordCount, 0)
+        XCTAssertEqual(defaults.integer(forKey: SuggestionCoordinator.dailyAcceptedWordCountDefaultsKey), 0)
+        XCTAssertNotEqual(defaults.string(forKey: SuggestionCoordinator.dailyAcceptedWordCountDayDefaultsKey), firstDayStamp)
+
+        // Relaunch with the clock back on the first day: the old count must stay gone.
+        let relaunch = retained(makeCoordinatorRig(userDefaults: defaults, now: { firstDay }))
+        XCTAssertEqual(relaunch.coordinator.todayTabAcceptedWordCount, 0)
+    }
+
     func test_walkingOneSuggestionWordByWordCountsASingleAcceptedSuggestion() async {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " world again")

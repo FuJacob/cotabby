@@ -204,8 +204,11 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // Read the clock now, while the words land, not in the deferred bookkeeping: an accept
+        // just before midnight whose bookkeeping runs just after must still count for its own day.
+        let acceptedAt = now()
         deferAcceptanceBookkeeping { [weak self] in
-            self?.recordAcceptedWords(from: acceptedChunk)
+            self?.recordAcceptedWords(from: acceptedChunk, acceptedAt: acceptedAt)
             self?.recordSuggestionAcceptedIfFirstChunk(of: sessionForAcceptance)
         }
 
@@ -463,6 +466,9 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // Read the clock the moment the corrected word lands, before the continuation and teardown
+        // work below, so that work crossing midnight cannot move the words to the next day.
+        let acceptedAt = now()
         lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
@@ -475,7 +481,7 @@ extension SuggestionCoordinator {
         )
         let workID = currentWorkID
         deferAcceptanceBookkeeping { [weak self] in
-            self?.recordAcceptedWords(from: replacement.replacementText)
+            self?.recordAcceptedWords(from: replacement.replacementText, acceptedAt: acceptedAt)
             self?.logStage(
                 "\(keyName)-accepted-correction",
                 workID: workID,
@@ -751,8 +757,9 @@ extension SuggestionCoordinator {
         qualityMetricsStore.recordAcceptedSuggestion()
     }
 
-    /// Updates the global productivity counter from text accepted via Tab.
-    func recordAcceptedWords(from acceptedChunk: String) {
+    /// Updates the lifetime and per-day productivity counters from text accepted via Tab.
+    /// `acceptedAt` is when the text was inserted, which decides the day the words count for.
+    func recordAcceptedWords(from acceptedChunk: String, acceptedAt: Date) {
         let acceptedWordCount = SuggestionSessionReconciler.acceptedWordCount(in: acceptedChunk)
         guard acceptedWordCount > 0 else {
             return
@@ -760,6 +767,28 @@ extension SuggestionCoordinator {
 
         totalTabAcceptedWordCount += acceptedWordCount
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
+        // Add to the accept's own day, then roll forward to the current day. `adding` starts a new
+        // day's count for an accept just after midnight even before the day-changed notification
+        // arrives. The roll forward covers the opposite race: words accepted just before midnight
+        // whose deferred update runs after it (possibly after the day-change roll already zeroed
+        // the count) belong to a day that is over, and must not come back as today's.
+        storeDailyAcceptedWordCount(
+            dailyAcceptedWordCount.adding(acceptedWordCount, at: acceptedAt).rolled(to: now())
+        )
+    }
+
+    /// Zeroes the per-day counter once the local day has moved on; a no-op within the same day.
+    func rollDailyAcceptedWordCountIfDayChanged() {
+        let rolled = dailyAcceptedWordCount.rolled(to: now())
+        guard rolled != dailyAcceptedWordCount else { return }
+        storeDailyAcceptedWordCount(rolled)
+    }
+
+    private func storeDailyAcceptedWordCount(_ count: DailyWordCount) {
+        dailyAcceptedWordCount = count
+        todayTabAcceptedWordCount = count.count
+        userDefaults.set(count.count, forKey: Self.dailyAcceptedWordCountDefaultsKey)
+        userDefaults.set(count.dayStamp, forKey: Self.dailyAcceptedWordCountDayDefaultsKey)
     }
 
     /// Gives the host app ~30ms to process the synthetic keystroke, then forces an AX snapshot

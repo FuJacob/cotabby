@@ -93,12 +93,28 @@ struct AppearancePaneView: View {
                 Toggle(isOn: suggestionSettings.binding(\.isMenuBarWordCountVisible) { $0.setMenuBarWordCountVisible($1) }) {
                     SettingsRowLabel(
                         title: "Show Word Count in Menu Bar",
-                        description: "Show a running count of words you've accepted next to the menu bar icon.",
+                        description: "Show a count of words you've accepted next to the menu bar icon.",
                         systemImage: "number"
                     )
                 }
                 .disabled(!suggestionSettings.isMenuBarIconVisible)
                 .settingsItem(.showWordCount)
+
+                Picker(selection: suggestionSettings.binding(\.menuBarWordCountPeriod) { $0.setMenuBarWordCountPeriod($1) }) {
+                    ForEach(MenuBarWordCountPeriod.allCases) { period in
+                        Text(period.displayLabel).tag(period)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Word Count Period",
+                        description: "Count every word you've accepted, or only today's. Today starts again from zero at midnight.",
+                        systemImage: "calendar"
+                    )
+                }
+                .pickerStyle(.menu)
+                // Meaningless while the badge itself is hidden, so it follows the toggle above.
+                .disabled(!suggestionSettings.isMenuBarIconVisible || !suggestionSettings.isMenuBarWordCountVisible)
+                .settingsItem(.wordCountPeriod)
 
                 Toggle(isOn: suggestionSettings.binding(\.isMenuBarIconVisible) { $0.setMenuBarIconVisible($1) }) {
                     SettingsRowLabel(

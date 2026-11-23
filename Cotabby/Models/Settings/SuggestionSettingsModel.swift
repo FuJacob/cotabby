@@ -102,6 +102,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the accepted-word counter is drawn next to the menu bar icon. Off hides the badge
     /// entirely; the count itself keeps accruing so toggling it back on restores the running total.
     @Published private(set) var isMenuBarWordCountVisible: Bool
+    /// Whether that badge shows today's words or the lifetime total. Presentation only: the
+    /// coordinator keeps both counts current either way, and the value never reaches generation.
+    @Published private(set) var menuBarWordCountPeriod: MenuBarWordCountPeriod
     /// How suggestions are presented (inline ghost text vs popup card vs auto).
     @Published private(set) var mirrorPreference: MirrorPreference
     @Published private(set) var userName: String
@@ -243,6 +246,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
+        menuBarWordCountPeriod = data.menuBarWordCountPeriod
         mirrorPreference = data.mirrorPreference
         userName = data.userName
         customRules = data.customRules
@@ -327,6 +331,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
+        menuBarWordCountPeriod = data.menuBarWordCountPeriod
         mirrorPreference = data.mirrorPreference
         userName = data.userName
         customRules = data.customRules
@@ -451,6 +456,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 isGhostTextBold: isGhostTextBold,
                 isGhostTextItalic: isGhostTextItalic,
                 matchesHostTextSize: matchesHostTextSize,
+                menuBarWordCountPeriod: menuBarWordCountPeriod,
                 showDevelopmentDebugOverlays: showDevelopmentDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
@@ -862,6 +868,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isMenuBarWordCountVisible = visible
         store.saveMenuBarWordCountVisible(visible)
+    }
+
+    func setMenuBarWordCountPeriod(_ period: MenuBarWordCountPeriod) {
+        guard menuBarWordCountPeriod != period else {
+            return
+        }
+
+        menuBarWordCountPeriod = period
+        store.saveMenuBarWordCountPeriod(period)
     }
 
     func setMirrorPreference(_ preference: MirrorPreference) {

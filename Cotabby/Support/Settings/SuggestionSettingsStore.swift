@@ -157,6 +157,7 @@ struct SuggestionSettingsStore {
     /// `MenuBarExtra` insertion binding when the settings model writes this preference.
     static let menuBarIconVisibleDefaultsKey = "cotabbyMenuBarIconVisible"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
+    private static let menuBarWordCountPeriodDefaultsKey = "cotabbyMenuBarWordCountPeriod"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
@@ -248,6 +249,7 @@ struct SuggestionSettingsStore {
         performanceTrackingEnabledDefaultsKey,
         lowPowerModeAutoDisableDefaultsKey,
         menuBarWordCountVisibleDefaultsKey,
+        menuBarWordCountPeriodDefaultsKey,
         mirrorPreferenceDefaultsKey,
         userNameDefaultsKey,
         customRulesDefaultsKey,
@@ -610,6 +612,10 @@ struct SuggestionSettingsStore {
                 isGhostTextBold: userDefaults.bool(forKey: Self.ghostTextBoldDefaultsKey),
                 isGhostTextItalic: userDefaults.bool(forKey: Self.ghostTextItalicDefaultsKey),
                 matchesHostTextSize: userDefaults.bool(forKey: Self.matchesHostTextSizeDefaultsKey),
+                // A missing or unknown value reads as the lifetime total, the badge every install
+                // showed before the choice existed.
+                menuBarWordCountPeriod: rawValue(
+                    forKey: Self.menuBarWordCountPeriodDefaultsKey, default: MenuBarWordCountPeriod.allTime),
                 showDevelopmentDebugOverlays: userDefaults.bool(forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
@@ -697,6 +703,7 @@ struct SuggestionSettingsStore {
         saveGhostTextItalic(data.isGhostTextItalic)
         saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveMatchesHostTextSize(data.matchesHostTextSize)
+        saveMenuBarWordCountPeriod(data.menuBarWordCountPeriod)
         saveAcceptanceKey(data.shortcuts.acceptance)
         saveFullAcceptance(data.shortcuts.fullAcceptance)
         saveGlobalToggleKey(data.shortcuts.globalToggle)
@@ -1064,6 +1071,10 @@ struct SuggestionSettingsStore {
 
     func saveMatchesHostTextSize(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.matchesHostTextSizeDefaultsKey)
+    }
+
+    func saveMenuBarWordCountPeriod(_ period: MenuBarWordCountPeriod) {
+        userDefaults.set(period.rawValue, forKey: Self.menuBarWordCountPeriodDefaultsKey)
     }
 
     func saveFadeInDurationSeconds(_ seconds: Double) {
