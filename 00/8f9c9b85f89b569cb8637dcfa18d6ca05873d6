@@ -1,0 +1,75 @@
+CotabbyTests/Support/Accessibility/AXHelperTests.swift
+  s_b9af9eb54478c8::t_a7dbcca74b71ce 400-421
+CotabbyTests/Support/Prompting/TypingHistoryPromptTests.swift
+  s_b9af9eb54478c8::t_eac399b448a546 4-6
+  s_b9af9eb54478c8::t_db3f369882e588 1-3
+  s_b9af9eb54478c8::t_b2b9ee8682d369 7-9
+  s_b9af9eb54478c8::t_0c11731767af96 10-67
+CotabbyTests/Services/Suggestion/SuggestionOverlayPresenterTests.swift
+  s_b9af9eb54478c8::t_c6ec92e462e607 6,9-20,24-26,28,30-32,36-38,40,42-43,47-54,56-57,59,61-63,67-74,76-77,79,81-82,86-87,89,91
+CotabbyTests/Support/Macros/MacroEngineTests.swift
+  s_b9af9eb54478c8::t_6f3ee1a514f7af 4-6
+CotabbyTests/Models/Settings/PerAppShortcutOverrideTests.swift
+  s_b9af9eb54478c8::t_c69e6051279ae3 4-7
+  s_b9af9eb54478c8::t_8cb6c06c541619 30-52
+CotabbyTests/Models/Runtime/LlamaRuntimeModelsTests.swift
+  s_b9af9eb54478c8::t_c710717717d884 134-147
+CotabbyTests/Models/Suggestion/Request/FocusedInputContextTests.swift
+  s_b9af9eb54478c8::t_bd7f5aa4259111 5-9
+  s_b9af9eb54478c8::t_2b6df06ad99fb5 119-149
+CotabbyTests/Models/History/TypingHistoryModelsTests.swift
+  s_b9af9eb54478c8::t_277c97ba557e1d 1-35
+CotabbyTests/Services/Suggestion/State/ContextBufferTests.swift
+  s_b9af9eb54478c8::t_62bfdc5a381018 9,11-14,16-17,19,21-22,25-26,28-33,35-40,42,44,48-50,52,56-62,64,68-69,71,73-75,78-104
+CotabbyTests/Support/Logging/CotabbyDebugOptionsTests.swift
+  s_b9af9eb54478c8::t_8da0d2b88f7907 6-7
+  s_b9af9eb54478c8::t_6b403a0cfb61b3 5
+CotabbyTests/Models/Focus/FocusModelsTests.swift
+  s_b9af9eb54478c8::t_14904794bc633b 130-185
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_1ca851dd348e62 146,309,599,865,1087,1405,1801,1888-1889,1976,2649-2656,2698,2790,2800,3517,3615,5270,5277,5346,5533,5536
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_b9af9eb54478c8::t_4cc233af507472 633
+CotabbyTests/Models/Spelling/SpellingDictionaryCatalogTests.swift
+  s_b9af9eb54478c8::t_026981812344c8 4-6,24-50
+CotabbyTests/Models/Suggestion/Session/SuggestionPresentationModelsTests.swift
+  s_b9af9eb54478c8::t_3a9c3f738ffd33 7-28,30,32,38-52,54-103,105-107
+CotabbyTests/Services/Focus/Resolution/HostTextMetricsProbeTests.swift
+  s_b9af9eb54478c8::t_1bbca007458015 1-140
+CotabbyTests/Services/ModelManagement/Aria2DownloadServiceTests.swift
+  s_b9af9eb54478c8::t_44f3fec8f89184 8,11,81-83,94-95,100,116,118,138,142,172,227,250-252,277-279,336,342-344,347,349,354
+CotabbyTests/Services/ModelManagement/Aria2ProvisionerTests.swift
+  s_b9af9eb54478c8::t_1b8083dd2552d7 210
+CotabbyTests/Services/ModelManagement/ModelDownloadManagerTests.swift
+  s_b9af9eb54478c8::t_c96d0de4bbdb7d 12
+CotabbyTests/Services/ModelManagement/ModelDownloadSessionDelegateTests.swift
+  s_b9af9eb54478c8::t_7cb01dd3e87c10 103-104,120
+CotabbyTests/Services/Permission/Guidance/PermissionHostAppTests.swift
+  s_b9af9eb54478c8::t_2201a66dafc934 14
+CotabbyTests/Services/Spelling/CurrentWordSpellCheckerTests.swift
+  s_b9af9eb54478c8::t_1349f3b570680f 4-9,11-15,17-18,21-22,25-33,36-46
+CotabbyTests/Support/Macros/ConversionSeparatorTests.swift
+  s_b9af9eb54478c8::t_903379d8e5b007 1-39
+CotabbyTests/TestSupport/MainActorTestSupport.swift
+  s_b9af9eb54478c8::t_470a713fd365e8 28-30,33,36-38
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_b9af9eb54478c8::t_52daeb744cfa6e 107-110,124,127,134-136,142,355-357
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_b9af9eb54478c8::t_c0a731f2568ba1 6-13,15,448-449,451-455,457-459,463-466,468-476,478-480,482-484,488-490,492-504,506-509,513-521,523-527,529-531,533,537-540,542-550,552-554,556-560,564-566,568-572,574-576,578-583,587-589,591-595,597-599,601-603,607-609,611-613,615-617,619-621,625-628,630-631,633,635-642,649-653,655-657,659-660,662-664,666-667,670-676
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "008f9c9b85f89b569cb8637dcfa18d6ca05873d6",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
