@@ -10,10 +10,21 @@ nonisolated struct HFModelSearchResult: Codable, Identifiable, Equatable {
     let likes: Int
 }
 
+/// Git LFS metadata the tree API reports for large files. `oid` is the SHA-256 of the file's
+/// contents (Hugging Face serves the same value as `X-Linked-ETag` on the download), so it is what a
+/// search download is verified against.
+nonisolated struct HFLFSPointer: Codable, Equatable {
+    let oid: String
+    let size: Int64
+}
+
 /// One file entry from `GET /api/models/<repoId>/tree/main`.
 struct HFRepoFile: Codable, Equatable, Identifiable {
     let path: String
     let size: Int64
+    /// Nil for small files kept in plain git, which carry no SHA-256 Cotabby can verify. A `var` so
+    /// the memberwise initializer defaults it to nil.
+    var lfs: HFLFSPointer?
 
     var id: String { path }
 

@@ -113,9 +113,35 @@ final class ModelFileValidatorTests: XCTestCase {
         }
     }
 
-    func test_validateSHA256_isNoOpWhenExpectedNil() throws {
+    /// Fail closed: with no usable expected digest there is nothing to verify, so the download must
+    /// not be promoted. A nil from a catalog entry that lost its hash, an empty string, a git blob
+    /// SHA-1 and non-hex junk all refuse before the file is even read.
+    func test_validateSHA256_failsClosedWhenExpectedMissingOrMalformed() throws {
         let url = try makeFixture(contents: Data("anything".utf8))
-        XCTAssertNoThrow(try ModelFileValidator.validateSHA256(of: url, expectedSHA256: nil))
+        let unusable: [String?] = [
+            nil,
+            "",
+            "c16ef36eb3a012d3b558c31952889772bdbeddf0",
+            String(repeating: "g", count: 64),
+            String(repeating: "a", count: 65)
+        ]
+        for expected in unusable {
+            XCTAssertThrowsError(try ModelFileValidator.validateSHA256(of: url, expectedSHA256: expected)) { error in
+                guard case ModelFileValidator.ValidationError.missingChecksum = error else {
+                    XCTFail("Expected missingChecksum for \(String(describing: expected)), got \(error)")
+                    return
+                }
+            }
+        }
+    }
+
+    func test_isSHA256Hex_acceptsOnlySixtyFourHexCharacters() {
+        XCTAssertTrue(ModelFileValidator.isSHA256Hex(String(repeating: "0", count: 64)))
+        XCTAssertTrue(ModelFileValidator.isSHA256Hex("2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824"))
+        XCTAssertFalse(ModelFileValidator.isSHA256Hex(String(repeating: "0", count: 63)))
+        XCTAssertFalse(ModelFileValidator.isSHA256Hex(String(repeating: "0", count: 63) + "z"))
+        // Fullwidth digits count as hex for `Character.isHexDigit`; the validator must not accept them.
+        XCTAssertFalse(ModelFileValidator.isSHA256Hex(String(repeating: "\u{FF10}", count: 64)))
     }
 
     /// Streaming guard — exercises the multi-chunk read loop. Without this,
@@ -166,6 +192,10 @@ final class ModelFileValidatorTests: XCTestCase {
         XCTAssertEqual(
             ModelFileValidator.ValidationError.fileUnreadable(URL(fileURLWithPath: "/tmp/model.gguf")).errorDescription,
             "Couldn't read model.gguf for validation."
+        )
+        XCTAssertEqual(
+            ModelFileValidator.ValidationError.missingChecksum.errorDescription,
+            "Cotabby has no checksum for this file, so it can't verify the download and won't install it."
         )
     }
 

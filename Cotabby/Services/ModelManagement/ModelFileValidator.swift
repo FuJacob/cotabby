@@ -13,17 +13,21 @@ import CryptoKit
 /// matching size with wrong contents is plausible for any transport bug, and
 /// computing SHA-256 first is wasteful when bytes-on-disk is wrong.
 ///
-/// Why both validators take optional expected values:
-/// `DownloadableRuntimeModel.expectedSizeBytes` and `.sha256` are optional so
-/// future catalog entries can land without metadata immediately. When the
-/// expected value is nil, the validator no-ops — better than failing every
-/// install just because metadata wasn't filled in yet. The catalog is the
-/// authoritative source of "what should be true about this file."
+/// Why the checksum fails closed but the size check does not:
+/// The downloaded GGUF is parsed by llama.cpp inside the process that holds
+/// Cotabby's Accessibility, Input Monitoring and Screen Recording grants, and
+/// the model decides what Cotabby offers to type into other apps. So "we had
+/// nothing to compare against" must mean "don't install", never "assume it's
+/// fine". Every download Cotabby offers carries a digest: the curated catalog
+/// pins one per commit, and Hugging Face search uses the LFS oid from the tree
+/// API. Size stays optional because it is only a fast pre-check; the hash is
+/// the gate.
 nonisolated enum ModelFileValidator {
 
     enum ValidationError: LocalizedError {
         case sizeMismatch(expected: Int64, actual: Int64)
         case checksumMismatch(expected: String, actual: String)
+        case missingChecksum
         case fileUnreadable(URL)
 
         var errorDescription: String? {
@@ -35,6 +39,8 @@ nonisolated enum ModelFileValidator {
                 let actualShort = String(actual.lowercased().prefix(16))
                 return "Downloaded file's checksum (\(actualShort)…) doesn't match the " +
                     "expected (\(expectedShort)…). The file may be corrupt."
+            case .missingChecksum:
+                return "Cotabby has no checksum for this file, so it can't verify the download and won't install it."
             case let .fileUnreadable(url):
                 return "Couldn't read \(url.lastPathComponent) for validation."
             }
@@ -68,12 +74,11 @@ nonisolated enum ModelFileValidator {
 
     /// Throws if the file's byte size differs from the server's declared `Content-Length`.
     ///
-    /// The curated catalog ships with nil `expectedSizeBytes`/`sha256`, so those validators no-op and
-    /// the only remaining integrity gate is the HTTP status check — which does NOT catch a body the
-    /// server truncated while ending the transfer "cleanly" (an HTTP/2 stream reset or a proxy closing
-    /// the connection both surface as a finished task with no error). Comparing the on-disk size to the
-    /// declared length closes that gap without needing catalog metadata. No-op when the length is
-    /// unknown (`expectedContentLength <= 0`, i.e. `NSURLSessionTransferSizeUnknown`).
+    /// The HTTP status check does NOT catch a body the server truncated while ending the transfer
+    /// "cleanly" (an HTTP/2 stream reset or a proxy closing the connection both surface as a finished
+    /// task with no error). Comparing the on-disk size to the declared length reports that as a
+    /// truncation before the slower SHA-256 pass would report it as a mismatch. No-op when the length
+    /// is unknown (`expectedContentLength <= 0`, i.e. `NSURLSessionTransferSizeUnknown`).
     static func validateCompleteness(
         of url: URL,
         declaredContentLength: Int64,
@@ -85,14 +90,16 @@ nonisolated enum ModelFileValidator {
         try validateSize(of: url, expectedBytes: declaredContentLength, fileManager: fileManager)
     }
 
-    /// Throws if the file's SHA-256 differs from `expectedSHA256` (case-insensitive).
-    /// No-op when `expectedSHA256` is nil.
+    /// Throws unless the file's SHA-256 equals `expectedSHA256` (case-insensitive).
+    /// Fails closed: a nil or malformed expected digest throws `.missingChecksum`
+    /// instead of passing, so a catalog entry or search result that lost its
+    /// digest can never install unverified bytes.
     ///
-    /// Streams the file in 1 MB chunks so the largest curated GGUF (~4.5 GB)
+    /// Streams the file in 1 MB chunks so the largest curated GGUF (~5.3 GB)
     /// doesn't get fully loaded into memory.
     static func validateSHA256(of url: URL, expectedSHA256: String?) throws {
-        guard let expectedSHA256 else {
-            return
+        guard let expectedSHA256, isSHA256Hex(expectedSHA256) else {
+            throw ValidationError.missingChecksum
         }
         let actualHex = try sha256Hex(of: url)
         // Lowercase comparison: HuggingFace returns hex in lowercase, but we
@@ -100,6 +107,21 @@ nonisolated enum ModelFileValidator {
         // checksum won't silently fail every download.
         if actualHex.lowercased() != expectedSHA256.lowercased() {
             throw ValidationError.checksumMismatch(expected: expectedSHA256, actual: actualHex)
+        }
+    }
+
+    /// True for a 64-character hex string in either case. Shared with the Hugging Face search
+    /// flow so a listing whose LFS oid is not a SHA-256 is refused before any bytes download.
+    static func isSHA256Hex(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy { byte in
+            switch byte {
+            case UInt8(ascii: "0")...UInt8(ascii: "9"),
+                 UInt8(ascii: "a")...UInt8(ascii: "f"),
+                 UInt8(ascii: "A")...UInt8(ascii: "F"):
+                return true
+            default:
+                return false
+            }
         }
     }
 
@@ -121,16 +143,25 @@ nonisolated enum ModelFileValidator {
             if Task.isCancelled {
                 throw CancellationError()
             }
-            let chunk: Data
-            do {
-                chunk = try handle.read(upToCount: chunkSize) ?? Data()
-            } catch {
-                throw ValidationError.fileUnreadable(url)
+            // `FileHandle` can hand back bridged, autoreleased buffers. This loop runs as one job on
+            // a detached task, whose pool may not drain until the whole multi-GB hash finishes, so
+            // each chunk gets its own pool to keep peak memory at about one chunk.
+            let reachedEnd = try autoreleasepool { () throws -> Bool in
+                let chunk: Data
+                do {
+                    chunk = try handle.read(upToCount: chunkSize) ?? Data()
+                } catch {
+                    throw ValidationError.fileUnreadable(url)
+                }
+                if chunk.isEmpty {
+                    return true
+                }
+                hasher.update(data: chunk)
+                return false
             }
-            if chunk.isEmpty {
+            if reachedEnd {
                 break
             }
-            hasher.update(data: chunk)
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
