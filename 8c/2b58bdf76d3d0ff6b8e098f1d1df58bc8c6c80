@@ -1,0 +1,41 @@
+Cotabby/Services/Focus/Caching/CaretAdvanceSampleStore.swift
+  s_b9af9eb54478c8::t_1544a01b624130 60
+  s_b9af9eb54478c8::t_2f301182d7916e 12-23,27-28,30
+  s_b9af9eb54478c8::t_2c82fb3f1b33c8 40,44
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_c9226a9aef2cb2 845,1545,3581,5239
+CotabbyTests/Support/Focus/CaretAdvanceSamplerTests.swift
+  s_b9af9eb54478c8::t_6f8c068a2f887a 114-126
+CotabbyTests/Services/Focus/Caching/CaretAdvanceSampleStoreTests.swift
+  s_b9af9eb54478c8::t_df8095ab216767 1-52
+Cotabby/Support/Focus/Capability/FocusCapabilityFlickerGate.swift
+  s_b9af9eb54478c8::t_802751920a5158 16-18
+  s_b9af9eb54478c8::t_ee9a3c360a241c 38-47,54,61-62,64,68-70,73-74,79
+  s_b9af9eb54478c8::t_f0bd7fbb666154 53
+Cotabby/Support/Focus/CaretAdvanceSampler.swift
+  s_b9af9eb54478c8::t_5523e603e3c74e 130-133,208
+  s_b9af9eb54478c8::t_0ffcdc43f87924 212
+  s_b9af9eb54478c8::t_bcd60c0ce3e43f 100-113
+  s_b9af9eb54478c8::t_36e6e5950fbe83 154
+  s_b9af9eb54478c8::t_7be5de9988e6e8 209
+  s_b9af9eb54478c8::t_6e8856b0051b7f 207
+  s_b9af9eb54478c8::t_a7b8566014f034 176
+  s_b9af9eb54478c8::t_dfdf6ec9802245 168,171-172,175,183-206
+  s_b9af9eb54478c8::t_b97dc0faf74623 89-99,114-115,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c2b58bdf76d3d0ff6b8e098f1d1df58bc8c6c80",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
