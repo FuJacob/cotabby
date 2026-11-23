@@ -169,10 +169,7 @@ struct WritingPaneView: View {
     }
 
     private var lengthChoiceBinding: Binding<SuggestionLengthChoice> {
-        Binding(
-            get: { suggestionSettings.lengthChoice },
-            set: { suggestionSettings.selectLengthChoice($0) }
-        )
+        suggestionSettings.binding(\.lengthChoice) { $0.selectLengthChoice($1) }
     }
 
     /// A compact "type or step" control: a right-aligned numeric field paired with up/down arrows,
