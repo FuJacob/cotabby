@@ -145,8 +145,8 @@ character and comes back when the field is cleared), so `FocusedInputPollingSign
 disappearing placeholder as no evidence and only a different shown placeholder as navigation. A Chromium or Electron host reports its font size in CSS
 pixels and nothing of its zoom (the Claude desktop composer reports 14 and paints 15.4 at 110%),
 and a contenteditable answers no width query: the ghost's size there follows the advance measured
-from the caret's own movement (`CaretAdvanceSampler`), and the faces such a host bundles in its
-own `Contents/Resources` are registered for the pixel match (`HostBundledFontRegistry`).
+from the caret's own movement (`CaretAdvanceSampler`), and the faces an allowlisted, signature-checked
+host bundles in its own `Contents/Resources` are registered for the pixel match (`HostBundledFontRegistry`).
 
 ## Visual Context And OCR
 

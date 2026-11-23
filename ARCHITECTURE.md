@@ -458,9 +458,10 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   keeps is then fitted to the host's glyph positions alone, the chosen face rendered once and
   stretched about the caret (`advanceFitted`): shape scoring picked Chrome's 18px Georgia at
   18.054, a ghost two device pixels long by a line's end, while the positions put it at 18. An
-  Electron host's own bundled faces join the candidates
+  allowlisted Electron host's own bundled faces join the candidates
   ([HostBundledFontRegistry.swift](Cotabby/Services/Presentation/HostBundledFontRegistry.swift)
-  registers its TrueType/OpenType files for this process alone), which is how Claude's composer
+  checks the host's code signature, as `HostFontRegistry` does, then registers its TrueType/OpenType
+  files for this process alone), which is how Claude's composer
   can be drawn in Anthropic Sans rather than a stand-in. The calibrator
   keeps one record per field, replaced only when a later strip's winner beats the recorded face on
   that same strip; scores from different strips are not comparable. A reported size stands when the
