@@ -5,11 +5,10 @@ import XCTest
 /// subprocess contract (arguments, progress parsing, exit mapping, pause/cancel) is exercised
 /// without the real binary or any network access.
 final class Aria2DownloadServiceTests: XCTestCase {
-    func test_downloadThrowsWhenInvalidExecutablePathProvided() async {
+    func test_downloadThrowsWhenInvalidExecutablePathProvided() async throws {
         let service = Aria2DownloadService { _ in }
         let invalidExecutable = URL(fileURLWithPath: "/non/existent/path/aria2c")
-        let stagingDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: stagingDir) }
+        let stagingDir = try makeStagingDirectoryURL()
 
         do {
             _ = try await service.download(
@@ -79,10 +78,9 @@ final class Aria2DownloadServiceTests: XCTestCase {
         let executable = try makeWritingExecutable(
             beforeWrite: #"printf '[#abc123 1B/1B(100%%) CN:1 DL:1MiB ETA:0s]\n'"#
         )
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
-        let recorder = Aria2ProgressRecorder()
-        let service = Aria2DownloadService { recorder.append($0) }
+        let stagingDirectory = try makeStagingDirectoryURL()
+        let recorder = Locked<[Aria2Progress]>([])
+        let service = Aria2DownloadService { progress in recorder.withLock { $0.append(progress) } }
 
         let result = try await service.download(
             from: URL(string: "https://example.com/model.gguf")!,
@@ -93,14 +91,13 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
         XCTAssertEqual(result.lastPathComponent, "model.gguf")
         XCTAssertEqual(try String(contentsOf: result, encoding: .utf8), "model data")
-        XCTAssertEqual(recorder.values.last?.progressFraction, 1)
-        XCTAssertEqual(recorder.values.last?.speedFormatted, "1 MB/s")
+        XCTAssertEqual(recorder.value.last?.progressFraction, 1)
+        XCTAssertEqual(recorder.value.last?.speedFormatted, "1 MB/s")
     }
 
     func test_downloadReducesOutputToTheLeafFilename() async throws {
         let executable = try makeWritingExecutable()
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
+        let stagingDirectory = try makeStagingDirectoryURL()
         let service = Aria2DownloadService { _ in }
 
         let result = try await service.download(
@@ -116,10 +113,9 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     /// Only a leaf name may reach `--out=`; anything that cannot name a file inside the staging
     /// directory is rejected before a process launches.
-    func test_downloadRejectsFilenamesWithoutAUsableLeaf() async {
+    func test_downloadRejectsFilenamesWithoutAUsableLeaf() async throws {
         let service = Aria2DownloadService { _ in }
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(stagingDirectory) }
+        let stagingDirectory = try makeStagingDirectoryURL()
 
         for filename in ["", ".", "..", "/", "models/.."] {
             do {
@@ -139,13 +135,11 @@ final class Aria2DownloadServiceTests: XCTestCase {
     }
 
     func test_downloadPassesSegmentedResumableArguments() async throws {
-        let argumentsFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fake-aria2-args-\(UUID().uuidString)")
+        let argumentsFile = try makeTemporaryDirectory().appendingPathComponent("arguments")
         let executable = try makeWritingExecutable(
             beforeWrite: #"for argument in "$@"; do printf '%s\n' "$argument"; done > "\#(argumentsFile.path)""#
         )
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory, argumentsFile) }
+        let stagingDirectory = try makeStagingDirectoryURL()
         let service = Aria2DownloadService { _ in }
 
         _ = try await service.download(
@@ -175,8 +169,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_downloadWithSilentFailureReportsTheExitCode() async throws {
         let executable = try makeExecutableScript(contents: "#!/bin/sh\nexit 3\n")
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
+        let stagingDirectory = try makeStagingDirectoryURL()
         let service = Aria2DownloadService { _ in }
 
         do {
@@ -231,8 +224,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
             exit 7
             """
         )
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
+        let stagingDirectory = try makeStagingDirectoryURL()
         let service = Aria2DownloadService { _ in }
 
         do {
@@ -255,10 +247,9 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_pauseStopsRunningProcessAsPaused() async throws {
         let executable = try makeLongRunningExecutable()
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
-        let recorder = Aria2ProgressRecorder()
-        let service = Aria2DownloadService { recorder.append($0) }
+        let stagingDirectory = try makeStagingDirectoryURL()
+        let recorder = Locked<[Aria2Progress]>([])
+        let service = Aria2DownloadService { progress in recorder.withLock { $0.append(progress) } }
         let downloadTask = Task {
             try await service.download(
                 from: URL(string: "https://example.com/model.gguf")!,
@@ -283,10 +274,9 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_cancelStopsRunningProcessAsCancelled() async throws {
         let executable = try makeLongRunningExecutable()
-        let stagingDirectory = makeStagingDirectoryURL()
-        defer { removeFixtures(executable, stagingDirectory) }
-        let recorder = Aria2ProgressRecorder()
-        let service = Aria2DownloadService { recorder.append($0) }
+        let stagingDirectory = try makeStagingDirectoryURL()
+        let recorder = Locked<[Aria2Progress]>([])
+        let service = Aria2DownloadService { progress in recorder.withLock { $0.append(progress) } }
         let downloadTask = Task {
             try await service.download(
                 from: URL(string: "https://example.com/model.gguf")!,
@@ -343,45 +333,24 @@ final class Aria2DownloadServiceTests: XCTestCase {
     }
 
     private func makeExecutableScript(contents: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fake-aria2-\(UUID().uuidString)")
+        let url = try makeTemporaryDirectory().appendingPathComponent("fake-aria2")
         try contents.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
     }
 
-    private func makeStagingDirectoryURL() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    /// A staging path that does not exist yet: the service must create it before aria2c writes there.
+    private func makeStagingDirectoryURL() throws -> URL {
+        try makeTemporaryDirectory().appendingPathComponent("staging")
     }
 
-    private func removeFixtures(_ urls: URL...) {
-        for url in urls {
-            try? FileManager.default.removeItem(at: url)
-        }
-    }
-
-    private func waitForProgress(_ recorder: Aria2ProgressRecorder) async throws {
+    private func waitForProgress(_ recorder: Locked<[Aria2Progress]>) async throws {
         for _ in 0..<200 {
-            if !recorder.values.isEmpty {
+            if !recorder.value.isEmpty {
                 return
             }
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertFalse(recorder.values.isEmpty, "The fake process never emitted progress")
-    }
-}
-
-private final class Aria2ProgressRecorder: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [Aria2Progress] = []
-
-    var values: [Aria2Progress] {
-        lock.withLock { storage }
-    }
-
-    func append(_ progress: Aria2Progress) {
-        lock.withLock {
-            storage.append(progress)
-        }
+        XCTAssertFalse(recorder.value.isEmpty, "The fake process never emitted progress")
     }
 }

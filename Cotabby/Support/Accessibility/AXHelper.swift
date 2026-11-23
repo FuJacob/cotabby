@@ -615,7 +615,7 @@ enum AXHelper {
     }
 
     /// Characters to skip past a leading bullet and its spacing, or nil when the line has none.
-    private static func textOffsetPastBullet(_ lineText: String) -> Int? {
+    static func textOffsetPastBullet(_ lineText: String) -> Int? {
         let characters = Array(lineText)
         guard let first = characters.first, bulletMarkerCharacters.contains(first) else { return nil }
         var index = 1

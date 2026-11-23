@@ -100,8 +100,8 @@ final class ModelDownloadSessionDelegateTests: XCTestCase {
     /// Progress is a fraction only when the server declared a length; an unknown length reports
     /// nil so the UI shows an indeterminate bar instead of a bogus percentage.
     func test_progressCallbacks_reportFractionsOnlyForKnownLengths() {
-        let recorder = ProgressRecorder()
-        let delegate = ModelDownloadSessionDelegate { recorder.append($0) }
+        let recorder = Locked<[Double?]>([])
+        let delegate = ModelDownloadSessionDelegate { progress in recorder.withLock { $0.append(progress) } }
         let session = URLSession(configuration: .ephemeral)
         defer { session.invalidateAndCancel() }
         let task = session.downloadTask(with: URL(string: "https://example.invalid/model.gguf")!)
@@ -117,19 +117,6 @@ final class ModelDownloadSessionDelegateTests: XCTestCase {
         delegate.urlSession(session, downloadTask: task, didResumeAtOffset: 50, expectedTotalBytes: 200)
         delegate.urlSession(session, downloadTask: task, didResumeAtOffset: 50, expectedTotalBytes: 0)
 
-        XCTAssertEqual(recorder.values, [0.25, nil, 0.25, nil])
-    }
-}
-
-private final class ProgressRecorder: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [Double?] = []
-
-    var values: [Double?] {
-        lock.withLock { storage }
-    }
-
-    func append(_ value: Double?) {
-        lock.withLock { storage.append(value) }
+        XCTAssertEqual(recorder.value, [0.25, nil, 0.25, nil])
     }
 }

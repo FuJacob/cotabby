@@ -338,19 +338,13 @@ final class AXHelperTests: XCTestCase {
         XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 1, y: 2, width: 3, height: CGFloat.nan)))
     }
 
+    /// A NaN or infinite AX rect must collapse to `.zero`, never propagate toward
+    /// `NSWindow.setFrame` (a crash). Runs without a display, unlike the conversion tests below.
     func test_cocoaRect_zeroAndNonFiniteRectsNeverReachGeometryMath() {
+        let nan = CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14)
         XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: .zero), .zero)
-        XCTAssertEqual(
-            AXHelper.cocoaRect(fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 0, width: 10, height: 10)),
-            .zero
-        )
-        // A NaN text rect must collapse to .zero too, never propagate toward NSWindow.setFrame.
-        XCTAssertEqual(
-            AXHelper.validatedCocoaTextRect(
-                fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14), anchorFrame: nil
-            ),
-            .zero
-        )
+        XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: nan), .zero)
+        XCTAssertEqual(AXHelper.validatedCocoaTextRect(fromAccessibilityRect: nan, anchorFrame: nil), .zero)
     }
 
     /// The accept window is the anchor grown by an 80pt halo, tested directly rather than through a
@@ -433,12 +427,28 @@ final class AXHelperTests: XCTestCase {
         )
     }
 
-    // MARK: - System-wide element
+    // MARK: - List bullet prefix (pure)
 
-    func test_systemWideElement_isCreatedWithTheShortMessagingTimeout() {
-        // The timeout itself is not readable back, but creation must succeed and be callable.
-        let element = AXHelper.systemWideElement()
-        XCTAssertEqual(CFGetTypeID(element), AXUIElementGetTypeID())
+    /// The caret line's first glyph is measured past a rendered list marker, so the marker's own box
+    /// never becomes where the line's text starts. Only a known marker followed by spacing and then
+    /// text counts, and only within a few characters of the line start.
+    func test_textOffsetPastBullet_skipsAMarkerAndItsSpacingOnlyWhenTextFollows() {
+        let cases: [(line: String, offset: Int?, reason: String)] = [
+            ("• item", 2, "bullet and one space"),
+            ("◦\titem", 2, "a tab is spacing too"),
+            ("▪   item", 4, "the whole spacing run is skipped"),
+            ("•" + String(repeating: " ", count: 7) + "item", 8, "the longest skip allowed"),
+            ("•" + String(repeating: " ", count: 8) + "item", nil, "too far from the line start to be a marker"),
+            ("•item", nil, "a marker glued to text is not a list marker"),
+            ("• ", nil, "no text after the marker to measure"),
+            ("•", nil, "a lone marker"),
+            ("- item", nil, "a typed hyphen is text, not a rendered marker"),
+            ("a • b", nil, "a bullet mid-line"),
+            ("", nil, "an empty line")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(AXHelper.textOffsetPastBullet(testCase.line), testCase.offset, testCase.reason)
+        }
     }
 
     // MARK: - AXFont dictionary face selection

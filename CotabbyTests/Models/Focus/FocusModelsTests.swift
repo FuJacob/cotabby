@@ -127,6 +127,62 @@ final class FocusModelsTests: XCTestCase {
         )
     }
 
+    private func sessionIdentity(
+        processIdentifier: Int32 = 123,
+        bundleIdentifier: String = "com.example.TestApp",
+        focusChangeSequence: UInt64 = 1,
+        url: String? = nil,
+        title: String? = nil
+    ) -> FocusedInputSessionIdentity {
+        FocusedInputSessionIdentity(
+            processIdentifier: processIdentifier,
+            bundleIdentifier: bundleIdentifier,
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: url,
+            windowTitle: title
+        )
+    }
+
+    /// A session that starts while a surface fact times out would keep that nil for its whole life,
+    /// and every exact comparison against a later readable poll would fail, so it learns the fact
+    /// from a later read of the same session.
+    func test_sessionIdentity_filledLearnsSurfaceFactsTheSessionCouldNotRead() {
+        let unread = sessionIdentity()
+
+        XCTAssertEqual(unread.filled(from: sessionIdentity(title: "Chat one")), sessionIdentity(title: "Chat one"))
+        let located = sessionIdentity(url: "https://chat.example/one")
+        XCTAssertEqual(unread.filled(from: located), located)
+        XCTAssertTrue(unread.filled(from: located).continues(located), "the filled base still describes the live read")
+    }
+
+    /// A known fact replaced by a different one is navigation, which `continues(_:)` rejects;
+    /// filling must not quietly turn it into the base's own fact instead.
+    func test_sessionIdentity_filledNeverOverwritesAKnownSurfaceFact() {
+        let titled = sessionIdentity(title: "Chat one")
+        XCTAssertEqual(titled.filled(from: sessionIdentity(title: "Chat two")), titled)
+
+        let located = sessionIdentity(url: "https://chat.example/one")
+        XCTAssertEqual(located.filled(from: sessionIdentity(url: "https://chat.example/two")), located)
+    }
+
+    func test_sessionIdentity_filledKeepsItsOwnProcessBundleAndFocusSequence() {
+        let observed = sessionIdentity(
+            processIdentifier: 456, bundleIdentifier: "com.example.Other", focusChangeSequence: 2, title: "Chat one"
+        )
+
+        XCTAssertEqual(sessionIdentity().filled(from: observed), sessionIdentity(title: "Chat one"))
+    }
+
+    /// The filled identity goes through the same title rule as any other: once a URL is known it
+    /// names the conversation, so a title the session started with stops counting.
+    func test_sessionIdentity_filledURLSupersedesTheTitleTheSessionStartedWith() {
+        let titled = sessionIdentity(title: "Chat one")
+
+        let filled = titled.filled(from: sessionIdentity(url: "https://chat.example/one"))
+
+        XCTAssertEqual(filled, sessionIdentity(url: "https://chat.example/one"))
+    }
+
     func test_focusedInputSnapshot_flagsPossibleTruncationAtTheCaptureWindow() {
         let window = FocusedInputSnapshot.textWindowUTF16
         let underWindow = String(repeating: "a", count: window - 1)

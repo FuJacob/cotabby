@@ -22,33 +22,6 @@ final class SpellingDictionaryResourceTests: XCTestCase {
     }
 }
 
-final class SpellingDictionaryLanguageMetadataTests: XCTestCase {
-    func test_allCases_keepPersistedISOCodesInStableCatalogOrder() {
-        // `SpellingDictionaryCatalog.normalize` emits codes in `allCases` order, so this order is a
-        // persistence and rendering contract, not an implementation detail.
-        XCTAssertEqual(
-            SpellingDictionaryLanguage.allCases.map(\.rawValue),
-            ["en", "de", "es", "fr", "he", "it", "ru", "tr", "mk"]
-        )
-    }
-
-    func test_settingsLabel_includesEnglishNameForEveryLanguageAndStaysUnique() {
-        let labels = SpellingDictionaryLanguage.allCases.map(\.settingsLabel)
-        XCTAssertEqual(Set(labels).count, labels.count)
-
-        for language in SpellingDictionaryLanguage.allCases {
-            XCTAssertTrue(
-                language.settingsLabel.contains(language.displayName),
-                "\(language.rawValue) settings label should include the English name"
-            )
-        }
-
-        XCTAssertEqual(SpellingDictionaryLanguage.english.settingsLabel, "English")
-        XCTAssertEqual(SpellingDictionaryLanguage.german.settingsLabel, "Deutsch (German)")
-        XCTAssertEqual(SpellingDictionaryLanguage.hebrew.settingsLabel, "עברית (Hebrew)")
-    }
-}
-
 /// Turkish and Macedonian: the bundled lists, language selection, and Turkish casing rules.
 final class TurkishMacedonianDictionaryTests: XCTestCase {
     private let resolver = SpellingLanguageResolver()

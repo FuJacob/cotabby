@@ -2,10 +2,11 @@ import CoreGraphics
 import XCTest
 @testable import Cotabby
 
-/// Tests for the two identity keys a `FocusedInputContext` derives. They deliberately answer
-/// different questions: the field key must survive a self-resizing composer (so ghost-font
-/// stabilization does not jitter), while the session key must change on navigation even when the
-/// host reuses the same AX element (so prediction memory cannot leak across conversations).
+/// Tests for what a `FocusedInputContext` derives from its snapshot. The two identity keys
+/// deliberately answer different questions: the field key must survive a self-resizing composer (so
+/// ghost-font stabilization does not jitter), while the session key must change on navigation even
+/// when the host reuses the same AX element (so prediction memory cannot leak across
+/// conversations). The layout facts decide how many rows a ghost may take and whether it may show.
 final class FocusedInputContextTests: XCTestCase {
     func test_focusedInputIdentityKey_survivesTextFrameAndSequenceChangesButNotAFieldSwitch() {
         let base = CotabbyTestFixtures.focusedInputContext(elementIdentifier: "composer")
@@ -114,5 +115,36 @@ final class FocusedInputContextTests: XCTestCase {
         XCTAssertTrue(context(role: "AXComboBox").isSingleLineField)
         XCTAssertFalse(context(role: "AXTextArea").isSingleLineField)
         XCTAssertFalse(context(role: "AXWebArea").isSingleLineField)
+    }
+
+    /// Any visible character after the caret, even lines further down the captured window, is the
+    /// host's own text that a second ghost row would paint over; trailing whitespace alone is not.
+    func test_focusedInputContext_hasTrailingContentOnlyForVisibleCharactersAfterTheCaret() {
+        func context(trailingText: String) -> FocusedInputContext {
+            FocusedInputContext(snapshot: CotabbyTestFixtures.focusedInputSnapshot(trailingText: trailingText), generation: 1)
+        }
+        XCTAssertFalse(context(trailingText: "").hasTrailingContent)
+        XCTAssertFalse(context(trailingText: "  \n\t\n").hasTrailingContent)
+        XCTAssertTrue(context(trailingText: " world").hasTrailingContent)
+        XCTAssertTrue(context(trailingText: "\n\nNext paragraph").hasTrailingContent)
+    }
+
+    /// Generation and ghost rendering pause while the host shows uncommitted text. A marked range of
+    /// length zero holds no text, so it must not pause them; the context must agree with its snapshot.
+    func test_hostMarkedText_requiresANonEmptyMarkedRange() {
+        let cases: [(range: NSRange?, hasMarkedText: Bool)] = [
+            (nil, false),
+            (NSRange(location: 5, length: 0), false),
+            (NSRange(location: 5, length: 3), true)
+        ]
+        for testCase in cases {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(hostMarkedTextRange: testCase.range)
+            XCTAssertEqual(snapshot.hasHostMarkedText, testCase.hasMarkedText, "\(String(describing: testCase.range))")
+            XCTAssertEqual(
+                FocusedInputContext(snapshot: snapshot, generation: 1).hasHostMarkedText,
+                testCase.hasMarkedText,
+                "\(String(describing: testCase.range))"
+            )
+        }
     }
 }

@@ -9,12 +9,7 @@ final class ModelDownloadManagerTests: XCTestCase {
     private var tempDir: URL!
 
     override func setUpWithError() throws {
-        tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-    }
-
-    override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: tempDir)
+        tempDir = try makeTemporaryDirectory()
     }
 
     func test_modelsDirectoryPath_pointsToProvidedRuntimeDirectory() {
