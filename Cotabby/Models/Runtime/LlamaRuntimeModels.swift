@@ -42,7 +42,6 @@ struct RuntimeModelOption: Equatable, Hashable, Sendable, Identifiable {
 
     var id: String { filename }
     var displayName: String { RuntimeModelCatalog.displayName(for: filename) }
-    var actualModelName: String { filename }
 }
 
 /// Downloadable model metadata used by onboarding and the Settings model catalog.
@@ -65,7 +64,6 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     let sha256: String?
 
     var id: String { downloadURL.absoluteString }
-    var actualModelName: String { filename }
     var approximateSizeLabel: String { String(format: "~%.1f GB", approximateSizeInGigabytes) }
 
     init(

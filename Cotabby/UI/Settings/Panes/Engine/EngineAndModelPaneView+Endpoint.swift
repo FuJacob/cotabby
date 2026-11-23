@@ -148,8 +148,8 @@ extension EngineAndModelPaneView {
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.displayName)
 
-                if model.displayName != model.actualModelName {
-                    Text(model.actualModelName)
+                if model.displayName != model.filename {
+                    Text(model.filename)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -76,7 +76,7 @@ private struct DownloadableModelRow: View {
                     Text(model.displayName)
                         .font(.system(size: 13, weight: .medium))
 
-                    Text("(\(model.actualModelName))")
+                    Text("(\(model.filename))")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
 

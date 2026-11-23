@@ -70,8 +70,6 @@ final class ModelDownloadManagerTests: XCTestCase {
         }
         XCTAssertTrue(message.contains("Cancel that transfer"))
         XCTAssertNotEqual(first.id, second.id)
-        XCTAssertTrue(manager.modelStates.keys.contains(first.id))
-        XCTAssertTrue(manager.modelStates.keys.contains(second.id))
 
         manager.cancel(first)
         try await waitForTransferToSettle(first, in: manager)
@@ -203,10 +201,9 @@ final class ModelDownloadManagerTests: XCTestCase {
         )
 
         manager.download(model)
-        XCTAssertEqual(manager.modelStates[model.id], .downloaded)
+        XCTAssertEqual(manager.state(for: model), .downloaded)
 
         manager.deleteModel(filename: filename)
-        XCTAssertNil(manager.modelStates[model.id])
         XCTAssertEqual(manager.state(for: model), .idle)
     }
 
@@ -216,7 +213,6 @@ final class ModelDownloadManagerTests: XCTestCase {
 
         manager.pause(model)
 
-        XCTAssertNil(manager.modelStates[model.id])
         XCTAssertEqual(manager.state(for: model), .idle)
     }
 

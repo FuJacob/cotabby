@@ -86,14 +86,10 @@ private enum LiveTransferBackend {
 /// Uses `aria2c` for segmented, resumable transfers when available and falls back to URLSession.
 @MainActor
 final class ModelDownloadManager: ObservableObject {
-    /// Every transfer's lifecycle. Transfer state is keyed by source URL rather than destination
-    /// filename so equal leaf names from different repositories never alias.
+    /// Every transfer's lifecycle, read by views through `state(for:)`. Transfer state is keyed by
+    /// source URL rather than destination filename so equal leaf names from different repositories
+    /// never alias.
     @Published private var transferTable = ModelTransferTable()
-
-    /// The per-model state views render, derived from the transfer table.
-    var modelStates: [String: ModelDownloadState] {
-        transferTable.displayStates
-    }
 
     var onModelDirectoryChanged: (() -> Void)?
 
@@ -146,26 +142,27 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func state(for model: DownloadableRuntimeModel) -> ModelDownloadState {
-        transferTable.displayState(for: model.id) ?? (isInstalled(model: model) ? .downloaded : .idle)
+        transferTable.displayState(for: model.id) ?? (isModelInstalled(model) ? .downloaded : .idle)
     }
 
     /// Re-reads installed models from all active search directories and updates `@Published` state.
     /// Preserves in-flight `.downloading` and `.paused` states so a refresh during transfer never drops the progress bar.
     func refreshModelStates() {
         recomputeInstalledModelFilenames()
-        transferTable.refresh(catalog: models, isInstalled: isInstalled(filename:))
+        transferTable.refresh(catalog: models, isInstalled: isModelInstalled(filename:))
     }
 
-    /// True when any configured directory holds a file named `filename`.
+    /// True when any configured directory holds a file named `filename`. Answered from the
+    /// discovered-filename cache, so it reflects disk as of the last refresh or completed download.
     func isModelInstalled(filename: String) -> Bool {
-        isInstalled(filename: filename)
+        installedModelFilenames.contains(filename)
     }
 
     /// The flat model directory intentionally treats a destination filename as installed once.
     /// Transfer identity remains source-specific, but Cotabby never silently replaces an installed
     /// same-name model from another repository.
     func isModelInstalled(_ model: DownloadableRuntimeModel) -> Bool {
-        isInstalled(model: model)
+        isModelInstalled(filename: model.filename)
     }
 
     /// The path shown in Settings and opened by "Open Folder". This is always Cotabby's own writable
@@ -200,7 +197,7 @@ final class ModelDownloadManager: ObservableObject {
     /// Starts a download, or resumes it when the model is paused.
     func download(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
-        switch transferTable.start(model, isInstalled: isInstalled(model: model)) {
+        switch transferTable.start(model, isInstalled: isModelInstalled(model)) {
         case .alreadyRunning:
             CotabbyLogger.models.debug("Download already in progress for \(model.filename)")
         case .alreadyInstalled:
@@ -249,7 +246,7 @@ final class ModelDownloadManager: ObservableObject {
         let downloadID = model.id
         guard transferTable.requestCancel(downloadID), let live = liveTransfers[downloadID] else {
             removeStagingDirectory(for: model)
-            transferTable.cancelInactive(model, isInstalled: isInstalled(model: model))
+            transferTable.cancelInactive(model, isInstalled: isModelInstalled(model))
             return
         }
 
@@ -420,7 +417,7 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         liveTransfers[downloadID] = nil
-        transferTable.finish(downloadID, outcome, isInstalled: isInstalled(model: model))
+        transferTable.finish(downloadID, outcome, isInstalled: isModelInstalled(model))
         if outcome == .completed {
             onModelDirectoryChanged?()
         }
@@ -548,8 +545,8 @@ final class ModelDownloadManager: ObservableObject {
 
     /// Promotes a validated staged file into the install location. When a model already exists there,
     /// an atomic replace is used so a crash or error mid-promotion can never destroy the existing good
-    /// model before the replacement is committed (the old delete-then-move could leave nothing
-    /// installed). `replaceItemAt` removes the staged file as part of the swap.
+    /// model before the replacement is committed, as a delete-then-move could.
+    /// `replaceItemAt` removes the staged file as part of the swap.
     private nonisolated static func validateAndPromoteStagedFile(
         _ stagingURL: URL,
         to destinationURL: URL,
@@ -625,14 +622,6 @@ final class ModelDownloadManager: ObservableObject {
     /// they contain no source identity and therefore cannot be deleted safely on this model's behalf.
     private func removeStagingDirectory(for model: DownloadableRuntimeModel) {
         try? FileManager.default.removeItem(at: aria2StagingDirectoryURL(for: model))
-    }
-
-    private func isInstalled(model: DownloadableRuntimeModel) -> Bool {
-        isInstalled(filename: model.filename)
-    }
-
-    private func isInstalled(filename: String) -> Bool {
-        installedModelFilenames.contains(filename)
     }
 
     /// Rebuilds the discovered-filename cache by recursively scanning every search directory.
