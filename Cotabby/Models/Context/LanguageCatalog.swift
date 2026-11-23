@@ -89,26 +89,9 @@ enum LanguageCatalog {
         return option.tokensPerWord
     }
 
-    /// Trims, drops empties, truncates over-long entries, de-duplicates case-insensitively (keeping
-    /// the first occurrence and its original casing), and caps the count. The single place all
-    /// language mutations pass through.
+    /// The single place all language mutations pass through; see `BoundedTagList.normalize`.
     static func normalize(_ languages: [String]) -> [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-
-        for language in languages {
-            let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-
-            let bounded = String(trimmed.prefix(maxLanguageLength))
-            let key = bounded.lowercased()
-            guard seen.insert(key).inserted else { continue }
-
-            result.append(bounded)
-            if result.count >= maxLanguages { break }
-        }
-
-        return result
+        BoundedTagList.normalize(languages, maxCount: maxLanguages, maxLength: maxLanguageLength)
     }
 
     /// Builds the soft language hint injected into both prompt backends, or `nil` when the user has

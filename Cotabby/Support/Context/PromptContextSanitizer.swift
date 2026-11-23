@@ -267,7 +267,8 @@ nonisolated enum PromptContextSanitizer {
         return uppercaseCount >= 2 || !firstCharacterIsUppercase
     }
 
-    private static func collapseInlineWhitespace(in line: String) -> String {
+    /// Collapses every whitespace run to a single space and trims the ends.
+    static func collapseInlineWhitespace(in line: String) -> String {
         let normalized = line.replacingOccurrences(
             of: #"\s+"#,
             with: " ",

@@ -27,8 +27,8 @@ final class FileLogHandlerTests: XCTestCase {
     private var logURL: URL { directory.appendingPathComponent("cotabby.jsonl") }
     private var rotatedURL: URL { directory.appendingPathComponent("cotabby.jsonl.1") }
 
-    private func makeWriter(cap: UInt64? = nil) -> FileLogWriter {
-        FileLogWriter(sizeCapBytes: cap, fileURL: logURL)
+    private func makeWriter(cap: UInt64 = JSONLFileWriter.defaultSizeCapBytes) -> JSONLFileWriter {
+        JSONLFileWriter(fileName: "cotabby.jsonl", sizeCapBytes: cap, fileURL: logURL)
     }
 
     private func emit(
@@ -235,7 +235,7 @@ final class FileLogHandlerTests: XCTestCase {
             .appendingPathComponent("deeper", isDirectory: true)
             .appendingPathComponent("cotabby.jsonl")
 
-        FileLogWriter(sizeCapBytes: nil, fileURL: nestedURL).write("hello\n")
+        JSONLFileWriter(fileName: "cotabby.jsonl", fileURL: nestedURL).write("hello\n")
 
         XCTAssertEqual(lines(of: nestedURL), ["hello"])
     }

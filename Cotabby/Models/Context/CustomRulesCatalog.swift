@@ -47,25 +47,8 @@ enum CustomRulesCatalog {
         "Use the Oxford comma"
     ]
 
-    /// Trims, drops empties, truncates over-long rules, de-duplicates case-insensitively (keeping
-    /// the first occurrence and its original casing), and caps the count. The single place all rule
-    /// mutations pass through.
+    /// The single place all rule mutations pass through; see `BoundedTagList.normalize`.
     static func normalize(_ rules: [String]) -> [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-
-        for rule in rules {
-            let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-
-            let bounded = String(trimmed.prefix(maxRuleLength))
-            let key = bounded.lowercased()
-            guard seen.insert(key).inserted else { continue }
-
-            result.append(bounded)
-            if result.count >= maxRules { break }
-        }
-
-        return result
+        BoundedTagList.normalize(rules, maxCount: maxRules, maxLength: maxRuleLength)
     }
 }

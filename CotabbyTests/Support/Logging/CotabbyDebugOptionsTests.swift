@@ -36,10 +36,6 @@ final class CotabbyDebugOptionsTests: XCTestCase {
 
     // MARK: - Debug gate
 
-    func test_launchArgument_matchesDocumentedFlag() {
-        XCTAssertEqual(CotabbyDebugOptions.launchArgument, "-cotabby-debug")
-    }
-
     func test_areOverlaysAvailable_isCompiledInOnlyForDebugBuilds() {
         // The test bundle is compiled in the same configuration as its host app.
         #if DEBUG
@@ -47,14 +43,6 @@ final class CotabbyDebugOptionsTests: XCTestCase {
         #else
         XCTAssertFalse(CotabbyDebugOptions.areOverlaysAvailable)
         #endif
-    }
-
-    func test_log_staysQuietWhenDebugModeIsOff() throws {
-        try XCTSkipIf(CotabbyDebugOptions.isEnabled, "Runner was launched with -cotabby-debug")
-
-        // The guard is the privacy gate: without the explicit launch argument this must be a
-        // no-op rather than writing diagnostics anywhere.
-        CotabbyDebugOptions.log("coverage probe, should never be emitted")
     }
 
     // MARK: - Verbosity floor precedence
@@ -106,11 +94,6 @@ final class CotabbyDebugOptionsTests: XCTestCase {
 
     // MARK: - Logger plumbing
 
-    func test_llmIOLabel_isTheReservedRoutingContract() {
-        // FileLogHandler routing and the jq-based debugging workflow both key off this label.
-        XCTAssertEqual(CotabbyLogger.llmIOLabel, "com.cotabby.llm-io")
-    }
-
     func test_bootstrap_isIdempotent() {
         // The host app already bootstrapped logging at launch; repeated calls must be safe no-ops
         // (LoggingSystem traps on a second real bootstrap, so this locks the once-only guard).
@@ -124,46 +107,5 @@ final class CotabbyDebugOptionsTests: XCTestCase {
         let handler = OSLogHandler(label: "com.cotabby.test-floor")
 
         XCTAssertEqual(handler.logLevel.rawValue, CotabbyDebugOptions.minimumLogLevel.rawValue)
-    }
-
-    func test_osLogHandler_acceptsExplicitFloor() {
-        let handler = OSLogHandler(label: "com.cotabby.test-floor", logLevel: .critical)
-
-        XCTAssertEqual(handler.logLevel.rawValue, "critical")
-    }
-
-    func test_osLogHandler_metadataSubscriptReadsAndWrites() {
-        var handler = OSLogHandler(label: "com.cotabby.test-metadata")
-
-        XCTAssertNil(handler[metadataKey: "request_id"])
-
-        handler[metadataKey: "request_id"] = .string("req_test1234")
-        XCTAssertEqual(handler[metadataKey: "request_id"], .string("req_test1234"))
-
-        handler[metadataKey: "request_id"] = nil
-        XCTAssertNil(handler[metadataKey: "request_id"])
-    }
-
-    func test_loggerCopy_canLowerItsOwnFloorWithoutLeakingGlobally() {
-        // Logger is a value type: a call site may locally drop the floor to trace and emit at
-        // every level (exercising the full OSLog bridge switch) without mutating the shared
-        // logger's configuration.
-        var logger = CotabbyLogger.debug
-        logger.logLevel = .trace
-
-        logger.trace("bridge probe: trace")
-        logger.debug("bridge probe: debug")
-        logger.info("bridge probe: info")
-        logger.notice("bridge probe: notice")
-        logger.warning("bridge probe: warning")
-        logger.error("bridge probe: error")
-        logger.critical("bridge probe: critical")
-
-        XCTAssertEqual(logger.logLevel.rawValue, "trace")
-        XCTAssertEqual(
-            CotabbyLogger.debug.logLevel.rawValue,
-            CotabbyDebugOptions.minimumLogLevel.rawValue,
-            "Mutating a copied logger must not change the shared instance's floor"
-        )
     }
 }

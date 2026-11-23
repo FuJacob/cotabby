@@ -67,18 +67,18 @@ final class VisualContextCoordinator {
         configuration: VisualContextConfiguration = .default
     ) {
         guard !snapshotContext.isSecure else {
-            cancel(resetState: true)
+            cancel()
             return
         }
         if self.configuration != configuration {
-            cancel(resetState: true)
+            cancel()
             self.configuration = configuration
         }
         // Surface facts can change even when an app reuses its composer and AX handle. Drop the
         // old excerpt synchronously; the settle delay below must never expose another chat's text.
         if let previous = activeSessionIdentity ?? pendingStartContext?.sessionIdentity,
            !snapshotContext.sessionIdentity.continues(previous) {
-            cancel(resetState: true)
+            cancel()
         }
         // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
         // can't restart the pipeline. The decision is pure so the invariants stay unit-testable.
@@ -98,20 +98,15 @@ final class VisualContextCoordinator {
             }
         )
 
-        switch decision {
-        case .ignore:
+        guard decision == .start else {
             return
-        case .recoverPermissionThenStart:
-            cancel(resetState: true)
-        case .start:
-            break
         }
 
         // Debounce the expensive screenshot -> OCR -> cleanup pipeline. Chromium/Electron apps
         // flap the focused AX element (lose and re-acquire it), calling this repeatedly with a
         // churning focusChangeSequence. Coalescing (above) plus a short settle window runs the
         // pipeline once focus is stable instead of once per flap — the retrigger storm in #280.
-        cancel(resetState: true)
+        cancel()
         scheduleSessionStart(for: snapshotContext)
     }
 
@@ -173,7 +168,7 @@ final class VisualContextCoordinator {
             guard screenRecordingPermissionProvider(), let currentContext,
                   currentContext.identity == snapshotContext.identity,
                   currentContext.sessionIdentity.continues(snapshotContext.sessionIdentity), !currentContext.isSecure else {
-                cancel(resetState: true)
+                cancel()
                 return
             }
             captureContext = currentContext
@@ -213,7 +208,7 @@ final class VisualContextCoordinator {
                           liveContext.identity == snapshotContext.identity,
                           liveContext.sessionIdentity.continues(snapshotContext.sessionIdentity),
                           !liveContext.isSecure else {
-                        cancel(resetState: true)
+                        cancel()
                         return
                     }
                     fieldTexts.append(liveContext.precedingText + liveContext.trailingText)
@@ -273,18 +268,16 @@ final class VisualContextCoordinator {
                   let activeSessionIdentity = self.activeSessionIdentity,
                   context.sessionIdentity.continues(activeSessionIdentity),
                   !context.isSecure else {
-                self.cancel(resetState: true)
+                self.cancel()
                 return
             }
             self.capture(context: context, session: session)
         }
     }
 
-    /// Clears screenshot-derived context state and cancels any in-flight capture/OCR work.
-    /// `resetState` lets callers choose between:
-    /// 1. Fully returning the service to `.idle`
-    /// 2. Silently tearing down a prior session because a replacement session is about to start
-    func cancel(resetState: Bool) {
+    /// Clears screenshot-derived context state, cancels any in-flight capture/OCR work, and
+    /// publishes `.idle`.
+    func cancel() {
         expiryTask?.cancel()
         expiryTask = nil
         excerptCapturedAt = nil
@@ -298,11 +291,8 @@ final class VisualContextCoordinator {
         visualContextTask = nil
         activeAugmentationSession = nil
         latestExcerpt = nil
-
-        if resetState {
-            status = .idle
-            publishState()
-        }
+        status = .idle
+        publishState()
     }
 
     /// Returns the ready visual-context excerpt for the provided focused input, if the current

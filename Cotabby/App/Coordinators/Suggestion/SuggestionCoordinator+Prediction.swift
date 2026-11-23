@@ -1386,7 +1386,7 @@ extension SuggestionCoordinator {
         resetCachedGenerationContext()
         if !preservingVisualContext,
            !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
-            visualContextCoordinator.cancel(resetState: true)
+            visualContextCoordinator.cancel()
         }
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)

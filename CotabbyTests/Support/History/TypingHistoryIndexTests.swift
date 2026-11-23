@@ -13,6 +13,20 @@ final class TypingHistoryIndexTests: XCTestCase {
         TypingHistoryQuery(text: text, bundleIdentifier: app, domain: domain, currentFieldText: field)
     }
 
+    /// Ranks then filters the way `TypingHistoryStore` does, so these tests exercise the production path.
+    private func rankedExamples(
+        in index: TypingHistoryIndex,
+        for query: TypingHistoryQuery,
+        limit: Int = 2,
+        maxCharacters: Int = 320
+    ) -> [String] {
+        TypingHistoryIndex.examples(
+            from: index.candidates(for: query, maxCharacters: maxCharacters),
+            currentFieldText: query.currentFieldText,
+            limit: limit
+        )
+    }
+
     func test_returnsThePassageThatSharesTheMostInformativeWords() {
         let index = TypingHistoryIndex(records: [
             record("The Imperum POC for the SOC team starts Monday. We will connect Microsoft Sentinel first."),
@@ -20,7 +34,7 @@ final class TypingHistoryIndexTests: XCTestCase {
             record("Our quarterly report covers revenue, hiring and the office move planned for spring.")
         ])
 
-        let examples = index.examples(for: query("schedule the Imperum POC with Sentinel for the SOC"))
+        let examples = rankedExamples(in: index, for: query("schedule the Imperum POC with Sentinel for the SOC"))
 
         XCTAssertEqual(examples.first?.contains("Sentinel"), true)
         XCTAssertFalse(examples.contains { $0.contains("Dinner") })
@@ -31,14 +45,14 @@ final class TypingHistoryIndexTests: XCTestCase {
             record("The Imperum POC for the SOC team starts Monday. We will connect Microsoft Sentinel first.")
         ])
 
-        XCTAssertEqual(index.examples(for: query("the team")), [])
+        XCTAssertEqual(rankedExamples(in: index, for: query("the team")), [])
     }
 
     func test_anOlderSnapshotOfTheSameFieldIsSkipped() {
         let draft = "Hi Arnaud, the Imperum POC with Sentinel is ready for the SOC team to review this week."
         let index = TypingHistoryIndex(records: [record(draft)])
 
-        XCTAssertEqual(index.examples(for: query("Imperum POC Sentinel SOC review", field: draft + " Let me")), [])
+        XCTAssertEqual(rankedExamples(in: index, for: query("Imperum POC Sentinel SOC review", field: draft + " Let me")), [])
     }
 
     func test_versionsOfTheDraftNeverCrowdOutAUsableExample() {
@@ -59,7 +73,7 @@ final class TypingHistoryIndexTests: XCTestCase {
             + "The Imperum POC uses Sentinel connectors for SOC alerts. " + String(repeating: "More filler text follows. ", count: 20)
         let index = TypingHistoryIndex(records: [record(long)])
 
-        let passage = index.examples(for: query("Imperum POC Sentinel connectors SOC alerts"), maxCharacters: 120).first
+        let passage = rankedExamples(in: index, for: query("Imperum POC Sentinel connectors SOC alerts"), maxCharacters: 120).first
 
         XCTAssertNotNil(passage)
         XCTAssertLessThanOrEqual(passage?.count ?? .max, 120)
@@ -72,7 +86,7 @@ final class TypingHistoryIndexTests: XCTestCase {
             record("Pipeline status for the Imperum connector build is green again today!", app: "com.google.Chrome", domain: "claude.ai")
         ])
 
-        let examples = index.examples(for: query("Imperum connector pipeline build status", app: "com.google.Chrome", domain: "claude.ai"), limit: 1)
+        let examples = rankedExamples(in: index, for: query("Imperum connector pipeline build status", app: "com.google.Chrome", domain: "claude.ai"), limit: 1)
 
         XCTAssertEqual(examples, ["Pipeline status for the Imperum connector build is green again today!"])
     }

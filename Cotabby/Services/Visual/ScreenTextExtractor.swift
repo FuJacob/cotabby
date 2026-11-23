@@ -13,18 +13,10 @@ import Logging
 
 struct ExtractedScreenText: Sendable {
     let text: String
-    let lineCount: Int
     /// Per-line OCR text paired with Vision's recognition confidence, in reading order. Carries the
     /// confidence that the joined `text` discards, so `OCRTextHygiene.dropLowConfidence` can filter on
-    /// real values instead of a synthesized constant. Defaults to empty for callers (and tests) that
-    /// only supply joined text.
+    /// real values instead of a synthesized constant.
     let lines: [OCRTextHygiene.OCRLine]
-
-    init(text: String, lineCount: Int, lines: [OCRTextHygiene.OCRLine] = []) {
-        self.text = text
-        self.lineCount = lineCount
-        self.lines = lines
-    }
 }
 
 /// Test seam for screenshot OCR.
@@ -293,7 +285,7 @@ struct ScreenTextExtractor: ScreenTextExtracting {
             "ocr-success elapsed_ms=\(Self.elapsedMilliseconds(since: startedAt)) lines=\(recognizedLines.count) " +
                 "chars=\(cappedText.count) preview=\(preview(cappedText))"
         )
-        return ExtractedScreenText(text: cappedText, lineCount: recognizedLines.count, lines: recognizedLines)
+        return ExtractedScreenText(text: cappedText, lines: recognizedLines)
     }
 
     private static func elapsedMilliseconds(since startedAt: Date) -> Int {

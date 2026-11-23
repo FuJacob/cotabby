@@ -12,10 +12,9 @@ nonisolated struct VisualContextFieldIdentity: Equatable {
 nonisolated enum VisualContextStartDecision: Equatable {
     /// Same field is already capturing or already waiting out its settle window — do nothing.
     case ignore
-    /// The active session for this field was blocked on Screen Recording permission that is now
-    /// granted — tear it down and start fresh.
-    case recoverPermissionThenStart
-    /// New or changed field — (re)arm the debounced capture.
+    /// New or changed field, or the same field whose session was blocked on Screen Recording
+    /// permission that is now granted — tear down whatever is active and (re)arm the debounced
+    /// capture.
     case start
 }
 
@@ -34,10 +33,7 @@ enum VisualContextStartCoalescer {
         pending: VisualContextFieldIdentity?
     ) -> VisualContextStartDecision {
         if active == incoming {
-            if activeIsBlockedOnScreenRecording, hasScreenRecordingPermission {
-                return .recoverPermissionThenStart
-            }
-            return .ignore
+            return activeIsBlockedOnScreenRecording && hasScreenRecordingPermission ? .start : .ignore
         }
 
         if pending == incoming {

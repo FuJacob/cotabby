@@ -48,7 +48,7 @@ nonisolated enum SurfaceContextComposer {
         guard !cleanedApplicationName.isEmpty else { return nil }
         let title = sanitizedTitle(windowTitle, applicationName: cleanedApplicationName)
         let placeholder = sanitizedPlaceholder(fieldPlaceholder)
-        let domain = registrableDomain(from: focusedURLString)
+        let domain = siteHost(from: focusedURLString)
 
         // A generic app with no title, domain, or placeholder has nothing useful to say; keep the
         // prompt bare like before rather than stating an app name of unknown signal.
@@ -69,14 +69,7 @@ nonisolated enum SurfaceContextComposer {
     /// A compact representation reduces prose about the UI for the model to imitate. The renderer
     /// still owns the section's final budget and its separation from the writer's actual draft.
     static func prefaceLines(for surface: SurfaceContext) -> [String] {
-        let format: String
-        switch surface.surfaceClass {
-        case .email: format = "email"
-        case .chat: format = "chat"
-        case .browser: format = "web text"
-        case .other: format = "text"
-        case .codeEditor, .terminal: return []
-        }
+        guard let format = formatLabel(for: surface.surfaceClass) else { return [] }
         var fields = ["Format: \(format)", "App: \(surface.applicationName)"]
         // Preserve the base preface's existing input scope: only browsers contribute a domain.
         if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
@@ -86,17 +79,12 @@ nonisolated enum SurfaceContextComposer {
     }
 
     /// Opt-in evaluation variant that removes software branding and generic composer labels.
-    /// Screening found mixed results, so production keeps `prefaceLines`. Keeping this pure
-    /// renderer separate lets the replay compare representations without mutating surface facts.
+    /// Screening found mixed results, so `prefaceLines` stays the default;
+    /// `BaseCompletionPromptRenderer` selects this one only when its compact-surface flag is set.
+    /// Keeping this pure renderer separate lets the replay compare representations without
+    /// mutating surface facts.
     static func baseCompletionPrefaceLines(for surface: SurfaceContext) -> [String] {
-        let format: String
-        switch surface.surfaceClass {
-        case .email: format = "email"
-        case .chat: format = "chat"
-        case .browser: format = "web text"
-        case .other: format = "text"
-        case .codeEditor, .terminal: return []
-        }
+        guard let format = formatLabel(for: surface.surfaceClass) else { return [] }
         var fields = ["Format: \(format)"]
         if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
         if let title = surface.windowTitle, title.caseInsensitiveCompare(surface.applicationName) != .orderedSame {
@@ -108,6 +96,17 @@ nonisolated enum SurfaceContextComposer {
             fields.append("Field: \(placeholder)")
         }
         return [fields.joined(separator: "; ") + "."]
+    }
+
+    /// The `Format:` value both renderers lead with, or `nil` for surfaces that get no preface.
+    private static func formatLabel(for surfaceClass: AppSurfaceClass) -> String? {
+        switch surfaceClass {
+        case .email: return "email"
+        case .chat: return "chat"
+        case .browser: return "web text"
+        case .other: return "text"
+        case .codeEditor, .terminal: return nil
+        }
     }
 
     // MARK: - Sanitization
@@ -141,9 +140,9 @@ nonisolated enum SurfaceContextComposer {
     }
 
     /// The page URL's host with a leading `www.` dropped. Subdomains remain useful site cues;
-    /// paths and queries stay out of the prompt because they can carry identifiers. The method
-    /// name is historical: this extracts a host, not a public-suffix-based registrable domain.
-    static func registrableDomain(from urlString: String?) -> String? {
+    /// paths and queries stay out of the prompt because they can carry identifiers. This is the
+    /// host as written, not a public-suffix-based registrable domain.
+    static func siteHost(from urlString: String?) -> String? {
         guard let urlString, !urlString.isEmpty,
               let host = URL(string: urlString)?.host?.lowercased(), !host.isEmpty
         else { return nil }

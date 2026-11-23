@@ -42,7 +42,7 @@ final class SuggestionCoordinatorLifecycleTests: SuggestionCoordinatorRigTestCas
         rig.coordinator.stop()
 
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
         XCTAssertNil(rig.inputMonitor.onEvent, "A leaked event callback outlives shutdown")
         XCTAssertNil(rig.inputMonitor.onSuppressedSyntheticInput)
         XCTAssertNil(rig.overlayController.onStateChange)
@@ -65,7 +65,7 @@ final class SuggestionCoordinatorLifecycleTests: SuggestionCoordinatorRigTestCas
         XCTAssertNil(rig.interactionState.activeSession, "A stale session must not survive a model swap")
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.coordinator.state, .idle)
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
         XCTAssertNil(rig.coordinator.latestGenerationNumber, "Diagnostics from the old model are cleared")
         XCTAssertNil(rig.coordinator.latestRequestID)
         await rig.coordinator.awaitCachedGenerationContextResetIfNeeded()
@@ -81,7 +81,7 @@ final class SuggestionCoordinatorLifecycleTests: SuggestionCoordinatorRigTestCas
         rig.coordinator.handleSuggestionSettingsChange(rig.coordinator.settingsSnapshot)
 
         XCTAssertTrue(rig.coordinator.overlayState.isVisible, "An unchanged snapshot must not reset anything")
-        XCTAssertTrue(rig.visualContext.cancelCalls.isEmpty)
+        XCTAssertEqual(rig.visualContext.cancelCount, 0)
     }
 
     func test_settingsChange_engineSwitchResetsStateAndRestartsThePipeline() {
@@ -98,7 +98,7 @@ final class SuggestionCoordinatorLifecycleTests: SuggestionCoordinatorRigTestCas
         XCTAssertEqual(rig.coordinator.settingsSnapshot, switched)
         // The obsolete visual context is cancelled, then a supported focus environment restarts
         // exactly one OCR session and schedules prediction.
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
         XCTAssertEqual(rig.visualContext.startedSessions, [rig.focusProvider.snapshot.context!])
         XCTAssertEqual(rig.coordinator.state, .debouncing)
     }
@@ -140,7 +140,7 @@ final class SuggestionCoordinatorLifecycleTests: SuggestionCoordinatorRigTestCas
             XCTAssertEqual(rig.coordinator.state, .idle, "\(testCase.name): a disabling change must not schedule")
             XCTAssertTrue(rig.visualContext.startedSessions.isEmpty, "\(testCase.name): no OCR for a disabled subsystem")
             // The obsolete visual context is still torn down.
-            XCTAssertEqual(rig.visualContext.cancelCalls, [true], testCase.name)
+            XCTAssertEqual(rig.visualContext.cancelCount, 1, testCase.name)
         }
     }
 

@@ -54,7 +54,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.state, .disabled("Cotabby is disabled in TestApp."))
         XCTAssertTrue(rig.engine.requests.isEmpty)
         // The hard-disable path tears down the field-scoped OCR session too.
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 1)
     }
 
     func test_generate_emptyFieldEndsIdleWithoutCallingTheEngine() async {
@@ -304,8 +304,9 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.coordinator.disablePredictions(reason: "Text is currently selected.", preservingVisualContext: true)
 
         XCTAssertEqual(rig.coordinator.state, .disabled("Text is currently selected."))
-        XCTAssertTrue(
-            rig.visualContext.cancelCalls.isEmpty,
+        XCTAssertEqual(
+            rig.visualContext.cancelCount,
+            0,
             "Transient disables must not destroy the field-scoped visual-context session"
         )
     }
@@ -319,13 +320,13 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.coordinator.schedulePrediction()
 
         XCTAssertEqual(rig.coordinator.state, .disabled("Text is currently selected."))
-        XCTAssertTrue(rig.visualContext.cancelCalls.isEmpty)
+        XCTAssertEqual(rig.visualContext.cancelCount, 0)
 
         // Without Screen Recording the session has nothing to keep, so the teardown still ends it.
         let withoutScreenRecording = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
         withoutScreenRecording.permissionProvider.screenRecordingGranted = false
         withoutScreenRecording.coordinator.schedulePrediction()
-        XCTAssertEqual(withoutScreenRecording.visualContext.cancelCalls, [true])
+        XCTAssertEqual(withoutScreenRecording.visualContext.cancelCount, 1)
     }
 
     // MARK: - Session reconciliation
@@ -544,13 +545,13 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.coordinator.disablePredictions(reason: "Cotabby is disabled in TestApp.")
         rig.coordinator.disablePredictions(reason: "Cotabby is disabled in TestApp.")
         XCTAssertEqual(
-            rig.visualContext.cancelCalls,
-            [true],
+            rig.visualContext.cancelCount,
+            1,
             "Every keystroke in a blocked field routes here; the second call must be a no-op"
         )
 
         rig.coordinator.disablePredictions(reason: "Cotabby is turned off.")
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true, true], "A new reason is a real transition")
+        XCTAssertEqual(rig.visualContext.cancelCount, 2, "A new reason is a real transition")
         XCTAssertEqual(rig.coordinator.state, .disabled("Cotabby is turned off."))
         await rig.coordinator.awaitCachedGenerationContextResetIfNeeded()
         XCTAssertEqual(rig.engine.resetCount, 1, "Superseded resets are cancelled; only the newest barrier runs")
@@ -565,7 +566,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
 
         XCTAssertNil(rig.interactionState.activeSession)
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
-        XCTAssertEqual(rig.visualContext.cancelCalls, [true, true])
+        XCTAssertEqual(rig.visualContext.cancelCount, 2)
     }
 
     func test_clearSuggestion_dropsDiagnosticsOnlyWhenAsked() {

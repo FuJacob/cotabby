@@ -21,7 +21,7 @@ extension SuggestionCoordinator {
         // the permission off. Granting it falls through to the schedule path below, which restarts
         // capture via `handleSupportedSnapshot`.
         if !permissionManager.screenRecordingGranted {
-            visualContextCoordinator.cancel(resetState: true)
+            visualContextCoordinator.cancel()
         }
 
         if currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil {
