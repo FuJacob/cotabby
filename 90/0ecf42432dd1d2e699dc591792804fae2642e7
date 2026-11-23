@@ -1,0 +1,36 @@
+Cotabby/Support/Runtime/OpenAICompatibleTransportPolicy.swift
+  s_9990f9098df800::t_484fa2a2d8cf66 1-185
+CotabbyTests/Support/Runtime/OpenAICompatibleTransportPolicyTests.swift
+  s_9990f9098df800::t_46485d36740c69 1-133
+  s_9990f9098df800::t_8de62c5b4fbfde 134-143
+ARCHITECTURE.md
+  s_9990f9098df800::t_2888640a6e25c0 260-262
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_ad421761227c1d 164,332,368,796,803,1135,1386,1507,1637,1690,3377-3378,4192-4193,4728,4730,5130,5132,5494,5496
+Cotabby/Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClient.swift
+  s_9990f9098df800::t_93c2d70a5ae06e 16-17,25-27,35-36,40-43,47-52,54-79,88,112,143-145,148-149,152,154,163,165-169,175-176,181-213,239-243,250-273
+Cotabby/Services/Runtime/OpenAICompatible/OpenAICompatibleSuggestionEngine.swift
+  s_9990f9098df800::t_ff471e88587285 43-45
+Cotabby/Support/Runtime/OpenAICompatibleEndpointOrigin.swift
+  s_9990f9098df800::t_41b4cc220df36b 1-42
+CotabbyTests/Services/Runtime/OpenAICompatible/OpenAICompatibleAPIClientTests.swift
+  s_9990f9098df800::t_4a0ebc7590762a 504-646,719-720,724-725
+CotabbyTests/Support/Runtime/OpenAICompatibleEndpointOriginTests.swift
+  s_9990f9098df800::t_9dfa32f6dc9540 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "900ecf42432dd1d2e699dc591792804fae2642e7",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
