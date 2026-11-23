@@ -104,8 +104,10 @@ final class RigOverlayController: SuggestionOverlayControlling {
     /// or a lagging host caret: it records the text as held and leaves `state` on the previous
     /// presentation. `landHeldPresentation()` then applies it, as the capture callback would.
     var defersPresentations = false
-    private(set) var heldPresentationText: String?
-    private var heldGeometry: SuggestionOverlayGeometry?
+    /// One value, so a held text can never be reported without the geometry it would land with.
+    private var heldPresentation: (text: String, geometry: SuggestionOverlayGeometry)?
+
+    var heldPresentationText: String? { heldPresentation?.text }
 
     init(state: OverlayState = .hidden(reason: "initial")) {
         self.state = state
@@ -119,28 +121,25 @@ final class RigOverlayController: SuggestionOverlayControlling {
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
         shownTexts.append(text)
         if defersPresentations {
-            heldPresentationText = text
-            heldGeometry = geometry
+            heldPresentation = (text, geometry)
             return
         }
-        heldPresentationText = nil
+        heldPresentation = nil
         state = .visible(text: text, geometry: geometry, mode: .inline)
         onStateChange?(state)
     }
 
     /// Applies the held presentation, the way the real controller's capture callback re-runs it.
     func landHeldPresentation() {
-        guard let text = heldPresentationText, let geometry = heldGeometry else { return }
-        heldPresentationText = nil
-        heldGeometry = nil
-        state = .visible(text: text, geometry: geometry, mode: .inline)
+        guard let held = heldPresentation else { return }
+        heldPresentation = nil
+        state = .visible(text: held.text, geometry: held.geometry, mode: .inline)
         onStateChange?(state)
     }
 
     func hide(reason: String) {
         hideReasons.append(reason)
-        heldPresentationText = nil
-        heldGeometry = nil
+        heldPresentation = nil
         state = .hidden(reason: reason)
         onStateChange?(state)
     }
@@ -293,13 +292,6 @@ struct CoordinatorRig {
     }
 }
 
-// App-hosted tests on macOS 15 can over-release @MainActor instances in Swift's
-// back-deployed isolated-deinit shim. Keep the stopped fixture graph alive, as the
-// focus/state suites already do; each test must still stop its coordinator so tasks
-// and subscriptions cannot escape into the next test. Production ownership is unchanged.
-@MainActor
-private var retainedCoordinatorRigs: [CoordinatorRig] = []
-
 @MainActor
 func makeCoordinatorRig(
     snapshot: FocusedInputSnapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
@@ -360,8 +352,9 @@ func makeCoordinatorRig(
         visualContext: visualContext,
         interactionState: interactionState
     )
-    retainedCoordinatorRigs.append(rig)
-    return rig
+    // Each test must still stop its coordinator (see `SuggestionCoordinatorRigTestCase`): a retained
+    // rig's tasks and subscriptions would otherwise outlive the test.
+    return TestLifetime.retain(rig)
 }
 
 /// Polls a main-actor condition until it holds or the timeout elapses, yielding to the run loop

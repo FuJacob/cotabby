@@ -25,13 +25,16 @@ func runOnMainActor<Result>(
 /// at the end of a test. Retaining the object sidesteps the deinit entirely. Production ownership
 /// is unchanged, and a test must still stop or cancel whatever the object started, because nothing
 /// ends that work at deinit any more.
+///
+/// A value that only holds objects, such as the coordinator rig's fixture graph, is retained whole,
+/// which keeps every object it references alive.
 enum TestLifetime {
     private static let lock = NSLock()
-    private nonisolated(unsafe) static var retained: [AnyObject] = []
+    private nonisolated(unsafe) static var retained: [Any] = []
 
     @discardableResult
-    static func retain<Object: AnyObject>(_ object: Object) -> Object {
-        lock.withLock { retained.append(object) }
-        return object
+    static func retain<Value>(_ value: Value) -> Value {
+        lock.withLock { retained.append(value) }
+        return value
     }
 }

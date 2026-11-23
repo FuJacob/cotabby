@@ -129,4 +129,18 @@ final class LlamaRuntimeModelsTests: XCTestCase {
         XCTAssertEqual(options.sentenceStopMinimumTokens, 2)
         XCTAssertTrue(options.stopAtArgmaxEOG)
     }
+
+    /// Per-token log-probabilities cost two passes over the vocabulary per token and only the
+    /// confidence gate reads them, so they are computed exactly when a floor is set.
+    func test_llamaGenerationOptions_computesLogprobOnlyWhenAConfidenceFloorIsSet() {
+        var options = LlamaGenerationOptions(
+            maxPredictionTokens: 8, temperature: 0.1, topK: 20, topP: 0.7, minP: 0.08, repetitionPenalty: 1.05, seed: nil
+        )
+        XCTAssertFalse(options.computesLogprob)
+
+        for floor in [-1.5, -100, 0] {
+            options.confidenceFloor = floor
+            XCTAssertTrue(options.computesLogprob, "floor \(floor)")
+        }
+    }
 }

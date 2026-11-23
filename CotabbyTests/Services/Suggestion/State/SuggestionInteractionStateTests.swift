@@ -3,12 +3,16 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Locks the acceptance-preparation guards in `SuggestionInteractionState` that the coordinator
-/// suites cannot reach: each one is the difference between Tab inserting text and Tab leaking
-/// through to the host as a focus-moving keystroke. Also covers the field-change and reset rules
-/// the coordinator uses to discard work for a conversation the user already left.
+/// Tests for the storage behind an active suggestion session. The coordinator owns the user-facing
+/// state machine; this type owns the mutable details: current context, active tail, and the AX-lag
+/// sentinel after Tab insertion.
+///
+/// The acceptance-preparation guards here are ones the coordinator suites cannot reach: each is the
+/// difference between Tab inserting text and Tab leaking through to the host as a focus-moving
+/// keystroke. The field-change and reset rules are the ones the coordinator uses to discard work for
+/// a conversation the user already left.
 @MainActor
-final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
+final class SuggestionInteractionStateTests: XCTestCase {
     private func makeState() -> SuggestionInteractionState {
         TestLifetime.retain(SuggestionInteractionState())
     }
@@ -439,259 +443,226 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         XCTAssertNil(state.extendPrediction(fullText: " world again", expectedSession: session))
         XCTAssertEqual(state.activeSession?.fullText, " world")
     }
-}
 
-/// Tests for the storage wrapper around active suggestion session state.
-///
-/// The coordinator owns the user-facing state machine, while this helper owns the mutable details:
-/// current context, active tail, and the AX-lag sentinel after Tab insertion.
-final class SuggestionInteractionStateTests: XCTestCase {
     func test_startSessionStoresActiveSessionAndClearsPendingInsertionSentinel() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 
-            let session = state.startSession(
-                fullText: " world",
-                liveContext: context,
-                latency: 0.2
-            )
+        let session = state.startSession(
+            fullText: " world",
+            liveContext: context,
+            latency: 0.2
+        )
 
-            XCTAssertEqual(state.activeSession, session)
-            XCTAssertEqual(state.publicationLag, .settled)
-            XCTAssertFalse(state.isAwaitingPostInsertionSync)
-        }
+        XCTAssertEqual(state.activeSession, session)
+        XCTAssertEqual(state.publicationLag, .settled)
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
     }
 
     func test_prepareAcceptance_returnsReadyForVisibleMatchingOverlay() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
 
-            let preparation = state.prepareAcceptance(
-                from: snapshot,
-                overlayState: .visible(
-                    text: " world again",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                    mode: .inline
-                ),
-                granularity: .word
-            )
+        let preparation = state.prepareAcceptance(
+            from: snapshot,
+            overlayState: .visible(
+                text: " world again",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            ),
+            granularity: .word
+        )
 
-            guard case let .ready(liveContext, session, acceptedChunk) = preparation else {
-                XCTFail("Expected acceptance to be ready")
-                return
-            }
-            XCTAssertEqual(liveContext.precedingText, "Hello")
-            XCTAssertEqual(session.remainingText, " world again")
-            XCTAssertEqual(acceptedChunk, " world")
+        guard case let .ready(liveContext, session, acceptedChunk) = preparation else {
+            XCTFail("Expected acceptance to be ready")
+            return
         }
+        XCTAssertEqual(liveContext.precedingText, "Hello")
+        XCTAssertEqual(session.remainingText, " world again")
+        XCTAssertEqual(acceptedChunk, " world")
     }
 
     func test_prepareAcceptance_rejectsVisibleOverlayTextMismatch() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
 
-            let preparation = state.prepareAcceptance(
-                from: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
-                overlayState: .visible(
-                    text: " different",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                    mode: .inline
-                ),
-                granularity: .word
-            )
+        let preparation = state.prepareAcceptance(
+            from: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
+            overlayState: .visible(
+                text: " different",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            ),
+            granularity: .word
+        )
 
-            guard case let .invalid(reason) = preparation else {
-                XCTFail("Expected overlay mismatch to reject acceptance")
-                return
-            }
-            XCTAssertEqual(
-                reason,
-                "Key passed through because no visible ghost text matched the ready suggestion."
-            )
+        guard case let .invalid(reason) = preparation else {
+            XCTFail("Expected overlay mismatch to reject acceptance")
+            return
         }
+        XCTAssertEqual(
+            reason,
+            "Key passed through because no visible ghost text matched the ready suggestion."
+        )
     }
 
     func test_prepareAcceptance_allowsHiddenOverlayWhenProcessStillMatches() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(
+            processIdentifier: 123,
+            precedingText: "Hello"
+        )
+        _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+
+        let preparation = state.prepareAcceptance(
+            from: CotabbyTestFixtures.focusedInputSnapshot(
                 processIdentifier: 123,
-                precedingText: "Hello"
-            )
-            _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+                precedingText: "Different live text"
+            ),
+            overlayState: .hidden(reason: "waiting for caret sync"),
+            granularity: .word
+        )
 
-            let preparation = state.prepareAcceptance(
-                from: CotabbyTestFixtures.focusedInputSnapshot(
-                    processIdentifier: 123,
-                    precedingText: "Different live text"
-                ),
-                overlayState: .hidden(reason: "waiting for caret sync"),
-                granularity: .word
-            )
-
-            guard case let .ready(_, _, acceptedChunk) = preparation else {
-                XCTFail("Expected hidden overlay to allow acceptance during sync")
-                return
-            }
-            XCTAssertEqual(acceptedChunk, " world")
+        guard case let .ready(_, _, acceptedChunk) = preparation else {
+            XCTFail("Expected hidden overlay to allow acceptance during sync")
+            return
         }
+        XCTAssertEqual(acceptedChunk, " world")
     }
 
     func test_prepareAcceptance_phraseGranularityAcceptsThroughSentenceTerminator() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            _ = state.startSession(fullText: " hello world. next", liveContext: context, latency: 0.1)
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        _ = state.startSession(fullText: " hello world. next", liveContext: context, latency: 0.1)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
 
-            let preparation = state.prepareAcceptance(
-                from: snapshot,
-                overlayState: .visible(
-                    text: " hello world. next",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                    mode: .inline
-                ),
-                granularity: .phrase
-            )
+        let preparation = state.prepareAcceptance(
+            from: snapshot,
+            overlayState: .visible(
+                text: " hello world. next",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            ),
+            granularity: .phrase
+        )
 
-            guard case let .ready(_, session, acceptedChunk) = preparation else {
-                XCTFail("Expected phrase acceptance to be ready")
-                return
-            }
-            // Phrase mode must delegate to nextAcceptancePhrase: the accepted chunk spans every word
-            // up to the sentence terminator, not just the first word a .word accept would take.
-            XCTAssertEqual(session.remainingText, " hello world. next")
-            XCTAssertEqual(acceptedChunk, " hello world.")
-            XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: session.remainingText), " hello")
+        guard case let .ready(_, session, acceptedChunk) = preparation else {
+            XCTFail("Expected phrase acceptance to be ready")
+            return
         }
+        // Phrase mode must delegate to nextAcceptancePhrase: the accepted chunk spans every word
+        // up to the sentence terminator, not just the first word a .word accept would take.
+        XCTAssertEqual(session.remainingText, " hello world. next")
+        XCTAssertEqual(acceptedChunk, " hello world.")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: session.remainingText), " hello")
     }
 
     func test_commitAcceptedChunkAdvancesSessionAndSetsPendingInsertionSentinel() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            let session = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", generation: 7)
+        let session = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
 
-            let progress = state.commitAcceptedChunk(" world", session: session)
+        let progress = state.commitAcceptedChunk(" world", session: session)
 
-            guard case let .advanced(advancedSession) = progress else {
-                XCTFail("Expected partial acceptance to keep the session alive")
-                return
-            }
-            XCTAssertEqual(advancedSession.acceptedText, " world")
-            XCTAssertEqual(advancedSession.remainingText, " again")
-            XCTAssertEqual(state.activeSession, advancedSession)
-            XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 6))
-            XCTAssertTrue(state.isAwaitingPostInsertionSync)
+        guard case let .advanced(advancedSession) = progress else {
+            XCTFail("Expected partial acceptance to keep the session alive")
+            return
         }
+        XCTAssertEqual(advancedSession.acceptedText, " world")
+        XCTAssertEqual(advancedSession.remainingText, " again")
+        XCTAssertEqual(state.activeSession, advancedSession)
+        XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 6))
+        XCTAssertTrue(state.isAwaitingPostInsertionSync)
     }
 
     func test_commitAcceptedChunkClearsSessionWhenTailIsExhausted() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            let session = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", generation: 4)
+        let session = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
 
-            let progress = state.commitAcceptedChunk(" world", session: session)
+        let progress = state.commitAcceptedChunk(" world", session: session)
 
-            guard case .exhausted = progress else {
-                XCTFail("Expected final chunk to exhaust the session")
-                return
-            }
-            XCTAssertNil(state.activeSession)
-            XCTAssertEqual(state.publicationLag, .settled)
+        guard case .exhausted = progress else {
+            XCTFail("Expected final chunk to exhaust the session")
+            return
         }
+        XCTAssertNil(state.activeSession)
+        XCTAssertEqual(state.publicationLag, .settled)
     }
 
     func test_reconcileActiveSessionStoresAdvancedSession() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        _ = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
 
-            let reconciliation = state.reconcileActiveSession(
-                with: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world")
-            )
+        let reconciliation = state.reconcileActiveSession(
+            with: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world")
+        )
 
-            guard case let .valid(_, session, advancement) = reconciliation else {
-                XCTFail("Expected live consumed text to advance stored session")
-                return
-            }
-            XCTAssertEqual(session.remainingText, " again")
-            XCTAssertEqual(state.activeSession?.remainingText, " again")
-            XCTAssertEqual(advancement?.advancedBy, 6)
+        guard case let .valid(_, session, advancement) = reconciliation else {
+            XCTFail("Expected live consumed text to advance stored session")
+            return
         }
+        XCTAssertEqual(session.remainingText, " again")
+        XCTAssertEqual(state.activeSession?.remainingText, " again")
+        XCTAssertEqual(advancement?.advancedBy, 6)
     }
 
     func test_advanceIfTypedCharactersMatchRequiresExpectedStoredSession() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            let storedSession = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
-            let differentExpectedSession = storedSession.advancing(by: 1)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let storedSession = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        let differentExpectedSession = storedSession.advancing(by: 1)
 
-            XCTAssertNil(
-                state.advanceIfTypedCharactersMatch(
-                    " world",
-                    expectedSession: differentExpectedSession
-                )
-            )
-
-            let advanced = state.advanceIfTypedCharactersMatch(
+        XCTAssertNil(
+            state.advanceIfTypedCharactersMatch(
                 " world",
-                expectedSession: storedSession
+                expectedSession: differentExpectedSession
             )
-            XCTAssertEqual(advanced?.remainingText, " again")
-            XCTAssertEqual(state.activeSession?.remainingText, " again")
-        }
+        )
+
+        let advanced = state.advanceIfTypedCharactersMatch(
+            " world",
+            expectedSession: storedSession
+        )
+        XCTAssertEqual(advanced?.remainingText, " again")
+        XCTAssertEqual(state.activeSession?.remainingText, " again")
     }
 
     func test_typedThroughAdvanceSurvivesTheHostsAccessibilityLag() {
         // The key event advances the session before the host publishes the character. A poll that
         // still shows the old text must not kill the session (it read as "partially undone" in the
         // Claude composer); the one that carries the character clears the sentinel.
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            let storedSession = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
-            XCTAssertNotNil(state.advanceIfTypedCharactersMatch(" wor", expectedSession: storedSession))
-            XCTAssertTrue(state.isAwaitingPostInsertionSync)
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let storedSession = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+        XCTAssertNotNil(state.advanceIfTypedCharactersMatch(" wor", expectedSession: storedSession))
+        XCTAssertTrue(state.isAwaitingPostInsertionSync)
 
-            let lagging = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello w")
-            guard case .valid(_, let survived, _)? = state.reconcileActiveSession(with: lagging) else {
-                return XCTFail("A snapshot behind the typed characters must be tolerated")
-            }
-            XCTAssertEqual(survived.remainingText, "ld again")
-            XCTAssertTrue(state.isAwaitingPostInsertionSync)
-
-            let caughtUp = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wor")
-            guard case .valid(_, let current, _)? = state.reconcileActiveSession(with: caughtUp) else {
-                return XCTFail("The published text matches the session")
-            }
-            XCTAssertEqual(current.remainingText, "ld again")
-            XCTAssertFalse(state.isAwaitingPostInsertionSync, "AX caught up: the sentinel clears")
+        let lagging = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello w")
+        guard case .valid(_, let survived, _)? = state.reconcileActiveSession(with: lagging) else {
+            return XCTFail("A snapshot behind the typed characters must be tolerated")
         }
+        XCTAssertEqual(survived.remainingText, "ld again")
+        XCTAssertTrue(state.isAwaitingPostInsertionSync)
+
+        let caughtUp = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wor")
+        guard case .valid(_, let current, _)? = state.reconcileActiveSession(with: caughtUp) else {
+            return XCTFail("The published text matches the session")
+        }
+        XCTAssertEqual(current.remainingText, "ld again")
+        XCTAssertFalse(state.isAwaitingPostInsertionSync, "AX caught up: the sentinel clears")
     }
 
     func test_typingThroughTheWholeSuggestionArmsNoSentinel() {
-        runOnMainActor {
-            let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
-            let storedSession = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
-            let exhausted = state.advanceIfTypedCharactersMatch(" world", expectedSession: storedSession)
-            XCTAssertEqual(exhausted?.isExhausted, true)
-            XCTAssertFalse(state.isAwaitingPostInsertionSync)
-        }
-    }
-
-    @MainActor
-    private func makeState() -> SuggestionInteractionState {
-        TestLifetime.retain(SuggestionInteractionState())
+        let state = makeState()
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let storedSession = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
+        let exhausted = state.advanceIfTypedCharactersMatch(" world", expectedSession: storedSession)
+        XCTAssertEqual(exhausted?.isExhausted, true)
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
     }
 }

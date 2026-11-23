@@ -150,7 +150,6 @@ final class Aria2ProvisionerTests: XCTestCase {
     func test_homebrewInstallReturnsProcessStatus() async throws {
         let successfulExecutable = try makeExecutableScript("exit 0")
         let failingExecutable = try makeExecutableScript("exit 9")
-        defer { removeFixtures(successfulExecutable, failingExecutable) }
 
         let succeeded = try await Aria2Provisioner.installWithHomebrew(
             successfulExecutable,
@@ -169,7 +168,6 @@ final class Aria2ProvisionerTests: XCTestCase {
         let executable = try makeExecutableScript(
             "trap 'exit 0' TERM; while true; do sleep 0.05; done"
         )
-        defer { removeFixtures(executable) }
 
         do {
             _ = try await Aria2Provisioner.installWithHomebrew(
@@ -188,7 +186,6 @@ final class Aria2ProvisionerTests: XCTestCase {
         let executable = try makeExecutableScript(
             "trap 'exit 0' TERM; while true; do sleep 0.05; done"
         )
-        defer { removeFixtures(executable) }
         let task = Task {
             try await Aria2Provisioner.installWithHomebrew(
                 executable,
@@ -210,17 +207,10 @@ final class Aria2ProvisionerTests: XCTestCase {
     }
 
     private func makeExecutableScript(_ body: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fake-brew-\(UUID().uuidString)")
+        let url = try makeTemporaryDirectory().appendingPathComponent("fake-brew")
         try "#!/bin/sh\n\(body)\n".write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
-    }
-
-    private func removeFixtures(_ urls: URL...) {
-        for url in urls {
-            try? FileManager.default.removeItem(at: url)
-        }
     }
 }
 

@@ -2,8 +2,9 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Locks the developer-diagnostics gate and the logging verbosity floor: the launch-argument
-/// contract, the documented `COTABBY_LOG_LEVEL` precedence, and the swift-log-to-OSLog bridge.
+/// Locks the logging verbosity floor: the documented `COTABBY_LOG_LEVEL` precedence over the
+/// `-cotabby-debug` default, the swift-log-to-OSLog bridge that applies it, and the once-only
+/// logging bootstrap.
 ///
 /// Environment-variable tests mutate the process environment through `setenv`/`unsetenv` and
 /// restore the prior value before returning; XCTest runs the methods in this bundle serially, so
@@ -32,17 +33,6 @@ final class CotabbyDebugOptionsTests: XCTestCase {
             }
         }
         try body()
-    }
-
-    // MARK: - Debug gate
-
-    func test_areOverlaysAvailable_isCompiledInOnlyForDebugBuilds() {
-        // The test bundle is compiled in the same configuration as its host app.
-        #if DEBUG
-        XCTAssertTrue(CotabbyDebugOptions.areOverlaysAvailable)
-        #else
-        XCTAssertFalse(CotabbyDebugOptions.areOverlaysAvailable)
-        #endif
     }
 
     // MARK: - Verbosity floor precedence

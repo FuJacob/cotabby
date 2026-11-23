@@ -11,14 +11,7 @@ final class PermissionHostAppTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        temporaryRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PermissionHostAppTests-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
-    }
-
-    override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: temporaryRoot)
-        try super.tearDownWithError()
+        temporaryRoot = try makeTemporaryDirectory()
     }
 
     /// Creates `<name>.app/Contents/Info.plist` with `info` and returns the bundle.

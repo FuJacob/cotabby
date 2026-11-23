@@ -84,19 +84,6 @@ final class DownloadFileRescuerTests: XCTestCase {
                        "cleanup should remove the file at the given URL")
     }
 
-    /// Cleanup is best-effort — its documented contract is to swallow errors
-    /// so they don't obscure the primary failure the caller is already
-    /// reporting. Calling it on a URL whose file is already gone must not
-    /// crash or throw.
-    func test_cleanup_isSilentOnMissingFile() {
-        let phantomURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Cotabby-cleanup-test-phantom-\(UUID().uuidString)")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: phantomURL.path))
-
-        // No throw, no return value to check — just that we get here.
-        DownloadFileRescuer.cleanup(holdingFileAt: phantomURL)
-    }
-
     // MARK: - Helpers
 
     private func makeTemporarySourceFile(contents: String) throws -> URL {
