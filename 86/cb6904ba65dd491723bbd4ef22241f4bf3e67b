@@ -1,0 +1,49 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_71ea3c6a8270c6 78,298,816,862,938,966,995,1051,1150,1448,1485,1596,1691,2056,2188,2386,2389,3678,4115,4266,4327,4472,4623,4684,4826,4944
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_b9af9eb54478c8::t_c6e30beebf508e 416-417,478
+Cotabby/Models/Settings/AcceptanceShortcuts.swift
+  s_b9af9eb54478c8::t_7bb350abb77d02 1-160
+Cotabby/Models/Settings/PowerSource.swift
+  s_b9af9eb54478c8::t_ee3719b078489d 1-37
+Cotabby/Models/Settings/SuggestionSettingsModel.swift
+  s_b9af9eb54478c8::t_54eedff9b2e4bb 154-160,163,293-298,380-385,493-495,497,661,663-677,681-686,688-689,693-698,702-707,711-716,720-728,730-732,737-738,744-745,747,749,971-1010,1018,1024,1030,1038,1048,1053,1457-1458,1462,1466-1467,1471,1475-1476,1480-1481,1506-1508,1515,1524-1545,1551,1555-1556,1561,1658,1689,1695,1698,1700,1702,1765
+Cotabby/Support/Settings/KeyRecorderState.swift
+  s_b9af9eb54478c8::t_15148984057bac 1-154
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_b9af9eb54478c8::t_e78f7eec2f0977 478
+Cotabby/UI/Settings/Components/Controls/KeyRecorderView.swift
+  s_b9af9eb54478c8::t_ccad06399cd872 24,27-28,33-35,40,46-47,49-61,66-73,75-94,97-100
+Cotabby/UI/Settings/Components/KeybindRow.swift
+  s_b9af9eb54478c8::t_4f20dc292c88a6 6-8,55
+Cotabby/UI/Settings/Panes/AppsPaneView.swift
+  s_b9af9eb54478c8::t_70398bb38b72ab 232
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift
+  s_b9af9eb54478c8::t_6a583e0fb855a6 49,56,93,95-96
+Cotabby/UI/Settings/Panes/ShortcutsPaneView.swift
+  s_b9af9eb54478c8::t_2663238043dcbd 10-13,26-27,71-72,128-129,180-194,198
+CotabbyTests/Models/Settings/AcceptanceShortcutsTests.swift
+  s_b9af9eb54478c8::t_1b275eb8002b07 1-151
+CotabbyTests/Models/Settings/SuggestionSettingsModelDoubleTapTests.swift
+  s_b9af9eb54478c8::t_e8e24519aab0d7 57-110
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_15c79a29e71550 126-131,244-249,334-336,338-339,345,351-352,365-366,378-413,418,446-447,499-559
+CotabbyTests/Support/Settings/KeyRecorderStateTests.swift
+  s_b9af9eb54478c8::t_315905ce24de59 1-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86cb6904ba65dd491723bbd4ef22241f4bf3e67b",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
