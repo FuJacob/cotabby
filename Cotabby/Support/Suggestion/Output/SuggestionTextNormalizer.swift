@@ -22,7 +22,8 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case duplicatesTrailingText
     /// The completion echoed the tail of the preceding text in full, leaving nothing new to add.
     case echoesPrecedingText
-    /// Printable characters survived but carried control/replacement glyphs the safety gate rejects.
+    /// Printable characters survived but carried control, replacement, invisible, or bidi-reordering
+    /// scalars the safety gate rejects (see `InsertionSafetyGate`).
     case unsafeToInsert
     /// The runtime withheld the completion because its mean per-token log-probability fell below
     /// the confidence floor: the model itself was unsure, and showing nothing beats a guess.
@@ -172,8 +173,8 @@ enum SuggestionTextNormalizer {
             normalized = String(normalized.drop(while: { $0.isWhitespace }))
         }
 
-        // Final safety gate: never surface control characters, replacement glyphs, or
-        // whitespace-only output as ghost text. Returning empty makes the coordinator treat this
+        // Final safety gate: never surface control characters, replacement glyphs, invisible or
+        // bidi-reordering scalars, or whitespace-only output as ghost text. Returning empty makes the coordinator treat this
         // as "no suggestion" and regenerate rather than insert junk on Tab.
         guard InsertionSafetyGate.isSafeToInsert(normalized) else {
             return SuggestionNormalizationResult(

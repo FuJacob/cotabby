@@ -54,6 +54,17 @@ final class TypingHistoryPhraseEngineTests: XCTestCase {
         XCTAssertEqual(base.calls, 1)
     }
 
+    /// A history phrase skips the normalizer, so it takes the insertion safety gate here instead: a
+    /// phrase whose ghost would not match what Tab types is treated like no phrase at all.
+    func test_phraseTheSafetyGateRefusesFallsThroughToTheModel() async throws {
+        let (engine, base, _) = makeEngine(phrase: " see the\u{202E} report")
+
+        let result = try await engine.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+
+        XCTAssertEqual(result.text, " model")
+        XCTAssertEqual(base.calls, 1)
+    }
+
     func test_liveEngineKindIsPassedToHistory() async throws {
         let (engine, _, history) = makeEngine(phrase: nil, engine: .openAICompatible)
 

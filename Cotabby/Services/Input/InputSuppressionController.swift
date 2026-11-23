@@ -23,8 +23,16 @@ final class InputSuppressionController {
     /// not just the listen-only observer's countdown. The consuming accept tap needs this: the
     /// inserter posts with `virtualKey: 0`, so if a user binds the accept key to keyCode 0 the accept
     /// tap would otherwise treat our own inserted text as accept-key presses and swallow the
-    /// insertion. The value is an arbitrary sentinel; real events default this field to 0.
-    static let syntheticEventUserData: Int64 = 0x436F_7461_6262_79
+    /// insertion.
+    ///
+    /// Drawn at random once per launch (a static `let` initializes exactly once per process) rather
+    /// than compiled in: a fixed value is readable from the public binary, and any process that
+    /// stamped it on its own key events would have them pass every Cotabby tap unobserved, neither
+    /// counted as typing nor treated as an accept key. Never 0, the value real events carry here.
+    static let syntheticEventUserData = Int64.random(in: 1...Int64.max)
+
+    /// The pid the window server reports as the source of events this process posts.
+    private static let ownProcessID = Int64(ProcessInfo.processInfo.processIdentifier)
 
     /// Arms a short-lived suppression window for the synthetic keydown events Cotabby is about to post.
     ///
@@ -64,8 +72,42 @@ final class InputSuppressionController {
         event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventUserData)
     }
 
-    /// True when the event carries Cotabby's synthetic-insertion marker.
+    /// True when the event carries Cotabby's synthetic-insertion marker and was posted by this
+    /// process.
     func isSynthetic(_ event: CGEvent) -> Bool {
-        event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventUserData
+        let userData = event.getIntegerValueField(.eventSourceUserData)
+        // Every real keystroke lands here; leave without the pid read when the marker is absent.
+        guard userData == Self.syntheticEventUserData else {
+            return false
+        }
+        let sourcePID = event.getIntegerValueField(.eventSourceUnixProcessID)
+        if Self.isSyntheticSignature(
+            userData: userData,
+            sourcePID: sourcePID,
+            marker: Self.syntheticEventUserData,
+            ownPID: Self.ownProcessID
+        ) {
+            return true
+        }
+        // Only reachable if another process reproduced this launch's marker, or if the system
+        // reports an unexpected source pid for Cotabby's own posts. The second would make our
+        // inserted text read as typing, so it is worth seeing in Console.
+        CotabbyLogger.app.warning("Ignored the synthetic-event marker on an event from pid \(sourcePID)")
+        return false
+    }
+
+    /// Pure form of `isSynthetic(_:)`, split out so the rule is testable without posting events.
+    ///
+    /// The source-pid check is a second, cheap layer behind the per-launch marker: an event another
+    /// process posts carries that process's pid. A pid of 0 is still accepted with a matching marker
+    /// so that Cotabby's own posts are never refused if the system leaves the field unset for them;
+    /// that costs nothing, because a process that could choose the pid field could equally choose
+    /// Cotabby's pid. Events without the marker are never affected, so synthetic keys from
+    /// remappers, automation tools, and remote-desktop clients keep working as accept keys.
+    static func isSyntheticSignature(userData: Int64, sourcePID: Int64, marker: Int64, ownPID: Int64) -> Bool {
+        guard marker != 0, userData == marker else {
+            return false
+        }
+        return sourcePID == ownPID || sourcePID == 0
     }
 }

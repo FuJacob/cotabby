@@ -72,4 +72,40 @@ final class InputSuppressionControllerTests: XCTestCase {
         XCTAssertTrue(controller.isSynthetic(marked))
         XCTAssertFalse(controller.isSynthetic(unmarked))
     }
+
+    /// The marker is drawn per launch, so it must never be the value real events carry (0) nor the
+    /// constant earlier builds shipped, and it must stay the same for the life of the process so
+    /// events marked before a lookup still match after it.
+    func test_syntheticMarker_isNonzeroPerLaunchValue() {
+        let marker = InputSuppressionController.syntheticEventUserData
+
+        XCTAssertNotEqual(marker, 0)
+        XCTAssertGreaterThan(marker, 0)
+        XCTAssertNotEqual(marker, 0x436F_7461_6262_79, "The old compiled-in constant must not come back")
+        XCTAssertEqual(InputSuppressionController.syntheticEventUserData, marker)
+    }
+
+    /// The identity rule: the marker must match, and the event must come from this process (or
+    /// carry no source pid). Anything without the marker is ordinary input, whoever posted it.
+    func test_syntheticSignature_requiresMarkerAndOwnOrUnsetSourcePID() {
+        let marker: Int64 = 0x1234_5678_9ABC
+        let ownPID: Int64 = 4242
+
+        func matches(userData: Int64, sourcePID: Int64) -> Bool {
+            InputSuppressionController.isSyntheticSignature(
+                userData: userData, sourcePID: sourcePID, marker: marker, ownPID: ownPID
+            )
+        }
+
+        XCTAssertTrue(matches(userData: marker, sourcePID: ownPID), "our own post")
+        XCTAssertTrue(matches(userData: marker, sourcePID: 0), "our own post with no source pid")
+        XCTAssertFalse(matches(userData: marker, sourcePID: 999), "the marker on another process's event")
+        XCTAssertFalse(matches(userData: 0, sourcePID: 0), "a hardware keystroke")
+        XCTAssertFalse(matches(userData: 0, sourcePID: 999), "a remapper's or automation tool's keystroke")
+        XCTAssertFalse(matches(userData: marker + 1, sourcePID: ownPID), "a different marker")
+        XCTAssertFalse(
+            InputSuppressionController.isSyntheticSignature(userData: 0, sourcePID: ownPID, marker: 0, ownPID: ownPID),
+            "0 is the value real events carry, so it can never act as a marker"
+        )
+    }
 }
