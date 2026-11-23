@@ -152,8 +152,7 @@ Every shortcut is rebindable under Settings → Shortcuts.
 
 Cotabby works inside other apps, so macOS asks for a few permissions. Each one maps to a specific feature, and Cotabby walks you through them on first launch:
 
-- **Accessibility** — read the text and cursor position in the field you're typing in, and insert what you accept.
-- **Input Monitoring** — notice your typing so it knows when to suggest, and detect the accept keys.
+- **Accessibility** — read the text and cursor position in the field you're typing in, notice your typing so it knows when to suggest, detect the accept keys, and insert what you accept.
 - **Screen Recording** *(optional)* — capture the area around your cursor for visual context, and to match the ghost text's font, size, and position to the app's own text where the app doesn't report them. Leave it off and everything else still works.
 
 Cotabby blocks generation, presentation, and insertion in password and other secure fields.

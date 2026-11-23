@@ -25,7 +25,6 @@ Describe the bug in one or two sentences.
 - Cotabby engine: Apple Intelligence / Open Source
 - Model name (if Open Source):
 - Accessibility permission granted: yes / no
-- Input Monitoring permission granted: yes / no
 - Screen Recording permission granted: yes / no
 
 ## Steps to reproduce

@@ -45,10 +45,10 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.overlayController.hideReasons.last, "Cotabby is temporarily paused.")
     }
 
-    func test_acceptPassesThroughAndClearsTheSessionWhenInputMonitoringIsRevoked() {
+    func test_acceptPassesThroughAndClearsTheSessionWhenAccessibilityIsRevoked() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig)
-        rig.permissionProvider.inputMonitoringGranted = false
+        rig.permissionProvider.accessibilityGranted = false
 
         XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
 
@@ -58,7 +58,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.coordinator.state, .idle)
         XCTAssertEqual(
             rig.overlayController.hideReasons.last,
-            "Input Monitoring permission is required before Cotabby can react to typing."
+            "Accessibility permission is required before Cotabby can react to typing."
         )
     }
 

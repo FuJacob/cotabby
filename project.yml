@@ -158,7 +158,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby
   # Local development build. Distinct bundle identifier + product name means a separate, stable
-  # TCC identity (Accessibility, Input Monitoring, Screen Recording survive rebuilds), the dev app
+  # TCC identity (Accessibility and Screen Recording survive rebuilds), the dev app
   # icon makes it visually distinct, and the COTABBY_DEV compilation condition disables Sparkle so
   # the prod appcast never replaces it.
   "Cotabby Dev":

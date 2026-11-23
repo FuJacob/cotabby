@@ -82,8 +82,10 @@ final class CotabbyAppEnvironment {
         let lowPowerModeMonitor = LowPowerModeMonitor()
         let keyboardInputSourceMonitor = KeyboardInputSourceMonitor()
         let suppressionController = InputSuppressionController()
+        // Accessibility authorizes both listen-only and active taps. Gating on it also keeps a
+        // listen-only tap from being created early, which would make macOS prompt for Input Monitoring.
         let inputMonitor = InputMonitor(
-            permissionProvider: { permissionManager.inputMonitoringGranted },
+            permissionProvider: { permissionManager.accessibilityGranted },
             suppressionController: suppressionController
         )
         let calendarAccessibilityCaptureGuard = CalendarAccessibilityCaptureGuard()
@@ -401,7 +403,7 @@ final class CotabbyAppEnvironment {
                         disabledAppBundleIdentifiers: settings.disabledAppBundleIdentifiers,
                         disabledDomains: PerDomainDisableSettings.disabledDomains(),
                         suggestInIntegratedTerminals: settings.suggestInIntegratedTerminals,
-                        inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+                        accessibilityGranted: permissionManager.accessibilityGranted,
                         focusSnapshot: snapshot,
                         checkCapability: false
                     ) == nil

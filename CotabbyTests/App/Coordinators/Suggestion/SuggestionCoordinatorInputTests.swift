@@ -407,20 +407,20 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
 
     // MARK: - Permission changes
 
-    func test_inputMonitoringPublisher_disablesOnRevokeAndRecoversOnGrant() {
+    func test_accessibilityPublisher_disablesOnRevokeAndRecoversOnGrant() {
         let rig = retained(makeCoordinatorRig())
 
-        rig.permissionProvider.inputMonitoringGranted = false
-        rig.permissionProvider.inputSubject.send(false)
+        rig.permissionProvider.accessibilityGranted = false
+        rig.permissionProvider.accessibilitySubject.send(false)
 
         XCTAssertEqual(
             rig.coordinator.state,
-            .disabled("Input Monitoring permission is required before Cotabby can react to typing.")
+            .disabled("Accessibility permission is required before Cotabby can react to typing.")
         )
         XCTAssertEqual(rig.visualContext.cancelCount, 1)
 
-        rig.permissionProvider.inputMonitoringGranted = true
-        rig.permissionProvider.inputSubject.send(true)
+        rig.permissionProvider.accessibilityGranted = true
+        rig.permissionProvider.accessibilitySubject.send(true)
 
         XCTAssertEqual(rig.coordinator.state, .idle)
         XCTAssertEqual(rig.visualContext.startedSessions.count, 1, "Granting restarts capture for the focused field")

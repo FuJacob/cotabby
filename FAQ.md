@@ -87,14 +87,13 @@ There are three ways:
 After launching, Cotabby lives in your menu bar and walks you through a short
 setup. It checks for and installs updates automatically when new versions ship.
 
-## 6. Why does Cotabby need Accessibility, Input Monitoring, and Screen Recording permissions?
+## 6. Why does Cotabby need Accessibility and Screen Recording permissions?
 
 Cotabby works inside other apps, so macOS asks for permissions that map to specific features:
 
 - **Accessibility:** to read the text and cursor position in the field you are
-  typing in, and to insert the text you accept.
-- **Input Monitoring:** to notice your typing so it knows when to suggest, and to
-  recognize the accept key (`Tab`).
+  typing in, to notice your typing so it knows when to suggest, to recognize the
+  accept key (`Tab`), and to insert the text you accept.
 - **Screen Recording (optional):** to capture the area around your cursor for visual
   context. Text-only autocomplete still works without it.
 
@@ -102,6 +101,9 @@ Cotabby guides you through granting each one during setup and shows a reminder i
 a permission is later turned off. You can change them anytime in System Settings
 under Privacy & Security. Cotabby blocks generation, presentation, and insertion in password and
 other secure fields.
+
+Earlier versions also asked for **Input Monitoring**. Accessibility already covers it, so
+Cotabby no longer requests it; you can turn it off for Cotabby in System Settings.
 
 ## 7. How do I use Cotabby, and how do I accept or dismiss a suggestion?
 

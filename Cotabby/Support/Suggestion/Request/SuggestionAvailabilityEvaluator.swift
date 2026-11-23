@@ -15,7 +15,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
-        inputMonitoringGranted: Bool,
+        accessibilityGranted: Bool,
         focusSnapshot: FocusSnapshot,
         checkCapability: Bool = true
     ) -> String? {
@@ -40,8 +40,8 @@ enum SuggestionAvailabilityEvaluator {
             return reason
         }
 
-        guard inputMonitoringGranted else {
-            return "Input Monitoring permission is required before Cotabby can react to typing."
+        guard accessibilityGranted else {
+            return "Accessibility permission is required before Cotabby can react to typing."
         }
 
         guard checkCapability else {
@@ -76,7 +76,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
-        inputMonitoringGranted: Bool,
+        accessibilityGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
         isFastModeEnabled: Bool = false
@@ -97,7 +97,7 @@ enum SuggestionAvailabilityEvaluator {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            inputMonitoringGranted: inputMonitoringGranted,
+            accessibilityGranted: accessibilityGranted,
             focusSnapshot: focusSnapshot,
             checkCapability: false
         ) == nil
@@ -121,7 +121,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
-        inputMonitoringGranted: Bool,
+        accessibilityGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
         isFastModeEnabled: Bool = false
@@ -144,7 +144,7 @@ enum SuggestionAvailabilityEvaluator {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            inputMonitoringGranted: inputMonitoringGranted,
+            accessibilityGranted: accessibilityGranted,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot,
             isFastModeEnabled: isFastModeEnabled

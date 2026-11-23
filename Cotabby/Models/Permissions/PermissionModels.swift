@@ -11,7 +11,6 @@ import Foundation
 /// that runtime state belongs to `PermissionManager`.
 enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     case accessibility = "Privacy_Accessibility"
-    case inputMonitoring = "Privacy_ListenEvent"
     case screenRecording = "Privacy_ScreenCapture"
 
     var id: Self { self }
@@ -20,8 +19,6 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .accessibility:
             "Accessibility"
-        case .inputMonitoring:
-            "Input Monitoring"
         case .screenRecording:
             "Screen Recording"
         }
@@ -40,8 +37,6 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .accessibility:
             "accessibility"
-        case .inputMonitoring:
-            "keyboard.fill"
         case .screenRecording:
             "rectangle.dashed.badge.record"
         }
@@ -50,9 +45,7 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     var onboardingSubtitle: String {
         switch self {
         case .accessibility:
-            "Read text fields and caret position."
-        case .inputMonitoring:
-            "Detect typing and accept with Tab."
+            "Read text fields, detect typing, and accept with Tab."
         case .screenRecording:
             "Optional: capture screen context for richer suggestions."
         }
@@ -64,7 +57,7 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     /// `SuggestionAvailabilityEvaluator.shouldCaptureVisualContext`).
     var isRequiredForAutocomplete: Bool {
         switch self {
-        case .accessibility, .inputMonitoring:
+        case .accessibility:
             true
         case .screenRecording:
             false
@@ -82,7 +75,7 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     /// negation of the other.
     var isOptionalEnhancement: Bool {
         switch self {
-        case .accessibility, .inputMonitoring:
+        case .accessibility:
             false
         case .screenRecording:
             true

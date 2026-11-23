@@ -13,8 +13,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     private static let lowPower = "Cotabby is paused because Low Power Mode is on."
     private static let terminalApp = "Cotabby is not available in terminal apps."
     private static let integratedTerminal = "Cotabby is not available in the integrated terminal."
-    private static let inputMonitoring =
-        "Input Monitoring permission is required before Cotabby can react to typing."
+    private static let accessibility =
+        "Accessibility permission is required before Cotabby can react to typing."
 
     /// A focus snapshot for one gate axis. Context is nil unless a test needs field-level facts
     /// (URL, integrated-terminal flag, identity, preceding text).
@@ -66,7 +66,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
-        inputMonitoringGranted: Bool = true,
+        accessibilityGranted: Bool = true,
         focusSnapshot: FocusSnapshot,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -79,7 +79,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            inputMonitoringGranted: inputMonitoringGranted,
+            accessibilityGranted: accessibilityGranted,
             focusSnapshot: focusSnapshot
         )
 
@@ -173,8 +173,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         assertGate(nil, suggestInIntegratedTerminals: true, focusSnapshot: makeIntegratedTerminalSnapshot())
     }
 
-    func test_inputMonitoringDenied_pointsAtThePermission() {
-        assertGate(Self.inputMonitoring, inputMonitoringGranted: false, focusSnapshot: makeSnapshot())
+    func test_accessibilityDenied_pointsAtThePermission() {
+        assertGate(Self.accessibility, accessibilityGranted: false, focusSnapshot: makeSnapshot())
     }
 
     /// `.blocked` and `.unsupported` both surface their own reason verbatim so the menu can explain
@@ -190,30 +190,30 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
 
         XCTAssertNil(
             SuggestionAvailabilityEvaluator.disabledReason(
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 focusSnapshot: blocked,
                 checkCapability: false
             )
         )
         XCTAssertEqual(
             SuggestionAvailabilityEvaluator.disabledReason(
-                inputMonitoringGranted: false,
+                accessibilityGranted: false,
                 focusSnapshot: blocked,
                 checkCapability: false
             ),
-            Self.inputMonitoring
+            Self.accessibility
         )
     }
 
     // MARK: - Guard ordering
 
     /// Each pair enables two gates at once; the earlier guard's copy must win. The order is
-    /// global off > paused > Low Power > app > domain > terminal > Input Monitoring > capability.
+    /// global off > paused > Low Power > app > domain > terminal > Accessibility > capability.
     func test_guardOrdering_earlierGateWins() {
         let unsupported = makeSnapshot(capability: .unsupported("No focused text input"))
 
         assertGate(Self.turnedOff, globallyEnabled: false, temporarilyPaused: true, focusSnapshot: makeSnapshot())
-        assertGate(Self.turnedOff, globallyEnabled: false, inputMonitoringGranted: false, focusSnapshot: makeSnapshot())
+        assertGate(Self.turnedOff, globallyEnabled: false, accessibilityGranted: false, focusSnapshot: makeSnapshot())
         assertGate(
             Self.paused,
             temporarilyPaused: true,
@@ -239,14 +239,14 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             disabledAppBundleIdentifiers: ["com.apple.Terminal"],
             focusSnapshot: makeSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
-        // Location rules beat the permission prompt: granting Input Monitoring would not help here.
+        // Location rules beat the permission prompt: granting Accessibility would not help here.
         assertGate(
             "Cotabby is disabled in TestApp.",
             disabledAppBundleIdentifiers: ["app.test"],
-            inputMonitoringGranted: false,
+            accessibilityGranted: false,
             focusSnapshot: makeSnapshot()
         )
-        assertGate(Self.inputMonitoring, inputMonitoringGranted: false, focusSnapshot: unsupported)
+        assertGate(Self.accessibility, accessibilityGranted: false, focusSnapshot: unsupported)
     }
 
     // MARK: - shouldCaptureVisualContext
@@ -254,7 +254,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     func test_shouldCaptureVisualContext_trueWhenAllowed() {
         XCTAssertTrue(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: makeSnapshot()
             )
@@ -266,7 +266,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     func test_shouldCaptureVisualContext_ignoresTransientFieldCapability() {
         XCTAssertTrue(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: makeSnapshot(capability: .blocked("Text is selected."))
             )
@@ -280,7 +280,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
 
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: snapshot,
                 isFastModeEnabled: true
@@ -288,7 +288,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: false,
                 focusSnapshot: snapshot
             )
@@ -305,7 +305,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 isLowPowerModeActive: true,
                 isLowPowerModeAutoDisableEnabled: true,
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: snapshot
             )
@@ -313,7 +313,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 disabledAppBundleIdentifiers: ["app.test"],
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: snapshot
             )
@@ -321,14 +321,14 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 disabledDomains: ["bank.com"],
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 screenRecordingGranted: true,
                 focusSnapshot: makeBrowserSnapshot(url: "https://bank.com")
             )
         )
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-                inputMonitoringGranted: false,
+                accessibilityGranted: false,
                 screenRecordingGranted: true,
                 focusSnapshot: snapshot
             )
@@ -351,7 +351,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             disabledReason: reason,
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
-            inputMonitoringGranted: true,
+            accessibilityGranted: true,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot,
             isFastModeEnabled: isFastModeEnabled

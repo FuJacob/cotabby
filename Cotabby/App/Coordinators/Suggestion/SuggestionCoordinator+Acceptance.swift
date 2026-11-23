@@ -85,7 +85,7 @@ extension SuggestionCoordinator {
         let snapshot = focusModel.snapshot
 
         // The disabled reason already covers every top-level gate (off, paused, disabled app or
-        // site, missing Input Monitoring, an unsupported field), so only the context is left.
+        // site, missing Accessibility, an unsupported field), so only the context is left.
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
             return passTabThrough(reason: disabledReason)
         }

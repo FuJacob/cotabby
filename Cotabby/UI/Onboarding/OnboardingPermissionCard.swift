@@ -25,8 +25,6 @@ extension CotabbyPermissionKind {
         switch self {
         case .accessibility:
             CotabbyBrand.accent
-        case .inputMonitoring:
-            .indigo
         case .screenRecording:
             .teal
         }

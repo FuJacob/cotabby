@@ -16,9 +16,9 @@ import Foundation
 /// runtime behavior now.
 @MainActor
 protocol SuggestionPermissionProviding: AnyObject {
-    var inputMonitoringGranted: Bool { get }
+    var accessibilityGranted: Bool { get }
     var screenRecordingGranted: Bool { get }
-    var inputMonitoringGrantedPublisher: AnyPublisher<Bool, Never> { get }
+    var accessibilityGrantedPublisher: AnyPublisher<Bool, Never> { get }
     var screenRecordingGrantedPublisher: AnyPublisher<Bool, Never> { get }
 }
 

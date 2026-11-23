@@ -26,7 +26,7 @@ nonisolated struct AcceptTapLifecycle: Equatable {
     nonisolated enum Phase: Equatable {
         /// No tap is installed.
         case absent
-        /// A reason wants the tap and Input Monitoring is granted: installed and enabled.
+        /// A reason wants the tap and Accessibility is granted: installed and enabled.
         case intercepting
         /// Nothing wants the tap; waiting for input to go quiet before switching it off.
         /// `tapEnabled` is false when the last reason change found the tap already parked: the

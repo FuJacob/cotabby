@@ -8,7 +8,7 @@
 #
 # What it does, in order:
 #   1. Stops running Cotabby / Cotabby Dev processes (exact process names, never a broad pkill).
-#   2. Resets every TCC permission (Accessibility, Input Monitoring, Screen Recording, ...), before
+#   2. Resets every TCC permission (Accessibility, Screen Recording, ...), before
 #      removal and again against the new build.
 #   3. Ejects mounted Cotabby volumes, then removes installed/built app bundles for both identities.
 #   4. Deletes preferences (via `defaults`, so cfprefsd's cache is cleared too), caches, logs,
@@ -93,7 +93,7 @@ cat <<EOF
 Cotabby kickstart will reset this Mac to a first-install state for BOTH app identities:
   - quit Cotabby and Cotabby Dev, remove installed/built app bundles
   - delete preferences, caches, logs, and saved state (onboarding will run again)
-  - reset all privacy permissions (Accessibility, Input Monitoring, Screen Recording)
+  - reset all privacy permissions (Accessibility, Screen Recording)
   - $($wipe_models && echo "DELETE downloaded models" || echo "keep downloaded models ($(IFS=,; echo "${MODEL_DIRS[*]}"))")
 EOF
 $clean_only || echo "  - build and $($open_dmg && echo "open" || echo "leave") a signed DMG at ${DMG_PATH#"$REPO_ROOT"/}"

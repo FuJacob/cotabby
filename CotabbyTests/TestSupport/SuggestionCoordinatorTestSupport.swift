@@ -10,14 +10,14 @@ import XCTest
 /// *which* boundary was poked, not return values.
 @MainActor
 final class RigPermissionProvider: SuggestionPermissionProviding {
-    var inputMonitoringGranted = true
+    var accessibilityGranted = true
     var screenRecordingGranted = true
 
-    let inputSubject = PassthroughSubject<Bool, Never>()
+    let accessibilitySubject = PassthroughSubject<Bool, Never>()
     let screenSubject = PassthroughSubject<Bool, Never>()
 
-    var inputMonitoringGrantedPublisher: AnyPublisher<Bool, Never> {
-        inputSubject.eraseToAnyPublisher()
+    var accessibilityGrantedPublisher: AnyPublisher<Bool, Never> {
+        accessibilitySubject.eraseToAnyPublisher()
     }
 
     var screenRecordingGrantedPublisher: AnyPublisher<Bool, Never> {
