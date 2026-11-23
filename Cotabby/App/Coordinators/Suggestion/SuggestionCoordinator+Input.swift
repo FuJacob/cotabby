@@ -24,17 +24,7 @@ extension SuggestionCoordinator {
             visualContextCoordinator.cancel(resetState: true)
         }
 
-        if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            focusSnapshot: focusModel.snapshot
-        ) {
+        if currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil {
             handleSupportedSnapshot(focusModel.snapshot)
         }
     }
@@ -44,17 +34,7 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Low Power Mode state changed, reconciling")
         reconcileWithCurrentEnvironment()
 
-        if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            focusSnapshot: focusModel.snapshot
-        ) {
+        if currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil {
             handleSupportedSnapshot(focusModel.snapshot)
         }
     }
@@ -82,27 +62,12 @@ extension SuggestionCoordinator {
         // temporarily disabled by transient field states (e.g., "text is selected"). The visual
         // service rejects secure fields. Skip capture when the subsystem is hard-disabled (globally off,
         // per-app disabled, terminal apps, or missing permissions) to avoid wasted compute.
-        if let context = snapshot.context,
-           SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-               globallyEnabled: settingsSnapshot.isGloballyEnabled,
-               temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-               isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-               isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-               disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-               disabledDomains: PerDomainDisableSettings.disabledDomains(),
-               suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-               inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-               screenRecordingGranted: permissionManager.screenRecordingGranted,
-               focusSnapshot: snapshot,
-               isFastModeEnabled: settingsSnapshot.isFastModeEnabled
-           ) {
-            visualContextCoordinator.startSessionIfNeeded(
-                for: context, configuration: .forEngine(settingsSnapshot.selectedEngine)
-            )
+        if let context = snapshot.context {
+            startVisualContextIfAllowed(for: context, focusSnapshot: snapshot)
         }
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
-            disablePredictionsPreservingVisualContext(reason: disabledReason)
+            disablePredictions(reason: disabledReason, preservingVisualContext: true)
         } else {
             handleSupportedSnapshot(snapshot)
         }
@@ -131,23 +96,7 @@ extension SuggestionCoordinator {
         // Start capturing visual context for newly focused input. Gated like the focus-change path
         // (and skipped in fast mode) so this entry point never kicks off screenshot/OCR work that the
         // earlier `shouldCaptureVisualContext` check already declined.
-        if SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: snapshot,
-            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
-        ) {
-            visualContextCoordinator.startSessionIfNeeded(
-                for: focusedContext, configuration: .forEngine(settingsSnapshot.selectedEngine)
-            )
-        }
+        startVisualContextIfAllowed(for: focusedContext, focusSnapshot: snapshot)
 
         if case .disabled = state {
             state = .idle
@@ -163,12 +112,8 @@ extension SuggestionCoordinator {
             } ?? false
             cancelPredictionWork()
             resetCachedGenerationContext()
-            clearSuggestion(clearDiagnostics: true)
-            suggestionAnchorCache = SuggestionAnchorCache()
-            clipboardPrefaceMemo = nil
-            _ = interactionState.materializeContext(from: focusedContext)
-            hideOverlay(reason: "Overlay hidden because the focused field changed.")
-            state = .idle
+            dropFieldScopedCaches()
+            retireSuggestion(reason: "Overlay hidden because the focused field changed.", clearDiagnostics: true)
             // Adopt the new field now. The comparison above reads the context the last generation
             // materialized, so without this every snapshot in the new process kept reading as a
             // field change and the cancel above killed each pending generation before it could
@@ -225,18 +170,17 @@ extension SuggestionCoordinator {
             await self.awaitCachedGenerationContextResetIfNeeded()
             let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
             // Build the prompt from the same context sources the first real request will read
-            // (`SuggestionCoordinator+Prediction`): the pinned clipboard and any ready screen
+            // (`SuggestionCoordinator.buildRequest`): the pinned clipboard and any ready screen
             // excerpt. The prefill is only worth its decode if the next request shares its bytes;
             // leaving these out made the first request diverge right after the surface line and
-            // re-decode everything the prewarm had already paid for.
+            // re-decode everything the prewarm had already paid for. The settings are the ones
+            // captured when the field was focused, which is why this does not call that builder.
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
                 configuration: configuration,
                 clipboardContext: self.pinnedClipboardContext(rawContext: rawContext),
-                visualContextSummary: self.permissionManager.screenRecordingGranted
-                    ? self.visualContextCoordinator.excerpt(for: prewarmContext)
-                    : nil,
+                visualContextSummary: self.screenExcerpt(for: prewarmContext),
                 historyExamples: self.historyExamples(for: prewarmContext)
             ).request
             await suggestionEngine.prewarm(for: request)
@@ -343,7 +287,7 @@ extension SuggestionCoordinator {
                 clearSuggestion(clearDiagnostics: true)
                 hideOverlay(reason: SuggestionSessionReconciler.overlayHideReason(for: event))
             }
-            if !event.shouldSchedulePrediction, state != .idle {
+            if !event.shouldSchedulePrediction {
                 state = .idle
             }
         }
@@ -656,7 +600,6 @@ extension SuggestionCoordinator {
                 reason: SuggestionSessionReconciler.overlayHideReason(for: event),
                 clearDiagnostics: false
             )
-            state = .idle
             return false
 
         case .other, .acceptance, .fullAcceptance:

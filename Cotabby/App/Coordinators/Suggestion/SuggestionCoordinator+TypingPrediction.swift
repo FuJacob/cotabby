@@ -35,8 +35,7 @@ extension SuggestionCoordinator {
         guard var candidate = typingPrediction, let raw = focusModel.snapshot.context,
               candidate.append(characters, in: raw, at: ProcessInfo.processInfo.systemUptime) else { return false }
         typingPrediction = candidate
-        delayedStreamPresentation?.cancel()
-        delayedStreamPresentation = nil
+        cancelDelayedStreamPresentation()
         // A previous partial was measured from an earlier caret. Reset only display monotonicity;
         // request identity and the finalization guard must survive the user's matching letters.
         suggestionStreamingState.resetRenderedText()
@@ -67,10 +66,9 @@ extension SuggestionCoordinator {
     /// presentation; the hidden buffer still lets a complete answer survive intervening typing.
     func receiveTypingPartial(_ result: SuggestionResult, workID: UInt64, showPartials: Bool) {
         guard workController.isCurrent(workID) else { return }
-        if firstTextRecordedWorkID != workID {
-            firstTextRecordedWorkID = workID
-            recordFirstTextLatency(Int((result.latency * 1_000).rounded()), engine: settingsSnapshot.selectedEngine)
-        }
+        engineLatency.recordFirstText(
+            milliseconds: Int((result.latency * 1_000).rounded()), engine: settingsSnapshot.selectedEngine, workID: workID
+        )
         if var candidate = typingPrediction {
             guard !candidate.isFinal, result.generation == candidate.context.generation else { return }
             guard candidate.receive(result, final: false) else {

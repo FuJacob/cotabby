@@ -8,8 +8,8 @@ import Logging
 /// This keeps acceptance simple and app-agnostic, while pairing with suppression to avoid loops.
 ///
 /// `insert(_:)` types a continuation. `replace(deletingUTF16Count:with:)` first deletes a run of
-/// already-typed characters (the `:query` the user typed before the emoji picker) and then types the
-/// replacement, which the emoji picker uses to swap `:smile` for its glyph.
+/// already-typed characters and then types the replacement: the emoji picker swaps `:smile` for its
+/// glyph this way, and the coordinator swaps a misspelled word for its correction.
 @MainActor
 final class SuggestionInserter {
     private let suppressionController: InputSuppressionController
@@ -127,7 +127,8 @@ final class SuggestionInserter {
     }
 
     /// Deletes `deletingUTF16Count` already-typed UTF-16 units, then types `text`. Used by the emoji
-    /// picker to replace the literal `:query` (or `:query:`) run with the chosen glyph.
+    /// picker to replace the literal `:query` (or `:query:`) run with the chosen glyph, and by typo
+    /// corrections to replace the misspelled word.
     ///
     /// All synthetic events are built first, then registered for suppression in a single call, then
     /// posted. Building before registering means a failed event allocation never leaves a phantom

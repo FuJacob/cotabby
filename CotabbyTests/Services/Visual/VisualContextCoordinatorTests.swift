@@ -239,7 +239,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
             screenshotContextGenerator: generator, screenRecordingPermissionProvider: { true },
             excerptLifetimeNanoseconds: 80_000_000
         )
-        coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot())
+        coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(), configuration: .default)
         defer { coordinator.cancel(resetState: true) }
         try await waitUntil { coordinator.status == .ready }
         try await waitUntil { coordinator.latestExcerpt == nil }

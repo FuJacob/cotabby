@@ -31,9 +31,9 @@ extension SuggestionCoordinator {
         // generations to cancel). The configured value is the fallback until a latency exists.
         let debounceMilliseconds = DebouncePolicy.milliseconds(
             lastGenerationLatencyMilliseconds:
-                lastLatencyByEngine[settingsSnapshot.selectedEngine],
+                engineLatency.lastCompletionMilliseconds[settingsSnapshot.selectedEngine],
             lastFirstTextLatencyMilliseconds:
-                typicalFirstTextLatency(engine: settingsSnapshot.selectedEngine),
+                engineLatency.typicalFirstTextMilliseconds(engine: settingsSnapshot.selectedEngine),
             fallback: settingsSnapshot.debounceMilliseconds,
             engine: settingsSnapshot.selectedEngine
         )
@@ -51,11 +51,7 @@ extension SuggestionCoordinator {
             await self?.generateFromCurrentFocus(workID: workID)
         }
 
-        // Equality guards keep repeated keystrokes from republishing identical state: every
-        // @Published write re-renders every coordinator observer (menu bar label included).
-        if state != .debouncing {
-            state = .debouncing
-        }
+        state = .debouncing
         logStage(
             "debouncing",
             workID: workID,
@@ -110,9 +106,7 @@ extension SuggestionCoordinator {
         let context = interactionState.materializeContext(from: rawContext)
         // Validate age before restoring prediction memory too. Expiry may synchronously cancel
         // work conditioned on the old excerpt; retry once with the now-cleared visual context.
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
+        let visualContextSummary = screenExcerpt(for: context)
         guard workController.isCurrent(workID) else {
             schedulePrediction()
             return
@@ -122,19 +116,11 @@ extension SuggestionCoordinator {
         if restoreSuggestionFromAnchorCache(context: context, workID: workID) {
             return
         }
-        let clipboardContext = pinnedClipboardContext(rawContext: rawContext)
-        let requestBuildResult = SuggestionRequestFactory.buildRequest(
-            context: context,
-            settings: settingsSnapshot,
-            configuration: configuration,
-            clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary,
-            historyExamples: historyExamples(for: context)
+        let requestBuildResult = buildRequest(
+            for: context, rawContext: rawContext, visualContextSummary: visualContextSummary
         )
-        latestGenerationNumber = context.generation
         let request = requestBuildResult.request
-        latestRequestID = request.requestID
-        latestRequestPrecedingText = request.context.precedingText
+        noteInFlightRequest(request, context: context)
 
         state = .generating
         // The model needs tens to hundreds of milliseconds; the overlay uses that time to measure
@@ -154,8 +140,7 @@ extension SuggestionCoordinator {
     /// The gates that run before any request is built: the host's own marked text (an inline
     /// prediction or IME composition) holds everything, and a field with no typed text, a caret
     /// inside a token, or an unfinished word under the boundary preference gets no request. Returns
-    /// false when it handled the cycle, so `generateFromCurrentFocus` stays within the project's
-    /// complexity budget.
+    /// false when it handled the cycle.
     private func passesPreGenerationGates(rawContext: FocusedInputSnapshot, snapshot: FocusSnapshot) -> Bool {
         // No generation while the host shows its own inline prediction or composes text.
         if rawContext.hasHostMarkedText {
@@ -172,12 +157,10 @@ extension SuggestionCoordinator {
             if interactionState.activeSession != nil {
                 reconcileActiveSession(with: snapshot)
             } else {
-                clearSuggestion()
                 let isEmpty = rawContext.precedingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                hideOverlay(reason: isEmpty
+                retireSuggestion(reason: isEmpty
                     ? "Overlay hidden because the field has no typed text yet."
                     : "Overlay hidden while waiting for a word boundary or because the caret is inside a word.")
-                state = .idle
             }
             return false
         }
@@ -223,12 +206,7 @@ extension SuggestionCoordinator {
         let session = startCompletionSession(prediction: text, visibleText: visibleText,
             context: context, latency: 0, isFinal: true, wordEndingOnly: wordEndingOnly)
         state = .ready(text: session.remainingText, latency: session.latency)
-        presentOverlay(
-            text: session.remainingText,
-            at: context.caretRect,
-            context: context,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(context.precedingText)
-        )
+        presentSessionOverlay(session, context: context)
         logStage(
             "anchor-restore",
             workID: workID,
@@ -313,26 +291,11 @@ extension SuggestionCoordinator {
         let context = interactionState.materializeContext(from: optimistic)
         pendingSpeculativeContext = context
 
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
-        // The pinned clipboard verdict, not a fresh filter pass: a speculative request that
-        // re-evaluated relevance against the optimistic prefix could flip the verdict and rewrite
-        // the prompt head mid-session, breaking prompt-byte continuity with the ordinary cycle
-        // (and the llama KV prefix reuse that depends on it).
-        let clipboardContext = pinnedClipboardContext(rawContext: optimistic)
-        let requestBuildResult = SuggestionRequestFactory.buildRequest(
-            context: context,
-            settings: settingsSnapshot,
-            configuration: configuration,
-            clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary,
-            historyExamples: historyExamples(for: context)
+        let requestBuildResult = buildRequest(
+            for: context, rawContext: optimistic, visualContextSummary: screenExcerpt(for: context)
         )
-        latestGenerationNumber = context.generation
         let request = requestBuildResult.request
-        latestRequestID = request.requestID
-        latestRequestPrecedingText = request.context.precedingText
+        noteInFlightRequest(request, context: context)
 
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
@@ -391,17 +354,9 @@ extension SuggestionCoordinator {
         let context = interactionState.materializeContext(from: optimistic)
         let identityKey = context.focusedInputIdentityKey
         let precedingText = context.precedingText
-        let requestBuildResult = SuggestionRequestFactory.buildRequest(
-            context: context,
-            settings: settingsSnapshot,
-            configuration: configuration,
-            clipboardContext: pinnedClipboardContext(rawContext: optimistic),
-            visualContextSummary: permissionManager.screenRecordingGranted
-                ? visualContextCoordinator.excerpt(for: context)
-                : nil,
-            historyExamples: historyExamples(for: context)
-        )
-        let request = requestBuildResult.request
+        let request = buildRequest(
+            for: context, rawContext: optimistic, visualContextSummary: screenExcerpt(for: context)
+        ).request
         let suggestionEngine = suggestionEngine
         Task { @MainActor [weak self] in
             let result = try? await suggestionEngine.generateSuggestion(for: request)
@@ -427,8 +382,7 @@ extension SuggestionCoordinator {
     }
 
     /// Runs the engine generation for `request` as the replaceable work for `workID`, applying the
-    /// result (or failure) only while it is still the current work. Extracted from
-    /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
+    /// result (or failure) only while it is still the current work.
     private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
         // A new generation starts a new stream. The state value deliberately preserves an already
         // scheduled drain callback while dropping the old request's partial and rendered text.
@@ -470,9 +424,58 @@ extension SuggestionCoordinator {
                 }
 
                 self.clearTypingPrediction()
-                await applyFailure(error.localizedDescription, workID: workID)
+                applyFailure(error.localizedDescription, workID: workID)
             }
         }
+    }
+
+    /// The screen excerpt a request for `context` may carry. Screen Recording is optional, so a
+    /// revoked permission must withhold an excerpt captured while it was still granted.
+    func screenExcerpt(for context: FocusedInputContext) -> String? {
+        permissionManager.screenRecordingGranted ? visualContextCoordinator.excerpt(for: context) : nil
+    }
+
+    /// Builds the request for `context` from the context sources every request kind shares.
+    /// Ordinary, speculative, and continuation requests all come through here so their prompts
+    /// keep one head: the llama KV cache is only reusable across requests whose leading bytes
+    /// match. The clipboard section is the pinned verdict, never a fresh relevance pass, for the
+    /// same reason.
+    func buildRequest(
+        for context: FocusedInputContext,
+        rawContext: FocusedInputSnapshot,
+        visualContextSummary: String?
+    ) -> SuggestionRequestBuildResult {
+        SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: settingsSnapshot,
+            configuration: configuration,
+            clipboardContext: pinnedClipboardContext(rawContext: rawContext),
+            visualContextSummary: visualContextSummary,
+            historyExamples: historyExamples(for: context)
+        )
+    }
+
+    /// Records `request` as the one in flight, so log lines join on its id and a result's leading
+    /// space is read against the text the request was built from.
+    private func noteInFlightRequest(_ request: SuggestionRequest, context: FocusedInputContext) {
+        latestGenerationNumber = context.generation
+        latestRequestID = request.requestID
+        latestRequestPrecedingText = request.context.precedingText
+    }
+
+    /// Shows a session's visible tail at the caret of the context it was just validated against.
+    private func presentSessionOverlay(
+        _ session: ActiveSuggestionSession,
+        context: FocusedInputContext,
+        isCorrection: Bool = false
+    ) {
+        presentOverlay(
+            text: session.remainingText,
+            at: context.caretRect,
+            context: context,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(context.precedingText),
+            isCorrection: isCorrection
+        )
     }
 
     /// Resolves the clipboard prompt section under the pinning policy documented on
@@ -571,7 +574,7 @@ extension SuggestionCoordinator {
               !wasDismissed(text, context: liveContext) else { return }
         let delay = presentationDelay(context: liveContext)
         if delay > 0 {
-            delayedStreamPresentation?.cancel()
+            cancelDelayedStreamPresentation()
             delayedStreamPresentation = Task { [weak self] in
                 do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
                 self?.applyStreamedPartial(partial, workID: workID)
@@ -591,8 +594,7 @@ extension SuggestionCoordinator {
             latency: partial.latency, isFinal: false, wordEndingOnly: wordOnly)
         if growsBuffer { return }
         suggestionStreamingState.recordRendered(session.remainingText)
-        presentOverlay(text: session.remainingText, at: liveContext.caretRect, context: liveContext,
-                       isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText))
+        presentSessionOverlay(session, context: liveContext)
     }
 
     /// A retained typing candidate may rebase the stream; ordinary streams must still match
@@ -635,8 +637,7 @@ extension SuggestionCoordinator {
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,
-    /// offering, or applying a correction; `false` proceeds with a normal continuation. Kept separate
-    /// so `generateFromCurrentFocus` stays within the project's cyclomatic-complexity budget.
+    /// offering, or applying a correction; `false` proceeds with a normal continuation.
     private func handleTypoGate(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
         switch TypoGate.resolve(
             precedingText: rawContext.precedingText,
@@ -656,9 +657,7 @@ extension SuggestionCoordinator {
         case .proceed:
             return false
         case .suppress:
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the current word looks misspelled.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because the current word looks misspelled.")
             logStage(
                 "typo-suppressed",
                 workID: workID,
@@ -668,9 +667,7 @@ extension SuggestionCoordinator {
         case let .offerCorrection(word, correctedWord):
             let context = interactionState.materializeContext(from: rawContext)
             guard !wasDismissed(correctedWord, context: context) else {
-                clearSuggestion()
-                hideOverlay(reason: "Overlay hidden because this correction was explicitly dismissed.")
-                state = .idle
+                retireSuggestion(reason: "Overlay hidden because this correction was explicitly dismissed.")
                 return true
             }
             presentCorrection(
@@ -744,9 +741,7 @@ extension SuggestionCoordinator {
             correctedWord: correctedWord,
             requiresTrailingSpace: true
         ) else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the automatic correction target changed.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because the automatic correction target changed.")
             logStage(
                 "typo-auto-correction-stale",
                 workID: workID,
@@ -762,9 +757,9 @@ extension SuggestionCoordinator {
         ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Automatic correction insertion failed."
             cancelPredictionWork()
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: "Overlay hidden because automatic correction insertion failed.")
-            state = .idle
+            retireSuggestion(
+                reason: "Overlay hidden because automatic correction insertion failed.", clearDiagnostics: true
+            )
             logStage(
                 "typo-auto-correction-failed",
                 workID: workID,
@@ -777,9 +772,7 @@ extension SuggestionCoordinator {
 
         focusModel.invalidateTransientCaretCaches()
         cancelPredictionWork()
-        clearSuggestion(clearDiagnostics: false)
-        hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
-        state = .idle
+        retireSuggestion(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
         logStage(
             "typo-auto-corrected",
             workID: workID,
@@ -815,13 +808,7 @@ extension SuggestionCoordinator {
             kind: .correction(typoWord: typoWord)
         )
         state = .ready(text: session.remainingText, latency: 0)
-        presentOverlay(
-            text: session.remainingText,
-            at: liveContext.caretRect,
-            context: liveContext,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText),
-            isCorrection: true
-        )
+        presentSessionOverlay(session, context: liveContext, isCorrection: true)
         logStage(
             "typo-correction-ready",
             workID: workID,
@@ -832,12 +819,10 @@ extension SuggestionCoordinator {
         prepareContinuation(after: session, rawContext: rawContext)
     }
 
-    /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
-    /// complexity budget as its guard chain grew.
+    /// Retires the cycle for a result with nothing to show, and keeps the quality ledger balanced
+    /// for the one empty case no engine-side counter already attributed.
     private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
-        clearSuggestion()
-        hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
-        state = .idle
+        retireSuggestion(reason: "Overlay hidden because the model returned an empty continuation.")
         // The router already counted engine-attributed suppressions (normalizer, confidence
         // floor); only the unattributed "model produced nothing" case needs a ledger entry.
         if result.suppressionReason == nil {
@@ -870,22 +855,20 @@ extension SuggestionCoordinator {
 
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
     func apply(result: SuggestionResult, workID: UInt64) async {
-
         guard workController.isCurrent(workID) else {
-
             return
         }
 
         suggestionStreamingState.finishGeneration()
-        delayedStreamPresentation?.cancel()
-        delayedStreamPresentation = nil
+        cancelDelayedStreamPresentation()
         guard await waitForTypingPause(workID: workID) else { return }
 
         // Record every completed result, including output later suppressed by normalization or seam
         // checks. Those requests still consumed backend time and are exactly the evidence the next
         // debounce needs to avoid another burst of doomed HTTP work.
-        lastLatencyByEngine[settingsSnapshot.selectedEngine] =
-            Int((result.latency * 1_000).rounded())
+        engineLatency.recordCompletion(
+            milliseconds: Int((result.latency * 1_000).rounded()), engine: settingsSnapshot.selectedEngine
+        )
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
         // capture often already exists here; only pay a synchronous AX walk when it does not.
@@ -897,13 +880,11 @@ extension SuggestionCoordinator {
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
-
             disablePredictions(reason: disabledReason)
             return
         }
 
         guard let rawContext = snapshot.context else {
-
             disablePredictions(reason: snapshot.capability.summary)
             return
         }
@@ -945,7 +926,6 @@ extension SuggestionCoordinator {
         }
 
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
-
             // Lifecycle discards are counted under their own reasons so `generated` always equals
             // `shown` plus the suppression histogram; without this, every drop here silently
             // inflated the generated count against the others.
@@ -963,9 +943,7 @@ extension SuggestionCoordinator {
         }
 
         guard liveContext.selection.length == 0 else {
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: "Overlay hidden because text is selected.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because text is selected.", clearDiagnostics: true)
             qualityMetricsStore.recordSuppressed(reason: "discardedSelection")
             logStage(
                 "selected-text",
@@ -988,9 +966,9 @@ extension SuggestionCoordinator {
                currentPrecedingText: liveContext.precedingText,
                acceptedPrecedingText: pendingAcceptedTail.precedingText
            ) {
-            clearSuggestion(clearDiagnostics: false)
-            hideOverlay(reason: "Overlay hidden because the regeneration only echoed the just-accepted text before the host published it.")
-            state = .idle
+            retireSuggestion(
+                reason: "Overlay hidden because the regeneration only echoed the just-accepted text before the host published it."
+            )
             qualityMetricsStore.recordSuppressed(reason: "discardedAcceptEcho")
             logStage(
                 "stale-accept-echo",
@@ -1017,9 +995,7 @@ extension SuggestionCoordinator {
         // A completion that attaches to a word the user has since ended with a space is stale
         // (see `GhostSpaceBoundary.isStaleAfterTypedSpace`).
         if GhostSpaceBoundary.isStaleAfterTypedSpace(result.text, precedingText: liveContext.precedingText) {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the completion attached to a word the user had already ended.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because the completion attached to a word the user had already ended.")
             qualityMetricsStore.recordSuppressed(reason: "punctuationAfterTypedSpace")
             logStage(
                 "stale-punctuation",
@@ -1058,9 +1034,7 @@ extension SuggestionCoordinator {
                          message: "Offered a local exact-prefix word ending.", normalizedOutput: fallback)
             } else {
                 if case let .suppress(verdict) = decision {
-                    clearSuggestion()
-                    hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
-                    state = .idle
+                    retireSuggestion(reason: "Overlay hidden because the completion failed the seam guard.")
                     qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: verdict))
                     logStage("seam-suppressed", workID: workID, generation: result.generation,
                              message: "Suppressed completion at the caret seam: \(verdict).",
@@ -1072,9 +1046,7 @@ extension SuggestionCoordinator {
             }
         }
         guard !wasDismissed(visibleText, context: liveContext) else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because this suggestion was explicitly dismissed.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because this suggestion was explicitly dismissed.")
             qualityMetricsStore.recordSuppressed(reason: "explicitDismissal")
             return
         }
@@ -1116,17 +1088,12 @@ extension SuggestionCoordinator {
         if liveContext.hasHostMarkedText {
             holdForHostMarkedText()
         } else {
-            presentOverlay(
-                text: session.remainingText,
-                at: liveContext.caretRect,
-                context: liveContext,
-                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-            )
+            presentSessionOverlay(session, context: liveContext)
         }
     }
 
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.
-    func applyFailure(_ message: String, workID: UInt64) async {
+    func applyFailure(_ message: String, workID: UInt64) {
         guard workController.isCurrent(workID) else {
             return
         }
@@ -1141,14 +1108,10 @@ extension SuggestionCoordinator {
 
     /// Recomputes whether prediction should be enabled based on current permissions and focus support.
     func reconcileWithCurrentEnvironment() {
-        let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot)
-
-        if disabledReason == nil {
-            if case .disabled = state {
-                state = .idle
-            }
-        } else if let disabledReason {
+        if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
+        } else if case .disabled = state {
+            state = .idle
         }
     }
 
@@ -1237,8 +1200,7 @@ extension SuggestionCoordinator {
     }
 
     /// Applies a `.valid` reconciliation result: completes an exhausted session, or re-renders the
-    /// remaining tail (subject to the stability gate). Extracted from `reconcileActiveSession` so that
-    /// function stays within the project's cyclomatic-complexity budget after the correction branch.
+    /// remaining tail (subject to the stability gate).
     private func applyValidReconciliation(
         liveContext: FocusedInputContext,
         reconciledSession: ActiveSuggestionSession,
@@ -1251,8 +1213,10 @@ extension SuggestionCoordinator {
             completeActiveSuggestion(
                 reason: "Overlay hidden because the active suggestion was fully consumed.",
                 scheduleNextPrediction: true,
-                stage: advancement?.exhaustionStage ?? "session-exhausted",
-                message: advancement?.exhaustionMessage ?? "The active suggestion was fully consumed."
+                stage: "session-exhausted",
+                message: advancement == nil
+                    ? "The active suggestion was fully consumed."
+                    : "The live field state fully consumed the active suggestion."
             )
             return
         }
@@ -1280,19 +1244,14 @@ extension SuggestionCoordinator {
                 Int((ProcessInfo.processInfo.systemUptime - $0) * 1000)
             }
         ) {
-            presentOverlay(
-                text: reconciledSession.remainingText,
-                at: liveContext.caretRect,
-                context: liveContext,
-                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-            )
+            presentSessionOverlay(reconciledSession, context: liveContext)
         }
         if let advancement {
             logStage(
-                advancement.stage,
+                "session-reconciled",
                 workID: currentWorkID,
                 generation: liveContext.generation,
-                message: advancement.message,
+                message: "The live field state consumed \(advancement.advancedBy) additional suggestion characters.",
                 normalizedOutput: reconciledSession.remainingText
             )
         }
@@ -1359,6 +1318,32 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Whether visual-context capture may run for `focusSnapshot` under the current settings and
+    /// permissions; see `SuggestionAvailabilityEvaluator.shouldCaptureVisualContext`.
+    func shouldCaptureVisualContext(for focusSnapshot: FocusSnapshot) -> Bool {
+        SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+        )
+    }
+
+    /// Starts the field's visual-context session when capture is allowed for `focusSnapshot`.
+    func startVisualContextIfAllowed(for context: FocusedInputSnapshot, focusSnapshot: FocusSnapshot) {
+        guard shouldCaptureVisualContext(for: focusSnapshot) else { return }
+        visualContextCoordinator.startSessionIfNeeded(
+            for: context, configuration: .forEngine(settingsSnapshot.selectedEngine)
+        )
+    }
+
     /// Whether disabling predictions for `reason` should keep `focusSnapshot`'s visual-context
     /// session; see `SuggestionAvailabilityEvaluator.shouldKeepVisualContextWhileDisabled`.
     func shouldKeepVisualContextWhileDisabled(reason: String, focusSnapshot: FocusSnapshot) -> Bool {
@@ -1379,9 +1364,14 @@ extension SuggestionCoordinator {
     }
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
-    /// The field's visual-context session survives a transient state of a field still in focus
-    /// (see `shouldKeepVisualContextWhileDisabled`); every other disable ends it.
-    func disablePredictions(reason: String) {
+    ///
+    /// The visual-context session is field-scoped and outlives individual prediction cycles, so a
+    /// transient state of a field still in focus must not end it: that would cancel an in-progress
+    /// OCR pipeline and force a redundant re-capture on the next keystroke. The focus-change path
+    /// passes `preservingVisualContext` for exactly those states ("text is selected", a brief "no
+    /// focused element" between field switches); every other caller decides by the current
+    /// snapshot (see `shouldKeepVisualContextWhileDisabled`) so both agree on when it survives.
+    func disablePredictions(reason: String, preservingVisualContext: Bool = false) {
         suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
         // here. Once the pipeline is already torn down for this exact reason there is nothing
@@ -1394,32 +1384,10 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
-        // Key, scheduling, and reconcile paths reach here for the same transient field states the
-        // focus-change path handles with `disablePredictionsPreservingVisualContext`; decide by the
-        // current snapshot so both paths agree on when the field's screen context survives.
-        if !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
+        if !preservingVisualContext,
+           !shouldKeepVisualContextWhileDisabled(reason: reason, focusSnapshot: focusModel.snapshot) {
             visualContextCoordinator.cancel(resetState: true)
         }
-        interactionState.resetAll()
-        clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: reason)
-        state = .disabled(reason)
-    }
-
-    /// Disables predictions without tearing down the visual context session.
-    ///
-    /// Transient disabled states — "text is selected", brief "no focused element"
-    /// between field switches — should not cancel an in-progress OCR pipeline. The visual context
-    /// session is field-scoped and outlives individual prediction cycles; destroying it here would
-    /// force a redundant re-capture when the user starts typing again.
-    func disablePredictionsPreservingVisualContext(reason: String) {
-        suggestionPresentationTiming.clear()
-        if isAlreadyDisabled(for: reason) {
-            return
-        }
-
-        cancelPredictionWork()
-        resetCachedGenerationContext()
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
@@ -1454,12 +1422,20 @@ extension SuggestionCoordinator {
         }
     }
 
+    /// Ends the suggestion on screen and returns the pipeline to idle: drops the session, hides
+    /// the ghost, and leaves in-flight work alone. Paths that must also retire the generation call
+    /// `cancelPredictionWork()` first.
+    func retireSuggestion(reason: String, clearDiagnostics: Bool = false, preservingContinuation: Bool = false) {
+        clearSuggestion(clearDiagnostics: clearDiagnostics, preservingContinuation: preservingContinuation)
+        hideOverlay(reason: reason)
+        state = .idle
+    }
+
     /// Clears the active suggestion and optionally preserves or drops diagnostic breadcrumbs.
     func clearSuggestion(clearDiagnostics: Bool = false, preservingContinuation: Bool = false) {
         hasPrefetchedContinuation = false
         if !preservingContinuation { cancelPreparedContinuation() }
-        delayedStreamPresentation?.cancel()
-        delayedStreamPresentation = nil
+        cancelDelayedStreamPresentation()
         // Drop any pending accepted-tail guard whenever the suggestion state is torn down (user
         // typed, focus changed, predictions disabled). The final-chunk accept re-sets it afterward.
         lastAcceptedTail = nil
@@ -1480,40 +1456,52 @@ extension SuggestionCoordinator {
     func cancelPredictionWork(preservingContinuation: Bool = false) {
         if !preservingContinuation { cancelPreparedContinuation() }
         clearTypingPrediction()
-        delayedStreamPresentation?.cancel()
-        delayedStreamPresentation = nil
+        cancelDelayedStreamPresentation()
         pendingSpeculativeContext = nil
         hostPublishPollGeneration &+= 1
         workController.cancelAll()
+    }
+
+    /// A partial held back for the typing-pause delay belongs to the caret it was measured at;
+    /// anything that moves the caret or ends the stream must drop it before it can paint.
+    func cancelDelayedStreamPresentation() {
+        delayedStreamPresentation?.cancel()
+        delayedStreamPresentation = nil
+    }
+
+    /// Drops the memory scoped to one field and its surroundings: suggestions cached for re-show
+    /// and the pinned clipboard verdict. Both were judged against the context that just went away.
+    func dropFieldScopedCaches() {
+        suggestionAnchorCache = SuggestionAnchorCache()
+        clipboardPrefaceMemo = nil
     }
 
     /// Starts an ordered backend context reset without forcing synchronous input handlers to become
     /// async. `generateFromCurrentFocus` awaits this barrier before it builds the next request, so a
     /// reset caused by focus/settings changes cannot race with the following generation.
     func resetCachedGenerationContext() {
-        pendingCacheReset?.task.cancel()
-        cacheResetSequence &+= 1
-        let sequence = cacheResetSequence
+        pendingCacheReset?.cancel()
         let suggestionEngine = suggestionEngine
-        let resetTask = Task { @MainActor in
+        pendingCacheReset = Task { @MainActor in
             guard !Task.isCancelled else {
                 return
             }
 
             await suggestionEngine.resetCachedGenerationContext()
         }
-        pendingCacheReset = (sequence, resetTask)
     }
 
     func awaitCachedGenerationContextResetIfNeeded() async {
-        guard let pendingCacheReset else {
+        guard let awaited = pendingCacheReset else {
             return
         }
 
-        await pendingCacheReset.task.value
+        await awaited.value
 
-        if self.pendingCacheReset?.sequence == pendingCacheReset.sequence {
-            self.pendingCacheReset = nil
+        // A newer reset may have replaced the barrier while this one was awaited; only the reset
+        // that was actually crossed may be retired.
+        if pendingCacheReset == awaited {
+            pendingCacheReset = nil
         }
     }
 
@@ -1563,8 +1551,7 @@ extension SuggestionCoordinator {
             return
         }
 
-        suggestionAnchorCache = SuggestionAnchorCache()
-        clipboardPrefaceMemo = nil
+        dropFieldScopedCaches()
         cancelPredictionWork()
         clearSuggestion()
         hideOverlay(reason: "Overlay hidden because screen context changed.")
@@ -1584,8 +1571,7 @@ extension SuggestionCoordinator {
         guard let deferred = deferredScreenContextRetirement else { return }
         deferred.cancel()
         deferredScreenContextRetirement = nil
-        suggestionAnchorCache = SuggestionAnchorCache()
-        clipboardPrefaceMemo = nil
+        dropFieldScopedCaches()
     }
 
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same

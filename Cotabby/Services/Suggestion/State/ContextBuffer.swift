@@ -3,8 +3,6 @@ import Foundation
 /// File overview:
 /// Assigns monotonically increasing generations to focused-input snapshots so asynchronous
 /// suggestion work can prove whether a result is still fresh for the current field.
-///
-/// Assigns generations to focused input snapshots so stale completions can be rejected safely.
 @MainActor
 final class ContextBuffer {
     private(set) var currentContext: FocusedInputContext?

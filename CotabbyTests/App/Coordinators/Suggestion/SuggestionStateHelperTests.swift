@@ -286,7 +286,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             }
             XCTAssertEqual(session.remainingText, " again")
             XCTAssertEqual(state.activeSession?.remainingText, " again")
-            XCTAssertEqual(advancement?.stage, "session-reconciled")
+            XCTAssertEqual(advancement?.advancedBy, 6)
         }
     }
 
@@ -463,31 +463,31 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
             let overlayController = FakeOverlayController()
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
-            let message = presenter.present(
+            let changed = presenter.present(
                 text: "   ",
                 geometry: CotabbyTestFixtures.overlayGeometry(caretRect: .zero),
                 previousState: overlayController.state
             )
 
-            XCTAssertEqual(message, "Overlay hidden because the suggestion text was empty.")
+            XCTAssertTrue(changed)
             XCTAssertEqual(overlayController.hideReasons, ["Overlay hidden because the suggestion text was empty."])
             XCTAssertEqual(overlayController.showCallCount, 0)
         }
     }
 
-    func test_presentNewTextShowsOverlayAndReturnsDisplayedMessage() {
+    func test_presentNewTextShowsOverlay() {
         runOnMainActor {
             let overlayController = FakeOverlayController()
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
             let caretRect = CGRect(x: 10, y: 20, width: 2, height: 18)
 
-            let message = presenter.present(
+            let changed = presenter.present(
                 text: " world",
                 geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect),
                 previousState: overlayController.state
             )
 
-            XCTAssertEqual(message, "Displayed ghost text near the caret.")
+            XCTAssertTrue(changed)
             XCTAssertEqual(overlayController.lastShownText, " world")
             XCTAssertEqual(overlayController.lastShownCaretRect, caretRect)
             XCTAssertEqual(overlayController.showCallCount, 1)
@@ -503,25 +503,25 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
             )
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
-            let message = presenter.present(
+            let changed = presenter.present(
                 text: " world",
                 geometry: geometry,
                 previousState: overlayController.state
             )
 
-            XCTAssertNil(message)
+            XCTAssertFalse(changed)
             XCTAssertEqual(overlayController.showCallCount, 0)
         }
     }
 
-    func test_presentSameTextAtNewCaretReturnsMovedMessage() {
+    func test_presentSameTextAtNewCaretShowsAgain() {
         runOnMainActor {
             let previousRect = CGRect(x: 10, y: 20, width: 2, height: 18)
             let nextRect = CGRect(x: 30, y: 20, width: 2, height: 18)
             let overlayController = FakeOverlayController()
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
-            let message = presenter.present(
+            let changed = presenter.present(
                 text: " world",
                 geometry: CotabbyTestFixtures.overlayGeometry(caretRect: nextRect),
                 previousState: .visible(
@@ -531,17 +531,19 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
                 )
             )
 
-            XCTAssertEqual(message, "Moved ghost text to the latest caret position.")
+            XCTAssertTrue(changed)
+            XCTAssertEqual(overlayController.lastShownCaretRect, nextRect)
+            XCTAssertEqual(overlayController.showCallCount, 1)
         }
     }
 
-    func test_presentSameTextAndCaretWithNewQualityReturnsStylingMessage() {
+    func test_presentSameTextAndCaretWithNewQualityShowsAgain() {
         runOnMainActor {
             let caretRect = CGRect(x: 10, y: 20, width: 2, height: 18)
             let overlayController = FakeOverlayController()
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
-            let message = presenter.present(
+            let changed = presenter.present(
                 text: " world",
                 geometry: CotabbyTestFixtures.overlayGeometry(
                     caretRect: caretRect,
@@ -554,7 +556,8 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
                 )
             )
 
-            XCTAssertEqual(message, "Updated ghost text styling for the latest caret quality.")
+            XCTAssertTrue(changed)
+            XCTAssertEqual(overlayController.showCallCount, 1)
         }
     }
 
@@ -563,9 +566,8 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
             let overlayController = FakeOverlayController()
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
-            let message = presenter.hide(reason: "Overlay hidden for test.")
+            presenter.hide(reason: "Overlay hidden for test.")
 
-            XCTAssertEqual(message, "Overlay hidden for test.")
             XCTAssertEqual(overlayController.hideReasons, ["Overlay hidden for test."])
         }
     }
@@ -576,7 +578,7 @@ final class SuggestionCaretPredictionTests: XCTestCase {
         runOnMainActor {
             let oldRect = CGRect(x: 10, y: 20, width: 2, height: 18)
 
-            let predicted = SuggestionCoordinator.predictedCaretRect(
+            let predicted = PredictedCaretAdvance.caretRect(
                 after: "abcd",
                 oldCaretRect: oldRect,
                 caretQuality: .exact,
@@ -593,7 +595,7 @@ final class SuggestionCaretPredictionTests: XCTestCase {
         runOnMainActor {
             let oldRect = CGRect(x: 10, y: 20, width: 2, height: 18)
 
-            let predicted = SuggestionCoordinator.predictedCaretRect(
+            let predicted = PredictedCaretAdvance.caretRect(
                 after: "abcd",
                 oldCaretRect: oldRect,
                 caretQuality: .estimated,
@@ -610,7 +612,7 @@ final class SuggestionCaretPredictionTests: XCTestCase {
 
     func test_predictedCaretRectFloorsTinyEstimatedShifts() {
         runOnMainActor {
-            let predicted = SuggestionCoordinator.predictedCaretRect(
+            let predicted = PredictedCaretAdvance.caretRect(
                 after: "a",
                 oldCaretRect: CGRect(x: 10, y: 20, width: 2, height: 18),
                 caretQuality: .estimated,
@@ -624,7 +626,7 @@ final class SuggestionCaretPredictionTests: XCTestCase {
 
     func test_predictedCaretRectShiftsLeftForRightToLeftText() {
         runOnMainActor {
-            let predicted = SuggestionCoordinator.predictedCaretRect(
+            let predicted = PredictedCaretAdvance.caretRect(
                 after: "abcd",
                 oldCaretRect: CGRect(x: 100, y: 20, width: 2, height: 18),
                 caretQuality: .exact,

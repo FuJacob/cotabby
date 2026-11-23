@@ -7,11 +7,11 @@ import Foundation
 /// Architectural role:
 /// `SuggestionCoordinator` owns mutable session state. This file owns the deterministic rules for
 /// transforming that state when new editor input arrives.
+/// How far the live field moved through the suggestion since the last reconciliation. Whether
+/// that exhausted it is read from the reconciled session, and the wording for logs is the
+/// coordinator's.
 struct SuggestionSessionAdvancement: Equatable, Sendable {
-    let stage: String
-    let message: String
-    let exhaustionStage: String
-    let exhaustionMessage: String
+    let advancedBy: Int
 }
 
 enum SuggestionSessionReconciliation: Equatable, Sendable {
@@ -143,19 +143,11 @@ enum SuggestionSessionReconciler {
             )
         }
 
-        let advancedBy = consumedSuffix.count - session.consumedCharacterCount
-        let advancement = SuggestionSessionAdvancement(
-            stage: reconciledSession.isExhausted ? "session-exhausted" : "session-reconciled",
-            message: reconciledSession.isExhausted
-                ? "The live field state caught up with the fully consumed suggestion."
-                : "The live field state consumed \(advancedBy) additional suggestion characters.",
-            exhaustionStage: "session-exhausted",
-            exhaustionMessage: "The live field state fully consumed the active suggestion."
-        )
-
         return .valid(
             session: reconciledSession,
-            advancement: advancement,
+            advancement: SuggestionSessionAdvancement(
+                advancedBy: consumedSuffix.count - session.consumedCharacterCount
+            ),
             nextPendingInsertionConsumedCount: nextPendingInsertionConsumedCount
         )
     }

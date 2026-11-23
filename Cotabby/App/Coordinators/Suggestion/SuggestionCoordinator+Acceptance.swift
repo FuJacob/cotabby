@@ -84,28 +84,13 @@ extension SuggestionCoordinator {
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
         let snapshot = focusModel.snapshot
 
+        // The disabled reason already covers every top-level gate (off, paused, disabled app or
+        // site, missing Input Monitoring, an unsupported field), so only the context is left.
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
             return passTabThrough(reason: disabledReason)
         }
 
-        return acceptEnabledSuggestion(fullText: fullText, keyName: keyName, snapshot: snapshot)
-    }
-
-    /// Continues acceptance after global, per-app, and temporary-pause gating succeeds. Keeping the
-    /// eligibility boundary separate prevents the state-machine-heavy acceptance path from gaining
-    /// another decision branch each time Cotabby adds a new top-level disable mechanism.
-    private func acceptEnabledSuggestion(
-        fullText: Bool,
-        keyName: String,
-        snapshot: FocusSnapshot
-    ) -> Bool {
-        guard permissionManager.inputMonitoringGranted else {
-            return passTabThrough(
-                reason: "Input Monitoring permission is required before Cotabby can accept suggestions."
-            )
-        }
-
-        guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
+        guard let rawContext = snapshot.context else {
             return passTabThrough(reason: snapshot.capability.summary)
         }
 
@@ -208,9 +193,7 @@ extension SuggestionCoordinator {
         if !insertionText.isEmpty, !suggestionInserter.insert(insertionText) {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: "Overlay hidden because suggestion insertion failed.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because suggestion insertion failed.", clearDiagnostics: true)
             logStage(
                 "insert-failed",
                 workID: currentWorkID,
@@ -246,9 +229,10 @@ extension SuggestionCoordinator {
         case .exhausted:
             let hasPreparedContinuation = markPreparedContinuationCommitted(after: sessionForAcceptance)
             latestGenerationNumber = liveContext.generation
-            clearSuggestion(clearDiagnostics: false, preservingContinuation: hasPreparedContinuation)
-            hideOverlay(reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.")
-            state = .idle
+            retireSuggestion(
+                reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.",
+                preservingContinuation: hasPreparedContinuation
+            )
             // Remember what we just committed and the text it followed. `apply` consumes this to drop
             // a regeneration that only re-proposes the same tail before the host publishes the insert
             // (see the `schedulePredictionAfterHostPublishDelay` rationale below).
@@ -396,7 +380,7 @@ extension SuggestionCoordinator {
         }
 
         let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-        let predictedCaret = Self.predictedCaretRect(
+        let predictedCaret = PredictedCaretAdvance.caretRect(
             after: insertionChunk,
             oldCaretRect: liveContext.caretRect,
             caretQuality: liveContext.caretQuality,
@@ -418,7 +402,6 @@ extension SuggestionCoordinator {
     /// Handles the accept key when no buffered session exists. During the brief post-exhaustion
     /// regeneration window we keep owning the key and queue the press so rapid Tabbing keeps
     /// inserting words across the exhaustion boundary; otherwise the key passes through to the host.
-    /// Extracted from `acceptSuggestion` to keep that function within the complexity budget.
     private func handleAcceptWithoutActiveSession(keyName: String) -> Bool {
         // A final-chunk accept tears the session down and regenerates the continuation
         // asynchronously (see the `.exhausted` branch). While that regen is in flight we keep owning
@@ -473,9 +456,7 @@ extension SuggestionCoordinator {
         ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
             cancelPredictionWork()
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: "Overlay hidden because correction insertion failed.")
-            state = .idle
+            retireSuggestion(reason: "Overlay hidden because correction insertion failed.", clearDiagnostics: true)
             logStage(
                 "correction-insert-failed",
                 workID: currentWorkID,
@@ -492,9 +473,10 @@ extension SuggestionCoordinator {
         cancelPredictionWork(preservingContinuation: true)
         let hasPreparedContinuation = markPreparedContinuationCommitted(after: session)
         latestGenerationNumber = session.baseContext.generation
-        clearSuggestion(clearDiagnostics: false, preservingContinuation: hasPreparedContinuation)
-        hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
-        state = .idle
+        retireSuggestion(
+            reason: "Overlay hidden because \(keyName) accepted a typo correction.",
+            preservingContinuation: hasPreparedContinuation
+        )
         let workID = currentWorkID
         deferAcceptanceBookkeeping { [weak self] in
             self?.recordAcceptedWords(from: replacement.replacementText)
@@ -554,9 +536,7 @@ extension SuggestionCoordinator {
         suggestionPresentationTiming.clear()
         let generation = latestGenerationNumber
         cancelPredictionWork()
-        clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: reason)
-        state = .idle
+        retireSuggestion(reason: reason, clearDiagnostics: true)
         let workID = currentWorkID
         deferAcceptanceBookkeeping { [weak self] in
             self?.logStage(
@@ -629,7 +609,7 @@ extension SuggestionCoordinator {
     /// Once a regenerated continuation is on screen, accepts its first word if the user pressed Tab
     /// while it was still loading. Keeps rapid Tabbing inserting words across the exhaustion boundary
     /// instead of stalling. Bounded to one queued accept so mashing Tab cannot run away. Called at the
-    /// end of `apply`'s success path, after the new session and overlay exist.
+    /// end of `presentFreshResult`, after the new session and overlay exist.
     func flushQueuedPostExhaustionAcceptIfNeeded() {
         // Consuming also ends the window when no press was queued, invalidating the backstop now that
         // normal acceptance has resumed with a fresh visible suggestion.
@@ -734,9 +714,7 @@ extension SuggestionCoordinator {
             )
         }
         cancelPredictionWork()
-        clearSuggestion(clearDiagnostics: clearDiagnostics)
-        hideOverlay(reason: reason)
-        state = .idle
+        retireSuggestion(reason: reason, clearDiagnostics: clearDiagnostics)
         // The tail a deferred screen-context change was waiting to retire is gone, and the caller
         // decides whether to predict; left pending, it would cancel that newer work on waking.
         settleDeferredScreenContextChange()
@@ -750,9 +728,7 @@ extension SuggestionCoordinator {
         message: String
     ) {
         let generation = latestGenerationNumber
-        clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
-        hideOverlay(reason: reason)
-        state = .idle
+        retireSuggestion(reason: reason, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
         settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
@@ -790,85 +766,6 @@ extension SuggestionCoordinator {
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
     }
 
-    // MARK: - Caret Prediction
-
-    /// Estimates the caret rect after inserting a chunk by shifting the old caret in the text
-    /// direction. LTR shifts right; RTL shifts left.
-    /// When `observedCharWidth` is available (measured from real AX child frames), we use it
-    /// directly — this matches the target app's actual font. Otherwise the field's resolved font
-    /// measures the chunk (the host's true caret travel), and only a host with no usable style
-    /// falls back to a system-font approximation.
-    static func predictedCaretRect(
-        after insertedChunk: String,
-        oldCaretRect: CGRect,
-        caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?,
-        fieldStyle: ResolvedFieldStyle? = nil,
-        isRightToLeft: Bool = false
-    ) -> CGRect {
-        let measuredWidth = predictedChunkWidth(
-            insertedChunk: insertedChunk,
-            observedCharWidth: observedCharWidth,
-            fieldStyle: fieldStyle
-        )
-        let chunkWidth: CGFloat
-
-        switch caretQuality {
-        case .exact, .derived, .layoutEstimated:
-            // `.layoutEstimated` is unreachable here in practice — prediction always receives the
-            // context's raw resolver quality, and the layout repair only upgrades the overlay
-            // geometry, never the context. Folded into the trusted arm to keep the switch
-            // exhaustive with the semantics it would want anyway.
-            chunkWidth = measuredWidth
-
-        case .estimated:
-            // Estimated caret geometry is already low-confidence. If we apply the full predicted
-            // shift after every Tab, the overlay can visibly march away from the real caret before
-            // AX catches up. We still keep this path separate from trusted geometry, but we apply
-            // an explicit upward bias here because the previous tuning was visibly lagging in
-            // larger editors that only expose coarse AXFrame fallbacks.
-            let estimatedPredictionBias: CGFloat = 1.5
-            let conservativeCap = max(
-                CGFloat(34) * estimatedPredictionBias,
-                CGFloat(insertedChunk.count) * 13 * estimatedPredictionBias
-            )
-            chunkWidth = min(
-                max(measuredWidth * 0.91 * estimatedPredictionBias, 14 * estimatedPredictionBias),
-                conservativeCap
-            )
-        }
-
-        let shift = isRightToLeft ? -chunkWidth : chunkWidth
-        return CGRect(
-            x: oldCaretRect.origin.x + shift,
-            y: oldCaretRect.origin.y,
-            width: oldCaretRect.width,
-            height: oldCaretRect.height
-        )
-    }
-
-    private static func predictedChunkWidth(
-        insertedChunk: String,
-        observedCharWidth: CGFloat?,
-        fieldStyle: ResolvedFieldStyle? = nil
-    ) -> CGFloat {
-        if let observed = observedCharWidth {
-            return observed * CGFloat(insertedChunk.count)
-        }
-
-        // The field's own font is the host's true caret travel; the system-14 fallback measured
-        // TextEdit's Helvetica 12 a quarter too wide, and the resulting overshoot surfaced as a
-        // corrective snap once AX published the real caret.
-        if let hostAdvance = InsertedTextAdvance.width(of: insertedChunk, style: fieldStyle) {
-            return hostAdvance
-        }
-
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14)
-        ]
-        return (insertedChunk as NSString).size(withAttributes: attrs).width
-    }
-
     /// Gives the host app ~30ms to process the synthetic keystroke, then forces an AX snapshot
     /// so the overlay snaps to the real caret position without waiting for the 80ms poll.
     func schedulePostInsertionRefresh() {
@@ -889,7 +786,7 @@ extension SuggestionCoordinator {
         isCorrection: Bool = false,
         pendingInsertion: String = ""
     ) {
-        let anchor = Self.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: caretRect,
             pendingInsertion: pendingInsertion,
@@ -919,14 +816,9 @@ extension SuggestionCoordinator {
             observedContentEdges: context.observedContentEdges,
             isCaretLineVerticallyUncalibrated: anchor.isCaretLineVerticallyUncalibrated
         )
-        let presentationMessage = overlayPresenter.present(
-            text: text,
-            geometry: geometry,
-            previousState: overlayState
-        )
         // An identical text/geometry update is a no-op: an old visible panel must not satisfy a
         // new input's timing measurement. Inline advances record through the same helper below.
-        if presentationMessage != nil {
+        if overlayPresenter.present(text: text, geometry: geometry, previousState: overlayState) {
             recordSuggestionPresentation(context: context, isCorrection: isCorrection)
         }
     }
@@ -953,214 +845,6 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.
-    ///
-    /// The repair's authority is scoped by where the AX geometry came from, not just its quality:
-    ///   - `.estimated` (AXFrame-only hosts): the AX guess has no real position at all, so a
-    ///     passing estimate always replaces it. Applies to web and native hosts alike, because
-    ///     there is no real measurement to protect.
-    ///   - `.derived` in a native host: never repaired, the estimator does not run. Native AX
-    ///     per-character bounds come from the app's real layout manager and reflect rendering the
-    ///     uniform hidden layout cannot model (Notes renders a 23pt title line above 16pt body
-    ///     lines, plus paragraph spacing, so the layout "disagrees" within a few lines while AX is
-    ///     exactly right). A vertical mismatch there indicts the estimate, not AX.
-    ///   - `.derived` with measured run frames (Gmail/Outlook child-run hosts): the rect's Y is a
-    ///     real rendered line, so it is always kept and the estimator does not run at all; the
-    ///     layout estimate cannot beat measurement (and is blind to blank lines those hosts
-    ///     collapse out of the AX text).
-    ///   - `.derived` web content without run frames (previous-character bounds through a web
-    ///     engine's AX bridge, which has known wrong-line pathologies): the estimate (calibrated
-    ///     with whatever the host revealed) only overrides the AX rect when the two disagree
-    ///     vertically by more than `verticallyAgrees` tolerates; on agreement the AX rect is kept.
-    ///
-    /// On substitution the overlay geometry is upgraded to `.layoutEstimated`, which the render
-    /// policy trusts for inline ghost text; on rejection the passed rect and quality survive
-    /// untouched. The context itself is never mutated — resolver truth stays intact for
-    /// reconciliation and caret prediction.
-    ///
-    /// `pendingInsertion` exists for the word-accept path: the synthetic insert has not been
-    /// published back through AX yet, so `context.precedingText` is pre-insertion while the caret
-    /// belongs after the inserted chunk. Appending the chunk lets the layout place the caret where
-    /// the text actually is, including a wrap onto the next line that a pure X-shift cannot model.
-    ///
-    /// Static (like `predictedCaretRect`) so tests can exercise the substitution rule directly.
-    static func layoutRepairedAnchor(
-        for context: FocusedInputContext,
-        fallbackRect: CGRect,
-        pendingInsertion: String,
-        isRightToLeft: Bool
-    ) -> LayoutRepairedAnchor {
-        let quality = context.caretQuality
-        guard quality == .estimated || quality == .derived else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil, skipReason: nil)
-        }
-
-        // A caret inside a wrapped paragraph run (CodeMirror in Obsidian, see `WrappedRunAnchor`):
-        // the paragraph is laid out in the run's own frame at the sibling runs' pitch, and the
-        // line the caret lands on is placed from the union's top. That geometry is measured (frame
-        // and pitch) except for the x inside the line, which is the host font's advance.
-        // A one-line run is not laid out again: its frame is the host's own line box, so the
-        // Accessibility caret already has the right line and only its x is approximate (the pixel
-        // read corrects that at presentation). Laying it out put the caret fourteen lines up.
-        if let edges = context.observedContentEdges, let wrapped = edges.wrappedRun, !wrapped.spansOneLine {
-            return wrappedRunAnchor(
-                edges: edges, context: context, fallbackRect: fallbackRect,
-                pendingInsertion: pendingInsertion, isRightToLeft: isRightToLeft
-            )
-        }
-
-        // Derived rects carry a real AX measurement, so whether the estimate may second-guess
-        // them depends on who produced the measurement. Both bypasses skip the estimator
-        // entirely rather than computing a diagnostic they can never act on: this path runs
-        // inside the accept keystroke's handling window, where every spent millisecond of layout
-        // work on a large flat prefix is pure risk during a rapid Tab burst.
-        if quality == .derived {
-            // Native hosts: per-character bounds come from the app's own layout manager and are
-            // ground truth, while the uniform hidden layout cannot model rich text (Notes' taller
-            // title line and paragraph spacing put it a line off within a few paragraphs). Only
-            // web engines' AX bridges have the wrong-line pathologies the override exists for.
-            if !context.isWebContentField {
-                return LayoutRepairedAnchor(
-                    rect: fallbackRect, quality: .derived, outcome: nil, skipReason: .nativeHostGeometry
-                )
-            }
-            // Run-measured derived rects are kept unconditionally: run frames carry the host's
-            // real line positions, including blank lines some hosts omit from the AX text. The
-            // provenance check matters because content edges can now also come from the host's
-            // line-query attributes, which describe a left margin but carry no line information —
-            // letting those skip the repair would leave a wrong-line web caret uncorrected. A
-            // one-line run (`WrappedRunAnchor.spansOneLine`) is such a frame too: it is the host's
-            // own line box, and the pixel read corrects its x at presentation.
-            if context.observedContentEdges?.isRunMeasured == true
-                || context.observedContentEdges?.wrappedRun?.spansOneLine == true {
-                return LayoutRepairedAnchor(
-                    rect: fallbackRect, quality: .derived, outcome: nil, skipReason: .runMeasuredGeometry
-                )
-            }
-        }
-
-        // A `.derived` rect's height is a real rendered line box (previous-character bounds); the
-        // `.estimated` AXFrame fallback's height is the whole field, which the estimator's
-        // sanitizer would discard anyway — pass it for derived geometry only.
-        let observedLineHeight: CGFloat? = quality == .derived ? context.caretRect.height : nil
-
-        // Truncation is checked against the captured window, not the appended insertion: only the
-        // snapshot capture can silently drop the document start.
-        let input = TextLayoutCaretEstimator.Input(
-            precedingText: context.precedingText + pendingInsertion,
-            fieldFrame: context.inputFrameRect,
-            fieldStyle: context.resolvedFieldStyle,
-            isRightToLeft: isRightToLeft,
-            prefixMayBeTruncated:
-                context.precedingText.utf16.count >= FocusedInputSnapshot.textWindowUTF16,
-            observedLineHeight: observedLineHeight,
-            observedCharWidth: context.observedCharWidth,
-            observedContentEdges: context.observedContentEdges
-        )
-        let outcome = TextLayoutCaretEstimator.estimate(for: input)
-        switch outcome {
-        case .estimate(let estimate):
-            if quality == .derived, verticallyAgrees(estimate: estimate, axRect: fallbackRect) {
-                // Same line: keep the AX rect, whose X carries the host's real glyph positions.
-                return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome, skipReason: nil)
-            }
-            return LayoutRepairedAnchor(
-                rect: estimate.caretRect, quality: .layoutEstimated, outcome: outcome, skipReason: nil
-            )
-        case .rejected:
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: outcome, skipReason: nil)
-        }
-    }
-
-    /// Lays the wrapped paragraph out inside its run frame and returns the caret's line box there.
-    /// The estimator judges a field's shape from its frame height and rejects content taller than
-    /// the frame, but a union frame grows with its paragraph and the throttled run walk can report
-    /// it a few lines short of the live text (measured: every estimate rejected for vertical
-    /// overflow while a paragraph was being typed), so the layout frame is opened far below the
-    /// run: only its top edge and width place the caret. The caret rect is the sibling runs' line
-    /// box at the laid-out line's top, which is where the host draws that line.
-    static func wrappedRunAnchor(
-        edges: ObservedContentEdges,
-        context: FocusedInputContext,
-        fallbackRect: CGRect,
-        pendingInsertion: String,
-        isRightToLeft: Bool
-    ) -> LayoutRepairedAnchor {
-        guard let wrapped = edges.wrappedRun, let pitch = edges.linePitch ?? edges.lineBoxHeight, pitch > 0,
-              wrapped.frame.width > 0
-        else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: nil, skipReason: nil)
-        }
-        let frame = wrapped.frame
-        guard frame.width > 0 else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: nil, skipReason: nil)
-        }
-        let layoutHeight = max(frame.height, pitch * 60)
-        let layoutFrame = CGRect(x: frame.minX, y: frame.maxY - layoutHeight, width: frame.width, height: layoutHeight)
-        let input = TextLayoutCaretEstimator.Input(
-            precedingText: wrapped.paragraphTextBeforeCaret + pendingInsertion,
-            fieldFrame: layoutFrame,
-            fieldStyle: context.resolvedFieldStyle,
-            isRightToLeft: isRightToLeft,
-            prefixMayBeTruncated: false,
-            observedLineHeight: pitch,
-            observedCharWidth: context.observedCharWidth,
-            observedContentEdges: ObservedContentEdges(leftX: frame.minX, topY: frame.maxY)
-        )
-        let outcome = TextLayoutCaretEstimator.estimate(for: input)
-        guard case .estimate(let estimate) = outcome else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: outcome, skipReason: nil)
-        }
-        let lineBox = edges.lineBoxHeight ?? pitch
-        let lineTop = frame.maxY - CGFloat(estimate.lineIndex) * pitch
-        let rect = CGRect(x: estimate.caretRect.minX, y: lineTop - lineBox, width: 2, height: lineBox)
-        return LayoutRepairedAnchor(rect: rect, quality: .derived, outcome: outcome, skipReason: nil)
-    }
-
-    /// Vertical agreement test between the AX-derived caret and the layout estimate. Tolerance is
-    /// three-quarters of a line: same-line measurements differ by baseline and padding subtleties,
-    /// while the failure this repairs (the caret mapped into a neighboring visual line) is off by
-    /// at least one full line box.
-    private static func verticallyAgrees(
-        estimate: TextLayoutCaretEstimator.Estimate,
-        axRect: CGRect
-    ) -> Bool {
-        let tolerance = max(10, estimate.caretRect.height * 0.75)
-        return abs(estimate.caretRect.midY - axRect.midY) <= tolerance
-    }
-
-    /// What one layout-repair attempt decided the overlay geometry should anchor to, plus the
-    /// estimator outcome for structured logging (nil when repair did not apply at all).
-    struct LayoutRepairedAnchor {
-        let rect: CGRect
-        let quality: CaretGeometryQuality
-        let outcome: TextLayoutCaretEstimator.Outcome?
-        /// Why a derived rect bypassed the estimator without running it (nil when the estimator
-        /// ran, or when repair was out of scope for the quality entirely). Logged so "the caret
-        /// came from trusted AX and repair stood down" is distinguishable from "this field never
-        /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
-        let skipReason: LayoutRepairSkipReason?
-
-        /// Whether the anchor is a layout estimate whose line was placed from default insets, not
-        /// host measurements. Only an estimate that replaced the AX rect counts: a kept AX rect
-        /// carries the host's own line, whatever the estimate it was checked against measured.
-        var isCaretLineVerticallyUncalibrated: Bool {
-            guard quality == .layoutEstimated, case .estimate(let estimate)? = outcome else {
-                return false
-            }
-            return !estimate.isVerticallyCalibrated
-        }
-    }
-
-    /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
-    /// Raw values feed the structured log stream.
-    enum LayoutRepairSkipReason: String {
-        /// Native (non-web) host: AX-derived geometry is ground truth for the trust policy.
-        case nativeHostGeometry = "native_host_geometry"
-        /// The rect was measured from child text-run frames, which outrank any estimate.
-        case runMeasuredGeometry = "run_measured_geometry"
-    }
-
     /// Mirrors the repair outcome into the structured JSONL stream so a misplaced overlay can be
     /// joined to the exact gate decision via `request_id`. The metadata deliberately carries the
     /// estimate-vs-AX vertical delta and which host measurements calibrated the layout, because
@@ -1168,7 +852,7 @@ extension SuggestionCoordinator {
     /// Deliberately not routed through `logStage`: this is a geometry-specific event rather than a
     /// user-visible pipeline stage.
     private func logCaretLayoutRepair(
-        anchor: LayoutRepairedAnchor,
+        anchor: CaretLayoutRepair.LayoutRepairedAnchor,
         fallbackRect: CGRect,
         context: FocusedInputContext
     ) {
@@ -1234,7 +918,7 @@ extension SuggestionCoordinator {
     }
 
     func hideOverlay(reason: String) {
-        _ = overlayPresenter.hide(reason: reason)
+        overlayPresenter.hide(reason: reason)
     }
 
     func logStage(

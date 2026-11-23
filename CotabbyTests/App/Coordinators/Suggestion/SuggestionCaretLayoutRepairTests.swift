@@ -25,7 +25,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             precedingText: "Hello"
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
@@ -51,7 +51,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context, fallbackRect: fallbackRect, pendingInsertion: "", isRightToLeft: false
         )
 
@@ -69,7 +69,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context, fallbackRect: fallbackRect, pendingInsertion: "", isRightToLeft: false
         )
 
@@ -97,7 +97,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context, fallbackRect: context.caretRect, pendingInsertion: "", isRightToLeft: false
         )
 
@@ -131,7 +131,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context, fallbackRect: caret, pendingInsertion: "", isRightToLeft: false
         )
 
@@ -145,7 +145,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         // to rescue the AXFrame fallback.
         let context = CotabbyTestFixtures.focusedInputContext(caretQuality: .exact)
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
@@ -165,7 +165,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             precedingText: "column\tvalue"
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
@@ -190,7 +190,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             precedingText: cappedPrefix
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
@@ -216,7 +216,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -244,7 +244,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -279,7 +279,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: false
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -304,7 +304,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: false
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
@@ -333,7 +333,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -362,7 +362,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -392,7 +392,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -413,7 +413,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             isWebContentField: true
         )
 
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+        let anchor = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: axRect,
             pendingInsertion: "",
@@ -435,13 +435,13 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             precedingText: "Hello"
         )
 
-        let without = SuggestionCoordinator.layoutRepairedAnchor(
+        let without = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: "",
             isRightToLeft: false
         )
-        let with = SuggestionCoordinator.layoutRepairedAnchor(
+        let with = CaretLayoutRepair.layoutRepairedAnchor(
             for: context,
             fallbackRect: fallbackRect,
             pendingInsertion: " world",
