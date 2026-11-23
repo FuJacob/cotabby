@@ -40,6 +40,9 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
             let apiKey = try apiKeyProvider()
             let partialHandler: (@MainActor (String) -> Void)?
             if let onPartial {
+                // Each call normalizes the whole answer so far on the main actor. The client paces
+                // these calls (`OpenAICompatiblePartialThrottle`) so tiny server chunks cannot
+                // multiply that work; the final result below is always normalized in full.
                 partialHandler = { @MainActor cumulativeRaw in
                     let normalized = SuggestionTextNormalizer.normalizeDetailed(cumulativeRaw, for: request).text
                     guard !normalized.isEmpty else { return }

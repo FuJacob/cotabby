@@ -13,6 +13,8 @@ enum OpenAICompatibleClientError: LocalizedError, Equatable {
     case server(statusCode: Int)
     case malformedResponse
     case streamError(String)
+    /// A redirect to another server was refused, so URLSession delivered the 3xx response itself.
+    case redirectRefused(statusCode: Int)
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +22,9 @@ enum OpenAICompatibleClientError: LocalizedError, Equatable {
         case .server(let code): return "The endpoint returned HTTP \(code)."
         case .malformedResponse: return "The endpoint returned an invalid OpenAI-compatible response."
         case .streamError(let message): return "The endpoint reported an error: \(message)"
+        case .redirectRefused(let code):
+            return "The endpoint redirected to a different server (HTTP \(code)). Cotabby does not follow " +
+                "redirects to other servers; enter the final address as the Server URL."
         }
     }
 }
@@ -27,15 +32,51 @@ enum OpenAICompatibleClientError: LocalizedError, Equatable {
 /// Stateless HTTP boundary for OpenAI-compatible local servers.
 ///
 /// `URLSession` owns socket work off the main actor. This object stays main-actor isolated so the
-/// cumulative partial callback can feed Cotabby's UI-facing generation pipeline directly.
+/// cumulative partial callback can feed Cotabby's UI-facing generation pipeline directly. Byte-level
+/// stream parsing runs off the main actor; only whole lines cross back.
 @MainActor
 final class OpenAICompatibleAPIClient {
     private let session: URLSession
+    private let partialUpdateInterval: TimeInterval
+    /// Passed as the task delegate of every request, so the same-server redirect rule holds even
+    /// for a session that was not built by `makeDefaultSession()`.
+    private let redirectGuard = OpenAICompatibleRedirectGuard()
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
-    init(session: URLSession = .shared) {
+    /// `partialUpdateInterval` paces `onPartialRawText` (see `OpenAICompatiblePartialThrottle`);
+    /// tests pass zero to observe every chunk.
+    init(
+        session: URLSession = OpenAICompatibleAPIClient.makeDefaultSession(),
+        partialUpdateInterval: TimeInterval = OpenAICompatiblePartialThrottle.defaultInterval
+    ) {
         self.session = session
+        self.partialUpdateInterval = partialUpdateInterval
+    }
+
+    /// A session of the endpoint's own instead of `URLSession.shared`, which keeps cookies, a disk
+    /// cache, and stored credentials that any other part of the process may also use. Nothing about
+    /// one endpoint request should persist into, or be read back by, another.
+    nonisolated static func makeSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCache = nil
+        configuration.urlCredentialStorage = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        // The per-request `timeoutInterval` is an idle timeout; this bounds a request's total time,
+        // so a server that drips one byte at a time cannot keep it open indefinitely.
+        configuration.timeoutIntervalForResource = OpenAICompatibleStreamLimits.maximumDuration
+        return configuration
+    }
+
+    nonisolated static func makeDefaultSession() -> URLSession {
+        URLSession(
+            configuration: makeSessionConfiguration(),
+            delegate: OpenAICompatibleRedirectGuard(),
+            delegateQueue: nil
+        )
     }
 
     func fetchModels(
@@ -44,7 +85,7 @@ final class OpenAICompatibleAPIClient {
     ) async throws -> [OpenAICompatibleModelOption] {
         var request = URLRequest(url: configuration.apiURL(path: "models"), timeoutInterval: 10)
         applyHeaders(to: &request, apiKey: apiKey)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request, delegate: redirectGuard)
         try Self.validate(response)
         let payload = try decoder.decode(ModelListResponse.self, from: data)
         return payload.data.sorted { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
@@ -68,7 +109,7 @@ final class OpenAICompatibleAPIClient {
         applyHeaders(to: &request, apiKey: apiKey)
         request.httpBody = try encoder.encode(OllamaPreloadRequest(model: configuration.modelName))
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await session.data(for: request, delegate: redirectGuard)
         try Self.validate(response)
         return true
     }
@@ -99,13 +140,18 @@ final class OpenAICompatibleAPIClient {
             options: options
         )
 
-        let (bytes, response) = try await session.bytes(for: request)
+        let limits = OpenAICompatibleStreamLimits.forRequest(maxPredictionTokens: options.maxPredictionTokens)
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let (bytes, response) = try await session.bytes(for: request, delegate: redirectGuard)
         try Self.validate(response)
 
+        var budget = OpenAICompatibleStreamBudget(limits: limits)
+        var throttle = OpenAICompatiblePartialThrottle(minimumInterval: partialUpdateInterval)
         var accumulated = ""
         var sawEvent = false
-        for try await line in bytes.lines {
+        for try await line in Self.lines(of: bytes, limits: limits) {
             try Task.checkCancellation()
+            try budget.checkElapsed(ProcessInfo.processInfo.systemUptime - startedAt)
             switch try OpenAICompatibleSSEDecoder.decode(line, mode: configuration.apiMode) {
             case .ignore:
                 continue
@@ -114,15 +160,55 @@ final class OpenAICompatibleAPIClient {
                 return accumulated
             case .text(let text):
                 sawEvent = true
+                try budget.spend(text)
                 accumulated += text
-                onPartialRawText?(accumulated)
+                // Every callback makes the engine normalize the whole answer on the main actor, so
+                // pace them; the returned text below is always complete.
+                if throttle.shouldEmit(at: ProcessInfo.processInfo.systemUptime) {
+                    onPartialRawText?(accumulated)
+                }
             case .error(let message):
                 throw OpenAICompatibleClientError.streamError(message)
             }
         }
 
+        // The line stream finishes quietly, not with an error, when this task is cancelled.
+        try Task.checkCancellation()
         guard sawEvent else { throw OpenAICompatibleClientError.malformedResponse }
         return accumulated
+    }
+
+    /// Reads the body byte by byte on a detached task and yields whole SSE lines. Iterating bytes on
+    /// the main actor would hop executors per byte; this keeps the per-line cost `bytes.lines` had
+    /// while adding the line and response caps it lacked. Ending or abandoning the stream (a
+    /// returned answer, a thrown limit, a cancelled request) cancels the reader, which cancels the
+    /// URLSession task.
+    nonisolated private static func lines(
+        of bytes: URLSession.AsyncBytes,
+        limits: OpenAICompatibleStreamLimits
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let reader = Task.detached {
+                var splitter = OpenAICompatibleSSELineSplitter(
+                    maxLineBytes: limits.maxLineBytes,
+                    maxResponseBytes: limits.maxResponseBytes
+                )
+                do {
+                    for try await byte in bytes {
+                        if let line = try splitter.append(byte) {
+                            continuation.yield(line)
+                        }
+                    }
+                    if let line = splitter.finish() {
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in reader.cancel() }
+        }
     }
 
     private func applyHeaders(to request: inout URLRequest, apiKey: String?) {
@@ -150,9 +236,38 @@ final class OpenAICompatibleAPIClient {
         guard let http = response as? HTTPURLResponse else {
             throw OpenAICompatibleClientError.invalidResponse
         }
+        // Same-server redirects are followed before this point, so a 3xx here is one the redirect
+        // guard refused.
+        if (300..<400).contains(http.statusCode) {
+            throw OpenAICompatibleClientError.redirectRefused(statusCode: http.statusCode)
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw OpenAICompatibleClientError.server(statusCode: http.statusCode)
         }
+    }
+}
+
+/// Refuses any redirect that would carry an endpoint request to a different server.
+///
+/// It is both the default session's delegate and the task delegate of every request the client
+/// sends, so the rule applies to the streaming call regardless of which session runs it. URLSession
+/// calls it on its delegate queue; it holds no state, so it is safe from any thread.
+nonisolated final class OpenAICompatibleRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        // Compare with the original request, not the current one, so a chain of hops can never
+        // drift away from the configured server one step at a time.
+        let allowed = OpenAICompatibleRedirectPolicy.allowsRedirect(
+            from: task.originalRequest?.url,
+            to: request.url
+        )
+        // nil tells URLSession to deliver the 3xx response instead of following it.
+        completionHandler(allowed ? request : nil)
     }
 }
 

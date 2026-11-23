@@ -501,6 +501,149 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         }
     }
 
+    // MARK: - Transport limits
+
+    func test_generation_pacesPartialsButAlwaysReturnsTheWholeAnswer() async throws {
+        let client = makeClient(partialUpdateInterval: 3_600)
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(
+                request: request,
+                contentType: "text/event-stream",
+                body: "data: {\"choices\":[{\"text\":\" a\"}]}\n\n" +
+                    "data: {\"choices\":[{\"text\":\" b\"}]}\n\n" +
+                    "data: {\"choices\":[{\"text\":\" c\"}]}\n\n" +
+                    "data: [DONE]\n\n"
+            )
+        }
+        var partials: [String] = []
+
+        let output = try await client.generate(
+            configuration: configuration(mode: .completions),
+            apiKey: nil,
+            prompt: "text",
+            options: Self.options,
+            onPartialRawText: { partials.append($0) }
+        )
+
+        XCTAssertEqual(partials, [" a"], "The first partial is never delayed; later ones wait for the interval")
+        XCTAssertEqual(output, " a b c")
+    }
+
+    func test_generation_rejectsAStreamLineLongerThanTheCap() async {
+        let client = makeClient()
+        let overlong = "data: " + String(repeating: "x", count: OpenAICompatibleStreamLimits.maximumLineBytes + 1)
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, contentType: "text/event-stream", body: overlong)
+        }
+
+        do {
+            _ = try await client.generate(
+                configuration: configuration(mode: .completions),
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+            XCTFail("Expected lineTooLong")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleStreamLimitError, .lineTooLong)
+        }
+    }
+
+    func test_generation_stopsAServerThatIgnoresTheTokenBudget() async {
+        let client = makeClient()
+        // 50 chunks of 100 characters is past the 4,096-character cap for an 8-token request.
+        let chunk = "data: {\"choices\":[{\"text\":\"\(String(repeating: "y", count: 100))\"}]}\n\n"
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(
+                request: request,
+                contentType: "text/event-stream",
+                body: String(repeating: chunk, count: 50) + "data: [DONE]\n\n"
+            )
+        }
+
+        do {
+            _ = try await client.generate(
+                configuration: configuration(mode: .completions),
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+            XCTFail("Expected tooMuchText")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleStreamLimitError, .tooMuchText)
+        }
+    }
+
+    /// A refused redirect reaches the client as the 3xx response itself.
+    func test_generation_reportsARefusedRedirect() async {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(request: request, statusCode: 307, body: "")
+        }
+
+        do {
+            _ = try await client.generate(
+                configuration: configuration(),
+                apiKey: nil,
+                prompt: "text",
+                options: Self.options,
+                onPartialRawText: nil
+            )
+            XCTFail("Expected redirectRefused")
+        } catch {
+            XCTAssertEqual(error as? OpenAICompatibleClientError, .redirectRefused(statusCode: 307))
+        }
+    }
+
+    func test_redirectGuard_followsOnlyRedirectsToTheSameServer() throws {
+        let redirectGuard = OpenAICompatibleRedirectGuard()
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let originalURL = try XCTUnwrap(URL(string: "https://models.example.com/v1/chat/completions"))
+        let task = session.dataTask(with: originalURL)
+        let response = try XCTUnwrap(
+            HTTPURLResponse(url: originalURL, statusCode: 307, httpVersion: nil, headerFields: nil)
+        )
+        let cases: [(destination: String, follows: Bool)] = [
+            ("https://models.example.com/v1/chat/completions/", true),
+            ("https://collector.example.net/v1/chat/completions", false),
+            ("http://models.example.com/v1/chat/completions", false)
+        ]
+
+        for testCase in cases {
+            let proposed = URLRequest(url: try XCTUnwrap(URL(string: testCase.destination)))
+            let expectedURL = testCase.follows ? proposed.url : nil
+            let decided = expectation(description: testCase.destination)
+            redirectGuard.urlSession(
+                session,
+                task: task,
+                willPerformHTTPRedirection: response,
+                newRequest: proposed
+            ) { decision in
+                XCTAssertEqual(decision?.url, expectedURL)
+                decided.fulfill()
+            }
+            wait(for: [decided], timeout: 1)
+        }
+    }
+
+    func test_defaultSession_isEphemeralKeepsNothingAndGuardsRedirects() {
+        let configuration = OpenAICompatibleAPIClient.makeSessionConfiguration()
+        XCTAssertNil(configuration.httpCookieStorage)
+        XCTAssertFalse(configuration.httpShouldSetCookies)
+        XCTAssertEqual(configuration.httpCookieAcceptPolicy, .never)
+        XCTAssertNil(configuration.urlCache)
+        XCTAssertNil(configuration.urlCredentialStorage)
+        XCTAssertEqual(configuration.requestCachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertEqual(configuration.timeoutIntervalForResource, OpenAICompatibleStreamLimits.maximumDuration)
+
+        let session = OpenAICompatibleAPIClient.makeDefaultSession()
+        defer { session.invalidateAndCancel() }
+        XCTAssertTrue(session.delegate is OpenAICompatibleRedirectGuard)
+    }
+
     func test_fetchModels_mapsNonSuccessStatus() async throws {
         let client = makeClient()
         EndpointStubURLProtocol.handler = { request in
@@ -573,10 +716,14 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertTrue(connection.models.isEmpty)
     }
 
-    private func makeClient() -> OpenAICompatibleAPIClient {
+    /// Partials are unpaced by default here so tests can observe every chunk; pacing has its own test.
+    private func makeClient(partialUpdateInterval: TimeInterval = 0) -> OpenAICompatibleAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [EndpointStubURLProtocol.self]
-        return TestLifetime.retain(OpenAICompatibleAPIClient(session: URLSession(configuration: sessionConfiguration)))
+        return TestLifetime.retain(OpenAICompatibleAPIClient(
+            session: URLSession(configuration: sessionConfiguration),
+            partialUpdateInterval: partialUpdateInterval
+        ))
     }
 
     private static let options = OpenAICompatibleGenerationOptions(
