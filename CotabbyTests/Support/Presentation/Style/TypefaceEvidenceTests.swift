@@ -64,7 +64,7 @@ final class TypefaceEvidenceTests: XCTestCase {
             }
         }
         XCTAssertEqual(evidence.verdict(candidates: candidates, fits: fits), .family("Helvetica"))
-        XCTAssertTrue(evidence.hasSwitched)
+        XCTAssertEqual(evidence.adoptedFamily, "Helvetica")
         evidence.record(Sample(text: "delta echo foxtrot golf hotel india", width: 260), resolverFamily: "Georgia")
         XCTAssertEqual(
             evidence.verdict(candidates: candidates, fits: fits), .undecidable,

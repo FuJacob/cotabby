@@ -46,15 +46,52 @@ struct TypefaceEvidence: Equatable {
     /// short sample's error for the field's life.
     static let scalingAdoptionLength = 12
     static let scalingRefinementFactor = 2
-    private(set) var hasRefinedScaling = false
     static let maximumSamples = 8
 
+    /// Which family the field renders in, and how it came to. Each step is taken at most once and
+    /// never back, which is what keeps a field from changing face more than once in its life.
+    private enum FamilyDecision: Equatable {
+        /// Nothing adopted yet: no sample, or a first sample the resolver matched no family to.
+        case pending
+        /// The family the resolver chose from the first sample alone.
+        case resolverChoice(String)
+        /// The one correction: a family that fitted every long sample when the earlier one failed.
+        case switched(String)
+        /// No family fitted every long sample, for good. Carries the family the field last rendered
+        /// in, which diagnostics still report.
+        case undecidable(last: String?)
+
+        var family: String? {
+            switch self {
+            case .pending: return nil
+            case .resolverChoice(let family), .switched(let family): return family
+            case .undecidable(let last): return last
+            }
+        }
+    }
+
+    /// Which sample the scaled system face is sized from: none until one long enough arrives, then
+    /// that one, then at most one refinement.
+    private enum ScalingAdoption: Equatable {
+        case none
+        case adopted(Sample)
+        case refined(Sample)
+    }
+
     private(set) var samples: [Sample] = []
-    private(set) var adoptedFamily: String?
-    private(set) var hasSwitched = false
-    private(set) var isUndecidable = false
+    private var familyDecision = FamilyDecision.pending
+    private var scalingAdoption = ScalingAdoption.none
+
+    /// The family the field has adopted, if any (for diagnostics; `verdict` is the decision).
+    var adoptedFamily: String? { familyDecision.family }
+
     /// The sample the scaled system face is sized from, once one long enough has arrived.
-    private(set) var scalingSample: Sample?
+    var scalingSample: Sample? {
+        switch scalingAdoption {
+        case .none: return nil
+        case .adopted(let sample), .refined(let sample): return sample
+        }
+    }
 
     /// Records a sample (deduplicated by text) and the family the resolver chose from it alone.
     mutating func record(_ sample: Sample, resolverFamily: String?) {
@@ -65,16 +102,21 @@ struct TypefaceEvidence: Equatable {
             }
         }
         if sample.width > 0 {
-            if scalingSample == nil, sample.text.count >= Self.scalingAdoptionLength {
-                scalingSample = sample
-            } else if let adopted = scalingSample, !hasRefinedScaling,
-                      sample.text.count >= adopted.text.count * Self.scalingRefinementFactor {
-                scalingSample = sample
-                hasRefinedScaling = true
+            switch scalingAdoption {
+            case .none:
+                if sample.text.count >= Self.scalingAdoptionLength {
+                    scalingAdoption = .adopted(sample)
+                }
+            case .adopted(let adopted):
+                if sample.text.count >= adopted.text.count * Self.scalingRefinementFactor {
+                    scalingAdoption = .refined(sample)
+                }
+            case .refined:
+                break
             }
         }
-        if adoptedFamily == nil, samples.count == 1 {
-            adoptedFamily = resolverFamily
+        if familyDecision == .pending, samples.count == 1, let resolverFamily {
+            familyDecision = .resolverChoice(resolverFamily)
         }
     }
 
@@ -82,27 +124,28 @@ struct TypefaceEvidence: Equatable {
     /// `fits` says whether a family reproduces one sample's width within tolerance.
     mutating func verdict(candidates: [String], fits: (String, Sample) -> Bool) -> Verdict {
         guard samples.count >= 2 else { return .singleSample }
-        if isUndecidable { return .undecidable }
+        if case .undecidable = familyDecision { return .undecidable }
         let evidence = samples.filter { $0.text.count >= Self.minimumEvidenceLength }
         guard !evidence.isEmpty else { return adoptedFamily.map(Verdict.family) ?? .singleSample }
         if let adopted = adoptedFamily, evidence.allSatisfy({ fits(adopted, $0) }) {
             return .family(adopted)
         }
-        // Families that fit every long sample are all the face's advances; the candidates' own order
-        // (how often each is the real answer) breaks the tie. Demanding exactly one left a Menlo
-        // textarea undecidable, Courier New fitting its samples as well as Menlo, and it settled on
-        // the proportional system face scaled to monospace widths, 13pt text as 17.2 (Chrome,
-        // 2026-09-11).
-        let fitting = candidates.filter { family in evidence.allSatisfy { fits(family, $0) } }
-        if !hasSwitched, let first = fitting.first {
-            adoptedFamily = first
-            hasSwitched = true
-            return .family(first)
+        // The adopted family, if there is one, has now failed a long sample. A field that has not
+        // switched yet moves, once, to a family that fits every long sample. Those are all the
+        // face's advances; the candidates' own order (how often each is the real answer) breaks the
+        // tie. Demanding exactly one left a Menlo textarea undecidable, Courier New fitting its
+        // samples as well as Menlo, and it settled on the proportional system face scaled to
+        // monospace widths, 13pt text as 17.2 (Chrome, 2026-09-11).
+        switch familyDecision {
+        case .pending, .resolverChoice:
+            if let first = candidates.first(where: { family in evidence.allSatisfy { fits(family, $0) } }) {
+                familyDecision = .switched(first)
+                return .family(first)
+            }
+        case .switched, .undecidable:
+            break
         }
-        if let adopted = adoptedFamily, hasSwitched, fitting.contains(adopted) {
-            return .family(adopted)
-        }
-        isUndecidable = true
+        familyDecision = .undecidable(last: adoptedFamily)
         return .undecidable
     }
 }

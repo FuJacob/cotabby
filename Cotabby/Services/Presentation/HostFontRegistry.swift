@@ -70,8 +70,21 @@ actor HostFontRegistry {
         "Contents/Resources/Fonts"
     ]
 
-    /// Per host bundle: lowercased face name -> file that vends it. Keyed by the bundle's file URL
-    /// rather than its identifier, because two copies of an app can share an identifier.
+    /// What is known about one host bundle. A bundle with no entry has not been looked at yet; each
+    /// of these is final for the process's life, so the signature is checked and the font
+    /// directories are read once per bundle, not once per font or per keystroke.
+    private nonisolated enum BundleState {
+        /// The bundle failed the code-signature check: none of its fonts are ever parsed.
+        case untrusted
+        /// Trusted, but its font directories held nothing loadable.
+        case noFonts
+        /// Trusted and indexed: lowercased face name -> file that vends it, by PostScript name and
+        /// by family name (see `bundles` for why those are two maps).
+        case indexed(postScript: [String: URL], family: [String: URL])
+    }
+
+    /// Per host bundle, keyed by the bundle's file URL rather than its identifier, because two
+    /// copies of an app can share an identifier.
     ///
     /// PostScript and family names are kept in *separate* maps because they need different
     /// tie-breaking, and conflating them is a real bug rather than a nicety. AX reports whichever
@@ -81,18 +94,11 @@ actor HostFontRegistry {
     /// resolved "Aptos" to whichever file the directory enumerated first (in practice
     /// `Aptos-Light-Italic.ttf`) and would have drawn ghost text in light italic. PostScript names
     /// are unique and match exactly; family names resolve through `familyRepresentative(among:)`.
-    private var postScriptIndexByBundle: [URL: [String: URL]] = [:]
-    private var familyIndexByBundle: [URL: [String: URL]] = [:]
+    private var bundles: [URL: BundleState] = [:]
 
     /// Font files already handed to CoreText. Registering the same URL twice returns an error, and
     /// this also keeps repeated misses from re-doing work.
     private var registeredFiles: Set<URL> = []
-
-    /// Bundles whose font directories were indexed but contained nothing, so we never rescan them.
-    private var bundlesWithNoFonts: Set<URL> = []
-
-    /// Code-signing verdicts per bundle, so the signature is checked once per bundle, not per font.
-    private var bundleTrustVerdicts: [URL: Bool] = [:]
 
     /// Whether `bundleIdentifier` is a host whose bundled fonts may ever be loaded. A cheap,
     /// synchronous pre-check for callers on the render path; the signature check still follows.
@@ -165,19 +171,11 @@ actor HostFontRegistry {
             return true
         }
 
-        let bundleKey = bundleURL.standardizedFileURL
         guard Self.isTrustedHost(bundleIdentifier: bundleIdentifier),
-              isTrustedBundle(bundleKey, bundleIdentifier: bundleIdentifier),
-              !bundlesWithNoFonts.contains(bundleKey)
+              case .indexed(let postScriptIndex, let familyIndex) = bundleState(
+                  for: bundleURL.standardizedFileURL, bundleIdentifier: bundleIdentifier
+              )
         else {
-            return false
-        }
-
-        indexBundleIfNeeded(bundleKey)
-        let postScriptIndex = postScriptIndexByBundle[bundleKey] ?? [:]
-        let familyIndex = familyIndexByBundle[bundleKey] ?? [:]
-        guard !postScriptIndex.isEmpty || !familyIndex.isEmpty else {
-            bundlesWithNoFonts.insert(bundleKey)
             return false
         }
 
@@ -222,14 +220,17 @@ actor HostFontRegistry {
         return resolved
     }
 
-    /// The signature verdict for one bundle, computed on first use and then cached.
-    private func isTrustedBundle(_ bundleURL: URL, bundleIdentifier: String) -> Bool {
-        if let verdict = bundleTrustVerdicts[bundleURL] {
-            return verdict
+    /// What is known about the bundle at `bundleURL`, found out on first use: its signature is
+    /// checked, and only a bundle that passes has its font directories indexed.
+    private func bundleState(for bundleURL: URL, bundleIdentifier: String) -> BundleState {
+        if let known = bundles[bundleURL] {
+            return known
         }
-        let verdict = Self.bundleSatisfiesHostRequirement(at: bundleURL, bundleIdentifier: bundleIdentifier)
-        bundleTrustVerdicts[bundleURL] = verdict
-        if !verdict {
+        let state: BundleState
+        if Self.bundleSatisfiesHostRequirement(at: bundleURL, bundleIdentifier: bundleIdentifier) {
+            state = indexedFonts(in: bundleURL)
+        } else {
+            state = .untrusted
             CotabbyLogger.focus.info(
                 "Host bundle failed the font trust check; keeping the system font",
                 metadata: [
@@ -238,17 +239,16 @@ actor HostFontRegistry {
                 ]
             )
         }
-        return verdict
+        bundles[bundleURL] = state
+        return state
     }
 
-    /// Builds (once per host bundle) the PostScript and family lookup maps for its font files.
+    /// Builds the PostScript and family lookup maps for a host bundle's font files.
     ///
     /// Reading descriptors is metadata-only — it does not load glyph data — which is what keeps a
     /// Word-sized collection (281 files, over 300 face names) at roughly 180 ms. That cost is paid
     /// once per host bundle, on this actor, off the main thread.
-    private func indexBundleIfNeeded(_ bundleURL: URL) {
-        guard postScriptIndexByBundle[bundleURL] == nil else { return }
-
+    private func indexedFonts(in bundleURL: URL) -> BundleState {
         var postScript: [String: URL] = [:]
         // Local scratch state for building one bundle's family map — nothing the actor keeps.
         var family: [String: (face: FontFace, url: URL)] = [:]
@@ -273,8 +273,8 @@ actor HostFontRegistry {
             }
         }
 
-        postScriptIndexByBundle[bundleURL] = postScript
-        familyIndexByBundle[bundleURL] = family.mapValues(\.url)
+        guard !postScript.isEmpty || !family.isEmpty else { return .noFonts }
+        return .indexed(postScript: postScript, family: family.mapValues(\.url))
     }
 
     /// One face inside a font file, reduced to what face selection needs. `nonisolated` because it is

@@ -486,3 +486,69 @@ final class OneLineRunReadFrameTests: XCTestCase {
         XCTAssertEqual(clamped.maxX, textEnd, accuracy: 0.001, "never past the field's own edge")
     }
 }
+
+/// What the locator reports about a request before and after it is asked to locate it. Only the
+/// paths that never reach ScreenCaptureKit are driven: a refused permission and a run too small to
+/// hold a line both fail at once.
+@MainActor
+final class PixelCaretLocatorStatusTests: XCTestCase {
+    private func request(text: String = "the end of the paragraph", frame: CGRect = CGRect(x: 608, y: 700, width: 605, height: 44)) -> PixelCaretLocator.Request {
+        PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: frame, paragraphTextBeforeCaret: text,
+            siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4.5
+        )
+    }
+
+    /// Counts the locator's answers from inside its main-actor completion.
+    @MainActor
+    private final class AnswerLog {
+        var count = 0
+    }
+
+    private func isUnknown(_ status: PixelCaretLocator.Status) -> Bool {
+        if case .unknown = status { return true }
+        return false
+    }
+
+    private func isFailed(_ status: PixelCaretLocator.Status) -> Bool {
+        if case .failed = status { return true }
+        return false
+    }
+
+    func test_aRequestWithoutScreenRecordingFailsAtOnceAndStaysFailed() {
+        let locator = PixelCaretLocator(permissionCheck: { false })
+        let request = request()
+        XCTAssertTrue(isUnknown(locator.status(of: request)))
+        XCTAssertNil(locator.status(of: request).measurement)
+
+        let answers = AnswerLog()
+        locator.locate(request) { measurement in
+            XCTAssertNil(measurement)
+            answers.count += 1
+        }
+
+        XCTAssertEqual(answers.count, 1, "a request that cannot be captured answers synchronously")
+        XCTAssertTrue(isFailed(locator.status(of: request)))
+    }
+
+    func test_aFailureBelongsToItsOwnTextOnly() {
+        let locator = PixelCaretLocator(permissionCheck: { false })
+        locator.locate(request(text: "the end of the paragraph")) { _ in }
+
+        XCTAssertTrue(isUnknown(locator.status(of: request(text: "the end of the paragraph typed on"))))
+    }
+
+    func test_aRunTooSmallToHoldALineFailsWithoutACapture() {
+        let locator = PixelCaretLocator(permissionCheck: { true })
+        let sliver = request(frame: CGRect(x: 608, y: 700, width: 605, height: 3))
+
+        let answers = AnswerLog()
+        locator.locate(sliver) { measurement in
+            XCTAssertNil(measurement)
+            answers.count += 1
+        }
+
+        XCTAssertEqual(answers.count, 1)
+        XCTAssertTrue(isFailed(locator.status(of: sliver)))
+    }
+}

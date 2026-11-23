@@ -160,12 +160,55 @@ final class PixelCaretLocator {
     /// suggestion's length stays under a pixel and over a paragraph would not.
     static let maximumExtrapolatedCharacters = 48
 
+    /// What the locator can say about a request before any capture is started for it.
+    enum Status {
+        /// Nothing is known: a capture has to be asked for.
+        case unknown
+        /// A capture for it is in flight; `locate` joins it.
+        case capturing
+        case measured(Measurement)
+        /// Its capture already failed once. Callers take their fallback at once instead of holding
+        /// a presentation for a capture that will not help.
+        case failed
+
+        var measurement: Measurement? {
+            if case .measured(let measurement) = self { return measurement }
+            return nil
+        }
+    }
+
+    /// Where a request without a cached measurement stands. A request is waiting on its capture or
+    /// has failed, never both, so the two are one entry per key; a measured request leaves this
+    /// table for `cache`.
+    private enum Unresolved {
+        /// The capture is in flight; these are the callers waiting on it.
+        case capturing([@MainActor (Measurement?) -> Void])
+        case failed
+    }
+
+    /// Why a capture produced no caret; the labels are the `reason` log field.
+    private nonisolated enum Failure: Error {
+        /// ScreenCaptureKit refused or returned nothing.
+        case capture(String)
+        /// The captured region held no line of ink.
+        case noInk
+        /// Ink was found, but no caret consistent with the run's frame.
+        case geometry
+
+        var label: String {
+            switch self {
+            case .capture(let description): return "capture: \(description)"
+            case .noInk: return "no-ink"
+            case .geometry: return "geometry"
+            }
+        }
+    }
+
     private var cache = BoundedCache<String, Measurement>(limit: PixelCaretLocator.cacheLimit)
-    private var failures: Set<String> = []
+    private var unresolved: [String: Unresolved] = [:]
     /// The latest capture per run, the base every extrapolation on that run starts from (never an
     /// extrapolation itself, so their error does not compound).
     private var latestCaptures = BoundedCache<String, (request: Request, measurement: Measurement)>(limit: PixelCaretLocator.cacheLimit)
-    private var inFlight: [String: [@MainActor (Measurement?) -> Void]] = [:]
     private let pixelCapture = HostPixelCapture()
 
     // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
@@ -181,14 +224,16 @@ final class PixelCaretLocator {
         self.permissionCheck = permissionCheck
     }
 
-    func cachedMeasurement(for request: Request) -> Measurement? {
-        cache[request.cacheKey]
-    }
-
-    /// True when this request already failed once; callers then take their fallback immediately
-    /// instead of holding a presentation for a capture that will not help.
-    func hasFailed(_ request: Request) -> Bool {
-        failures.contains(request.cacheKey)
+    func status(of request: Request) -> Status {
+        let key = request.cacheKey
+        if let measurement = cache[key] {
+            return .measured(measurement)
+        }
+        switch unresolved[key] {
+        case .capturing?: return .capturing
+        case .failed?: return .failed
+        case nil: return .unknown
+        }
     }
 
     /// The caret for a paragraph typed further since the run's latest capture, without a new
@@ -203,7 +248,12 @@ final class PixelCaretLocator {
     func extrapolatedMeasurement(for request: Request) -> Measurement? {
         guard let base = latestCaptures[request.captureKey],
               let measurement = Self.extrapolated(from: base, for: request) else { return nil }
-        store(measurement, for: request.cacheKey)
+        // A carried-forward caret answers a request whose own capture failed; one still in flight
+        // keeps its listeners and overwrites this when it lands.
+        if case .failed? = unresolved[request.cacheKey] {
+            unresolved[request.cacheKey] = nil
+        }
+        cache.insert(measurement, for: request.cacheKey)
         Self.logExtrapolation(measurement, base: base.request, request: request)
         return measurement
     }
@@ -251,53 +301,74 @@ final class PixelCaretLocator {
             completion(cached)
             return
         }
-        if inFlight[key] != nil {
-            inFlight[key]?.append(completion)
+        if case .capturing(var listeners)? = unresolved[key] {
+            listeners.append(completion)
+            unresolved[key] = .capturing(listeners)
             return
         }
         guard permissionCheck(), request.runFrame.width > 8, request.runFrame.height > 4 else {
-            failures.insert(key)
+            unresolved[key] = .failed
             completion(nil)
             return
         }
-        inFlight[key] = [completion]
-        let requested = request.captureRegion
+        unresolved[key] = .capturing([completion])
         Task { @MainActor [weak self] in
             guard let self else { return }
             let started = Date()
-            var measurement: Measurement?
-            var failure = "capture"
-            do {
-                // Rows and columns map back through the region that was really captured, which
-                // is the requested one snapped to whole pixels (see `HostPixelCapture.capture`).
-                let captured = try await self.pixelCapture.capture(requested)
-                let analysis = await Task.detached(priority: .userInitiated) {
-                    InkCaretAnalyzer.measure(captured.bitmap)
-                }.value
-                if let analysis {
-                    measurement = Self.measurement(from: analysis, scale: captured.scale, region: captured.region, request: request)
-                    failure = measurement == nil ? "geometry" : ""
+            let outcome = await self.capturedCaret(for: request)
+            self.finishCapture(of: request, outcome: outcome, started: started)
+        }
+    }
+
+    /// Captures the request's region and reads the caret out of it.
+    private func capturedCaret(for request: Request) async -> Result<Measurement, Failure> {
+        do {
+            // Rows and columns map back through the region that was really captured, which
+            // is the requested one snapped to whole pixels (see `HostPixelCapture.capture`).
+            let captured = try await pixelCapture.capture(request.captureRegion)
+            let analysis = await Task.detached(priority: .userInitiated) {
+                InkCaretAnalyzer.measure(captured.bitmap)
+            }.value
+            let outcome: Result<Measurement, Failure>
+            if let analysis {
+                if let measurement = Self.measurement(
+                    from: analysis, scale: captured.scale, region: captured.region, request: request
+                ) {
+                    outcome = .success(measurement)
                 } else {
-                    failure = "no-ink"
+                    outcome = .failure(.geometry)
                 }
-                if HostPixelCapture.dumpsCaptures {
-                    Self.dumpCapture(captured, request: request, analysis: analysis, measurement: measurement)
-                }
-            } catch {
-                failure = "capture: \(error.localizedDescription)"
-            }
-            let listeners = self.inFlight.removeValue(forKey: key) ?? []
-            if let measurement {
-                self.store(measurement, for: key)
-                self.latestCaptures.insert((request, measurement), for: request.captureKey)
-                self.onFreshCapture?(request, measurement)
             } else {
-                self.failures.insert(key)
+                outcome = .failure(.noInk)
             }
-            Self.log(measurement, failure: failure, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
-            for listener in listeners {
-                listener(measurement)
+            if HostPixelCapture.dumpsCaptures {
+                Self.dumpCapture(captured, request: request, analysis: analysis, outcome: outcome)
             }
+            return outcome
+        } catch {
+            return .failure(.capture(error.localizedDescription))
+        }
+    }
+
+    /// Records what a capture found and answers everyone who was waiting on it.
+    private func finishCapture(of request: Request, outcome: Result<Measurement, Failure>, started: Date) {
+        let key = request.cacheKey
+        var listeners: [@MainActor (Measurement?) -> Void] = []
+        if case .capturing(let waiting)? = unresolved[key] {
+            listeners = waiting
+        }
+        let measurement = try? outcome.get()
+        if let measurement {
+            unresolved[key] = nil
+            cache.insert(measurement, for: key)
+            latestCaptures.insert((request, measurement), for: request.captureKey)
+            onFreshCapture?(request, measurement)
+        } else {
+            unresolved[key] = .failed
+        }
+        Self.log(outcome, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
+        for listener in listeners {
+            listener(measurement)
         }
     }
 
@@ -650,15 +721,12 @@ final class PixelCaretLocator {
         _ captured: HostPixelCapture.Capture,
         request: Request,
         analysis: InkCaretAnalyzer.Measurement?,
-        measurement: Measurement?
+        outcome: Result<Measurement, Failure>
     ) {
-        // The capture itself succeeded; what failed, if anything, was the pixels or the geometry.
-        // Matched as patterns rather than compared with `== nil`, which would reach for the
-        // measurements' `Equatable` conformances, isolated to the main actor.
-        let failure = switch (analysis, measurement) {
-        case (.none, _): "no-ink"
-        case (_, .none): "geometry"
-        default: ""
+        // An empty label is a capture that gave a caret.
+        var failure = ""
+        if case .failure(let reason) = outcome {
+            failure = reason.label
         }
         func values(_ rect: CGRect) -> [Double] { [rect.minX, rect.minY, rect.width, rect.height].map { Double($0) } }
         var sidecar: [String: Any] = [
@@ -674,15 +742,10 @@ final class PixelCaretLocator {
             sidecar["lines"] = analysis.lines.map { [$0.topRow, $0.bottomRow, $0.inkLeftColumn, $0.inkRightColumn] }
             sidecar["pitch_rows"] = analysis.pitchRows ?? 0
         }
-        if let measurement {
+        if case .success(let measurement) = outcome {
             sidecar["caret"] = values(measurement.caretRect)
         }
         HostPixelCapture.dump(captured.bitmap, prefix: "caret", sidecar: sidecar)
-    }
-
-    private func store(_ measurement: Measurement, for key: String) {
-        cache.insert(measurement, for: key)
-        failures.remove(key)
     }
 
     private static func logExtrapolation(_ measurement: Measurement, base: Request, request: Request) {
@@ -703,10 +766,12 @@ final class PixelCaretLocator {
         )
     }
 
-    private static func log(_ measurement: Measurement?, failure: String, request: Request, elapsedMilliseconds: Int) {
+    private static func log(_ outcome: Result<Measurement, Failure>, request: Request, elapsedMilliseconds: Int) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        var succeeded = false
+        if case .success = outcome { succeeded = true }
         var metadata: Logger.Metadata = [
-            "stage": .string(measurement == nil ? "pixel-caret-failed" : "pixel-caret"),
+            "stage": .string(succeeded ? "pixel-caret" : "pixel-caret-failed"),
             "elapsed_ms": .stringConvertible(elapsedMilliseconds),
             "run_frame": .string(String(
                 format: "%.0f,%.0f %.0fx%.0f",
@@ -714,7 +779,8 @@ final class PixelCaretLocator {
             )),
             "paragraph_chars": .stringConvertible(request.paragraphTextBeforeCaret.count)
         ]
-        if let measurement {
+        switch outcome {
+        case .success(let measurement):
             metadata["caret_x"] = .stringConvertible(Double(measurement.caretRect.minX))
             metadata["caret_top"] = .stringConvertible(Double(measurement.caretRect.maxY))
             metadata["caret_h"] = .stringConvertible(Double(measurement.caretRect.height))
@@ -722,9 +788,9 @@ final class PixelCaretLocator {
             metadata["line_count"] = .stringConvertible(measurement.lineCount)
             metadata["line_pitch"] = .stringConvertible(Double(measurement.linePitch ?? 0))
             metadata["baseline_offset"] = .stringConvertible(Double(measurement.baselineOffsetFromTop ?? 0))
-        } else {
-            metadata["reason"] = .string(failure)
+        case .failure(let failure):
+            metadata["reason"] = .string(failure.label)
         }
-        CotabbyLogger.suggestion.debug(measurement == nil ? "Pixel caret unavailable" : "Pixel caret measured", metadata: metadata)
+        CotabbyLogger.suggestion.debug(succeeded ? "Pixel caret measured" : "Pixel caret unavailable", metadata: metadata)
     }
 }
