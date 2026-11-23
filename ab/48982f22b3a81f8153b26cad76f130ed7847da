@@ -1,0 +1,43 @@
+.github/workflows/build.yml
+  s_9990f9098df800::t_5c0803a4a08163 27-31,35-38,46-47,51,61-64,71,120
+.github/workflows/lint.yml
+  s_9990f9098df800::t_c4e83272131f15 23-26
+.github/workflows/release.yml
+  s_9990f9098df800::t_20dfd34749982a 76-78,82,97-101,108,324
+.github/workflows/tests.yml
+  s_9990f9098df800::t_f8f7ab7d25efdd 27-30,43-46,50,74
+.github/workflows/xcodegen.yml
+  s_9990f9098df800::t_acdac1b9b13177 25-28
+CONTRIBUTING.md
+  s_b9af9eb54478c8::t_324e06a734eac4 179-181
+scripts/build_test_dmg.sh
+  s_9990f9098df800::t_a09aaf6e036513 14-16
+scripts/clean_local.sh
+  s_9990f9098df800::t_f238fd191e39e7 14-23
+scripts/kickstart.sh
+  s_9990f9098df800::t_74c3dd81b9eb39 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab48982f22b3a81f8153b26cad76f130ed7847da",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    },
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
