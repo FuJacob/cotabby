@@ -257,11 +257,19 @@ final class SuggestionCoordinator: ObservableObject {
         self.historyProvider = historyProvider
         self.userDefaults = userDefaults
         self.now = now
-        // A count stored on an earlier day (the app was quit overnight) rolls to zero here.
-        dailyAcceptedWordCount = DailyWordCount(
+        // A count stored on an earlier day (the app was quit overnight) rolls to zero here, and
+        // the reset is written back at once. Left only in memory, a launch that accepts nothing
+        // would keep the old day's count on disk, and a clock or time-zone change back to that
+        // day before the next launch would bring the stale count back.
+        let storedDailyAcceptedWordCount = DailyWordCount(
             dayStamp: userDefaults.string(forKey: Self.dailyAcceptedWordCountDayDefaultsKey) ?? "",
             count: userDefaults.integer(forKey: Self.dailyAcceptedWordCountDefaultsKey)
-        ).rolled(to: now())
+        )
+        dailyAcceptedWordCount = storedDailyAcceptedWordCount.rolled(to: now())
+        if dailyAcceptedWordCount != storedDailyAcceptedWordCount {
+            userDefaults.set(dailyAcceptedWordCount.count, forKey: Self.dailyAcceptedWordCountDefaultsKey)
+            userDefaults.set(dailyAcceptedWordCount.dayStamp, forKey: Self.dailyAcceptedWordCountDayDefaultsKey)
+        }
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.

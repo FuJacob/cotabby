@@ -204,8 +204,11 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // Read the clock now, while the words land, not in the deferred bookkeeping: an accept
+        // just before midnight whose bookkeeping runs just after must still count for its own day.
+        let acceptedAt = now()
         deferAcceptanceBookkeeping { [weak self] in
-            self?.recordAcceptedWords(from: acceptedChunk)
+            self?.recordAcceptedWords(from: acceptedChunk, acceptedAt: acceptedAt)
             self?.recordSuggestionAcceptedIfFirstChunk(of: sessionForAcceptance)
         }
 
@@ -474,8 +477,9 @@ extension SuggestionCoordinator {
             preservingContinuation: hasPreparedContinuation
         )
         let workID = currentWorkID
+        let acceptedAt = now()  // Captured before deferring, as in `commitPreparedAcceptance`.
         deferAcceptanceBookkeeping { [weak self] in
-            self?.recordAcceptedWords(from: replacement.replacementText)
+            self?.recordAcceptedWords(from: replacement.replacementText, acceptedAt: acceptedAt)
             self?.logStage(
                 "\(keyName)-accepted-correction",
                 workID: workID,
@@ -752,7 +756,8 @@ extension SuggestionCoordinator {
     }
 
     /// Updates the lifetime and per-day productivity counters from text accepted via Tab.
-    func recordAcceptedWords(from acceptedChunk: String) {
+    /// `acceptedAt` is when the text was inserted, which decides the day the words count for.
+    func recordAcceptedWords(from acceptedChunk: String, acceptedAt: Date) {
         let acceptedWordCount = SuggestionSessionReconciler.acceptedWordCount(in: acceptedChunk)
         guard acceptedWordCount > 0 else {
             return
@@ -762,7 +767,7 @@ extension SuggestionCoordinator {
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
         // `adding` rolls to today first, so an accept just after midnight starts the new day's
         // count even if the day-changed notification has not been delivered yet.
-        storeDailyAcceptedWordCount(dailyAcceptedWordCount.adding(acceptedWordCount, at: now()))
+        storeDailyAcceptedWordCount(dailyAcceptedWordCount.adding(acceptedWordCount, at: acceptedAt))
     }
 
     /// Zeroes the per-day counter once the local day has moved on; a no-op within the same day.

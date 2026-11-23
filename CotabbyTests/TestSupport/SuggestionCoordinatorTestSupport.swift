@@ -300,7 +300,9 @@ func makeCoordinatorRig(
     lowPowerModeEnabled: Bool = false,
     settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1),
     generationEngine: (any SuggestionGenerating)? = nil,
-    configuration: SuggestionConfiguration = .standard
+    configuration: SuggestionConfiguration = .standard,
+    userDefaults: UserDefaults = IsolatedUserDefaults.make(),
+    now: @escaping () -> Date = Date.init
 ) -> CoordinatorRig {
     let focusSnapshot = CotabbyTestFixtures.focusSnapshot(for: snapshot, capability: capability)
     let permissionProvider = RigPermissionProvider()
@@ -335,7 +337,8 @@ func makeCoordinatorRig(
         spellChecker: CurrentWordSpellChecker(language: "en"),
         symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
         qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make()),
-        userDefaults: IsolatedUserDefaults.make()
+        userDefaults: userDefaults,
+        now: now
     )
     let rig = CoordinatorRig(
         coordinator: coordinator,
