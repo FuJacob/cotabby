@@ -5,20 +5,15 @@ import XCTest
 /// at launch and where it opens, including the relaunch-mid-onboarding case from issue #314.
 @MainActor
 final class OnboardingProgressTests: XCTestCase {
-    private var suiteName: String!
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        suiteName = "cotabby.test.onboardingProgress.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        suiteName = nil
         super.tearDown()
     }
 
