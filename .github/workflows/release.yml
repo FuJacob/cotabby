@@ -2,13 +2,21 @@
 #
 # Discrete jobs so a failure at one stage doesn't force a full re-run:
 #
+# 0. guard:    refuse refs that are not on main, before any secret is in scope
 # 1. build:    validate metadata, archive + Developer ID sign, package DMG
-# 2. notarize: submit DMG to Apple notarization, poll, staple
-# 3. publish:  Sparkle-sign appcast, create GitHub Release, deploy Pages
+# 2. notarize: submit DMG to Apple notarization, poll, staple, Sparkle-sign appcast
+# 3. publish:  create GitHub Release, deploy Pages
 # 4. update-homebrew-cask: dispatch version bump to the tap (publish only)
 #
-# The DMG flows between jobs as a GitHub Actions artifact. Sparkle tools are
-# re-downloaded in publish (fast curl) rather than carried as an artifact.
+# Every signing secret (Developer ID, notarization, Sparkle) is read only by
+# build and notarize, which run in the `release` environment. That environment
+# is the security boundary: required reviewers, and deployment refs limited to
+# main and v* tags. publish has to run in `github-pages` for deploy-pages, and a
+# job has exactly one environment, so the appcast is signed in notarize, the job
+# that already holds the final stapled DMG, and publish holds no signing secret.
+#
+# The DMG and appcast flow between jobs as GitHub Actions artifacts. Sparkle
+# tools are re-downloaded where needed (fast curl) rather than carried along.
 
 name: Release
 
@@ -50,6 +58,49 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # 0. GUARD
+  # Fail before a reviewer is asked to approve the `release` environment, and
+  # before any job holds a secret, when the run would sign something that is
+  # not on main. This catches mistakes (a tag on an unmerged branch, a dry run
+  # dispatched from a feature branch). It is not the security boundary: a tag
+  # pushed at an unreviewed commit runs that commit's copy of this file, guard
+  # included. The `release` environment and the v* tag ruleset stop that case.
+  # ---------------------------------------------------------------------------
+  guard:
+    name: Verify the release commit is on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Require main for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # A dry run (publish=false) still signs and notarizes, and its DMG is a
+          # downloadable run artifact, so manual runs are limited to main too.
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Dispatch the Release workflow from main, not ${GITHUB_REF}." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history of every branch, so origin/main exists for the ancestry check.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the release commit to be on main
+        run: |
+          set -euo pipefail
+
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${GITHUB_SHA} is not on main. Merge it to main before tagging a release." >&2
+            exit 1
+          fi
+          echo "${GITHUB_SHA} is on main."
+
+  # ---------------------------------------------------------------------------
   # 1. BUILD
   # Validate metadata, import certificates, xcodebuild archive, re-sign nested
   # code, package the DMG. Uploads the unsigned-but-signed DMG as an artifact
@@ -57,8 +108,12 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: Build, sign, and package DMG
+    needs: guard
     runs-on: macos-26
     timeout-minutes: 120
+    # Reads signing secrets, which live in the protected `release`
+    # environment, so this job waits for a reviewer's approval.
+    environment: release
     permissions:
       contents: read
     outputs:
@@ -445,17 +500,29 @@ jobs:
   # Accepted (or times out / is rejected), staples the ticket, then uploads
   # the stapled DMG for the publish job. Separated so a notarization rejection
   # or Apple-server timeout can be retried without rebuilding.
+  #
+  # When publishing, it also Sparkle-signs the appcast. The EdDSA signature
+  # covers the stapled bytes, which only exist from this job on, and signing
+  # here keeps the Sparkle key in the reviewed `release` environment instead of
+  # in `github-pages`, the environment publish must use.
   # ---------------------------------------------------------------------------
   notarize:
-    name: Notarize and staple DMG
+    name: Notarize, staple, and sign the update
     needs: build
     runs-on: macos-26
     timeout-minutes: 90
-    permissions: {}
+    environment: release
+    permissions:
+      contents: read
     outputs:
       dmg_sha256: ${{ steps.dmg-sha.outputs.dmg_sha256 }}
 
     steps:
+      # generate_appcast.py and its template come from the checkout.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Download DMG artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -643,51 +710,17 @@ jobs:
           path: build/${{ env.DMG_NAME }}
           retention-days: 1
 
-      - name: Upload notarization diagnostics
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: notarization-diagnostics
-          path: build/notarization/**
-          if-no-files-found: ignore
-
-  # ---------------------------------------------------------------------------
-  # 3. PUBLISH
-  # Downloads the stapled DMG, Sparkle-signs the appcast, creates the GitHub
-  # Release, and deploys the appcast to Pages. Only runs when publish=true.
-  # Separated so a Pages deploy failure or appcast signing hiccup doesn't
-  # require a full rebuild + re-notarization.
-  # ---------------------------------------------------------------------------
-  publish:
-    name: Sign appcast, create release, and deploy Pages
-    needs: [build, notarize]
-    if: needs.build.outputs.publish == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy-pages.outputs.page_url }}
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      # Dry runs stop at the notarized DMG: nothing reads an appcast unless the
+      # run publishes, so the Sparkle key is only used when it does.
       - name: Select Python
+        if: needs.build.outputs.publish == 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
 
-      - name: Download notarized DMG
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: cotabby-dmg-notarized
-          path: build
-
       - name: Download Sparkle tools
         id: sparkle-tools
+        if: needs.build.outputs.publish == 'true'
         env:
           SPARKLE_VERSION: ${{ needs.build.outputs.sparkle_version }}
         run: |
@@ -714,6 +747,7 @@ jobs:
           echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
 
       - name: Write Sparkle private key
+        if: needs.build.outputs.publish == 'true'
         env:
           SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
         run: |
@@ -730,6 +764,7 @@ jobs:
           echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
 
       - name: Generate signed appcast
+        if: needs.build.outputs.publish == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
           RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
@@ -753,6 +788,7 @@ jobs:
           grep -q 'length="' build/appcast.xml
 
       - name: Verify Sparkle signature against final DMG
+        if: needs.build.outputs.publish == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
         run: |
@@ -769,6 +805,60 @@ jobs:
             --ed-key-file "${SPARKLE_KEY_FILE}" \
             "build/${DMG_NAME}" \
             "${signature}"
+
+      - name: Upload signed appcast
+        if: needs.build.outputs.publish == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cotabby-appcast
+          path: build/appcast.xml
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload notarization diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notarization-diagnostics
+          path: build/notarization/**
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # 3. PUBLISH
+  # Downloads the stapled DMG and the appcast signed in notarize, creates the
+  # GitHub Release, and deploys the appcast to Pages. Only runs when
+  # publish=true. Separated so a Pages deploy failure doesn't require a full
+  # rebuild + re-notarization. It runs in `github-pages` (required by
+  # deploy-pages) and reads no signing secret.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Create release and deploy Pages
+    needs: [build, notarize]
+    if: needs.build.outputs.publish == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download notarized DMG
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cotabby-dmg-notarized
+          path: build
+
+      - name: Download signed appcast
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cotabby-appcast
+          path: build
 
       - name: Create GitHub Release
         env:
@@ -788,8 +878,12 @@ jobs:
             release_flags=(--latest)
           fi
 
+          # --target pins a tag created here (dispatch runs) to the commit this
+          # run built. Without it GitHub tags the default branch head, which can
+          # move while the release is being built and notarized.
           gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
             --title "Cotabby ${RELEASE_VERSION}" \
+            --target "${GITHUB_SHA}" \
             --generate-notes \
             "${release_flags[@]}"
 
