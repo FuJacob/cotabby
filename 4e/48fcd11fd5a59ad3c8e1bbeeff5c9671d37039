@@ -1,0 +1,111 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_862fa39565b7a3 721,1041,1127,3093,4154,4517
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_f84c6683b372c0 24
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Lifecycle.swift
+  s_b9af9eb54478c8::t_8672de00c54494 24,45,68
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_b9af9eb54478c8::t_b609cfa975e4ef 1389
+Cotabby/Models/Context/CustomRulesCatalog.swift
+  s_b9af9eb54478c8::t_d65daddb900e76 50,52
+Cotabby/Models/Context/LanguageCatalog.swift
+  s_b9af9eb54478c8::t_ac3b7ebba3718c 92,94
+Cotabby/Models/History/TypingHistoryModels.swift
+  s_b9af9eb54478c8::t_e8ed22bd78d5fe 46-54
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_b9af9eb54478c8::t_69e5384681ea66 304
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_b9af9eb54478c8::t_1a0a445e5f3bde 308,329,370,431,550
+Cotabby/Services/Input/InputMonitor.swift
+  s_b9af9eb54478c8::t_e51bdbe41784f0 10,44-103,112,165,167,176,210,213-216,230,373,376-378,384,392,414,417-419,426,434,460,463-465,471,475,481,484-485,491,494-495,508,546,629,782,786-787,792,796,801-802
+Cotabby/Services/Permission/Guidance/SystemSettingsWindowLocator.swift
+  s_b9af9eb54478c8::t_a7a46a1ba19979 26
+Cotabby/Services/Spelling/SymSpellCorrector.swift
+  s_9990f9098df800::t_787d6e33907885 10
+Cotabby/Services/Updates/AppUpdateManager.swift
+  s_b9af9eb54478c8::t_fe6d81bc40221d 11,85
+Cotabby/Services/Visual/ScreenTextExtractor.swift
+  s_b9af9eb54478c8::t_92a48d479f2298 18,288
+Cotabby/Services/Visual/ScreenshotContextGenerator.swift
+  s_b9af9eb54478c8::t_db62b1feec57fc 39-43,111,117,121,187,191,204
+Cotabby/Services/Visual/VisualContextCoordinator.swift
+  s_b9af9eb54478c8::t_a473abee9682c7 70,74,81,101,109,171,211,271,278-280,294-295
+Cotabby/Support/Context/OCRTextHygiene.swift
+  s_b9af9eb54478c8::t_2c7a15e49164a3 23-24,208,262
+Cotabby/Support/Context/PromptContextSanitizer.swift
+  s_b9af9eb54478c8::t_d956fc7dd97dfd 270-271
+Cotabby/Support/Context/SurfaceContextComposer.swift
+  s_b9af9eb54478c8::t_b36fdb279395c2 51,72,82-85,87,101-111,143-145
+Cotabby/Support/Context/VisualContextStartCoalescer.swift
+  s_b9af9eb54478c8::t_0b1585322b546d 15-17,36
+Cotabby/Support/History/CotypistExportImporter.swift
+  s_b9af9eb54478c8::t_eca1eb0b417919 56
+Cotabby/Support/Logging/CotabbyDebugOptions.swift
+  s_b9af9eb54478c8::t_fa606fa147deec 113,116,119
+Cotabby/Support/Logging/FileLogHandler.swift
+  s_b9af9eb54478c8::t_8ec3a7079dc816 16-17,21-26,28-29,31,37,40-42,49,67,81-82,92-94,142,152,156-166,170,174,176,179,181,184-185,191,193,214-262,265
+Cotabby/Support/Logging/LLMIOFileHandler.swift
+  s_9990f9098df800::t_ace97b40d7a1ad 26,28,39-47,50
+Cotabby/Support/Spelling/CurrentWordExtractor.swift
+  s_b9af9eb54478c8::t_777b6b1a5ae5ab 18,37
+Cotabby/Support/Spelling/TypoGate.swift
+  s_b9af9eb54478c8::t_e4e1c241ce43ec 46-48
+Cotabby/Support/Suggestion/Request/CaretWordContext.swift
+  s_b9af9eb54478c8::t_e4358a057c4772 40
+Cotabby/Support/Utilities/BoundedTagList.swift
+  s_b9af9eb54478c8::t_8a0dddb6cb0e40 1-27
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_b9af9eb54478c8::t_9d901bdbc0d1fc 275,391,430,445,456
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorLifecycleTests.swift
+  s_b9af9eb54478c8::t_0eb61c70775072 45,68,84,101,143
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.swift
+  s_b9af9eb54478c8::t_e5d893df930819 57,307-309,323,329,548-549,554,569
+CotabbyTests/Models/Context/PermissionAndContextModelTests.swift
+  s_b9af9eb54478c8::t_9fa61f2a1d57a2 45,48-56
+CotabbyTests/Services/Spelling/SymSpellCorrectorTests.swift
+  s_b9af9eb54478c8::t_8772bb17146e28 194-195
+CotabbyTests/Services/Visual/ScreenshotContextGeneratorTests.swift
+  s_b9af9eb54478c8::t_92c19724ed9c7d 311
+CotabbyTests/Services/Visual/VisualContextCoordinatorTests.swift
+  s_b9af9eb54478c8::t_1d0a2ae708dd56 15,36,61,85,109,123,142,159,174,196,220,243,256,282,305,322,336,369,377
+CotabbyTests/Support/Context/SurfaceContextComposerTests.swift
+  s_b9af9eb54478c8::t_0ab51968b9c467 246,249,251
+CotabbyTests/Support/Context/VisualContextStartCoalescerTests.swift
+  s_b9af9eb54478c8::t_aff7b82ea56431 32-33
+CotabbyTests/Support/History/TypingHistoryIndexTests.swift
+  s_b9af9eb54478c8::t_3d375272998a85 16-29,37,48,55,76,89
+CotabbyTests/Support/History/TypingHistoryScrubberTests.swift
+  s_b9af9eb54478c8::t_51e8b52a4f5d9c 5-9,12,17,23,33,37,42,72
+CotabbyTests/Support/Logging/FileLogHandlerTests.swift
+  s_b9af9eb54478c8::t_a7f9f53671446d 32-33,240
+CotabbyTests/Support/Logging/LLMIOFileHandlerTests.swift
+  s_b9af9eb54478c8::t_b586c92e9e3fd4 31-32
+CotabbyTests/Support/Spelling/CurrentWordExtractorTests.swift
+  s_b9af9eb54478c8::t_77b6c957d83fa7 44,46,50-52,56-57,60
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_b9af9eb54478c8::t_9d0d5bd24078ac 249,256-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e48fcd11fd5a59ad3c8e1bbeeff5c9671d37039",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    },
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
