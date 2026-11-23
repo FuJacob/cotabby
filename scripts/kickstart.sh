@@ -228,9 +228,12 @@ codesign --verify --deep --strict "$app_path"
 note "signed with: $([[ "$signing_identity" == "-" ]] && echo "ad-hoc" || echo "$signing_identity ($team_id)")"
 
 # dmgbuild lives in an isolated venv because Homebrew Python is externally managed (PEP 668).
+# It installs from the same hash-pinned file as the release workflow, every run, because the
+# next step runs it right before Developer ID signing: a reused venv holding other versions is
+# brought back to the pins. The pinned pyobjc needs Python 3.11 or later.
 [[ -x "$VENV_DIR/bin/python3" ]] || python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/python3" -c "import dmgbuild" 2>/dev/null \
-    || "$VENV_DIR/bin/python3" -m pip install --quiet "dmgbuild[badge_icons]>=1.6.0"
+"$VENV_DIR/bin/python3" -m pip install --quiet --require-hashes --only-binary :all: \
+    -r "$REPO_ROOT/scripts/dmgbuild-requirements.txt"
 "$VENV_DIR/bin/python3" "$REPO_ROOT/scripts/build_release_dmg.py" \
     --app-path "$app_path" \
     --output-path "$DMG_PATH" \

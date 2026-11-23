@@ -21,11 +21,11 @@ if [ ! -x "$VENV_PY" ]; then
     echo "Creating dmgbuild venv at $VENV_DIR..."
     python3 -m venv "$VENV_DIR"
 fi
-if ! "$VENV_PY" -c "import dmgbuild" 2>/dev/null; then
-    echo "Installing dmgbuild into venv..."
-    "$VENV_PY" -m pip install --quiet --upgrade pip
-    "$VENV_PY" -m pip install --quiet "dmgbuild[badge_icons]>=1.6.0"
-fi
+# Same hash-pinned packages as the release workflow and kickstart.sh, installed every run so a
+# venv holding other versions is brought back to the pins (needs Python 3.11 or later).
+echo "Installing pinned dmgbuild into venv..."
+"$VENV_PY" -m pip install --quiet --require-hashes --only-binary :all: \
+    -r "$REPO_ROOT/scripts/dmgbuild-requirements.txt"
 
 # Build the app if the bundle is missing.
 if [ ! -d "$APP_PATH" ]; then

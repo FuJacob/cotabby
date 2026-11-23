@@ -1,0 +1,6 @@
+# Python packages for scripts/build_release_dmg.py, installed by the Release workflow and
+# scripts/kickstart.sh with `pip install --require-hashes --only-binary :all:`. The release job
+# installs them while it holds the Developer ID key, so every transitive dependency is pinned by
+# hash in dmgbuild-requirements.txt. After changing this file, regenerate that file with the
+# command at its top, and keep the hash of every wheel (pyobjc ships one per CPython version).
+dmgbuild[badge_icons]==1.6.7
