@@ -142,9 +142,17 @@ enum AXHelper {
         return unsafeBitCast(value, to: AXValue.self)
     }
 
-    /// The range an `AXValue` carries, or nil when the value is anything else. Hosts answer some
-    /// attributes with the wrong payload type, so the type is checked before the payload is read.
-    private static func cfRange(from value: AnyObject?) -> NSRange? {
+    /// The range an `AXValue` carries, or nil when the value is anything else or a range that cannot
+    /// describe text. Hosts answer some attributes with the wrong payload type, so the type is
+    /// checked before the payload is read. Every AX range reader in this file goes through here.
+    ///
+    /// The range comes from another process, so nothing guarantees it is sane either: a buggy or
+    /// hostile host can answer with a negative location or length, or a pair whose end overflows
+    /// `Int`. The resolvers do plain arithmetic on these ranges (`location + length`,
+    /// `Int.max - length`, `NSMaxRange`), and Swift traps on overflow, so one bad reply would crash
+    /// Cotabby. Rejecting such a range here turns it into the ordinary "host gave no range" miss
+    /// every caller handles.
+    static func cfRange(from value: AnyObject?) -> NSRange? {
         guard let axValue = axValue(from: value), AXValueGetType(axValue) == .cfRange else {
             return nil
         }
@@ -154,6 +162,16 @@ enum AXHelper {
             return nil
         }
 
+        return validatedTextRange(range)
+    }
+
+    /// `range` as an `NSRange` when its location and length are non-negative and its end fits in
+    /// `Int`. A zero-length range at `NSNotFound` (`Int.max`) still passes, as it did before; callers
+    /// already clamp a location past the text's end.
+    static func validatedTextRange(_ range: CFRange) -> NSRange? {
+        guard range.location >= 0, range.length >= 0, range.location <= Int.max - range.length else {
+            return nil
+        }
         return NSRange(location: range.location, length: range.length)
     }
 
