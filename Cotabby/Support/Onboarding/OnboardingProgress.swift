@@ -57,7 +57,7 @@ struct OnboardingProgress: Equatable {
 
     /// Progress after the wizard shows `step`. Monotonic: stepping back never lowers the resume
     /// point, so reopening the wizard always lands on the deepest step the user saw. That matters
-    /// because granting Accessibility or Input Monitoring usually needs a relaunch, which would
+    /// because granting Accessibility usually needs a relaunch, which would
     /// otherwise restart onboarding from the top every time (issue #314).
     func reaching(_ step: WelcomeStep) -> OnboardingProgress {
         guard step.rawValue > furthestStepIndex else {

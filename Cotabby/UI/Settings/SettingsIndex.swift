@@ -95,7 +95,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case suggestInIntegratedTerminals
     // Permissions
     case accessibility
-    case inputMonitoring
     case screenRecording
     // Performance
     case performanceTracking
@@ -188,7 +187,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
         case .accessibility: return "Accessibility"
-        case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
         case .performanceTracking: return "Enable Performance Tracking"
         case .suggestionQualityStats: return "Suggestion Quality"
@@ -279,7 +277,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .disabledApps: return "nosign"
         case .suggestInIntegratedTerminals: return "terminal"
         case .accessibility: return "accessibility"
-        case .inputMonitoring: return "keyboard"
         case .screenRecording: return "camera.viewfinder"
         case .performanceTracking: return "stopwatch"
         case .suggestionQualityStats: return "checkmark.seal"
@@ -324,7 +321,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .shortcuts
         case .disabledApps, .suggestInIntegratedTerminals:
             return .apps
-        case .accessibility, .inputMonitoring, .screenRecording:
+        case .accessibility, .screenRecording:
             return .permissions
         case .performanceTracking, .suggestionQualityStats, .resourceUsage, .recentRequests:
             return .performance
@@ -413,8 +410,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
-        case .accessibility: return "Required to read the focused field and caret."
-        case .inputMonitoring: return "Required to see keystrokes and the accept key."
+        case .accessibility: return "Required to read the focused field, typing, and the accept key."
         case .screenRecording: return "Optional visual context from the focused window."
         case .performanceTracking: return "Record timing for every model request."
         case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
@@ -652,10 +648,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "ghost text in terminal"]
         case .accessibility:
             return ["accessibility", "ax", "permission", "access", "system settings",
-                    "privacy", "grant", "allow"]
-        case .inputMonitoring:
-            return ["input", "monitoring", "keystrokes", "permission", "keyboard",
-                    "privacy", "system settings", "grant", "allow"]
+                    "privacy", "grant", "allow", "input", "monitoring", "keystrokes", "keyboard"]
         case .screenRecording:
             return ["screen", "recording", "screenshot", "permission", "ocr", "vision",
                     "privacy", "system settings", "grant", "allow"]

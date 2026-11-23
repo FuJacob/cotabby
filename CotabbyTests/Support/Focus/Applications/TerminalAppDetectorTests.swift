@@ -75,7 +75,7 @@ final class TerminalAppDetectorTests: XCTestCase {
     func test_evaluator_blocksTerminalApp() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
-            inputMonitoringGranted: true,
+            accessibilityGranted: true,
             focusSnapshot: supportedSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
 
@@ -85,7 +85,7 @@ final class TerminalAppDetectorTests: XCTestCase {
     func test_evaluator_doesNotBlockNonTerminalApp() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
-            inputMonitoringGranted: true,
+            accessibilityGranted: true,
             focusSnapshot: supportedSnapshot(applicationName: "Safari", bundleIdentifier: "com.apple.Safari")
         )
 
@@ -96,7 +96,7 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertEqual(
             SuggestionAvailabilityEvaluator.disabledReason(
                 globallyEnabled: true,
-                inputMonitoringGranted: true,
+                accessibilityGranted: true,
                 focusSnapshot: supportedSnapshot(applicationName: "iTerm2", bundleIdentifier: "com.googlecode.iterm2")
             ),
             "Cotabby is not available in terminal apps."
@@ -106,7 +106,7 @@ final class TerminalAppDetectorTests: XCTestCase {
     func test_globalDisabled_winsOverTerminalCheck() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: false,
-            inputMonitoringGranted: true,
+            accessibilityGranted: true,
             focusSnapshot: supportedSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
 

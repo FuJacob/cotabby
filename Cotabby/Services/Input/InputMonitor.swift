@@ -322,7 +322,7 @@ final class InputMonitor {
             owner: self,
             callback: callback
         ) else {
-            CotabbyLogger.app.warning("Failed to create CGEvent observer tap — Input Monitoring permission may be missing")
+            CotabbyLogger.app.warning("Failed to create CGEvent observer tap — Accessibility permission may be missing")
             return
         }
         observerTap = tap

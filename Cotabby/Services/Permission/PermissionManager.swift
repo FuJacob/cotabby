@@ -5,15 +5,20 @@ import CoreGraphics
 import Logging
 
 /// File overview:
-/// Polls and exposes the three system permissions Cotabby depends on: Accessibility for reading
-/// focus state, Input Monitoring for global key capture, and Screen Recording for screenshot
-/// context that improves autocomplete relevance.
+/// Polls and exposes the two system permissions Cotabby depends on: Accessibility for reading
+/// focus state and observing/intercepting keystrokes, and Screen Recording for screenshot context
+/// that improves autocomplete relevance.
+///
+/// There is deliberately no Input Monitoring (`ListenEvent`) permission. An Accessibility-trusted
+/// process may create both `.listenOnly` and `.defaultTap` keyboard event taps, so Input
+/// Monitoring would only duplicate a grant the app already requires. `InputMonitor` gates every tap
+/// on Accessibility instead; creating a listen-only tap *without* it would make macOS prompt for
+/// Input Monitoring, which is why the gate must stay in place.
 ///
 /// `@MainActor` guarantees permission state is mutated on the UI thread.
 @MainActor
 final class PermissionManager: ObservableObject {
     @Published private(set) var accessibilityGranted = false
-    @Published private(set) var inputMonitoringGranted = false
     @Published private(set) var screenRecordingGranted = false
 
     private var pollTimer: Timer?
@@ -58,7 +63,6 @@ final class PermissionManager: ObservableObject {
     /// Re-reads the current system permission state and republishes any changes to observers.
     func refresh() {
         let latestAccessibilityGranted = AXIsProcessTrusted()
-        let latestInputMonitoringGranted = CGPreflightListenEventAccess()
         let latestScreenRecordingGranted = CGPreflightScreenCaptureAccess()
 
         // `@Published` notifies on assignment, even when the value is unchanged. Compare first so
@@ -66,11 +70,6 @@ final class PermissionManager: ObservableObject {
         if accessibilityGranted != latestAccessibilityGranted {
             CotabbyLogger.app.info("Accessibility permission changed: \(latestAccessibilityGranted)")
             accessibilityGranted = latestAccessibilityGranted
-        }
-
-        if inputMonitoringGranted != latestInputMonitoringGranted {
-            CotabbyLogger.app.info("Input Monitoring permission changed: \(latestInputMonitoringGranted)")
-            inputMonitoringGranted = latestInputMonitoringGranted
         }
 
         if screenRecordingGranted != latestScreenRecordingGranted {
@@ -128,9 +127,6 @@ final class PermissionManager: ObservableObject {
             ] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
 
-        case .inputMonitoring:
-            _ = CGRequestListenEventAccess()
-
         case .screenRecording:
             _ = CGRequestScreenCaptureAccess()
         }
@@ -141,19 +137,17 @@ final class PermissionManager: ObservableObject {
     /// Returns the latest cached grant state for a specific permission kind.
     ///
     /// Keeping this switch here means higher-level UI can reason in terms of `CotabbyPermissionKind`
-    /// instead of hard-coding three separate boolean properties everywhere.
+    /// instead of hard-coding separate boolean properties everywhere.
     func isGranted(_ permission: CotabbyPermissionKind) -> Bool {
         switch permission {
         case .accessibility:
             accessibilityGranted
-        case .inputMonitoring:
-            inputMonitoringGranted
         case .screenRecording:
             screenRecordingGranted
         }
     }
 
-    /// Core autocomplete depends on Accessibility and Input Monitoring. Screen Recording is
+    /// Core autocomplete depends on Accessibility. Screen Recording is
     /// optional (without it the app runs the text-only Fast Mode path), so it is intentionally
     /// excluded here via `CotabbyPermissionKind.isRequiredForAutocomplete`.
     var requiredPermissionsGranted: Bool {
@@ -181,8 +175,15 @@ final class PermissionManager: ObservableObject {
 extension PermissionManager: SuggestionPermissionProviding {
     /// The coordinator subscribes through erased publishers so it can depend on a protocol instead
     /// of the concrete `@Published` storage details of `PermissionManager`.
-    var inputMonitoringGrantedPublisher: AnyPublisher<Bool, Never> {
-        $inputMonitoringGranted.eraseToAnyPublisher()
+    ///
+    /// `@Published` emits from `willSet`, so a subscriber that re-reads `accessibilityGranted` (as
+    /// `InputMonitor.refresh()` does through its permission provider) would see the *old* value and,
+    /// on a grant, leave the event taps uninstalled until some later change. Hopping to the next main
+    /// queue turn delivers after the assignment lands, so every reader sees the new state.
+    var accessibilityGrantedPublisher: AnyPublisher<Bool, Never> {
+        $accessibilityGranted
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
     var screenRecordingGrantedPublisher: AnyPublisher<Bool, Never> {

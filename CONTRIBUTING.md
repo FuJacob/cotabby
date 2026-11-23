@@ -140,7 +140,7 @@ From Xcode:
 2. Choose your Mac as the run destination.
 3. Build and run. The dev build is named "Cotabby Dev" and has its own menu bar icon.
 4. Complete onboarding.
-5. Grant **Accessibility** and **Input Monitoring** to "Cotabby Dev" when prompted, and optionally
+5. Grant **Accessibility** to "Cotabby Dev" when prompted, and optionally
    **Screen Recording** for visual context. These map to the features in
    [README.md](README.md#permissions).
 6. Pick Apple Intelligence if available, or use the Open Source engine with a downloaded GGUF
@@ -153,7 +153,6 @@ grant again:
 
 ```sh
 tccutil reset Accessibility com.jacobfu.tabby.dev
-tccutil reset ListenEvent com.jacobfu.tabby.dev
 ```
 
 Then toggle the app back on in System Settings > Privacy & Security. Avoid ad-hoc "Sign to Run

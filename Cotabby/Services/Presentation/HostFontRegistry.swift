@@ -22,7 +22,7 @@ import Security
 /// registration to this running process and it disappears when Cotabby quits.
 ///
 /// Trust: parsing a font is parsing untrusted input, and Cotabby is unsandboxed and holds
-/// Accessibility, Input Monitoring and Screen Recording. Both the font name a host reports and the
+/// Accessibility and Screen Recording. Both the font name a host reports and the
 /// files in its bundle are under that host's control, so an arbitrary focused app must never be able
 /// to hand its fonts to CoreText inside this process. Fonts are therefore loaded only from hosts on a
 /// short allowlist, and only after the bundle on disk passes a code-signing requirement that pins

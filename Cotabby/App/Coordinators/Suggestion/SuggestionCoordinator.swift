@@ -261,7 +261,7 @@ final class SuggestionCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
-        permissionManager.inputMonitoringGrantedPublisher
+        permissionManager.accessibilityGrantedPublisher
             .sink { [weak self] _ in
                 self?.handlePermissionChange()
             }

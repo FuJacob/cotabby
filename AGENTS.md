@@ -171,7 +171,7 @@ Visual context currently flows through:
 
 Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly into prompts.
 Normalize, bound, and mark unavailable states explicitly. Screen Recording permission is separate
-from Accessibility and Input Monitoring.
+from Accessibility.
 
 ## Runtime And Prompting
 

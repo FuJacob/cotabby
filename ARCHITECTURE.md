@@ -353,8 +353,9 @@ the host's pixels (Screen Recording) and are asynchronous:
 
 [PermissionManager.swift](Cotabby/Services/Permission/PermissionManager.swift) tracks:
 
-- Accessibility: required for focus, text, capability, geometry, and insertion validation.
-- Input Monitoring: required for global keyboard observation and acceptance interception.
+- Accessibility: required for focus, text, capability, geometry, and insertion validation, and for
+  the global keyboard event taps (observation and acceptance interception). An Accessibility-trusted
+  process may create both listen-only and active taps, so Cotabby does not request Input Monitoring.
 - Screen Recording: optional, used only for screenshot-derived context.
 
 Context sources are independently enabled and bounded: recent AX prefix/trailing text, surface

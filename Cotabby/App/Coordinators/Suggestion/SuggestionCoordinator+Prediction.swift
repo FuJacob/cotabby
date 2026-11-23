@@ -1302,7 +1302,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            accessibilityGranted: permissionManager.accessibilityGranted,
             focusSnapshot: focusSnapshot
         )
     }
@@ -1318,7 +1318,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            accessibilityGranted: permissionManager.accessibilityGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusSnapshot,
             isFastModeEnabled: settingsSnapshot.isFastModeEnabled
@@ -1345,7 +1345,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            accessibilityGranted: permissionManager.accessibilityGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusSnapshot,
             isFastModeEnabled: settingsSnapshot.isFastModeEnabled

@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// File overview:
-/// "Permissions" detail pane. Renders status rows for the three
-/// permissions Cotabby requires (Accessibility, Input Monitoring, Screen Recording) and offers a
-/// shortcut into the relevant System Settings pane when one of them is missing.
+/// "Permissions" detail pane. Renders status rows for the permissions Cotabby uses
+/// (Accessibility, plus the optional Screen Recording) and offers a shortcut into the relevant
+/// System Settings pane when one of them is missing.
 struct PermissionsPaneView: View {
     @ObservedObject var permissionManager: PermissionManager
     let permissionGuidanceController: PermissionGuidanceController
@@ -12,28 +12,19 @@ struct PermissionsPaneView: View {
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
             Section("Permissions") {
-                Text("Cotabby needs Accessibility and Input Monitoring for autocomplete. " +
+                Text("Cotabby needs Accessibility for autocomplete. " +
                     "Screen Recording is optional and adds on-screen visual context.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 SettingsPermissionRow(
                     permission: .accessibility,
-                    description: "Lets Cotabby see which text field has focus and read its contents " +
-                        "so it knows what to continue.",
+                    description: "Lets Cotabby see which text field has focus, read its contents " +
+                        "so it knows what to continue, and notice your typing and accept keys.",
                     granted: permissionManager.accessibilityGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
                 .settingsItem(.accessibility)
-
-                SettingsPermissionRow(
-                    permission: .inputMonitoring,
-                    description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
-                        "and which key you used to accept.",
-                    granted: permissionManager.inputMonitoringGranted,
-                    permissionGuidanceController: permissionGuidanceController
-                )
-                .settingsItem(.inputMonitoring)
 
                 SettingsPermissionRow(
                     permission: .screenRecording,
