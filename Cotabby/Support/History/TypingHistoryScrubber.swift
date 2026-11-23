@@ -61,6 +61,13 @@ nonisolated enum TypingHistoryScrubber {
         return (typed + rest, typed.count)
     }
 
+    /// The redaction `scrub(before:after:)` applies, without the caret boundary or the history
+    /// record cap, for callers that bound the text by their own rules (clipboard context keeps its
+    /// head, history keeps its tail).
+    static func redactSecrets(in text: String) -> String {
+        redact(text, boundary: 0).text
+    }
+
     /// Replaces every secret-like span and reports where `boundary` (a UTF-16 offset into `text`)
     /// lands in the result.
     private static func redact(_ text: String, boundary: Int) -> (text: String, boundary: Int) {

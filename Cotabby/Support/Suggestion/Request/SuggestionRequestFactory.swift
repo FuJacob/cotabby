@@ -218,13 +218,16 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot,
         prefixText: String
     ) -> String? {
+        // Secrets are redacted on the raw text, before sanitizing splits them on `-`, `_` and `/`.
+        // Every engine's clipboard section comes from here, so this is the one place to do it.
         guard settings.isClipboardContextEnabled,
-              let rawContext
+              let rawContext,
+              let scrubbedContext = ClipboardPrivacyPolicy.promptSafeText(rawContext)
         else {
             return nil
         }
 
-        let sanitizedContext = PromptContextSanitizer.sanitize(rawContext)
+        let sanitizedContext = PromptContextSanitizer.sanitize(scrubbedContext)
         guard !sanitizedContext.isEmpty,
               PromptContextSanitizer.containsAlphanumericSignal(sanitizedContext)
         else {

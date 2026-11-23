@@ -237,8 +237,9 @@ counts Cotabby-generated events so insertion does not re-enter the typing pipeli
 [SuggestionInserter.swift](Cotabby/Services/Suggestion/SuggestionInserter.swift) normally posts short
 Unicode key events without touching the clipboard. Active IME composition uses a clipboard paste
 commit. A default-off policy can also paste long or multiline chunks. Paste tries the target app's
-Accessibility Paste menu item before synthetic Command-V and restores every pasteboard representation
-unless newer user clipboard activity wins.
+Accessibility Paste menu item before synthetic Command-V and restores every pasteboard representation,
+in order, unless newer user clipboard activity wins. The completion it pastes carries the transient and
+concealed markers so clipboard managers skip it.
 
 Replacement sessions delete their validated literal run before inserting correction, emoji, or macro
 text. Posting events is not treated as proof of success; the later AX snapshot is reconciled.
@@ -370,7 +371,9 @@ continuation suite because averaging the two lets fluent prose hide a total fail
 
 [ClipboardContextProvider.swift](Cotabby/Services/Context/ClipboardContextProvider.swift) reads a
 fresh bounded value at request time rather than recording clipboard history. Relevance and distillation
-policies drop unrelated or excessive content.
+policies drop unrelated or excessive content. A copy marked concealed, transient, or auto-generated (the
+nspasteboard.org markers password managers set) is never read, and secret-shaped spans are redacted before
+sanitizing ([ClipboardPrivacyPolicy.swift](Cotabby/Support/Context/ClipboardPrivacyPolicy.swift)).
 
 Visual context is one field-scoped session:
 
