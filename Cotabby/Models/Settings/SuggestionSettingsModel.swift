@@ -190,30 +190,6 @@ final class SuggestionSettingsModel: ObservableObject {
     private let configuration: SuggestionConfiguration
     private var pauseExpirationTimer: Timer?
 
-    // Public default constants re-exported from `SuggestionSettingsStore` (the single source of
-    // truth) so the Settings UI can keep referencing them as `SuggestionSettingsModel.X`.
-    static let defaultAcceptanceKeyCode = SuggestionSettingsStore.defaultAcceptanceKeyCode
-    static let defaultAcceptanceKeyLabel = SuggestionSettingsStore.defaultAcceptanceKeyLabel
-    static let disabledKeyCode = SuggestionSettingsStore.disabledKeyCode
-    static let disabledKeyLabel = SuggestionSettingsStore.disabledKeyLabel
-    static let defaultFullAcceptanceKeyCode = SuggestionSettingsStore.defaultFullAcceptanceKeyCode
-    static let defaultFullAcceptanceKeyLabel = SuggestionSettingsStore.defaultFullAcceptanceKeyLabel
-    static let minimumGhostTextOpacity = SuggestionSettingsStore.minimumGhostTextOpacity
-    static let maximumGhostTextOpacity = SuggestionSettingsStore.maximumGhostTextOpacity
-    static let ghostTextOpacityStep = SuggestionSettingsStore.ghostTextOpacityStep
-    static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
-    static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
-    static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
-    static let minimumGhostFontSizeFloor = SuggestionSettingsStore.minimumGhostFontSizeFloor
-    static let maximumGhostFontSizeFloor = SuggestionSettingsStore.maximumGhostFontSizeFloor
-    static let minimumGhostFontSizeCeiling = SuggestionSettingsStore.minimumGhostFontSizeCeiling
-    static let maximumGhostFontSizeCeiling = SuggestionSettingsStore.maximumGhostFontSizeCeiling
-    static let ghostFontSizeStep = SuggestionSettingsStore.ghostFontSizeStep
-    static let minimumFadeInDuration = SuggestionSettingsStore.minimumFadeInDuration
-    static let maximumFadeInDuration = SuggestionSettingsStore.maximumFadeInDuration
-    static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
-    static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
-
     convenience init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
@@ -291,10 +267,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
         acceptanceBinding = data.shortcuts.acceptance
-        fullAcceptanceShortcut = FullAcceptanceShortcut(
-            keyBinding: data.shortcuts.fullAcceptance,
-            doubleTap: data.shortcuts.doubleTapAcceptsEntireSuggestion
-        )
+        fullAcceptanceShortcut = data.shortcuts.fullAcceptance
         globalToggleBinding = data.shortcuts.globalToggle
         perAppShortcutOverrides = data.perAppShortcutOverrides
         tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
@@ -378,10 +351,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isGhostTextItalic = data.isGhostTextItalic
         matchesHostTextSize = data.matchesHostTextSize
         acceptanceBinding = data.shortcuts.acceptance
-        fullAcceptanceShortcut = FullAcceptanceShortcut(
-            keyBinding: data.shortcuts.fullAcceptance,
-            doubleTap: data.shortcuts.doubleTapAcceptsEntireSuggestion
-        )
+        fullAcceptanceShortcut = data.shortcuts.fullAcceptance
         globalToggleBinding = data.shortcuts.globalToggle
         perAppShortcutOverrides = data.perAppShortcutOverrides
         tabLeavesSingleLineFields = data.tabLeavesSingleLineFields
@@ -491,10 +461,9 @@ final class SuggestionSettingsModel: ObservableObject {
             ),
             shortcuts: SuggestionShortcutSettings(
                 acceptance: acceptanceBinding,
-                fullAcceptance: fullAcceptanceShortcut.keyBinding,
+                fullAcceptance: fullAcceptanceShortcut,
                 globalToggle: globalToggleBinding,
                 perAppOverrides: perAppShortcutOverrides,
-                doubleTapAcceptsEntireSuggestion: fullAcceptanceShortcut.isDoubleTap,
                 tabLeavesSingleLineFields: tabLeavesSingleLineFields
             )
         )
@@ -537,7 +506,7 @@ final class SuggestionSettingsModel: ObservableObject {
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
             automaticallyFixTypos: settings.correction.automaticallyFixTypos,
-            doubleTapAcceptsEntireSuggestion: settings.shortcuts.doubleTapAcceptsEntireSuggestion,
+            doubleTapAcceptsEntireSuggestion: settings.shortcuts.fullAcceptance.isDoubleTap,
             tabLeavesSingleLineFields: settings.shortcuts.tabLeavesSingleLineFields,
             fullAcceptanceOverrideBundleIdentifiers: PerAppShortcutOverride.bundleIdentifiersOverridingFullAcceptance(
                 in: settings.shortcuts.perAppOverrides
@@ -1000,14 +969,11 @@ final class SuggestionSettingsModel: ObservableObject {
 
         if fullAcceptanceShortcut != updated.acceptEntireSuggestion {
             fullAcceptanceShortcut = updated.acceptEntireSuggestion
-            let key = updated.acceptEntireSuggestion.keyBinding
-            store.saveFullAcceptanceKey(keyCode: key.keyCode, modifiers: key.modifiers, label: key.label)
-            store.saveDoubleTapAcceptsEntireSuggestion(updated.acceptEntireSuggestion.isDoubleTap)
+            store.saveFullAcceptance(updated.acceptEntireSuggestion)
         }
         if acceptanceBinding != updated.acceptWord {
             acceptanceBinding = updated.acceptWord
-            let key = updated.acceptWord
-            store.saveAcceptanceKey(keyCode: key.keyCode, modifiers: key.modifiers, label: key.label)
+            store.saveAcceptanceKey(updated.acceptWord)
         }
     }
 
@@ -1035,11 +1001,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// override changes it too, and disabling Accept Word there leaves no double tap at all.
     func inheritedFullAcceptanceDisplayLabel(forBundleIdentifier bundleIdentifier: String?) -> String {
         let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        guard fullAcceptanceShortcut.isDoubleTap, fullAccept.keyCode == Self.disabledKeyCode else {
+        guard fullAcceptanceShortcut.isDoubleTap, !fullAccept.isBound else {
             return fullAccept.label
         }
         let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        guard accept.keyCode != Self.disabledKeyCode else { return fullAccept.label }
+        guard accept.isBound else { return fullAccept.label }
         return "\(accept.label) \(accept.label)"
     }
 
@@ -1048,9 +1014,20 @@ final class SuggestionSettingsModel: ObservableObject {
         acceptanceShortcuts.hasAcceptEntireSuggestionShortcut
     }
 
+    /// Whether Accept Word still holds the factory key, so views can hide Reset.
+    var isAcceptanceShortcutDefault: Bool {
+        acceptanceShortcuts.isAcceptWordFactoryDefault
+    }
+
     /// Whether the slot still holds the factory one-press key, so views can hide Reset.
     var isFullAcceptanceShortcutDefault: Bool {
         acceptanceShortcuts.isAcceptEntireSuggestionFactoryDefault
+    }
+
+    /// The Accept Word key offered to the Accept Entire Suggestion recorder as a double press, or
+    /// `nil` while Accept Word is unbound.
+    var doubleTapRecordingKey: SuggestionShortcutBindingSettings? {
+        acceptanceShortcuts.doubleTapRecordingKey
     }
 
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
@@ -1293,11 +1270,11 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        if accept.keyCode != Self.disabledKeyCode {
+        if accept.isBound {
             return accept.label
         }
         let fullAccept = resolvedFullAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        if fullAccept.keyCode != Self.disabledKeyCode {
+        if fullAccept.isBound {
             return fullAccept.label
         }
         return nil
@@ -1310,7 +1287,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Inline commands require word accept, independent of the ghost-text hint preference.
     func emojiPickerAcceptKeyLabel(forBundleIdentifier bundleIdentifier: String?) -> String? {
         let accept = resolvedAcceptBinding(forBundleIdentifier: bundleIdentifier)
-        return accept.keyCode == Self.disabledKeyCode ? nil : accept.label
+        return accept.isBound ? accept.label : nil
     }
 
     var emojiPickerAcceptKeyLabel: String? {
@@ -1407,10 +1384,8 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(customRules.filter { $0 != rule })
     }
 
-    /// Restores the baseline rule set, which is currently empty (rules are opt-in). See
-    /// `CustomRulesCatalog.defaultRules`. Named for the UI affordance ("Clear"): if that baseline is
-    /// ever made non-empty, revisit this name and the editor's button label together.
-    func clearRules() {
+    /// Restores `CustomRulesCatalog.defaultRules`, which is empty because rules are opt-in.
+    func resetRules() {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
@@ -1448,14 +1423,18 @@ final class SuggestionSettingsModel: ObservableObject {
         setLanguages(responseLanguages.filter { $0 != language })
     }
 
-    /// Restores the baseline (empty) language set. Named for the editor's "Clear" affordance.
-    func clearLanguages() {
+    /// Restores `LanguageCatalog.defaultLanguages`, the set a fresh install starts with.
+    func resetLanguages() {
         setLanguages(LanguageCatalog.defaultLanguages)
     }
 
     func setAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
         let binding = SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
         updateAcceptanceShortcuts { $0.recordAcceptWord(binding) }
+    }
+
+    func resetAcceptanceKey() {
+        updateAcceptanceShortcuts { $0.resetAcceptWord() }
     }
 
     func clearAcceptanceKey() {
@@ -1467,22 +1446,31 @@ final class SuggestionSettingsModel: ObservableObject {
         updateAcceptanceShortcuts { $0.recordAcceptEntireSuggestion(binding) }
     }
 
+    func resetFullAcceptanceKey() {
+        updateAcceptanceShortcuts { $0.resetAcceptEntireSuggestion() }
+    }
+
     func clearFullAcceptanceKey() {
         updateAcceptanceShortcuts { $0.clearAcceptEntireSuggestion() }
     }
 
     func setGlobalToggleKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        let binding = SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
+        updateGlobalToggleBinding(
+            SuggestionShortcutBindingSettings(recordedKeyCode: keyCode, modifiers: modifiers, label: label)
+        )
+    }
+
+    func clearGlobalToggleKey() {
+        updateGlobalToggleBinding(.unbound)
+    }
+
+    private func updateGlobalToggleBinding(_ binding: SuggestionShortcutBindingSettings) {
         guard globalToggleBinding != binding else {
             return
         }
 
         globalToggleBinding = binding
-        store.saveGlobalToggleKey(keyCode: binding.keyCode, modifiers: binding.modifiers, label: binding.label)
-    }
-
-    func clearGlobalToggleKey() {
-        setGlobalToggleKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+        store.saveGlobalToggleKey(binding)
     }
 
     // MARK: - Per-app shortcut overrides
@@ -1652,7 +1640,7 @@ final class SuggestionSettingsModel: ObservableObject {
         modifiers: ShortcutModifierMask,
         excluding action: ShortcutAction
     ) -> String? {
-        guard keyCode != Self.disabledKeyCode else { return nil }
+        guard keyCode != SuggestionSettingsStore.disabledKeyCode else { return nil }
 
         for other in ShortcutAction.allCases where other != action {
             if shortcutBinding(for: other).matches(keyCode: keyCode, modifiers: modifiers) {
@@ -1669,7 +1657,7 @@ final class SuggestionSettingsModel: ObservableObject {
         modifiers: ShortcutModifierMask,
         excluding action: ShortcutAction
     ) -> String? {
-        guard keyCode != Self.disabledKeyCode else { return nil }
+        guard keyCode != SuggestionSettingsStore.disabledKeyCode else { return nil }
 
         // Resolve inherited bindings too; an override can collide with the other action's global key.
         if action != .acceptWord {
@@ -1717,7 +1705,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            // Group the typo settings into one inner publisher so the presentation slot stays at
+            // The three typo settings share one inner publisher so this slot stays within
             // Combine's four-upstream cap while carrying the full correction policy.
             Publishers.CombineLatest4(
                 $isClipboardContextEnabled,
@@ -1779,10 +1767,10 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             customRange
         )
             .map { primaryTuple, acceptanceTuple, extendedContextTuple, customRangeTuple in
-                let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
+                let (combinedSettings, contextToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
-                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
+                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = contextToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing

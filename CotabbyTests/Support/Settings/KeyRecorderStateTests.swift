@@ -7,7 +7,7 @@ import XCTest
 /// view's `NSEvent` handler, where nothing could exercise them.
 @MainActor
 final class KeyRecorderStateTests: XCTestCase {
-    private let tab = DoubleTapRecordingKey(keyCode: 48, modifiers: [], label: "Tab")
+    private let tab = SuggestionShortcutBindingSettings(keyCode: 48, modifiers: [], label: "Tab")
     private let window = DoubleTapAcceptanceState.window
 
     private func press(
@@ -23,7 +23,7 @@ final class KeyRecorderStateTests: XCTestCase {
     private func send(
         _ input: KeyRecorderState.Input,
         to state: inout KeyRecorderState,
-        doubleTapKey: DoubleTapRecordingKey? = nil
+        doubleTapKey: SuggestionShortcutBindingSettings? = nil
     ) -> KeyRecorderState.Effect? {
         state.handle(input, doubleTapKey: doubleTapKey) { keyCode, modifiers in
             keyCode == 48 && modifiers.isEmpty ? "Accept Word" : nil

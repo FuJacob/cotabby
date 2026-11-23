@@ -16,7 +16,7 @@ struct KeybindRow: View {
     let clearLabel: String
     let clearHelp: String
     let conflictChecker: (CGKeyCode, ShortcutModifierMask) -> String?
-    var doubleTapKey: DoubleTapRecordingKey?
+    var doubleTapKey: SuggestionShortcutBindingSettings?
     var onDoubleTapRecorded: (() -> Void)?
 
     var body: some View {

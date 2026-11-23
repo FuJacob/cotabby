@@ -5,7 +5,7 @@ import Foundation
 /// add as tags. A rule is one clause of the same shape as the prompt's built-in rules (e.g.
 /// "Never use em dashes"), so the renderers can emit each as a single bullet.
 ///
-/// `defaultRules` is the baseline the editor's "Clear" action restores (currently empty — rules are
+/// `defaultRules` is the baseline the editor's Reset button restores (currently empty — rules are
 /// opt-in). `suggestedPalette` is the
 /// broader set surfaced as tappable chips so users are never staring at a blank box. `normalize`
 /// is the single chokepoint that keeps stored rules bounded and de-duplicated regardless of whether
@@ -25,7 +25,7 @@ enum CustomRulesCatalog {
     static let maxRules = 10
     static let maxRuleLength = 60
 
-    /// Nothing ships enabled — rules are opt-in. "Clear" in the editor restores this empty state.
+    /// Nothing ships enabled — rules are opt-in. Reset in the editor restores this empty state.
     static let defaultRules: [String] = []
 
     /// Tappable suggestions shown in the editor. Chosen to span the common axes people care about —

@@ -120,14 +120,11 @@ struct SuggestionShortcutBindingSettings: Codable, Equatable, Sendable {
 /// The independently configurable shortcut actions and app-specific overrides.
 struct SuggestionShortcutSettings: Equatable {
     var acceptance: SuggestionShortcutBindingSettings
-    var fullAcceptance: SuggestionShortcutBindingSettings
+    /// One-press key, double tap of Accept Word, or nothing. The store reads and writes it as the
+    /// key triple plus the double-tap flag earlier builds persisted.
+    var fullAcceptance: FullAcceptanceShortcut
     var globalToggle: SuggestionShortcutBindingSettings
     var perAppOverrides: [PerAppShortcutOverride]
-    /// When true, Accept Entire Suggestion is bound to a quick double press of the Accept Word key
-    /// instead of a one-press key; the model's setters keep `fullAcceptance` unbound while it is on.
-    /// The double tap follows each app's own Accept Word key, and applies only in apps that inherit
-    /// the global Accept Entire Suggestion binding.
-    var doubleTapAcceptsEntireSuggestion: Bool
     /// When true and Accept Word is plain Tab, Tab in a single-line field (an HTML `<input>`, an
     /// `NSTextField`) is left to the host, so it moves to the next field as it would without
     /// Cotabby. Accept Entire Suggestion still accepts there.
@@ -278,27 +275,7 @@ extension SuggestionSettingsData {
 
     var preferredEmojiGender: EmojiGender { inlineFeatures.preferredEmojiGender }
 
-    var acceptanceKeyCode: CGKeyCode { shortcuts.acceptance.keyCode }
-
-    var acceptanceKeyModifiers: ShortcutModifierMask { shortcuts.acceptance.modifiers }
-
-    var acceptanceKeyLabel: String { shortcuts.acceptance.label }
-
-    var fullAcceptanceKeyCode: CGKeyCode { shortcuts.fullAcceptance.keyCode }
-
-    var fullAcceptanceKeyModifiers: ShortcutModifierMask { shortcuts.fullAcceptance.modifiers }
-
-    var fullAcceptanceKeyLabel: String { shortcuts.fullAcceptance.label }
-
-    var globalToggleKeyCode: CGKeyCode { shortcuts.globalToggle.keyCode }
-
-    var globalToggleKeyModifiers: ShortcutModifierMask { shortcuts.globalToggle.modifiers }
-
-    var globalToggleKeyLabel: String { shortcuts.globalToggle.label }
-
     var perAppShortcutOverrides: [PerAppShortcutOverride] { shortcuts.perAppOverrides }
-
-    var doubleTapAcceptsEntireSuggestion: Bool { shortcuts.doubleTapAcceptsEntireSuggestion }
 
     var tabLeavesSingleLineFields: Bool { shortcuts.tabLeavesSingleLineFields }
 }

@@ -52,7 +52,7 @@ final class ShortcutConflictTests: XCTestCase {
     func test_conflict_ignoresDisabledSentinel() {
         let model = makeModel()
         let conflict = model.conflictingShortcutName(
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
             modifiers: [],
             excluding: .toggleTabby
         )

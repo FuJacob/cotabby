@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// File overview:
-/// "Appearance" detail pane: everything about how suggestions are presented, split out of the old
-/// General pane so each surface has one focus. Two sections: Display (where and how the suggestion
-/// shows) and Appearance (the ghost text's color, style, opacity, and size). The
-/// `Suggestion Display` label matches the menu-bar quick control so users can connect the two.
+/// "Appearance" detail pane: everything about how suggestions are presented. Two sections: Display
+/// (where and how the suggestion shows) and Appearance (the ghost text's color, style, opacity, and
+/// size). The `Suggestion Display` label matches the menu-bar quick control so users can connect
+/// the two.
 struct AppearancePaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -63,9 +63,9 @@ struct AppearancePaneView: View {
                                 .foregroundStyle(.secondary)
                             TickMarkSlider(
                                 value: fadeSpeedBinding,
-                                range: SuggestionSettingsModel.minimumFadeInDuration
-                                    ... SuggestionSettingsModel.maximumFadeInDuration,
-                                step: SuggestionSettingsModel.fadeInDurationStep
+                                range: SuggestionSettingsStore.minimumFadeInDuration
+                                    ... SuggestionSettingsStore.maximumFadeInDuration,
+                                step: SuggestionSettingsStore.fadeInDurationStep
                             )
                             .frame(width: 150)
                             Text("Fast")
@@ -183,9 +183,9 @@ struct AppearancePaneView: View {
                 LabeledContent {
                     valueSlider(
                         value: suggestionSettings.binding(\.ghostTextOpacity) { $0.setGhostTextOpacity($1) },
-                        range: SuggestionSettingsModel.minimumGhostTextOpacity
-                            ... SuggestionSettingsModel.maximumGhostTextOpacity,
-                        step: SuggestionSettingsModel.ghostTextOpacityStep,
+                        range: SuggestionSettingsStore.minimumGhostTextOpacity
+                            ... SuggestionSettingsStore.maximumGhostTextOpacity,
+                        step: SuggestionSettingsStore.ghostTextOpacityStep,
                         valueLabel: ghostTextOpacityLabel
                     )
                 } label: {
@@ -210,9 +210,9 @@ struct AppearancePaneView: View {
                 LabeledContent {
                     valueSlider(
                         value: suggestionSettings.binding(\.ghostTextSizeMultiplier) { $0.setGhostTextSizeMultiplier($1) },
-                        range: SuggestionSettingsModel.minimumGhostTextSizeMultiplier
-                            ... SuggestionSettingsModel.maximumGhostTextSizeMultiplier,
-                        step: SuggestionSettingsModel.ghostTextSizeMultiplierStep,
+                        range: SuggestionSettingsStore.minimumGhostTextSizeMultiplier
+                            ... SuggestionSettingsStore.maximumGhostTextSizeMultiplier,
+                        step: SuggestionSettingsStore.ghostTextSizeMultiplierStep,
                         valueLabel: ghostTextSizeLabel
                     )
                 } label: {
@@ -228,9 +228,9 @@ struct AppearancePaneView: View {
                 LabeledContent {
                     valueSlider(
                         value: suggestionSettings.binding(\.ghostFontSizeFloor) { $0.setGhostFontSizeFloor($1) },
-                        range: SuggestionSettingsModel.minimumGhostFontSizeFloor
-                            ... SuggestionSettingsModel.maximumGhostFontSizeFloor,
-                        step: SuggestionSettingsModel.ghostFontSizeStep,
+                        range: SuggestionSettingsStore.minimumGhostFontSizeFloor
+                            ... SuggestionSettingsStore.maximumGhostFontSizeFloor,
+                        step: SuggestionSettingsStore.ghostFontSizeStep,
                         valueLabel: ghostFontSizeFloorLabel
                     )
                 } label: {
@@ -246,9 +246,9 @@ struct AppearancePaneView: View {
                 LabeledContent {
                     valueSlider(
                         value: suggestionSettings.binding(\.ghostFontSizeCeiling) { $0.setGhostFontSizeCeiling($1) },
-                        range: SuggestionSettingsModel.minimumGhostFontSizeCeiling
-                            ... SuggestionSettingsModel.maximumGhostFontSizeCeiling,
-                        step: SuggestionSettingsModel.ghostFontSizeStep,
+                        range: SuggestionSettingsStore.minimumGhostFontSizeCeiling
+                            ... SuggestionSettingsStore.maximumGhostFontSizeCeiling,
+                        step: SuggestionSettingsStore.ghostFontSizeStep,
                         valueLabel: ghostFontSizeCeilingLabel
                     )
                 } label: {

@@ -55,7 +55,7 @@ enum BaseCompletionPromptRenderer {
             sections.append(Self.contextSection("language", language, priority: 50, maxChars: 300))
         }
         if let notes = Self.nonEmpty(extendedContext) {
-            // `maxChars` must stay at or above `SuggestionSettingsModel.maximumExtendedContextCharacters`
+            // `maxChars` must stay at or above `SuggestionSettingsStore.maximumExtendedContextCharacters`
             // plus this label (~32 chars) so the full user-entered Extended Context survives here instead
             // of being silently clipped far under the advertised cap. It still competes for the total
             // budget below (priority 40), so an unusually long prefix can trim it, but in normal use

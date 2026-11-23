@@ -106,7 +106,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setPreferredEmojiGender(.female)
             model.setAutoAcceptTrailingPunctuation(false)
             model.setFadeInSuggestions(false)
-            model.setFadeInDurationSeconds(SuggestionSettingsModel.maximumFadeInDuration)
+            model.setFadeInDurationSeconds(SuggestionSettingsStore.maximumFadeInDuration)
             model.setAcceptanceGranularity(.phrase)
             model.setSuggestInIntegratedTerminals(true)
             model.setShowIndicator(false)
@@ -156,7 +156,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(reloaded.preferredEmojiGender, .female)
         XCTAssertFalse(reloaded.autoAcceptTrailingPunctuation)
         XCTAssertFalse(reloaded.fadeInSuggestions)
-        XCTAssertEqual(reloaded.fadeInDurationSeconds, SuggestionSettingsModel.maximumFadeInDuration, accuracy: 0.0001)
+        XCTAssertEqual(reloaded.fadeInDurationSeconds, SuggestionSettingsStore.maximumFadeInDuration, accuracy: 0.0001)
         XCTAssertEqual(reloaded.acceptanceGranularity, .phrase)
         XCTAssertTrue(reloaded.suggestInIntegratedTerminals)
         XCTAssertFalse(reloaded.showIndicator)
@@ -182,9 +182,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
         // straight through a store on the same suite, so the model loads them non-default and the
         // assertions below would catch a missing line in `resetToDefaults`'s fan-out for any of them.
         let seed = SuggestionSettingsStore(userDefaults: defaults)
-        seed.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
-        seed.saveFullAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
-        seed.saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
+        seed.saveAcceptanceKey(SuggestionShortcutBindingSettings(keyCode: 36, modifiers: [], label: "Return"))
+        seed.saveFullAcceptance(.key(SuggestionShortcutBindingSettings(keyCode: 49, modifiers: [], label: "Space")))
+        seed.saveGlobalToggleKey(SuggestionShortcutBindingSettings(keyCode: 47, modifiers: [], label: "."))
         seed.saveDebounceMilliseconds(15)
         seed.saveFocusPollIntervalMilliseconds(30)
         seed.saveResponseLanguages(["French"])
@@ -232,8 +232,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setShowAcceptanceHint(false)
         model.setUserName("Ada")
         model.setExtendedContext("Glossary: cotabby means tea whisk")
-        model.setGhostTextOpacity(SuggestionSettingsModel.minimumGhostTextOpacity)
-        model.setGhostTextSizeMultiplier(SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+        model.setGhostTextOpacity(SuggestionSettingsStore.minimumGhostTextOpacity)
+        model.setGhostTextSizeMultiplier(SuggestionSettingsStore.maximumGhostTextSizeMultiplier)
         model.setCustomSuggestionTextColorHex("#a1b2c3")
         model.setPowerBasedModelSwitchingEnabled(true)
         model.setPowerProfileEngine(.appleIntelligence, for: .battery)
@@ -705,7 +705,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     func test_acceptanceHint_defaultsToOnAndFollowsARebind() {
         let model = makeModel()
         XCTAssertTrue(model.showAcceptanceHint)
-        XCTAssertEqual(model.acceptanceHintLabel, SuggestionSettingsModel.defaultAcceptanceKeyLabel)
+        XCTAssertEqual(model.acceptanceHintLabel, SuggestionSettingsStore.defaultAcceptanceKeyLabel)
 
         model.setAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
         XCTAssertEqual(model.acceptanceHintLabel, "Space", "Hint should follow the rebound word-accept key")
@@ -740,9 +740,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setPerAppAcceptKey(
             bundleIdentifier: "com.apple.notes",
             displayName: "Notes",
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
             modifiers: [],
-            label: SuggestionSettingsModel.disabledKeyLabel
+            label: SuggestionSettingsStore.disabledKeyLabel
         )
 
         XCTAssertEqual(
@@ -765,8 +765,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setAcceptanceKey(keyCode: 36, modifiers: [.command], label: "⌘Return")
 
         XCTAssertEqual(model.acceptanceKeyCode, 36)
-        XCTAssertEqual(model.fullAcceptanceKeyCode, SuggestionSettingsModel.disabledKeyCode)
-        XCTAssertEqual(model.fullAcceptanceKeyLabel, SuggestionSettingsModel.disabledKeyLabel)
+        XCTAssertEqual(model.fullAcceptanceKeyCode, SuggestionSettingsStore.disabledKeyCode)
+        XCTAssertEqual(model.fullAcceptanceKeyLabel, SuggestionSettingsStore.disabledKeyLabel)
     }
 
     func test_setFullAcceptanceKey_stealingTheAcceptComboClearsAccept() {
@@ -776,7 +776,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setFullAcceptanceKey(keyCode: 48, modifiers: [], label: "Tab")
 
         XCTAssertEqual(model.fullAcceptanceKeyCode, 48)
-        XCTAssertEqual(model.acceptanceKeyCode, SuggestionSettingsModel.disabledKeyCode)
+        XCTAssertEqual(model.acceptanceKeyCode, SuggestionSettingsStore.disabledKeyCode)
     }
 
     func test_setAcceptanceKey_sameKeyDifferentModifiersCoexists() {
@@ -791,19 +791,32 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.fullAcceptanceKeyModifiers, [.shift])
     }
 
+    func test_resetAcceptanceKey_restoresAndPersistsPlainTab() {
+        let model = makeModel()
+        XCTAssertTrue(model.isAcceptanceShortcutDefault)
+        model.setAcceptanceKey(keyCode: 48, modifiers: [.shift], label: "⇧Tab")
+        XCTAssertFalse(model.isAcceptanceShortcutDefault)
+
+        model.resetAcceptanceKey()
+
+        XCTAssertTrue(model.isAcceptanceShortcutDefault)
+        XCTAssertEqual(model.acceptanceKeyLabel, SuggestionSettingsStore.defaultAcceptanceKeyLabel)
+        XCTAssertTrue(makeModel().isAcceptanceShortcutDefault)
+    }
+
     func test_disabledKeyCode_normalizesModifiersToEmpty() {
         let model = makeModel()
         model.setAcceptanceKey(
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
             modifiers: [.command, .shift],
-            label: SuggestionSettingsModel.disabledKeyLabel
+            label: SuggestionSettingsStore.disabledKeyLabel
         )
         XCTAssertEqual(model.acceptanceKeyModifiers, [])
 
         model.setGlobalToggleKey(
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
             modifiers: [.option],
-            label: SuggestionSettingsModel.disabledKeyLabel
+            label: SuggestionSettingsStore.disabledKeyLabel
         )
         XCTAssertEqual(model.globalToggleKeyModifiers, [])
     }
@@ -818,8 +831,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(reloaded.globalToggleKeyLabel, "⌘⌥B")
 
         model.clearGlobalToggleKey()
-        XCTAssertEqual(model.globalToggleKeyCode, SuggestionSettingsModel.disabledKeyCode)
-        XCTAssertEqual(model.globalToggleKeyLabel, SuggestionSettingsModel.disabledKeyLabel)
+        XCTAssertEqual(model.globalToggleKeyCode, SuggestionSettingsStore.disabledKeyCode)
+        XCTAssertEqual(model.globalToggleKeyLabel, SuggestionSettingsStore.disabledKeyLabel)
     }
 
     func test_toggleGloballyEnabled_flipsAndPersists() {
@@ -869,7 +882,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
     // MARK: - Normalization funnels
 
-    func test_rules_addRemoveClearFunnelThroughNormalization() {
+    func test_rules_addRemoveResetFunnelThroughNormalization() {
         let model = makeModel()
 
         model.addRule("  Always answer briefly.  ")
@@ -880,11 +893,11 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.removeRule("Always answer briefly.")
         XCTAssertEqual(model.customRules, ["Prefer plain prose."])
 
-        model.clearRules()
+        model.resetRules()
         XCTAssertEqual(model.customRules, CustomRulesCatalog.defaultRules)
     }
 
-    func test_languages_addRemoveClearFunnelThroughNormalization() {
+    func test_languages_addRemoveResetFunnelThroughNormalization() {
         let model = makeModel()
 
         model.addLanguage("French")
@@ -895,7 +908,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(model.responseLanguages.contains("French"))
 
         model.addLanguage("Japanese")
-        model.clearLanguages()
+        model.resetLanguages()
         XCTAssertEqual(model.responseLanguages, LanguageCatalog.defaultLanguages)
     }
 
@@ -918,14 +931,14 @@ final class SuggestionSettingsModelTests: XCTestCase {
         let model = makeModel()
 
         model.setGhostTextOpacity(5.0)
-        XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.maximumGhostTextOpacity)
+        XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsStore.maximumGhostTextOpacity)
         model.setGhostTextOpacity(-1)
-        XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.minimumGhostTextOpacity)
+        XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsStore.minimumGhostTextOpacity)
 
         model.setGhostTextSizeMultiplier(100)
-        XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+        XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsStore.maximumGhostTextSizeMultiplier)
         model.setGhostTextSizeMultiplier(0)
-        XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
+        XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsStore.minimumGhostTextSizeMultiplier)
     }
 
     func test_ghostTextAppearanceDefaultsAreFullyOpaqueAndUnscaled() {
@@ -938,44 +951,44 @@ final class SuggestionSettingsModelTests: XCTestCase {
         let model = makeModel()
 
         model.setFadeInDurationSeconds(10)
-        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsModel.maximumFadeInDuration)
+        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsStore.maximumFadeInDuration)
         model.setFadeInDurationSeconds(0)
-        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsModel.minimumFadeInDuration)
+        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsStore.minimumFadeInDuration)
     }
 
     func test_ghostFontSizeLimits_clampToTheirOwnRanges() {
         let model = makeModel()
 
         model.setGhostFontSizeFloor(1000)
-        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsStore.maximumGhostFontSizeFloor)
         model.setGhostFontSizeFloor(0)
-        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.minimumGhostFontSizeFloor)
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsStore.minimumGhostFontSizeFloor)
 
         model.setGhostFontSizeCeiling(1000)
-        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.maximumGhostFontSizeCeiling)
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsStore.maximumGhostFontSizeCeiling)
         model.setGhostFontSizeCeiling(0)
-        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsStore.minimumGhostFontSizeCeiling)
     }
 
     func test_ghostFontSizeFloorPushesCeilingUpRatherThanInvertingTheRange() {
         let model = makeModel()
-        model.setGhostFontSizeCeiling(SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+        model.setGhostFontSizeCeiling(SuggestionSettingsStore.minimumGhostFontSizeCeiling)
 
         // Raising the floor above the ceiling must not leave an empty range, where the ceiling would
         // silently win and the control the user just moved would appear to do nothing.
-        model.setGhostFontSizeFloor(SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        model.setGhostFontSizeFloor(SuggestionSettingsStore.maximumGhostFontSizeFloor)
 
-        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsStore.maximumGhostFontSizeFloor)
         XCTAssertGreaterThanOrEqual(model.ghostFontSizeCeiling, model.ghostFontSizeFloor)
     }
 
     func test_ghostFontSizeCeilingPullsFloorDownRatherThanInvertingTheRange() {
         let model = makeModel()
-        model.setGhostFontSizeFloor(SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        model.setGhostFontSizeFloor(SuggestionSettingsStore.maximumGhostFontSizeFloor)
 
-        model.setGhostFontSizeCeiling(SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+        model.setGhostFontSizeCeiling(SuggestionSettingsStore.minimumGhostFontSizeCeiling)
 
-        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsStore.minimumGhostFontSizeCeiling)
         XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
     }
 
@@ -992,7 +1005,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         // Below `absoluteMinimumPointSize` the backstop wins anyway, so a lower slider minimum would
         // offer settings that silently do nothing.
         XCTAssertEqual(
-            SuggestionSettingsModel.minimumGhostFontSizeFloor,
+            SuggestionSettingsStore.minimumGhostFontSizeFloor,
             Double(GhostFontSizeLimits.absoluteMinimumPointSize)
         )
     }

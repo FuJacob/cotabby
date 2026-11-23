@@ -3,7 +3,7 @@ import SwiftUI
 
 /// File overview:
 /// "General" detail pane: the top-level on/off switches and the core behavior toggles a user
-/// reaches for most. How suggestions look moved to the Appearance pane and the emoji feature to the
+/// reaches for most. How suggestions look lives in the Appearance pane and the emoji feature in the
 /// Emoji pane, which keeps this pane short and scannable. Each row carries a leading SF Symbol via
 /// `SettingsRowLabel` so the list reads at a glance.
 struct GeneralPaneView: View {
@@ -40,10 +40,9 @@ struct GeneralPaneView: View {
                 .settingsItem(.openAtLogin)
             }
 
-            // Split from the old catch-all "Behavior" group: what the model is allowed to read
-            // (Context) reads differently from what a suggestion may contain (Suggestions). The
-            // acceptance toggles that used to live here now sit with Writing, next to the other
-            // controls that shape inserted text.
+            // What the model is allowed to read (Context) is a different question from what a
+            // suggestion may contain (Suggestions), so they are separate sections. The acceptance
+            // toggles sit with Writing, next to the other controls that shape inserted text.
             Section("Context") {
                 Toggle(isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding) {
                     SettingsRowLabel(
@@ -129,10 +128,7 @@ struct GeneralPaneView: View {
 
             #if DEBUG
             Section("Development") {
-                Toggle(isOn: Binding(
-                    get: { suggestionSettings.showDevelopmentDebugOverlays },
-                    set: { suggestionSettings.setShowDevelopmentDebugOverlays($0) }
-                )) {
+                Toggle(isOn: suggestionSettings.binding(\.showDevelopmentDebugOverlays) { $0.setShowDevelopmentDebugOverlays($1) }) {
                     SettingsRowLabel(
                         title: "Show Development Debug Overlays",
                         description: "Show caret and field outlines, focus polling, and screen-context status. " +

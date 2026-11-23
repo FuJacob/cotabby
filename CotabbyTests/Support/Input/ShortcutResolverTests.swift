@@ -43,17 +43,17 @@ final class ShortcutResolverTests: XCTestCase {
 
     func test_acceptBinding_honorsDisabledOverride() {
         let disabled = binding(
-            SuggestionSettingsModel.disabledKeyCode,
+            SuggestionSettingsStore.disabledKeyCode,
             [],
-            SuggestionSettingsModel.disabledKeyLabel
+            SuggestionSettingsStore.disabledKeyLabel
         )
 
         XCTAssertEqual(
             resolveAccept(overrides: [makeOverride(acceptance: disabled)]),
             .init(
-                keyCode: SuggestionSettingsModel.disabledKeyCode,
+                keyCode: SuggestionSettingsStore.disabledKeyCode,
                 modifiers: [],
-                label: SuggestionSettingsModel.disabledKeyLabel
+                label: SuggestionSettingsStore.disabledKeyLabel
             )
         )
     }

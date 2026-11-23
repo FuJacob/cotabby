@@ -9,8 +9,8 @@ import Foundation
 /// correctness-sensitive migration logic (which protects an existing user's settings across an app
 /// update) testable against an injected `UserDefaults` suite without SwiftUI observation. The facade
 /// owns one of these, calls `load(configuration:)` once on launch, and routes each setter through the
-/// matching `save…` method. The pure default constants and value normalizers live here too so the
-/// facade and the store share one source of truth; the facade re-exports the public ones for the UI.
+/// matching `save…` method. The pure default constants, limits and value normalizers live here too,
+/// so the facade, the store and the Settings UI all read one definition of each.
 struct SuggestionSettingsStore {
     private let userDefaults: UserDefaults
 
@@ -18,7 +18,7 @@ struct SuggestionSettingsStore {
         self.userDefaults = userDefaults
     }
 
-    // MARK: - Public default constants (re-exported by SuggestionSettingsModel for the Settings UI)
+    // MARK: - Public defaults and limits (also read by the Settings UI)
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
@@ -429,7 +429,7 @@ struct SuggestionSettingsStore {
 
         // Prefer the multi-language value once the user has touched it (key present, even if empty).
         // Otherwise migrate the previous single-select choice exactly once; a fresh install gets the
-        // empty default.
+        // default set.
         let resolvedResponseLanguages: [String] = if userDefaults.object(forKey: Self.responseLanguagesDefaultsKey) != nil {
             LanguageCatalog.normalize(userDefaults.stringArray(forKey: Self.responseLanguagesDefaultsKey) ?? [])
         } else if let legacyCode = userDefaults.string(forKey: Self.legacyResponseLanguageDefaultsKey) {
@@ -624,10 +624,13 @@ struct SuggestionSettingsStore {
                     modifiers: resolvedAcceptanceKeyModifiers,
                     label: resolvedAcceptanceKeyLabel
                 ),
-                fullAcceptance: SuggestionShortcutBindingSettings(
-                    keyCode: resolvedFullAcceptanceKeyCode,
-                    modifiers: resolvedFullAcceptanceKeyModifiers,
-                    label: resolvedFullAcceptanceKeyLabel
+                fullAcceptance: FullAcceptanceShortcut(
+                    keyBinding: SuggestionShortcutBindingSettings(
+                        keyCode: resolvedFullAcceptanceKeyCode,
+                        modifiers: resolvedFullAcceptanceKeyModifiers,
+                        label: resolvedFullAcceptanceKeyLabel
+                    ),
+                    doubleTap: resolvedDoubleTapAcceptsEntireSuggestion
                 ),
                 globalToggle: SuggestionShortcutBindingSettings(
                     keyCode: resolvedGlobalToggleKeyCode,
@@ -635,7 +638,6 @@ struct SuggestionSettingsStore {
                     label: resolvedGlobalToggleKeyLabel
                 ),
                 perAppOverrides: resolvedPerAppShortcutOverrides,
-                doubleTapAcceptsEntireSuggestion: resolvedDoubleTapAcceptsEntireSuggestion,
                 tabLeavesSingleLineFields: resolvedTabLeavesSingleLineFields
             )
         )
@@ -695,23 +697,10 @@ struct SuggestionSettingsStore {
         saveGhostTextItalic(data.isGhostTextItalic)
         saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveMatchesHostTextSize(data.matchesHostTextSize)
-        saveAcceptanceKey(
-            keyCode: data.acceptanceKeyCode,
-            modifiers: data.acceptanceKeyModifiers,
-            label: data.acceptanceKeyLabel
-        )
-        saveFullAcceptanceKey(
-            keyCode: data.fullAcceptanceKeyCode,
-            modifiers: data.fullAcceptanceKeyModifiers,
-            label: data.fullAcceptanceKeyLabel
-        )
-        saveGlobalToggleKey(
-            keyCode: data.globalToggleKeyCode,
-            modifiers: data.globalToggleKeyModifiers,
-            label: data.globalToggleKeyLabel
-        )
+        saveAcceptanceKey(data.shortcuts.acceptance)
+        saveFullAcceptance(data.shortcuts.fullAcceptance)
+        saveGlobalToggleKey(data.shortcuts.globalToggle)
         savePerAppShortcutOverrides(data.perAppShortcutOverrides)
-        saveDoubleTapAcceptsEntireSuggestion(data.doubleTapAcceptsEntireSuggestion)
         saveTabLeavesSingleLineFields(data.tabLeavesSingleLineFields)
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
@@ -816,10 +805,6 @@ struct SuggestionSettingsStore {
         if let data = try? JSONEncoder().encode(rules) {
             userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
         }
-    }
-
-    func saveDoubleTapAcceptsEntireSuggestion(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.doubleTapFullAcceptanceDefaultsKey)
     }
 
     func saveTabLeavesSingleLineFields(_ enabled: Bool) {
@@ -1093,22 +1078,48 @@ struct SuggestionSettingsStore {
         }
     }
 
-    func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
-        userDefaults.set(Int(modifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.acceptanceKeyLabelDefaultsKey)
+    func saveAcceptanceKey(_ binding: SuggestionShortcutBindingSettings) {
+        saveBinding(
+            binding,
+            keyCodeKey: Self.acceptanceKeyCodeDefaultsKey,
+            modifiersKey: Self.acceptanceKeyModifiersDefaultsKey,
+            labelKey: Self.acceptanceKeyLabelDefaultsKey
+        )
     }
 
-    func saveFullAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        userDefaults.set(Int(keyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
-        userDefaults.set(Int(modifiers.rawValue), forKey: Self.fullAcceptanceKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+    /// The slot is stored as the two facts earlier builds wrote: the one-press key (the unbound
+    /// sentinel unless a key holds the slot) and the double-tap flag. Writing both every time is
+    /// what keeps a stale one-press key from surviving next to a double tap.
+    func saveFullAcceptance(_ shortcut: FullAcceptanceShortcut) {
+        saveBinding(
+            shortcut.keyBinding,
+            keyCodeKey: Self.fullAcceptanceKeyCodeDefaultsKey,
+            modifiersKey: Self.fullAcceptanceKeyModifiersDefaultsKey,
+            labelKey: Self.fullAcceptanceKeyLabelDefaultsKey
+        )
+        userDefaults.set(shortcut.isDoubleTap, forKey: Self.doubleTapFullAcceptanceDefaultsKey)
     }
 
-    func saveGlobalToggleKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
-        userDefaults.set(Int(keyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
-        userDefaults.set(Int(modifiers.rawValue), forKey: Self.globalToggleKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.globalToggleKeyLabelDefaultsKey)
+    func saveGlobalToggleKey(_ binding: SuggestionShortcutBindingSettings) {
+        saveBinding(
+            binding,
+            keyCodeKey: Self.globalToggleKeyCodeDefaultsKey,
+            modifiersKey: Self.globalToggleKeyModifiersDefaultsKey,
+            labelKey: Self.globalToggleKeyLabelDefaultsKey
+        )
+    }
+
+    /// Key code and modifier mask are stored as `Int` because that is the type every shipped build
+    /// has read them back as.
+    private func saveBinding(
+        _ binding: SuggestionShortcutBindingSettings,
+        keyCodeKey: String,
+        modifiersKey: String,
+        labelKey: String
+    ) {
+        userDefaults.set(Int(binding.keyCode), forKey: keyCodeKey)
+        userDefaults.set(Int(binding.modifiers.rawValue), forKey: modifiersKey)
+        userDefaults.set(binding.label, forKey: labelKey)
     }
 
     func saveAcceptanceGranularity(_ granularity: AcceptanceGranularity) {
