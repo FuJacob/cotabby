@@ -27,13 +27,12 @@ nonisolated enum CotabbyDebugOptions {
     /// The swift-log floor applied to the always-on `OSLogHandler` and the debug-only file sinks.
     ///
     /// swift-log only skips evaluating a log call's `@autoclosure` message (and building its
-    /// metadata) when the handler's `logLevel` is strictly greater than the call's level. The
-    /// handlers previously hardcoded `.trace`, so *every* `.debug`/`.trace` call on the hot path
-    /// (one per keystroke: focus snapshots, routing, generation boundaries) still built its message
-    /// string and metadata dictionary even in release builds where nothing consumed it. That is
-    /// wasted CPU and energy, and it quietly inflates any on-device energy measurement. Defaulting
-    /// the floor to `.info` makes those hot-path calls genuinely free unless verbose logging is
-    /// explicitly requested.
+    /// metadata) when the handler's `logLevel` is strictly greater than the call's level. With a
+    /// `.trace` floor, *every* `.debug`/`.trace` call on the hot path (one per keystroke: focus
+    /// snapshots, routing, generation boundaries) would build its message string and metadata
+    /// dictionary even in release builds where nothing consumes it, wasting CPU and energy and
+    /// quietly inflating any on-device energy measurement. An `.info` default makes those calls
+    /// free unless verbose logging is explicitly requested.
     ///
     /// Precedence, highest first:
     /// 1. `COTABBY_LOG_LEVEL=<trace|debug|info|notice|warning|error|critical>` — explicit override,
@@ -133,6 +132,13 @@ nonisolated enum CotabbyLogger {
     /// Full prompts and completions, one structured JSON record per generation. Writes to
     /// `~/Library/Logs/Cotabby/llm-io.jsonl` only when `-cotabby-debug` is set.
     static let llmIO = Logger(label: llmIOLabel)
+
+    /// `com.cotabby.runtime` → `runtime`. Console.app and the JSONL `category` field both use this,
+    /// so one filter finds the same component in either place.
+    static func category(forLabel label: String) -> String {
+        let parts = label.split(separator: ".", maxSplits: 2)
+        return parts.count > 2 ? String(parts[2]) : label
+    }
 }
 
 /// Bridges swift-log into Apple's Unified Logging so every log line appears in Console.app
@@ -153,9 +159,7 @@ struct OSLogHandler: LogHandler {
     /// is what lets swift-log skip per-keystroke `.debug`/`.trace` calls before they allocate.
     init(label: String, logLevel: Logging.Logger.Level = CotabbyDebugOptions.minimumLogLevel) {
         self.logLevel = logLevel
-        let parts = label.split(separator: ".", maxSplits: 2)
-        let category = parts.count > 2 ? String(parts[2]) : label
-        osLogger = os.Logger(subsystem: Self.subsystem, category: category)
+        osLogger = os.Logger(subsystem: Self.subsystem, category: CotabbyLogger.category(forLabel: label))
     }
 
     subscript(metadataKey key: String) -> Logging.Logger.Metadata.Value? {
