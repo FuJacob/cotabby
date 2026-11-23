@@ -119,9 +119,9 @@ final class GhostWrapBandPolicyForeignLineTests: XCTestCase {
     }
     // MARK: - The field's bottom edge
 
-    private func floorInput(caretY: CGFloat, element: CGRect?) -> GhostWrapBandPolicy.Input {
+    private func floorInput(caretX: CGFloat = 300, caretY: CGFloat, element: CGRect?) -> GhostWrapBandPolicy.Input {
         GhostWrapBandPolicy.Input(
-            caretRect: CGRect(x: 300, y: caretY, width: 1, height: 18),
+            caretRect: CGRect(x: caretX, y: caretY, width: 1, height: 18),
             elementFrame: element,
             inputFrame: element,
             lineLeft: nil,
@@ -141,6 +141,18 @@ final class GhostWrapBandPolicyForeignLineTests: XCTestCase {
         // trusting it could hide rows the field really has room for.
         let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretY: 400, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
         XCTAssertEqual(floor, screen.minY + GhostWrapBandPolicy.screenMargin, accuracy: 0.001)
+    }
+
+    func testFloorIgnoresAnElementLevelWithTheCaretButBesideIt() {
+        // Same height as the caret, but the caret is 100pt right of it: some other box's bottom.
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretX: 700, caretY: 210, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, screen.minY + GhostWrapBandPolicy.screenMargin, accuracy: 0.001)
+    }
+
+    func testFloorHoldsForACaretOnTheElementRightEdge() {
+        // A caret after a full line sits on the element's right edge; it is still that element's caret.
+        let floor = GhostWrapBandPolicy.rowFloor(floorInput(caretX: 600, caretY: 210, element: CGRect(x: 100, y: 200, width: 500, height: 100)))
+        XCTAssertEqual(floor, 200, accuracy: 0.001)
     }
 
     func testFloorWithoutAnElementIsTheScreen() {

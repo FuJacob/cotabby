@@ -145,6 +145,21 @@ final class GhostTextLayoutTests: XCTestCase {
         XCTAssertFalse(layout.rows[1].text.hasSuffix(" "), "the head ends at a word, not a hanging space")
     }
 
+    /// No word fits beside the caret, so the text would start on the next line (the empty caret
+    /// row path). Below the floor there is no next line, and an empty caret row alone is no ghost.
+    func testEmptyCaretRowDoesNotStepBelowTheFieldBottom() {
+        // Caret row box 184...200 (baseline 187); the next row's would be 164...184.
+        XCTAssertNil(GhostTextLayout.make(input(text: "alpha bravo", anchor: CGPoint(x: 395, y: 200), pitch: 20, rowFloor: 182)))
+    }
+
+    func testEmptyCaretRowStillWrapsWithRoomBelow() throws {
+        let layout = try XCTUnwrap(GhostTextLayout.make(
+            input(text: "alpha bravo", anchor: CGPoint(x: 395, y: 200), pitch: 20, rowFloor: 164)
+        ))
+        XCTAssertEqual(layout.rows.map(\.text), ["", "alpha bravo"])
+        XCTAssertFalse(layout.isTruncated)
+    }
+
     func testRowsWithRoomBelowStillWrap() throws {
         let layout = try XCTUnwrap(GhostTextLayout.make(input(text: "?\nHi, I am interested in this bag.", rowFloor: 100)))
         XCTAssertEqual(layout.rows.count, 2)

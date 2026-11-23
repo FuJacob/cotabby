@@ -230,6 +230,9 @@ struct GhostTextLayout: Equatable {
                 // the next line exactly where the host would wrap it. An empty continuation row
                 // means the band itself is too narrow for the next word.
                 guard rows.isEmpty, let pitch = input.linePitch, let band = input.wrapBand else { return nil }
+                // The text would start on the next line; below the field's floor there is no next
+                // line to start on, and an empty caret row alone is no ghost.
+                guard nextRowFits(below: baselineY, pitch: pitch, input) else { return nil }
                 rows.append(Row(utf16Range: NSRange(location: start, length: 0), text: "", penX: penX, baselineY: baselineY, width: 0))
                 penX = band.lowerBound
                 baselineY -= pitch
@@ -238,7 +241,7 @@ struct GhostTextLayout: Equatable {
             rows.append(row(attributed, range: NSRange(location: start, length: breakIndex - start), penX: penX, baselineY: baselineY))
             start = breakIndex
             if start < total, let pitch = input.linePitch, let band = input.wrapBand {
-                if let floor = input.rowFloor, !rowFits(baselineY: baselineY - pitch, floor: floor, input) {
+                guard nextRowFits(below: baselineY, pitch: pitch, input) else {
                     return headEndingAtTheFloor(rows, attributed: attributed)
                 }
                 penX = band.lowerBound
@@ -248,10 +251,13 @@ struct GhostTextLayout: Equatable {
         return rows.isEmpty ? nil : WrappedRows(rows: rows, isTruncated: false)
     }
 
-    /// Whether a row on `baselineY` keeps its box (down to the descender side of the caret box) at
-    /// or above the field's floor.
-    private static func rowFits(baselineY: CGFloat, floor: CGFloat, _ input: Input) -> Bool {
-        baselineY - (input.boxHeight - input.baselineOffsetFromTop) >= floor
+    /// Whether the row one `pitch` below `baselineY` keeps its box (down to the descender side of the
+    /// caret box) at or above the field's floor. Every path that steps down a line asks this first,
+    /// the empty caret row included, so no row is ever placed under the field. The caret row itself
+    /// is never asked: it is the host's own line.
+    private static func nextRowFits(below baselineY: CGFloat, pitch: CGFloat, _ input: Input) -> Bool {
+        guard let floor = input.rowFloor else { return true }
+        return baselineY - pitch - (input.boxHeight - input.baselineOffsetFromTop) >= floor
     }
 
     /// The rows that fit above the field's bottom edge, marked truncated. The last row loses its

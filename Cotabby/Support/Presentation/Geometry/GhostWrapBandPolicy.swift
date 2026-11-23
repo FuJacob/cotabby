@@ -31,6 +31,8 @@ enum GhostWrapBandPolicy {
     static let screenMargin: CGFloat = 8
     /// Frames narrower than this are not text containers worth wrapping inside.
     static let minimumContainerWidth: CGFloat = 40
+    /// How far outside an element's side edges a caret may sit and still count as inside it.
+    static let caretEdgeTolerance: CGFloat = 4
 
     static func band(_ input: Input) -> ClosedRange<CGFloat> {
         let screenLeft = input.screenVisibleFrame.minX + screenMargin
@@ -61,12 +63,15 @@ enum GhostWrapBandPolicy {
     /// bottom edge when its frame holds the caret, else the screen's. Without it a ghost wrapping
     /// from the field's last visible line drew its next row under the field (Safari's chat composer,
     /// 2026-10-10). A frame that does not contain the caret describes another box (a stale or outer
-    /// frame) and is not trusted, so a real field is never cut short by a wrong one.
+    /// frame) and is not trusted, so a real field is never cut short by a wrong one. Containment is
+    /// checked on both axes: an element level with the caret but beside it is someone else's box. A
+    /// caret at the end of a full line sits on the element's right edge, hence the tolerance.
     static func rowFloor(_ input: Input) -> CGFloat {
         let screenFloor = input.screenVisibleFrame.minY + screenMargin
         guard let element = input.elementFrame?.standardized, element.width > minimumContainerWidth,
               element.height >= input.caretRect.height,
-              (element.minY...element.maxY).contains(input.caretRect.midY)
+              (element.minY...element.maxY).contains(input.caretRect.midY),
+              (element.minX - caretEdgeTolerance...element.maxX + caretEdgeTolerance).contains(input.caretRect.midX)
         else { return screenFloor }
         return max(element.minY, screenFloor)
     }
