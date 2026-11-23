@@ -1,0 +1,53 @@
+Cotabby/Support/Suggestion/Session/PostExhaustionAcceptanceState.swift
+  s_9990f9098df800::t_aa62a2a10b2fc4 4-5,7-11,13,17,28-31,42-43,45,47,52,67-71,73
+AGENTS.md
+  s_9990f9098df800::t_2ea9544d517008 112
+ARCHITECTURE.md
+  s_9990f9098df800::t_941f8e97e681d3 179-183
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_9990f9098df800::t_36982fc29e4e8c 27-29,131-133,139-140,147,178-188,263,415-416,420-423,428-429,623-641
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_9990f9098df800::t_fc2bc0b0691725 436
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_9990f9098df800::t_8520626248add9 1067-1068,1070
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_9990f9098df800::t_f101770c26fb9f 184
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_9990f9098df800::t_a6c4f2f9b49d94 244-251,272-274
+Cotabby/Services/Presentation/OverlayController.swift
+  s_9990f9098df800::t_96fe5e432bb337 40-50
+Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift
+  s_9990f9098df800::t_46641454256f7a 142-145,150,154,173,176-178,182-183,185,192,219-239,382-388
+Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift
+  s_9990f9098df800::t_bfafb958c3bd7c 731-778
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_9990f9098df800::t_c15f999d21cb0e 250-288,536-537,539-540,554,594,597-598,600,602,604-605,607,610,615,622-643
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorWordCompletionTests.swift
+  s_9990f9098df800::t_0ac3d616c90bae 129-133,154,156-160,206
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_9990f9098df800::t_c161dc17297c21 117-189
+CotabbyTests/Support/Presentation/Geometry/GhostTextLayoutTests.swift
+  s_9990f9098df800::t_2a5982b857400e 160-179
+CotabbyTests/Support/Suggestion/Acceptance/SuggestionOverlayAcceptanceTests.swift
+  s_9990f9098df800::t_a74e23068fbfeb 107-196
+CotabbyTests/Support/Suggestion/Session/PostExhaustionAcceptanceStateTests.swift
+  s_9990f9098df800::t_eee4b504ae2a94 11,16,21,24,26-28,34,39,43-46,48-49,53,60,62,66-69,72,74,76
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_9990f9098df800::t_8c54358bee1729 112-116,133,142,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54189704b119be6a14436dd3ab499a5dd9d89367",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
