@@ -518,7 +518,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
     func test_connectionModel_publishesReadyFailedAndIdleStates() async throws {
         let client = makeClient()
         let connection = OpenAICompatibleConnectionModel(client: client)
-        Self.retained.append(connection)
+        TestLifetime.retain(connection)
         let endpoint = try configuration()
         EndpointStubURLProtocol.handler = { request in
             Self.response(request: request, body: #"{"data":[{"id":"b"},{"id":"a"}]}"#)
@@ -546,14 +546,8 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
     private func makeClient() -> OpenAICompatibleAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [EndpointStubURLProtocol.self]
-        let client = OpenAICompatibleAPIClient(session: URLSession(configuration: sessionConfiguration))
-        Self.retained.append(client)
-        return client
+        return TestLifetime.retain(OpenAICompatibleAPIClient(session: URLSession(configuration: sessionConfiguration)))
     }
-
-    /// Production @MainActor classes can crash the app-hosted runner when deallocated (back-deploy
-    /// executor shim); quarantine them for the process lifetime.
-    private static var retained: [AnyObject] = []
 
     private static let options = OpenAICompatibleGenerationOptions(
         maxPredictionTokens: 8,

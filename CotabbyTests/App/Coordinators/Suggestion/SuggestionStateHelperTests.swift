@@ -7,10 +7,6 @@ import XCTest
 /// `ContextBuffer` is a small type, but it protects a major async invariant: old model results
 /// must not be applied after the user changes fields or text.
 final class ContextBufferTests: XCTestCase {
-    /// App-hosted macOS tests have shown deallocation crashes for short-lived main-actor objects.
-    /// Retaining these helpers for the process lifetime mirrors the existing settings-model tests.
-    private static var retainedBuffers: [ContextBuffer] = []
-
     func test_materialize_assignsFirstGenerationAndStoresCurrentContext() {
         runOnMainActor {
             let buffer = makeBuffer()
@@ -84,9 +80,7 @@ final class ContextBufferTests: XCTestCase {
 
     @MainActor
     private func makeBuffer() -> ContextBuffer {
-        let buffer = ContextBuffer()
-        Self.retainedBuffers.append(buffer)
-        return buffer
+        TestLifetime.retain(ContextBuffer())
     }
 }
 
@@ -95,8 +89,6 @@ final class ContextBufferTests: XCTestCase {
 /// The coordinator owns the user-facing state machine, while this helper owns the mutable details:
 /// current context, active tail, and the AX-lag sentinel after Tab insertion.
 final class SuggestionInteractionStateTests: XCTestCase {
-    private static var retainedStates: [SuggestionInteractionState] = []
-
     func test_startSessionStoresActiveSessionAndClearsPendingInsertionSentinel() {
         runOnMainActor {
             let state = makeState()
@@ -353,9 +345,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
 
     @MainActor
     private func makeState() -> SuggestionInteractionState {
-        let state = SuggestionInteractionState()
-        Self.retainedStates.append(state)
-        return state
+        TestLifetime.retain(SuggestionInteractionState())
     }
 }
 
@@ -679,17 +669,5 @@ private final class WorkRecorder {
 
     func record(_ workID: UInt64) {
         workIDs.append(workID)
-    }
-}
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
     }
 }

@@ -7,20 +7,15 @@ import XCTest
 /// whichever one is stored.
 @MainActor
 final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
-    private var suiteName: String!
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        suiteName = "cotabby.test.settingsModelDoubleTap.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        suiteName = nil
         super.tearDown()
     }
 

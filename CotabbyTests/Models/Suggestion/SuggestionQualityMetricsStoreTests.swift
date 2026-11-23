@@ -8,16 +8,9 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     /// Persisted-blob key, mirrored from the production constant so a silent rename fails here.
     private static let countersKey = "cotabbyQualityMetricsCounters"
 
-    private func freshDefaults() -> UserDefaults {
-        let suiteName = "CotabbyTests.qualityMetrics.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
-        return defaults
-    }
 
     func testCountersAccumulate() {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
         XCTAssertNil(store.counters.firstRecordedAt)
 
         store.recordGenerated()
@@ -37,7 +30,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     }
 
     func testFirstRecordedAtIsStampedOnceAndNeverMoves() throws {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
         store.recordGenerated()
         let first = try XCTUnwrap(store.counters.firstRecordedAt)
 
@@ -47,7 +40,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     }
 
     func testAcceptanceRate() {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
         XCTAssertNil(store.counters.acceptanceRate, "no rate without shown suggestions")
         for _ in 0..<4 {
             store.recordShown()
@@ -59,7 +52,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     // MARK: - Suppression recovery
 
     func testLocalFallbackReclassifiesSuppressedRequestAsShown() {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
         store.recordGenerated()
         store.recordSuppressed(reason: "emptyGeneration")
         store.recordShown(recoveringSuppression: "emptyGeneration")
@@ -70,7 +63,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     }
 
     func testRecoveryDecrementsOnlyOneOfSeveralSuppressions() {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
         store.recordSuppressed(reason: "emptyGeneration")
         store.recordSuppressed(reason: "emptyGeneration")
 
@@ -81,7 +74,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     }
 
     func testRecoveringAnUnrecordedReasonStillCountsShownWithoutGoingNegative() {
-        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        let store = SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make())
 
         store.recordShown(recoveringSuppression: "neverRecorded")
 
@@ -92,7 +85,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     // MARK: - Persistence
 
     func testPersistsAcrossInstancesUnderStableKey() {
-        let defaults = freshDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let first = SuggestionQualityMetricsStore(userDefaults: defaults)
         first.recordShown()
         first.recordSuppressed(reason: "emptyGeneration")
@@ -105,14 +98,14 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
     }
 
     func testCorruptPersistedBlobStartsFresh() {
-        let defaults = freshDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(Data("not json".utf8), forKey: Self.countersKey)
 
         XCTAssertEqual(SuggestionQualityMetricsStore(userDefaults: defaults).counters, SuggestionQualityMetricsStore.Counters())
     }
 
     func testResetClearsEverything() {
-        let defaults = freshDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionQualityMetricsStore(userDefaults: defaults)
         store.recordShown()
         store.reset()

@@ -167,15 +167,6 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         )
     }
 
-    private func setLiveSnapshot(_ context: FocusedInputSnapshot, in rig: CoordinatorRig) {
-        rig.focusProvider.snapshot = FocusSnapshot(
-            applicationName: context.applicationName,
-            bundleIdentifier: context.bundleIdentifier,
-            capability: .supported,
-            context: context
-        )
-    }
-
     func test_rapidTabIsStillConsumedWhenThePreAcceptRefreshCannotReadTheTitleOrURL() {
         // Regression: the accept path refreshes the focus snapshot synchronously, inside the event
         // tap, while the host is still busy with the previous synthetic insertion. The window title
@@ -190,13 +181,13 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
         // The second Tab's refresh reads the same field, but its title and URL time out. AX has not
         // published " hello" yet either.
-        setLiveSnapshot(CotabbyTestFixtures.focusedInputSnapshot(
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "Hello", isWebContentField: true, focusedURLString: nil, windowTitle: nil
-        ), in: rig)
+        ))
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "An unreadable title is not another field")
 
         // The third Tab's refresh reads both facts again.
-        setLiveSnapshot(browserComposerSnapshot, in: rig)
+        rig.setFocusedInput(browserComposerSnapshot)
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         XCTAssertEqual(rig.inserter.insertedChunks, [" hello", " world", " again"])
@@ -213,10 +204,10 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         startVisibleSession(in: rig, fullText: " hello world")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
-        setLiveSnapshot(CotabbyTestFixtures.focusedInputSnapshot(
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "Hello", isWebContentField: true,
             focusedURLString: "https://chat.example/two", windowTitle: "Chat two"
-        ), in: rig)
+        ))
 
         XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, [" hello"])
@@ -422,7 +413,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         startCorrectionSession(in: rig)
         // A keystroke slipped in between the offer and this Tab. Deleting the offered word's length
         // now would eat the wrong characters, so the key must pass through untouched.
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve i"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve i"))
 
         XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
 
@@ -611,7 +602,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         startVisibleSession(in: rig, fullText: " world again")
 
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world"))
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, [" world", " again"])
 
@@ -681,10 +672,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertNotEqual(rig.overlayController.hideReasons.last, "Overlay hidden because a stale result was dropped.")
 
         // The host publishes the speculated text; replaying the parked result shows it.
-        rig.focusProvider.snapshot = FocusSnapshot(
-            applicationName: published.applicationName, bundleIdentifier: published.bundleIdentifier,
-            capability: .supported, context: published
-        )
+        rig.setFocusedInput(published)
         let parked = try? XCTUnwrap(rig.coordinator.parkedSpeculativeResult)
         await rig.coordinator.apply(result: parked!.result, workID: parked!.workID)
         XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))

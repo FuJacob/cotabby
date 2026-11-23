@@ -19,7 +19,7 @@ final class ExtendedContextTests: XCTestCase {
     /// Whitespace is NOT trimmed in the setter. If this test starts failing, the editor binding
     /// will stop letting the user type a trailing space inside a word (the original bug report).
     func test_setExtendedContext_preservesTrailingSpaceMidEdit() {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
 
         model.setExtendedContext("Hello ")
@@ -28,7 +28,7 @@ final class ExtendedContextTests: XCTestCase {
     }
 
     func test_setExtendedContext_preservesInternalWhitespaceAndNewlines() {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
 
         model.setExtendedContext("Glossary:\n- meow: cat sound\n- woof: dog sound\n")
@@ -37,7 +37,7 @@ final class ExtendedContextTests: XCTestCase {
     }
 
     func test_setExtendedContext_truncatesAtMaximumCharacters() {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
         let huge = String(repeating: "a", count: SuggestionSettingsModel.maximumExtendedContextCharacters + 250)
 
@@ -47,7 +47,7 @@ final class ExtendedContextTests: XCTestCase {
     }
 
     func test_setExtendedContext_emptyStringClearsPersistedValue() {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
 
         model.setExtendedContext("temporary")
@@ -132,17 +132,5 @@ final class ExtendedContextTests: XCTestCase {
         let prompt = FoundationModelPromptRenderer.prompt(for: request)
 
         XCTAssertFalse(prompt.contains("Glossary: meow = cat sound"))
-    }
-
-    // MARK: - helpers
-
-    /// Each settings-model test gets its own isolated UserDefaults so state cannot leak between
-    /// cases, and the suite is removed again at teardown so runs do not accumulate plist files.
-    private func makeIsolatedDefaults() -> UserDefaults {
-        let suiteName = "cotabby.test.extendedContext.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
-        return defaults
     }
 }

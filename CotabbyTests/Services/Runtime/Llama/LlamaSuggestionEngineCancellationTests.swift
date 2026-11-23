@@ -141,23 +141,3 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
 private struct UnexpectedRuntimeBoom: LocalizedError {
     var errorDescription: String? { "UNEXPECTED_BOOM" }
 }
-
-/// Minimal `LlamaRuntimeGenerating` fake that returns a staged result and counts cache resets,
-/// so the engine's failure routing can be exercised without loading a real model.
-@MainActor
-private final class FakeLlamaRuntime: LlamaRuntimeGenerating {
-    var generateResult: Result<LlamaGenerationOutput, Error> = .success(.text(""))
-    private(set) var resetCount = 0
-
-    func generate(
-        prompt: String,
-        cachedPrefixBytes: Int?,
-        options: LlamaGenerationOptions
-    ) async throws -> LlamaGenerationOutput {
-        try generateResult.get()
-    }
-
-    func resetPromptCache() {
-        resetCount += 1
-    }
-}

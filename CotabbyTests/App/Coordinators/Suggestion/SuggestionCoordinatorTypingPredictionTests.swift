@@ -5,7 +5,7 @@ import XCTest
 /// Replays typing against a deliberately suspended engine. Late callbacks ignore cancellation,
 /// proving that work identity and publication checks protect insertion even with a slow backend.
 @MainActor
-final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
+final class SuggestionCoordinatorTypingPredictionTests: SuggestionCoordinatorRigTestCase {
     func testHiddenCandidateSurvivesMatchingKeysWithoutAnotherRequest() async {
         let engine = ControlledTypingEngine()
         let rig = makeRig(engine)
@@ -268,10 +268,10 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
 
     func testSwitchingFieldsDuringGenerationDoesNotPredictInTheNewField() async {
         let engine = ControlledTypingEngine()
-        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send "),
+        let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence,
                 debounceMilliseconds: 1, suppressCompletionsOnTypo: true, automaticallyFixTypos: true),
-            generationEngine: engine)
+            generationEngine: engine))
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
         defer { rig.coordinator.stop(); engine.finishAll() }
         rig.coordinator.schedulePrediction()
@@ -280,8 +280,8 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
 
         // Clicking into another field mid-generation is passive focus: its old typo was never
         // typed in this session and must not be replaced, or even trigger a new request.
-        publish(CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "other-field",
-            precedingText: "Please recieve ", focusChangeSequence: 2), in: rig)
+        rig.publishFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "other-field",
+            precedingText: "Please recieve ", focusChangeSequence: 2))
         try? await Task.sleep(nanoseconds: 150_000_000)
         XCTAssertTrue(rig.inserter.replacements.isEmpty)
         XCTAssertEqual(engine.requests.count, 1)
@@ -294,8 +294,8 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         rig.coordinator.schedulePrediction()
         await waitUntil { engine.requests.count == 1 }
         // A title update (an unread badge, say) changes the session identity, not the writing.
-        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ", focusChangeSequence: 2,
-                                                         windowTitle: "Inbox (3)"), in: rig)
+        rig.publishFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ", focusChangeSequence: 2,
+                                                         windowTitle: "Inbox (3)"))
         await waitUntil { engine.requests.count == 2 }
         XCTAssertEqual(engine.requests.map(\.prefixText), ["I'll send ", "I'll send "])
     }
@@ -375,19 +375,12 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
     private func makeRig(_ engine: ControlledTypingEngine, streaming: Bool = false, predictAhead: Bool = true,
                          engineKind: SuggestionEngineKind = .appleIntelligence, trailingText: String = "",
                          suggestWithinWords: Bool = true) -> CoordinatorRig {
-        makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ",
+        retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ",
                                                                             trailingText: trailingText),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engineKind,
                 debounceMilliseconds: 1, suggestWithinWords: suggestWithinWords,
                 streamSuggestionsWhileGenerating: streaming, predictAheadWhileTyping: predictAhead),
-            generationEngine: engine)
-    }
-
-    private func publish(_ raw: FocusedInputSnapshot, in rig: CoordinatorRig) {
-        let snapshot = FocusSnapshot(applicationName: raw.applicationName, bundleIdentifier: raw.bundleIdentifier,
-                                     capability: .supported, context: raw)
-        rig.focusProvider.snapshot = snapshot
-        rig.focusProvider.snapshotSubject.send(snapshot)
+            generationEngine: engine))
     }
 
     private func type(_ text: String, in rig: CoordinatorRig) {
@@ -395,8 +388,9 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
     }
 
     private func publish(_ text: String, trailingText: String = "", sequence: UInt64 = 1, in rig: CoordinatorRig) {
-        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: text, trailingText: trailingText,
-                                                         focusChangeSequence: sequence), in: rig)
+        rig.publishFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: text, trailingText: trailingText, focusChangeSequence: sequence
+        ))
     }
 }
 

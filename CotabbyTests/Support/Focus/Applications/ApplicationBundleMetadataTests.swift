@@ -92,16 +92,6 @@ final class ApplicationBundleMetadataTests: XCTestCase {
     // These build a minimal `.app` directory (Contents/Info.plist) in a temp folder so the
     // disk-reading initializer is exercised without depending on whatever apps the machine has.
 
-    private var temporaryDirectories: [URL] = []
-
-    override func tearDown() {
-        for url in temporaryDirectories {
-            try? FileManager.default.removeItem(at: url)
-        }
-        temporaryDirectories.removeAll()
-        super.tearDown()
-    }
-
     func test_initAppURL_readsIdentifierAndDisplayNameFromInfoPlist() throws {
         let appURL = try makeAppBundle(
             named: "Probe.app",
@@ -154,9 +144,7 @@ final class ApplicationBundleMetadataTests: XCTestCase {
     }
 
     private func makeAppBundle(named name: String, info: [String: Any]) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cotabby-bundle-test-\(UUID().uuidString)", isDirectory: true)
-        temporaryDirectories.append(root)
+        let root = try makeTemporaryDirectory()
         let appURL = root.appendingPathComponent(name, isDirectory: true)
         let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
         try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)

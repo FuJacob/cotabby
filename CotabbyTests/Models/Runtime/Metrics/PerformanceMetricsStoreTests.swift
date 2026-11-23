@@ -5,43 +5,16 @@ import XCTest
 /// Persistence and ring-buffer behavior of the latency metrics behind the Performance pane.
 ///
 /// `PerformanceMetricsStore` is `@MainActor` with stored properties and no `nonisolated deinit`,
-/// so deallocating an instance inside the app-hosted runner risks the isolated-deinit double-free.
-/// Instances are quarantined in a process-lifetime retain list (the same pattern as
-/// `InputMonitorTests`), and each test gets its own UserDefaults suite so nothing touches
-/// process-global state.
+/// so instances are kept alive through `TestLifetime`, and each test gets its own UserDefaults
+/// suite so nothing touches process-global state.
 final class PerformanceMetricsStoreTests: XCTestCase {
-    @MainActor private static var retainedStores: [PerformanceMetricsStore] = []
-
     /// Persisted-blob key, mirrored from the production constant: it is a persistence contract,
     /// so a silent rename should fail a test.
     private static let entriesKey = "cotabbyPerformanceMetricEntries"
 
-    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
-
-    override func tearDown() {
-        for suite in userDefaultsSuites {
-            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
-        }
-        userDefaultsSuites.removeAll()
-        super.tearDown()
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "io.cotabby.tests.PerformanceMetricsStoreTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-        userDefaults.removePersistentDomain(forName: suiteName)
-        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
-        return userDefaults
-    }
-
     @MainActor
     private func makeStore(userDefaults: UserDefaults) -> PerformanceMetricsStore {
-        let store = PerformanceMetricsStore(userDefaults: userDefaults)
-        Self.retainedStores.append(store)
-        return store
+        TestLifetime.retain(PerformanceMetricsStore(userDefaults: userDefaults))
     }
 
     /// Integer-second dates encode to exact JSON doubles, keeping Codable round-trip equality
@@ -58,7 +31,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     // MARK: - Recording
 
     func test_record_appendsEntryAndPersistsBlob() {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
 
         runOnMainActor {
             let store = makeStore(userDefaults: userDefaults)
@@ -74,7 +47,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     }
 
     func test_record_capsRetainedEntriesDroppingOldest() {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let cap = runOnMainActor { PerformanceMetricsStore.maximumEntries }
 
         runOnMainActor {
@@ -93,7 +66,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     // MARK: - Loading
 
     func test_init_restoresPersistedEntries() throws {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let seeded = [
             PerformanceMetricEntry(timestamp: exactDate(), modelName: "alpha", latencyMs: 100),
             PerformanceMetricEntry(timestamp: exactDate(offset: 1), modelName: "beta", latencyMs: 200)
@@ -107,7 +80,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     }
 
     func test_init_truncatesOversizedPersistedBlobKeepingNewest() throws {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let cap = runOnMainActor { PerformanceMetricsStore.maximumEntries }
         let seeded = (0..<(cap + 5)).map { index in
             PerformanceMetricEntry(timestamp: exactDate(offset: index), modelName: "model", latencyMs: index)
@@ -122,7 +95,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     }
 
     func test_init_startsEmptyWhenPersistedBlobIsCorrupt() {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         userDefaults.set(Data("not json".utf8), forKey: Self.entriesKey)
 
         runOnMainActor {
@@ -134,7 +107,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     // MARK: - Clearing
 
     func test_clear_removesEntriesAndPersistedBlob() {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
 
         runOnMainActor {
             let store = makeStore(userDefaults: userDefaults)
@@ -148,7 +121,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
     }
 
     func test_clear_whenAlreadyEmpty_skipsTheDefaultsWrite() {
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         // Corrupt seed data loads as "no entries" but stays on disk; an empty clear must take the
         // guard path and not touch the key.
         let corrupt = Data("not json".utf8)
@@ -175,17 +148,5 @@ final class PerformanceMetricsStoreTests: XCTestCase {
         XCTAssertNotEqual(first.id, second.id)
         XCTAssertGreaterThanOrEqual(first.timestamp, before)
         XCTAssertLessThanOrEqual(first.timestamp, after)
-    }
-}
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
     }
 }

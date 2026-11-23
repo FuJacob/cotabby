@@ -11,37 +11,17 @@ import XCTest
 /// checks) and the error paths complete deterministically in milliseconds.
 ///
 /// Both `RuntimeBootstrapModel` and `LlamaRuntimeManager` are `@MainActor` with stored properties
-/// and no `nonisolated deinit`, so instances are quarantined in a process-lifetime retain list
-/// (the `InputMonitorTests` pattern) and all interactions run through `runOnMainActor`.
+/// and no `nonisolated deinit`, so instances are kept alive through `TestLifetime` and all
+/// interactions run through `runOnMainActor`.
 final class RuntimeBootstrapModelTests: XCTestCase {
-    @MainActor private static var retainedModels: [RuntimeBootstrapModel] = []
-
     /// Persisted-selection key, mirrored from the production constant: it is a persistence
     /// contract across launches, so a silent rename should fail a test.
     private static let selectionKey = "cotabbySelectedModelFilename"
 
-    private var temporaryDirectories: [URL] = []
-    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
-
-    override func tearDown() {
-        for url in temporaryDirectories {
-            try? FileManager.default.removeItem(at: url)
-        }
-        temporaryDirectories.removeAll()
-        for suite in userDefaultsSuites {
-            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
-        }
-        userDefaultsSuites.removeAll()
-        super.tearDown()
-    }
-
     // MARK: - Harness
 
     private func makeModelDirectory(filenames: [String]) throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("RuntimeBootstrapModelTests-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        temporaryDirectories.append(directory)
+        let directory = try makeTemporaryDirectory()
         for filename in filenames {
             try Data("not a real model".utf8).write(to: directory.appendingPathComponent(filename))
         }
@@ -50,17 +30,6 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     private func removeModelFile(_ filename: String, in directory: URL) throws {
         try FileManager.default.removeItem(at: directory.appendingPathComponent(filename))
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "io.cotabby.tests.RuntimeBootstrapModelTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-        userDefaults.removePersistentDomain(forName: suiteName)
-        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
-        return userDefaults
     }
 
     @MainActor
@@ -78,9 +47,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             configuration: configuration,
             runtimeLocator: BundledRuntimeLocator()
         )
-        let model = RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults)
-        Self.retainedModels.append(model)
-        return model
+        return TestLifetime.retain(RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults))
     }
 
     /// Subscribes to the model's state and fulfills once it first reports failure. Used to wait
@@ -100,7 +67,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_init_withoutModels_clearsSelectionAndStalePersistedValue() throws {
         let directory = try makeModelDirectory(filenames: [])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         userDefaults.set("stale.gguf", forKey: Self.selectionKey)
 
         runOnMainActor {
@@ -115,7 +82,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_init_prefersPersistedSelectionWhenStillAvailable() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         userDefaults.set("beta.gguf", forKey: Self.selectionKey)
 
         runOnMainActor {
@@ -129,7 +96,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_init_fallsBackToFirstModelWhenPersistedSelectionIsGone() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         userDefaults.set("ghost.gguf", forKey: Self.selectionKey)
 
         runOnMainActor {
@@ -148,7 +115,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_startIfNeeded_withoutModels_staysIdle() throws {
         let directory = try makeModelDirectory(filenames: [])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
 
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         runOnMainActor { model.startIfNeeded() }
@@ -163,7 +130,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_startIfNeeded_reportsFailureWhenSelectedModelDisappears() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         try removeModelFile("alpha.gguf", in: directory)
 
@@ -186,7 +153,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_selectModel_ignoresUnknownFilename() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         let reloads = ReloadCounter()
         runOnMainActor { model.onWillReloadModel = { reloads.increment() } }
@@ -208,7 +175,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_selectModel_switchesPersistsAndSignalsReload() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         let reloads = ReloadCounter()
         runOnMainActor { model.onWillReloadModel = { reloads.increment() } }
@@ -237,7 +204,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_selectModelWithoutLoading_persistsTheChoiceWithoutStartingTheRuntime() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         let reloads = ReloadCounter()
         runOnMainActor { model.onWillReloadModel = { reloads.increment() } }
@@ -267,7 +234,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_selectModelWithoutLoading_isUsedByTheNextStart() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf", "charlie.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         runOnMainActor {
             XCTAssertEqual(model.selectedModelFilename, "alpha.gguf")
@@ -296,7 +263,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_refreshAvailableModels_discoversNewModelsAndKeepsValidSelection() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
 
         try Data("not a real model".utf8).write(to: directory.appendingPathComponent("beta.gguf"))
@@ -311,7 +278,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_refreshAvailableModels_fallsBackToPersistedSelectionWhenCurrentDisappears() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "bravo.gguf", "charlie.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         runOnMainActor {
             XCTAssertEqual(model.selectedModelFilename, "alpha.gguf")
@@ -332,7 +299,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_refreshAvailableModels_fallsBackToFirstRemainingModel() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
 
         // Both the current selection and the persisted value point at the vanished alpha.
@@ -347,7 +314,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_refreshAvailableModels_clearsSelectionWhenAllModelsDisappear() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
 
         try removeModelFile("alpha.gguf", in: directory)
@@ -364,7 +331,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_stop_returnsRuntimeToIdleAfterFailure() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
         try removeModelFile("alpha.gguf", in: directory)
 
@@ -383,7 +350,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
     func test_shutdownSync_returnsPromptlyWhenRuntimeNeverLoaded() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
+        let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
 
         runOnMainActor {
@@ -402,17 +369,5 @@ private final class ReloadCounter {
 
     func increment() {
         count += 1
-    }
-}
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
     }
 }

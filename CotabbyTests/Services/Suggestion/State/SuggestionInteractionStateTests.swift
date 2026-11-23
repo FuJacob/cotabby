@@ -8,13 +8,8 @@ import XCTest
 /// the coordinator uses to discard work for a conversation the user already left.
 @MainActor
 final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
-    /// Production @MainActor class instances are quarantined against the back-deploy deinit shim.
-    private static var retained: [AnyObject] = []
-
     private func makeState() -> SuggestionInteractionState {
-        let state = SuggestionInteractionState()
-        Self.retained.append(state)
-        return state
+        TestLifetime.retain(SuggestionInteractionState())
     }
 
     private func visibleOverlay(text: String, for snapshot: FocusedInputSnapshot) -> OverlayState {

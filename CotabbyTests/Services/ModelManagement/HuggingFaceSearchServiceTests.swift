@@ -6,9 +6,6 @@ import XCTest
 /// the public Hugging Face API are deliberately not exercised here.
 @MainActor
 final class HuggingFaceSearchServiceTests: XCTestCase {
-    /// Production @MainActor classes can crash the app-hosted runner when deallocated (back-deploy
-    /// executor shim); quarantine them for the process lifetime.
-    private static var retained: [AnyObject] = []
 
     func test_search_ignoresBlankQueries() {
         let service = makeService()
@@ -41,8 +38,6 @@ final class HuggingFaceSearchServiceTests: XCTestCase {
     }
 
     private func makeService() -> HuggingFaceSearchService {
-        let service = HuggingFaceSearchService()
-        Self.retained.append(service)
-        return service
+        TestLifetime.retain(HuggingFaceSearchService())
     }
 }

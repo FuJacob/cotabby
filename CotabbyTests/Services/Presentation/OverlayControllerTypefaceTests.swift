@@ -79,8 +79,7 @@ final class OverlayControllerTypefaceTests: XCTestCase {
     /// size its size is recovered by dividing the multiplier back out, and each face rebuilt from it
     /// is scaled exactly once.
     func testTypefaceEvidenceRecoversTheHostsSizeAndScalesTheGhostOnce() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "OverlayControllerTypefaceTests-\(UUID().uuidString)"))
-        let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
+        let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: IsolatedUserDefaults.make())
         settings.setGhostTextSizeMultiplier(0.8)
         XCTAssertEqual(settings.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
         let overlay = OverlayController(suggestionSettings: settings)

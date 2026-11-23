@@ -12,7 +12,7 @@ import XCTest
 /// "Hello " and drops the chunk's leading space; the expected chunks below reflect that. Press
 /// timing comes from a manual clock, so no assertion depends on how fast the runner executes.
 @MainActor
-final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
+final class SuggestionCoordinatorDoubleTapTests: SuggestionCoordinatorRigTestCase {
     /// Reference box, so the coordinator's clock closure reads whatever time the test sets.
     private final class ManualClock {
         var now: TimeInterval = 1_000
@@ -25,7 +25,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testQuickSecondPressAcceptsTheRestOfTheSuggestion() async {
         let rig = await makeReadyRig(doubleTapEnabled: true)
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         XCTAssertEqual(rig.inserter.insertedChunks, ["world"])
@@ -38,7 +37,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testSettingOffKeepsWordByWordAcceptance() async {
         let rig = await makeReadyRig(doubleTapEnabled: false)
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         clock.now += 0.1
@@ -50,7 +48,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testSecondPressAfterTheWindowAcceptsOnlyTheNextWord() async {
         let rig = await makeReadyRig(doubleTapEnabled: true)
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         clock.now += DoubleTapAcceptanceState.window + 0.05
@@ -61,7 +58,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testInterveningKeyCancelsThePendingDoubleTap() async {
         let rig = await makeReadyRig(doubleTapEnabled: true)
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         // Shift-Tab matches neither accept binding, so it arrives as `.other`: the suggestion stays
@@ -77,7 +73,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testHeldKeyRepeatsAcceptWordByWordWithoutDoubleTapping() async {
         let rig = await makeReadyRig(doubleTapEnabled: true, completion: "world again tomorrow morning")
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         // Key repeat lands well inside the window, but holding the key is one long press: the
@@ -97,7 +92,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         // An app's own Accept Entire Suggestion binding (a key, or Disable) replaces the global
         // slot that holds the double tap, so in that app the pair stays two single-word accepts.
         let rig = await makeReadyRig(doubleTapEnabled: true, fullAcceptanceOverrides: [appBundleIdentifier])
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         clock.now += 0.1
@@ -108,7 +102,6 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
 
     func testOtherAppsFullAcceptBindingsLeaveThisAppsDoubleTapAlone() async {
         let rig = await makeReadyRig(doubleTapEnabled: true, fullAcceptanceOverrides: ["com.apple.Terminal"])
-        defer { rig.coordinator.stop() }
 
         XCTAssertTrue(rig.coordinator.handleInputEvent(tab))
         clock.now += 0.1
@@ -122,7 +115,8 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
         completion: String = "world again tomorrow",
         fullAcceptanceOverrides: Set<String> = []
     ) async -> CoordinatorRig {
-        let rig = makeCoordinatorRig(
+        let clock = clock
+        return await makeRigWithPredictedSession(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(
                 bundleIdentifier: appBundleIdentifier,
                 precedingText: "Hello "
@@ -131,15 +125,9 @@ final class SuggestionCoordinatorDoubleTapTests: XCTestCase {
                 debounceMilliseconds: 1,
                 doubleTapAcceptsEntireSuggestion: doubleTapEnabled,
                 fullAcceptanceOverrideBundleIdentifiers: fullAcceptanceOverrides
-            )
+            ),
+            completion: completion,
+            configure: { rig in rig.coordinator.doubleTapUptimeProvider = { clock.now } }
         )
-        let clock = clock
-        rig.coordinator.doubleTapUptimeProvider = { clock.now }
-        rig.engine.resultProvider = { request in
-            SuggestionResult(generation: request.generation, rawText: completion, text: completion, latency: 0.01)
-        }
-        rig.coordinator.schedulePrediction()
-        await waitUntil { rig.interactionState.activeSession != nil }
-        return rig
     }
 }

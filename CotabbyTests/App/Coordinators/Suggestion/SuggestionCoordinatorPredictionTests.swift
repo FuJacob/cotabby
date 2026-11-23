@@ -349,7 +349,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         _ = rig.interactionState.startSession(fullText: " world", liveContext: context, latency: 0.05)
 
         // The user typed the next three expected characters; the session must advance, not die.
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo"))
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
 
         XCTAssertEqual(rig.coordinator.state, .ready(text: "rld", latency: 0.05))
@@ -374,7 +374,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertEqual(rig.interactionState.activeSession?.kind, .correction(typoWord: "recieve"))
 
         // Any edit to the trailing word drops the offer; the next prediction re-runs the gate.
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recievex"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recievex"))
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
         XCTAssertNil(rig.interactionState.activeSession)
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
@@ -456,7 +456,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertNotNil(rig.interactionState.activeSession)
 
         // The host publishes: the same reconcile path clears the sentinel and may settle normally.
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world"))
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
 
         XCTAssertFalse(
@@ -678,7 +678,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         XCTAssertNotNil(rig.coordinator.clipboardPrefaceMemo)
 
         let otherApp = CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456)
-        setFocusedInput(otherApp, in: rig)
+        rig.setFocusedInput(otherApp)
         rig.coordinator.handleSupportedSnapshot(rig.focusProvider.snapshot)
 
         XCTAssertNil(rig.coordinator.clipboardPrefaceMemo)

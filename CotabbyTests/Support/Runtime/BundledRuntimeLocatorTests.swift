@@ -3,18 +3,8 @@ import XCTest
 
 /// Locks how Cotabby finds local GGUF models: explicit-directory overrides, preferred-then-
 /// alphabetical ordering, recursive discovery with sidecar filtering, and the error surfaced for
-/// each missing-asset shape. Every fixture lives in a temp directory removed in `tearDown`.
+/// each missing-asset shape. Every fixture lives in a temp directory removed after the test.
 final class BundledRuntimeLocatorTests: XCTestCase {
-    private var temporaryDirectories: [URL] = []
-
-    override func tearDown() {
-        for url in temporaryDirectories {
-            try? FileManager.default.removeItem(at: url)
-        }
-        temporaryDirectories.removeAll()
-        super.tearDown()
-    }
-
     // MARK: - resolve
 
     func test_resolve_returnsPreferredModelWhenMultipleGGUFsExist() throws {
@@ -430,13 +420,6 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         return try XCTUnwrap(Bundle(url: appURL))
     }
 
-    private func makeTemporaryDirectory() throws -> URL {
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Cotabby-locator-test-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        temporaryDirectories.append(dir)
-        return dir
-    }
 
     private func writeFile(at root: URL, relativePath: String) throws {
         let fileURL = root.appendingPathComponent(relativePath, isDirectory: false)
@@ -469,11 +452,10 @@ final class BundledRuntimeLocatorTests: XCTestCase {
     }
 
     func test_discoverFindsModelsThroughASymlinkedModelsFolder() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gguf-link-\(UUID().uuidString)")
+        let root = try makeTemporaryDirectory()
         let real = root.appendingPathComponent("real")
         let link = root.appendingPathComponent("LlamaRuntime")
         try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
         try Data("gguf".utf8).write(to: real.appendingPathComponent("model.gguf"))
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
 
@@ -481,5 +463,4 @@ final class BundledRuntimeLocatorTests: XCTestCase {
 
         XCTAssertEqual(found.map(\.lastPathComponent), ["model.gguf"])
     }
-
 }

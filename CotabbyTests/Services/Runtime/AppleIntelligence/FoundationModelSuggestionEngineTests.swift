@@ -8,32 +8,6 @@ import XCTest
 /// state and is deliberately out of scope; a fake availability provider drives both gates.
 @MainActor
 final class FoundationModelSuggestionEngineTests: XCTestCase {
-    /// Production @MainActor classes can crash the app-hosted runner when deallocated (back-deploy
-    /// executor shim); quarantine them for the process lifetime.
-    private static var retained: [AnyObject] = []
-
-    @MainActor
-    private final class FakeProvider: FoundationModelAvailabilityProviding {
-        var currentState: FoundationModelAvailabilityState
-        var refreshResult: FoundationModelAvailabilityState
-        private(set) var refreshCount = 0
-
-        init(current: FoundationModelAvailabilityState, refreshResult: FoundationModelAvailabilityState) {
-            currentState = current
-            self.refreshResult = refreshResult
-        }
-
-        func refresh() -> FoundationModelAvailabilityState {
-            refreshCount += 1
-            return refreshResult
-        }
-
-        func observe(
-            onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void
-        ) -> Task<Void, Never>? {
-            nil
-        }
-    }
 
     /// Availability is re-read per request: a state that was available at launch but has since
     /// become unavailable must block generation with the fresh reason.
@@ -42,7 +16,7 @@ final class FoundationModelSuggestionEngineTests: XCTestCase {
         guard #available(macOS 26.0, *) else {
             throw XCTSkip("FoundationModelSuggestionEngine requires macOS 26")
         }
-        let provider = FakeProvider(
+        let provider = FakeFoundationModelAvailabilityProvider(
             current: .available,
             refreshResult: .unavailable("Apple Intelligence is turned off in System Settings.")
         )
@@ -62,7 +36,7 @@ final class FoundationModelSuggestionEngineTests: XCTestCase {
         guard #available(macOS 26.0, *) else {
             throw XCTSkip("FoundationModelSuggestionEngine requires macOS 26")
         }
-        let engine = makeEngine(provider: FakeProvider(current: .available, refreshResult: .available))
+        let engine = makeEngine(provider: FakeFoundationModelAvailabilityProvider(current: .available))
 
         await assertUnavailable(
             engine,
@@ -75,11 +49,9 @@ final class FoundationModelSuggestionEngineTests: XCTestCase {
 
     #if canImport(FoundationModels)
     @available(macOS 26.0, *)
-    private func makeEngine(provider: FakeProvider) -> FoundationModelSuggestionEngine {
-        let service = FoundationModelAvailabilityService(provider: provider)
-        let engine = FoundationModelSuggestionEngine(availabilityService: service)
-        Self.retained.append(contentsOf: [service, engine] as [AnyObject])
-        return engine
+    private func makeEngine(provider: FakeFoundationModelAvailabilityProvider) -> FoundationModelSuggestionEngine {
+        let service = TestLifetime.retain(FoundationModelAvailabilityService(provider: provider))
+        return TestLifetime.retain(FoundationModelSuggestionEngine(availabilityService: service))
     }
 
     @available(macOS 26.0, *)

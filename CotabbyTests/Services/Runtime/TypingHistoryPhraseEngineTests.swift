@@ -3,7 +3,6 @@ import XCTest
 
 @MainActor
 final class TypingHistoryPhraseEngineTests: XCTestCase {
-    private static var retained: [AnyObject] = []
 
     private final class FixedHistory: SuggestionHistoryProviding {
         var phrase: String?
@@ -27,11 +26,12 @@ final class TypingHistoryPhraseEngineTests: XCTestCase {
 
     private func makeEngine(phrase: String?, engine: SuggestionEngineKind = .appleIntelligence)
         -> (TypingHistoryPhraseEngine, CountingEngine, FixedHistory) {
-        let base = CountingEngine()
-        let history = FixedHistory()
+        let base = TestLifetime.retain(CountingEngine())
+        let history = TestLifetime.retain(FixedHistory())
         history.phrase = phrase
-        let wrapper = TypingHistoryPhraseEngine(wrapping: base, history: history, engineKind: { engine })
-        Self.retained.append(contentsOf: [base, history, wrapper] as [AnyObject])
+        let wrapper = TestLifetime.retain(
+            TypingHistoryPhraseEngine(wrapping: base, history: history, engineKind: { engine })
+        )
         return (wrapper, base, history)
     }
 

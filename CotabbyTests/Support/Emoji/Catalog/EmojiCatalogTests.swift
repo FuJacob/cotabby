@@ -7,16 +7,6 @@ import XCTest
 /// resource) instead of taking down the app, so each failure branch is pinned against a throwaway
 /// directory bundle. The matcher-facing index behavior lives in `EmojiCatalogMatcherTests`.
 final class EmojiCatalogTests: XCTestCase {
-    private var temporaryDirectories: [URL] = []
-
-    override func tearDown() {
-        for url in temporaryDirectories {
-            try? FileManager.default.removeItem(at: url)
-        }
-        temporaryDirectories.removeAll()
-        super.tearDown()
-    }
-
     func test_bundled_loadsEntriesFromResourceJSON() throws {
         let json = """
         [
@@ -87,10 +77,7 @@ final class EmojiCatalogTests: XCTestCase {
     /// Builds a flat directory bundle. Foundation treats a plain directory as an unbundled layout
     /// whose resources live at the root, which is exactly how `bundled(in:)` probes for emoji.json.
     private func makeResourceBundle(emojiJSON: String?) throws -> Bundle {
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cotabby-emoji-catalog-test-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        temporaryDirectories.append(dir)
+        let dir = try makeTemporaryDirectory()
         if let emojiJSON {
             try emojiJSON.write(
                 to: dir.appendingPathComponent("emoji.json", isDirectory: false),

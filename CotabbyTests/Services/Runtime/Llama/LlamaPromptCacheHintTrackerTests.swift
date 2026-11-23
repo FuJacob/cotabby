@@ -135,33 +135,14 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
         maxPredictionTokens: Int = 8,
         inputFrameRect: CGRect? = nil
     ) -> SuggestionRequest {
-        let context = CotabbyTestFixtures.focusedInputContext(
+        CotabbyTestFixtures.suggestionRequest(
             processIdentifier: processIdentifier,
             elementIdentifier: elementIdentifier,
             inputFrameRect: inputFrameRect,
-            precedingText: prompt
-        )
-
-        return SuggestionRequest(
-            context: context,
             prefixText: prompt,
             prompt: prompt,
-            generation: context.generation,
             maxPredictionTokens: maxPredictionTokens,
-            temperature: 0.1,
-            topK: topK,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
-            maxSuffixCharacters: 192,
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: [],
-            languageInstruction: nil,
-            clipboardContext: nil,
-            visualContextSummary: nil,
-            isMultiLineEnabled: false
+            topK: topK
         )
     }
 }

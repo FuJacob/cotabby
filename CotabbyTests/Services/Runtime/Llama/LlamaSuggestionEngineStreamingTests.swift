@@ -9,10 +9,10 @@ import XCTest
 final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
     func test_streamingGeneration_forwardsNormalizedCumulativePartials() async throws {
-        let runtime = StreamingFakeRuntime()
+        let runtime = FakeLlamaRuntime()
         // The empty first partial normalizes to nothing and must be withheld, not forwarded.
         runtime.partialRawTexts = ["", " wor", " world ag"]
-        runtime.finalText = " world again"
+        runtime.generateResult = .success(.text(" world again"))
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
 
         var partials: [SuggestionResult] = []
@@ -29,9 +29,9 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
     }
 
     func test_plainGeneration_neverInvokesPartialHook() async throws {
-        let runtime = StreamingFakeRuntime()
+        let runtime = FakeLlamaRuntime()
         runtime.partialRawTexts = [" wor"]
-        runtime.finalText = " world"
+        runtime.generateResult = .success(.text(" world"))
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
 
         _ = try await engine.generateSuggestion(for: makeRequest(prompt: "Hello"))
@@ -52,36 +52,4 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
     private func makeRequest(prompt: String) -> SuggestionRequest {
         CotabbyTestFixtures.suggestionRequest(prefixText: prompt, prompt: prompt)
     }
-}
-
-/// Runtime fake that emits staged cumulative raw partials through the streaming entry point and
-/// counts which entry point was used.
-@MainActor
-private final class StreamingFakeRuntime: LlamaRuntimeGenerating {
-    var partialRawTexts: [String] = []
-    var finalText = ""
-    private(set) var streamingCallCount = 0
-
-    func generate(
-        prompt: String,
-        cachedPrefixBytes: Int?,
-        options: LlamaGenerationOptions
-    ) async throws -> LlamaGenerationOutput {
-        .text(finalText)
-    }
-
-    func generate(
-        prompt: String,
-        cachedPrefixBytes: Int?,
-        options: LlamaGenerationOptions,
-        onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> LlamaGenerationOutput {
-        streamingCallCount += 1
-        for partial in partialRawTexts {
-            onPartialRawText?(partial)
-        }
-        return .text(finalText)
-    }
-
-    func resetPromptCache() {}
 }

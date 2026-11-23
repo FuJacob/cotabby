@@ -6,9 +6,6 @@ import XCTest
 /// temporary directory; tests that need no transfer never start one.
 @MainActor
 final class ModelDownloadManagerTests: XCTestCase {
-    /// Xcode 26.3's app-hosted test runner can crash in the back-deploy executor shim when a
-    /// production `@MainActor` instance deinitializes, so retain fixtures for the process lifetime.
-    private static var retainedManagers: [ModelDownloadManager] = []
     private var tempDir: URL!
 
     override func setUpWithError() throws {
@@ -177,9 +174,7 @@ final class ModelDownloadManagerTests: XCTestCase {
     }
 
     private func makeManager() -> ModelDownloadManager {
-        let manager = ModelDownloadManager(runtimeDirectoryURL: tempDir)
-        Self.retainedManagers.append(manager)
-        return manager
+        TestLifetime.retain(ModelDownloadManager(runtimeDirectoryURL: tempDir))
     }
 
     private func makeModel(source: String) throws -> DownloadableRuntimeModel {

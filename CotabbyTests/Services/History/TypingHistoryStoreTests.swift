@@ -66,23 +66,18 @@ private final class GatedKeyStore: TypingHistoryKeyStore, @unchecked Sendable {
 
 @MainActor
 final class TypingHistoryStoreTests: XCTestCase {
-    /// App-target MainActor classes crash the app-hosted runner when deallocated; keep them alive.
-    private static var retained: [AnyObject] = []
 
     private var directory: URL!
-    private var suiteName: String!
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("typing-history-\(UUID().uuidString)")
-        suiteName = "cotabby.test.typingHistory.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: directory)
-        defaults.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
 
@@ -91,9 +86,7 @@ final class TypingHistoryStoreTests: XCTestCase {
     }
 
     private func makeStore(vault: TypingHistoryVault? = nil) -> TypingHistoryStore {
-        let store = TypingHistoryStore(vault: vault ?? makeVault(), userDefaults: defaults, loadsArchive: false)
-        Self.retained.append(store)
-        return store
+        TestLifetime.retain(TypingHistoryStore(vault: vault ?? makeVault(), userDefaults: defaults, loadsArchive: false))
     }
 
     private func writeExport(_ rows: [[String: Any]]) throws -> URL {
@@ -404,7 +397,7 @@ final class TypingHistoryStoreTests: XCTestCase {
             vault: TypingHistoryVault(fileURL: directory.appendingPathComponent("TypingHistory.sealed"), keyStore: keyStore),
             userDefaults: defaults, loadsArchive: false, saveDelayNanoseconds: 0
         )
-        Self.retained.append(store)
+        TestLifetime.retain(store)
         store.setRecording(true)
         store.observe(focus("Hi Arnaud, the Imperum POC is ready", element: "body", sequence: 1)) { true }
         store.observe(focus("Hi Arnaud, the Imperum POC is ready for review.", element: "body", sequence: 1)) { true }
