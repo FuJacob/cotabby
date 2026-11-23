@@ -112,21 +112,48 @@ final class HuggingFaceSearchService: ObservableObject {
         browseState = HuggingFaceBrowseState()
     }
 
-    static func makeDownloadableModel(
-        from file: HFRepoFile,
-        repoId: String
-    ) -> DownloadableRuntimeModel? {
+    /// Whether a listed repository file can be downloaded, and why not when it can't. The browser
+    /// shows refused files with their reason instead of hiding them, so a repo's list never looks
+    /// silently incomplete.
+    enum DownloadOffer: Equatable {
+        case available(DownloadableRuntimeModel)
+        case unavailable(reason: String)
+    }
+
+    static func downloadOffer(for file: HFRepoFile, repoId: String) -> DownloadOffer {
+        switch RuntimeModelCatalog.curatedFilenameMatch(filePath: file.path, huggingFaceRepoID: repoId) {
+        case .curatedSource(let curatedModel):
+            // The same file a curated row installs: offer the pinned catalog entry, so it verifies
+            // against the reviewed commit and shares that row's transfer state.
+            return .available(curatedModel)
+        case .otherSource(let curatedDisplayName):
+            return .unavailable(
+                reason: "Same filename as Cotabby's \(curatedDisplayName) model, so it can't be installed from this repository."
+            )
+        case .notCurated:
+            break
+        }
+
+        // Fail closed: without the LFS oid there is no SHA-256 to verify the bytes against.
+        guard let lfs = file.lfs, ModelFileValidator.isSHA256Hex(lfs.oid) else {
+            return .unavailable(reason: "Hugging Face lists no checksum for this file, so Cotabby can't verify it.")
+        }
+        guard let url = file.downloadURL(repoId: repoId) else {
+            return .unavailable(reason: "Cotabby couldn't build a download link for this file.")
+        }
+
         // HuggingFace repo paths can include subdirectories (e.g. "gguf/model-Q4.gguf").
         // Use only the leaf filename so the download lands flat in Cotabby's model directory.
         let leafFilename = (file.path as NSString).lastPathComponent
-        guard let url = file.downloadURL(repoId: repoId) else { return nil }
-        return DownloadableRuntimeModel(
-            filename: leafFilename,
-            displayName: leafFilename,
-            downloadURL: url,
-            approximateSizeInGigabytes: file.sizeInGigabytes,
-            expectedSizeBytes: file.size,
-            sha256: nil
+        return .available(
+            DownloadableRuntimeModel(
+                filename: leafFilename,
+                displayName: leafFilename,
+                downloadURL: url,
+                approximateSizeInGigabytes: file.sizeInGigabytes,
+                expectedSizeBytes: lfs.size,
+                sha256: lfs.oid.lowercased()
+            )
         )
     }
 }

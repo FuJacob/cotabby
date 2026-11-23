@@ -53,14 +53,15 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     let displayName: String
     let downloadURL: URL
     let approximateSizeInGigabytes: Double
-    /// Exact byte count of the served file. Optional so future catalog entries
-    /// can land while metadata is still being filled in. When non-nil, the
-    /// download manager runs `ModelFileValidator.validateSize` against it
-    /// before promoting the staged file into the install location.
+    /// Exact byte count of the served file. When non-nil, the download manager
+    /// runs `ModelFileValidator.validateSize` against it before the slower
+    /// checksum pass.
     let expectedSizeBytes: Int64?
-    /// Lowercase SHA-256 hex string for the served file. Same nullability
-    /// rationale as `expectedSizeBytes`. HuggingFace exposes this as the
-    /// `x-linked-etag` response header on its CDN URLs.
+    /// Lowercase SHA-256 hex string for the served file: pinned in the curated
+    /// catalog, or the LFS oid the Hugging Face tree API reports for search
+    /// results. Optional only so hand-built values (tests) stay cheap to write;
+    /// `ModelFileValidator.validateSHA256` refuses to install a download whose
+    /// digest is nil.
     let sha256: String?
 
     var id: String { downloadURL.absoluteString }
@@ -101,42 +102,102 @@ enum RuntimeModelCatalog {
         }
     }
 
-    /// Builds a HuggingFace direct-download URL from a repo and file path.
-    private static func hfURL(_ repo: String, _ file: String) -> URL {
+    /// Builds a Hugging Face direct-download URL pinned to one commit of a third-party repo.
+    /// `resolve/main` would follow whatever the repo publishes next; with a commit pin, a later
+    /// re-upload cannot change the bytes, and a mismatch against the pinned SHA-256 fails closed.
+    private static func hfURL(_ repo: String, revision: String, _ file: String) -> URL {
         // Force-unwrap is safe: inputs are compile-time literals forming a valid URL.
-        URL(string: "https://huggingface.co/\(repo)/resolve/main/\(file)?download=true")!
+        URL(string: "https://huggingface.co/\(repo)/resolve/\(revision)/\(file)?download=true")!
     }
 
     /// Canonical downloadable base GGUF models for Cotabby 2's base-model continuation path.
-    /// Qwen3.5 / Gemma base checkpoints from mradermacher's i1 GGUF repos. `expectedSizeBytes` and
-    /// `sha256` stay nil pending CDN-header capture; the download manager skips size/hash
-    /// validation when they are nil. Old instruct GGUFs are intentionally no longer listed.
+    /// Qwen3.5 / Gemma base checkpoints from mradermacher's i1 GGUF repos. Each entry pins the repo
+    /// commit, and its byte size and SHA-256 come from the Hugging Face tree API at that commit
+    /// (`/api/models/<repo>/tree/<revision>`: `size` and `lfs.oid`). To move a model to a newer
+    /// upload, update all three together. Old instruct GGUFs are intentionally no longer listed.
     static let downloadableModels: [DownloadableRuntimeModel] = [
         DownloadableRuntimeModel(
             filename: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             displayName: displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            downloadURL: hfURL("mradermacher/Qwen3.5-0.8B-Base-i1-GGUF", "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            approximateSizeInGigabytes: 0.8
+            downloadURL: hfURL(
+                "mradermacher/Qwen3.5-0.8B-Base-i1-GGUF",
+                revision: "0adcee13f1a32c38fdbdb93e21d57e76b5640836",
+                "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"
+            ),
+            approximateSizeInGigabytes: 0.8,
+            expectedSizeBytes: 629_744_512,
+            sha256: "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1"
         ),
         DownloadableRuntimeModel(
             filename: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
             displayName: displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            downloadURL: hfURL("mradermacher/Qwen3.5-2B-Base-i1-GGUF", "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            approximateSizeInGigabytes: 1.4
+            downloadURL: hfURL(
+                "mradermacher/Qwen3.5-2B-Base-i1-GGUF",
+                revision: "209c5e51cc8ceee9b70facbcf36c57d7968ba543",
+                "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
+            ),
+            approximateSizeInGigabytes: 1.4,
+            expectedSizeBytes: 1_274_397_056,
+            sha256: "e3daa3f6e5ed8de264fc6e4128713ae1eb0c2649ad69b83f97bfc6a6ddca3da8"
         ),
         DownloadableRuntimeModel(
             filename: "gemma-4-E2B.i1-Q6_K.gguf",
             displayName: displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
-            downloadURL: hfURL("mradermacher/gemma-4-E2B-i1-GGUF", "gemma-4-E2B.i1-Q6_K.gguf"),
-            approximateSizeInGigabytes: 4.5
+            downloadURL: hfURL(
+                "mradermacher/gemma-4-E2B-i1-GGUF",
+                revision: "a9bf638e53783fc93778f357cc5c672eab5393b1",
+                "gemma-4-E2B.i1-Q6_K.gguf"
+            ),
+            approximateSizeInGigabytes: 4.5,
+            expectedSizeBytes: 3_845_328_608,
+            sha256: "20f49b221691c71d955e1d5a840b6e26329db4a5e1626f702fa4226e80a9c629"
         ),
         DownloadableRuntimeModel(
             filename: "gemma-4-E4B.i1-Q4_K_M.gguf",
             displayName: displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            downloadURL: hfURL("mradermacher/gemma-4-E4B-i1-GGUF", "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            approximateSizeInGigabytes: 5.0
+            downloadURL: hfURL(
+                "mradermacher/gemma-4-E4B-i1-GGUF",
+                revision: "8d1efb45cd65f46a70ac918584e2f0244117465f",
+                "gemma-4-E4B.i1-Q4_K_M.gguf"
+            ),
+            approximateSizeInGigabytes: 5.0,
+            expectedSizeBytes: 5_335_274_240,
+            sha256: "687f4cce47eac6ccfc595fd9517215fb964e5e5be17d4774b25b8add401d6d3c"
         )
     ]
+
+    /// How a Hugging Face repository file relates to the curated catalog by destination filename.
+    enum CuratedFilenameMatch: Equatable {
+        /// The filename belongs to no curated model.
+        case notCurated
+        /// The file is a curated model's own file in its source repository.
+        case curatedSource(DownloadableRuntimeModel)
+        /// A different repository (or path) publishes a file under a curated model's filename.
+        /// Installing it would make third-party bytes appear under the curated display name.
+        case otherSource(curatedDisplayName: String)
+    }
+
+    /// Classifies `filePath` in `repoID` against the curated catalog. Display names are keyed by
+    /// filename alone, so a search download must not claim a curated filename unless it is that
+    /// model's own file. Names compare case- and normalization-insensitively because the default
+    /// APFS volume treats such variants as the same file.
+    static func curatedFilenameMatch(filePath: String, huggingFaceRepoID repoID: String) -> CuratedFilenameMatch {
+        let leafKey = filenameKey((filePath as NSString).lastPathComponent)
+        guard let curated = downloadableModels.first(where: { filenameKey($0.filename) == leafKey }) else {
+            return .notCurated
+        }
+
+        let isCuratedRepository = curated.downloadURL.path.lowercased()
+            .hasPrefix("/\(repoID.lowercased())/resolve/")
+        if isCuratedRepository && filenameKey(filePath) == filenameKey(curated.filename) {
+            return .curatedSource(curated)
+        }
+        return .otherSource(curatedDisplayName: curated.displayName)
+    }
+
+    private static func filenameKey(_ filename: String) -> String {
+        filename.precomposedStringWithCanonicalMapping.lowercased()
+    }
 }
 
 /// Startup configuration that controls which GGUF model to load and how large the runtime should be.

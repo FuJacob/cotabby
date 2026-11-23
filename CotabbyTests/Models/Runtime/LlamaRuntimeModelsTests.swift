@@ -97,6 +97,70 @@ final class LlamaRuntimeModelsTests: XCTestCase {
         }
     }
 
+    /// Every curated download must be pinned to one commit and carry the size and SHA-256 of the
+    /// file at that commit; the validator refuses a download without a digest, so a missing value
+    /// here would break that model's install outright.
+    @MainActor
+    func test_downloadableModelCatalog_pinsCommitSizeAndChecksum() throws {
+        for model in RuntimeModelCatalog.downloadableModels {
+            let components = model.downloadURL.path.split(separator: "/").map(String.init)
+            XCTAssertEqual(components.count, 5, model.downloadURL.absoluteString)
+            guard components.count == 5 else { continue }
+            XCTAssertEqual(components[2], "resolve")
+            let revision = components[3]
+            XCTAssertEqual(revision.count, 40, "\(model.filename) must pin a full commit SHA, not a branch")
+            XCTAssertTrue(revision.allSatisfy { $0.isHexDigit && !$0.isUppercase }, revision)
+            XCTAssertEqual(components[4], model.filename)
+
+            let sha256 = try XCTUnwrap(model.sha256, model.filename)
+            XCTAssertTrue(ModelFileValidator.isSHA256Hex(sha256), model.filename)
+            XCTAssertEqual(sha256, sha256.lowercased())
+            let expectedSize = try XCTUnwrap(model.expectedSizeBytes, model.filename)
+            XCTAssertGreaterThan(expectedSize, 100_000_000, model.filename)
+        }
+        XCTAssertEqual(
+            Set(RuntimeModelCatalog.downloadableModels.compactMap(\.sha256)).count,
+            RuntimeModelCatalog.downloadableModels.count,
+            "Each curated file has its own digest"
+        )
+    }
+
+    @MainActor
+    func test_curatedFilenameMatch_separatesCuratedSourceFromLookalikes() throws {
+        let curated = try XCTUnwrap(
+            RuntimeModelCatalog.downloadableModels.first { $0.filename == "gemma-4-E2B.i1-Q6_K.gguf" }
+        )
+
+        XCTAssertEqual(
+            RuntimeModelCatalog.curatedFilenameMatch(
+                filePath: "gemma-4-E2B.i1-Q6_K.gguf",
+                huggingFaceRepoID: "mradermacher/gemma-4-E2B-i1-GGUF"
+            ),
+            .curatedSource(curated)
+        )
+        XCTAssertEqual(
+            RuntimeModelCatalog.curatedFilenameMatch(
+                filePath: "gemma-4-E2B.i1-Q6_K.gguf",
+                huggingFaceRepoID: "someone/gemma-4-E2B-i1-GGUF"
+            ),
+            .otherSource(curatedDisplayName: "tabby-2-base")
+        )
+        XCTAssertEqual(
+            RuntimeModelCatalog.curatedFilenameMatch(
+                filePath: "weights/GEMMA-4-E2B.I1-Q6_K.GGUF",
+                huggingFaceRepoID: "someone/else"
+            ),
+            .otherSource(curatedDisplayName: "tabby-2-base")
+        )
+        XCTAssertEqual(
+            RuntimeModelCatalog.curatedFilenameMatch(
+                filePath: "gemma-4-E2B.i1-Q4_K_M.gguf",
+                huggingFaceRepoID: "mradermacher/gemma-4-E2B-i1-GGUF"
+            ),
+            .notCurated
+        )
+    }
+
     func test_defaultRuntimeConfiguration_prefersExactlyTheDownloadableCatalog() {
         // The locator loads the first preferred file that exists. A preferred name missing from the
         // catalog could never be installed by onboarding, and a catalog model missing from the list

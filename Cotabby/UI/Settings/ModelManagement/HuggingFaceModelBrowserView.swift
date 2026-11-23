@@ -129,10 +129,8 @@ struct HuggingFaceModelBrowserView: View {
             case .loaded(let loadedRepoId, let ggufFiles) where loadedRepoId == repoId:
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(ggufFiles) { file in
-                        if let model = HuggingFaceSearchService.makeDownloadableModel(
-                            from: file,
-                            repoId: repoId
-                        ) {
+                        switch HuggingFaceSearchService.downloadOffer(for: file, repoId: repoId) {
+                        case .available(let model):
                             HFFileRow(
                                 file: file,
                                 state: modelDownloadManager.state(for: model),
@@ -147,6 +145,8 @@ struct HuggingFaceModelBrowserView: View {
                                     modelDownloadManager.cancel(model)
                                 }
                             )
+                        case .unavailable(let reason):
+                            HFUnavailableFileRow(file: file, reason: reason)
                         }
                     }
                 }
@@ -210,6 +210,39 @@ private struct HFSearchResultRow: View {
             return String(format: "%.1fK", Double(model.downloads) / 1_000)
         }
         return "\(model.downloads)"
+    }
+}
+
+/// A listed GGUF that Cotabby refuses to download: it has no checksum to verify against, or its
+/// filename would put third-party bytes under a built-in model's name. It has no action, only the
+/// reason, so the refusal is visible rather than a silently missing row.
+private struct HFUnavailableFileRow: View {
+    let file: HFRepoFile
+    let reason: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(file.path)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Text(detailText)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(.quaternary.opacity(0.3))
+        )
+    }
+
+    private var detailText: String {
+        "\(file.sizeLabel) • \(reason)"
     }
 }
 
