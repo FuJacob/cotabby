@@ -1,0 +1,19 @@
+Cotabby/Support/Suggestion/Streaming/TypingPredictionCandidate.swift
+  s_b9af9eb54478c8::t_cb6f18ac03fa6a 18,22,38,43,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba234c07943b53ebea1270a3aa014eafa6ec120b",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
