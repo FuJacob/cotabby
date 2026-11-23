@@ -1035,6 +1035,7 @@
 		D81AC2294A64E7A95B29E081 /* fr.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5DCA3E46621815A19300365F /* fr.txt */; };
 		D8B0D41FED19138D1869BB3C /* EmojiRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE72A73D906285AE10F623B /* EmojiRecents.swift */; };
 		D8E0E5FA644F62103D18645B /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0854896090B568FFB1926D24 /* WordCountFormatterTests.swift */; };
+		D97F572A6FA237FBAC1C3697 /* GhostFontSizeLimitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1D380AB43057B9976B207A /* GhostFontSizeLimitsTests.swift */; };
 		D9CAF205C283ACD79B70333F /* GPUStatisticsReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08DF3F7E58429007C599247 /* GPUStatisticsReaderTests.swift */; };
 		D9CE1B135CA6FB766426BD05 /* SuggestionRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E23EF696D34CFB8EF320668 /* SuggestionRequest.swift */; };
 		D9CE5079C27826E94A29C744 /* HostAdvanceFitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A236731DA3FFF8FEECB67167 /* HostAdvanceFitTests.swift */; };
@@ -1405,6 +1406,7 @@
 		3D6234872B84ECB56A707945 /* ControlTokenMarkersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlTokenMarkersTests.swift; sourceTree = "<group>"; };
 		3DB1A3F7D6C0FF28717E6D4C /* SuggestionEngineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionEngineModels.swift; sourceTree = "<group>"; };
 		3DBD75CAF6CAC849D5ED9FA4 /* InputSuppressionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionControllerTests.swift; sourceTree = "<group>"; };
+		3E1D380AB43057B9976B207A /* GhostFontSizeLimitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostFontSizeLimitsTests.swift; sourceTree = "<group>"; };
 		3E8BE4574F1770808AA848FE /* EmojiCatalogMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiCatalogMatcherTests.swift; sourceTree = "<group>"; };
 		3EB202C5AD6079174A14330C /* GhostTextLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostTextLayoutTests.swift; sourceTree = "<group>"; };
 		3ED4E38B9FE65164C3ABEA12 /* LlamaEvalScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaEvalScoringTests.swift; sourceTree = "<group>"; };
@@ -2147,6 +2149,7 @@
 			isa = PBXGroup;
 			children = (
 				58FA6A8D05AEEBE3501B478F /* GhostFontResolverTests.swift */,
+				3E1D380AB43057B9976B207A /* GhostFontSizeLimitsTests.swift */,
 				E91CA4CBD3F0E35457B48DEC /* GhostFontStylerTests.swift */,
 				7D8E353465F3054D357EE5A1 /* GhostTextColorPresetTests.swift */,
 				A236731DA3FFF8FEECB67167 /* HostAdvanceFitTests.swift */,
@@ -5377,6 +5380,7 @@
 				CA959F082DB2C6E95C5743C8 /* GhostBaselinePolicyTests.swift in Sources */,
 				0C6DCE04EF0D1EE132B59B73 /* GhostCaretRefinementTests.swift in Sources */,
 				4BDE48F1CCFAA097E95B53F6 /* GhostFontResolverTests.swift in Sources */,
+				D97F572A6FA237FBAC1C3697 /* GhostFontSizeLimitsTests.swift in Sources */,
 				47121E2DA2B1185A310EFA3C /* GhostFontStylerTests.swift in Sources */,
 				7C56674EF8DA8869D5116EE6 /* GhostSpaceBoundaryTests.swift in Sources */,
 				5EB0BB7F1EE3E87C917CD692 /* GhostTextColorPresetTests.swift in Sources */,

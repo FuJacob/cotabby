@@ -338,19 +338,13 @@ final class AXHelperTests: XCTestCase {
         XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 1, y: 2, width: 3, height: CGFloat.nan)))
     }
 
+    /// A NaN or infinite AX rect must collapse to `.zero`, never propagate toward
+    /// `NSWindow.setFrame` (a crash). Runs without a display, unlike the conversion tests below.
     func test_cocoaRect_zeroAndNonFiniteRectsNeverReachGeometryMath() {
+        let nan = CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14)
         XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: .zero), .zero)
-        XCTAssertEqual(
-            AXHelper.cocoaRect(fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 0, width: 10, height: 10)),
-            .zero
-        )
-        // A NaN text rect must collapse to .zero too, never propagate toward NSWindow.setFrame.
-        XCTAssertEqual(
-            AXHelper.validatedCocoaTextRect(
-                fromAccessibilityRect: CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14), anchorFrame: nil
-            ),
-            .zero
-        )
+        XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: nan), .zero)
+        XCTAssertEqual(AXHelper.validatedCocoaTextRect(fromAccessibilityRect: nan, anchorFrame: nil), .zero)
     }
 
     /// The accept window is the anchor grown by an 80pt halo, tested directly rather than through a

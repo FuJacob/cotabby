@@ -5,7 +5,8 @@ import XCTest
 
 /// Locks the dedicated LLM I/O JSONL sink: full prompts and completions land as one valid JSON
 /// record per generation under the fixed `llm-io` category (the `request_id` join contract with
-/// the main log), and the writer rotates exactly like the main sink.
+/// the main log). The file writer and its rotation are the main sink's, covered in
+/// `FileLogHandlerTests`.
 ///
 /// Every writer targets a per-test temp directory, never the user's real log location.
 final class LLMIOFileHandlerTests: XCTestCase {
@@ -24,10 +25,9 @@ final class LLMIOFileHandlerTests: XCTestCase {
     // MARK: - Helpers
 
     private var logURL: URL { directory.appendingPathComponent("llm-io.jsonl") }
-    private var rotatedURL: URL { directory.appendingPathComponent("llm-io.jsonl.1") }
 
-    private func makeWriter(cap: UInt64 = JSONLFileWriter.defaultSizeCapBytes) -> JSONLFileWriter {
-        JSONLFileWriter(fileName: "llm-io.jsonl", sizeCapBytes: cap, fileURL: logURL)
+    private func makeWriter() -> JSONLFileWriter {
+        JSONLFileWriter(fileName: "llm-io.jsonl", fileURL: logURL)
     }
 
     private func emit(
@@ -114,50 +114,5 @@ final class LLMIOFileHandlerTests: XCTestCase {
     func test_logLevel_defaultsToTraceSoEveryRoutedEventIsKept() {
         // Everything routed to `CotabbyLogger.llmIO` is intentional, so the handler never filters.
         XCTAssertEqual(LLMIOFileHandler(label: CotabbyLogger.llmIOLabel, writer: makeWriter()).logLevel, .trace)
-    }
-
-    // MARK: - Writer rotation
-
-    func test_writer_rotatesPastTheCapKeepingPreviousHistory() throws {
-        let writer = makeWriter(cap: 32)
-        let longLine = String(repeating: "p", count: 40)
-        writer.write(longLine + "\n")
-        writer.write("after-cap\n")
-
-        XCTAssertEqual(try XCTUnwrap(writer.fileURL), logURL)
-        XCTAssertEqual(lines(of: logURL), ["after-cap"])
-        XCTAssertEqual(lines(of: rotatedURL), [longLine])
-    }
-
-    func test_writer_doesNotRotateWhileBelowTheCap() {
-        // "12345\n" is 6 bytes; the check is `offset >= cap`, so a cap of 7 still has room.
-        let writer = makeWriter(cap: 7)
-        writer.write("12345\n")
-        writer.write("x\n")
-
-        XCTAssertEqual(lines(of: logURL), ["12345", "x"])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: rotatedURL.path))
-    }
-
-    func test_writer_secondRotationReplacesThePreviousRotatedFile() {
-        let writer = makeWriter(cap: 8)
-
-        writer.write("aaaaaaaaa\n")
-        writer.write("bbbbbbbbb\n") // rotates: .1 = a
-        writer.write("c\n") // rotates again: .1 = b
-
-        XCTAssertEqual(lines(of: logURL), ["c"])
-        XCTAssertEqual(lines(of: rotatedURL), ["bbbbbbbbb"])
-    }
-
-    func test_writer_appendsAcrossInstancesAndRotatesAnOversizedFileOnRelaunch() {
-        makeWriter().write("first\n")
-        makeWriter().write("second\n")
-        XCTAssertEqual(lines(of: logURL), ["first", "second"], "A relaunch must append, not truncate")
-
-        // "first\nsecond\n" is 13 bytes, already past a 10-byte cap, so the next writer rotates it.
-        makeWriter(cap: 10).write("third\n")
-        XCTAssertEqual(lines(of: logURL), ["third"])
-        XCTAssertEqual(lines(of: rotatedURL), ["first", "second"])
     }
 }
