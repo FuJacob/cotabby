@@ -111,3 +111,23 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         [.performance, .about]
     ]
 }
+
+extension SettingsCategory {
+    /// Resolves the pane persisted from an earlier session, mapping raw values that no longer
+    /// name a case so a returning user lands on the pane that replaced the one they left open.
+    static func restored(fromStoredRawValue rawValue: String) -> SettingsCategory {
+        if let category = SettingsCategory(rawValue: rawValue) {
+            return category
+        }
+        // The sidebar once had separate Apple Intelligence and Open Source rows; both became the
+        // unified Engine & Model pane.
+        if rawValue == "appleIntelligence" || rawValue == "openSource" {
+            return .engineAndModel
+        }
+        // The Advanced pane was renamed to Context.
+        if rawValue == "advanced" {
+            return .context
+        }
+        return .general
+    }
+}

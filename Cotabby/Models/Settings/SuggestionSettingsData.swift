@@ -137,8 +137,9 @@ struct SuggestionShortcutSettings: Equatable {
 /// Pure domain representation of every durable suggestion preference.
 ///
 /// Persistence keys remain flat for migration compatibility, while this in-memory value is grouped
-/// by the subsystem that owns each decision. The forwarding properties below preserve the previous
-/// flat API for existing call sites and tests while new code can consume cohesive domain settings.
+/// by the subsystem that owns each decision. The read-only flat properties below let the settings
+/// facade and the store's write-back name a field without knowing which domain owns it; writes go
+/// through the owning domain so a field has exactly one mutable path.
 struct SuggestionSettingsData: Equatable {
     var general: SuggestionGeneralSettings
     var engine: SuggestionEngineSettings
@@ -151,378 +152,153 @@ struct SuggestionSettingsData: Equatable {
 }
 
 extension SuggestionSettingsData {
-    var isGloballyEnabled: Bool {
-        get { general.isGloballyEnabled }
-        set { general.isGloballyEnabled = newValue }
-    }
-
-    var pauseState: SuggestionPauseState? {
-        get { general.pauseState }
-        set { general.pauseState = newValue }
-    }
-
-    var disabledAppRules: [DisabledApplicationRule] {
-        get { general.disabledAppRules }
-        set { general.disabledAppRules = newValue }
-    }
-
-    var suggestInIntegratedTerminals: Bool {
-        get { general.suggestInIntegratedTerminals }
-        set { general.suggestInIntegratedTerminals = newValue }
-    }
-
-    var isPerformanceTrackingEnabled: Bool {
-        get { general.isPerformanceTrackingEnabled }
-        set { general.isPerformanceTrackingEnabled = newValue }
-    }
-
-    var isLowPowerModeAutoDisableEnabled: Bool {
-        get { general.isLowPowerModeAutoDisableEnabled }
-        set { general.isLowPowerModeAutoDisableEnabled = newValue }
-    }
-
-    var selectedEngine: SuggestionEngineKind {
-        get { engine.selectedEngine }
-        set { engine.selectedEngine = newValue }
-    }
-
-    var openAICompatibleBaseURL: String {
-        get { engine.openAICompatibleBaseURL }
-        set { engine.openAICompatibleBaseURL = newValue }
-    }
-
-    var openAICompatibleModelName: String {
-        get { engine.openAICompatibleModelName }
-        set { engine.openAICompatibleModelName = newValue }
-    }
-
-    var openAICompatibleAPIMode: OpenAICompatibleAPIMode {
-        get { engine.openAICompatibleAPIMode }
-        set { engine.openAICompatibleAPIMode = newValue }
-    }
-
-    var isPowerBasedModelSwitchingEnabled: Bool {
-        get { engine.isPowerBasedModelSwitchingEnabled }
-        set { engine.isPowerBasedModelSwitchingEnabled = newValue }
-    }
-
-    var isAppleLanguageFallbackEnabled: Bool {
-        get { engine.isAppleLanguageFallbackEnabled }
-        set { engine.isAppleLanguageFallbackEnabled = newValue }
-    }
-
-    var keepsFallbackModelLoaded: Bool {
-        get { engine.keepsFallbackModelLoaded }
-        set { engine.keepsFallbackModelLoaded = newValue }
-    }
-
-    var batteryEngine: SuggestionEngineKind {
-        get { engine.batteryEngine }
-        set { engine.batteryEngine = newValue }
-    }
-
-    var batteryModelFilename: String {
-        get { engine.batteryModelFilename }
-        set { engine.batteryModelFilename = newValue }
-    }
-
-    var batteryEndpointModelName: String {
-        get { engine.batteryEndpointModelName }
-        set { engine.batteryEndpointModelName = newValue }
-    }
-
-    var pluggedInEngine: SuggestionEngineKind {
-        get { engine.pluggedInEngine }
-        set { engine.pluggedInEngine = newValue }
-    }
-
-    var pluggedInModelFilename: String {
-        get { engine.pluggedInModelFilename }
-        set { engine.pluggedInModelFilename = newValue }
-    }
-
-    var pluggedInEndpointModelName: String {
-        get { engine.pluggedInEndpointModelName }
-        set { engine.pluggedInEndpointModelName = newValue }
-    }
-
-    var selectedWordCountPreset: SuggestionWordCountPreset {
-        get { completion.selectedWordCountPreset }
-        set { completion.selectedWordCountPreset = newValue }
-    }
-
-    var isUsingCustomWordCountRange: Bool {
-        get { completion.isUsingCustomWordCountRange }
-        set { completion.isUsingCustomWordCountRange = newValue }
-    }
-
-    var customWordCountLowWords: Int {
-        get { completion.customWordCountLowWords }
-        set { completion.customWordCountLowWords = newValue }
-    }
-
-    var customWordCountHighWords: Int {
-        get { completion.customWordCountHighWords }
-        set { completion.customWordCountHighWords = newValue }
-    }
-
-    var debounceMilliseconds: Int {
-        get { completion.debounceMilliseconds }
-        set { completion.debounceMilliseconds = newValue }
-    }
-
-    var focusPollIntervalMilliseconds: Int {
-        get { completion.focusPollIntervalMilliseconds }
-        set { completion.focusPollIntervalMilliseconds = newValue }
-    }
-
-    var isMultiLineEnabled: Bool {
-        get { completion.isMultiLineEnabled }
-        set { completion.isMultiLineEnabled = newValue }
-    }
-
-    var suggestWithinWords: Bool {
-        get { completion.suggestWithinWords }
-        set { completion.suggestWithinWords = newValue }
-    }
-
-    var showFollowingWords: Bool {
-        get { completion.showFollowingWords }
-        set { completion.showFollowingWords = newValue }
-    }
-
-    var autoAcceptTrailingPunctuation: Bool {
-        get { completion.autoAcceptTrailingPunctuation }
-        set { completion.autoAcceptTrailingPunctuation = newValue }
-    }
-
-    var addSpaceAfterAccept: Bool {
-        get { completion.addSpaceAfterAccept }
-        set { completion.addSpaceAfterAccept = newValue }
-    }
-
-    var predictAheadWhileTyping: Bool {
-        get { completion.predictAheadWhileTyping }
-        set { completion.predictAheadWhileTyping = newValue }
-    }
-
-    var streamSuggestionsWhileGenerating: Bool {
-        get { completion.streamSuggestionsWhileGenerating }
-        set { completion.streamSuggestionsWhileGenerating = newValue }
-    }
-
-    var acceptanceGranularity: AcceptanceGranularity {
-        get { completion.acceptanceGranularity }
-        set { completion.acceptanceGranularity = newValue }
-    }
-
-    var isClipboardContextEnabled: Bool {
-        get { context.isClipboardContextEnabled }
-        set { context.isClipboardContextEnabled = newValue }
-    }
-
-    var isSurfaceContextEnabled: Bool {
-        get { context.isSurfaceContextEnabled }
-        set { context.isSurfaceContextEnabled = newValue }
-    }
-
-    var isFastModeEnabled: Bool {
-        get { context.isFastModeEnabled }
-        set { context.isFastModeEnabled = newValue }
-    }
-
-    var userName: String {
-        get { context.userName }
-        set { context.userName = newValue }
-    }
-
-    var customRules: [String] {
-        get { context.customRules }
-        set { context.customRules = newValue }
-    }
-
-    var responseLanguages: [String] {
-        get { context.responseLanguages }
-        set { context.responseLanguages = newValue }
-    }
-
-    var extendedContext: String {
-        get { context.extendedContext }
-        set { context.extendedContext = newValue }
-    }
-
-    var suppressCompletionsOnTypo: Bool {
-        get { correction.suppressCompletionsOnTypo }
-        set { correction.suppressCompletionsOnTypo = newValue }
-    }
-
-    var offerTypoCorrections: Bool {
-        get { correction.offerTypoCorrections }
-        set { correction.offerTypoCorrections = newValue }
-    }
-
-    var enabledSpellingDictionaryCodes: [String] {
-        get { correction.enabledSpellingDictionaryCodes }
-        set { correction.enabledSpellingDictionaryCodes = newValue }
-    }
-
-    var automaticallyFixTypos: Bool {
-        get { correction.automaticallyFixTypos }
-        set { correction.automaticallyFixTypos = newValue }
-    }
-
-    var showIndicator: Bool {
-        get { presentation.showIndicator }
-        set { presentation.showIndicator = newValue }
-    }
-
-    var showAcceptanceHint: Bool {
-        get { presentation.showAcceptanceHint }
-        set { presentation.showAcceptanceHint = newValue }
-    }
-
-    var customSuggestionTextColorHex: String? {
-        get { presentation.customSuggestionTextColorHex }
-        set { presentation.customSuggestionTextColorHex = newValue }
-    }
-
-    var ghostTextOpacity: Double {
-        get { presentation.ghostTextOpacity }
-        set { presentation.ghostTextOpacity = newValue }
-    }
-
-    var ghostTextSizeMultiplier: Double {
-        get { presentation.ghostTextSizeMultiplier }
-        set { presentation.ghostTextSizeMultiplier = newValue }
-    }
-
-    var ghostFontSizeFloor: Double {
-        get { presentation.ghostFontSizeFloor }
-        set { presentation.ghostFontSizeFloor = newValue }
-    }
-
-    var ghostFontSizeCeiling: Double {
-        get { presentation.ghostFontSizeCeiling }
-        set { presentation.ghostFontSizeCeiling = newValue }
-    }
-
-    var isMenuBarIconVisible: Bool {
-        get { presentation.isMenuBarIconVisible }
-        set { presentation.isMenuBarIconVisible = newValue }
-    }
-
-    var isMenuBarWordCountVisible: Bool {
-        get { presentation.isMenuBarWordCountVisible }
-        set { presentation.isMenuBarWordCountVisible = newValue }
-    }
-
-    var mirrorPreference: MirrorPreference {
-        get { presentation.mirrorPreference }
-        set { presentation.mirrorPreference = newValue }
-    }
-
-    var fadeInSuggestions: Bool {
-        get { presentation.fadeInSuggestions }
-        set { presentation.fadeInSuggestions = newValue }
-    }
-
-    var isGhostTextBold: Bool {
-        get { presentation.isGhostTextBold }
-        set { presentation.isGhostTextBold = newValue }
-    }
-
-    var isGhostTextItalic: Bool {
-        get { presentation.isGhostTextItalic }
-        set { presentation.isGhostTextItalic = newValue }
-    }
-
-    var fadeInDurationSeconds: Double {
-        get { presentation.fadeInDurationSeconds }
-        set { presentation.fadeInDurationSeconds = newValue }
-    }
-
-    var matchesHostTextSize: Bool {
-        get { presentation.matchesHostTextSize }
-        set { presentation.matchesHostTextSize = newValue }
-    }
-
-    var isEmojiPickerEnabled: Bool {
-        get { inlineFeatures.isEmojiPickerEnabled }
-        set { inlineFeatures.isEmojiPickerEnabled = newValue }
-    }
-
-    var isMacroExpansionEnabled: Bool {
-        get { inlineFeatures.isMacroExpansionEnabled }
-        set { inlineFeatures.isMacroExpansionEnabled = newValue }
-    }
-
-    var preferredEmojiSkinTone: EmojiSkinTone {
-        get { inlineFeatures.preferredEmojiSkinTone }
-        set { inlineFeatures.preferredEmojiSkinTone = newValue }
-    }
-
-    var preferredEmojiGender: EmojiGender {
-        get { inlineFeatures.preferredEmojiGender }
-        set { inlineFeatures.preferredEmojiGender = newValue }
-    }
-
-    var acceptanceKeyCode: CGKeyCode {
-        get { shortcuts.acceptance.keyCode }
-        set { shortcuts.acceptance.keyCode = newValue }
-    }
-
-    var acceptanceKeyModifiers: ShortcutModifierMask {
-        get { shortcuts.acceptance.modifiers }
-        set { shortcuts.acceptance.modifiers = newValue }
-    }
-
-    var acceptanceKeyLabel: String {
-        get { shortcuts.acceptance.label }
-        set { shortcuts.acceptance.label = newValue }
-    }
-
-    var fullAcceptanceKeyCode: CGKeyCode {
-        get { shortcuts.fullAcceptance.keyCode }
-        set { shortcuts.fullAcceptance.keyCode = newValue }
-    }
-
-    var fullAcceptanceKeyModifiers: ShortcutModifierMask {
-        get { shortcuts.fullAcceptance.modifiers }
-        set { shortcuts.fullAcceptance.modifiers = newValue }
-    }
-
-    var fullAcceptanceKeyLabel: String {
-        get { shortcuts.fullAcceptance.label }
-        set { shortcuts.fullAcceptance.label = newValue }
-    }
-
-    var globalToggleKeyCode: CGKeyCode {
-        get { shortcuts.globalToggle.keyCode }
-        set { shortcuts.globalToggle.keyCode = newValue }
-    }
-
-    var globalToggleKeyModifiers: ShortcutModifierMask {
-        get { shortcuts.globalToggle.modifiers }
-        set { shortcuts.globalToggle.modifiers = newValue }
-    }
-
-    var globalToggleKeyLabel: String {
-        get { shortcuts.globalToggle.label }
-        set { shortcuts.globalToggle.label = newValue }
-    }
-
-    var perAppShortcutOverrides: [PerAppShortcutOverride] {
-        get { shortcuts.perAppOverrides }
-        set { shortcuts.perAppOverrides = newValue }
-    }
-
-    var doubleTapAcceptsEntireSuggestion: Bool {
-        get { shortcuts.doubleTapAcceptsEntireSuggestion }
-        set { shortcuts.doubleTapAcceptsEntireSuggestion = newValue }
-    }
-
-    var tabLeavesSingleLineFields: Bool {
-        get { shortcuts.tabLeavesSingleLineFields }
-        set { shortcuts.tabLeavesSingleLineFields = newValue }
-    }
+    var isGloballyEnabled: Bool { general.isGloballyEnabled }
+
+    var pauseState: SuggestionPauseState? { general.pauseState }
+
+    var disabledAppRules: [DisabledApplicationRule] { general.disabledAppRules }
+
+    var suggestInIntegratedTerminals: Bool { general.suggestInIntegratedTerminals }
+
+    var isPerformanceTrackingEnabled: Bool { general.isPerformanceTrackingEnabled }
+
+    var isLowPowerModeAutoDisableEnabled: Bool { general.isLowPowerModeAutoDisableEnabled }
+
+    var selectedEngine: SuggestionEngineKind { engine.selectedEngine }
+
+    var openAICompatibleBaseURL: String { engine.openAICompatibleBaseURL }
+
+    var openAICompatibleModelName: String { engine.openAICompatibleModelName }
+
+    var openAICompatibleAPIMode: OpenAICompatibleAPIMode { engine.openAICompatibleAPIMode }
+
+    var isPowerBasedModelSwitchingEnabled: Bool { engine.isPowerBasedModelSwitchingEnabled }
+
+    var isAppleLanguageFallbackEnabled: Bool { engine.isAppleLanguageFallbackEnabled }
+
+    var keepsFallbackModelLoaded: Bool { engine.keepsFallbackModelLoaded }
+
+    var batteryEngine: SuggestionEngineKind { engine.batteryEngine }
+
+    var batteryModelFilename: String { engine.batteryModelFilename }
+
+    var batteryEndpointModelName: String { engine.batteryEndpointModelName }
+
+    var pluggedInEngine: SuggestionEngineKind { engine.pluggedInEngine }
+
+    var pluggedInModelFilename: String { engine.pluggedInModelFilename }
+
+    var pluggedInEndpointModelName: String { engine.pluggedInEndpointModelName }
+
+    var selectedWordCountPreset: SuggestionWordCountPreset { completion.selectedWordCountPreset }
+
+    var isUsingCustomWordCountRange: Bool { completion.isUsingCustomWordCountRange }
+
+    var customWordCountLowWords: Int { completion.customWordCountLowWords }
+
+    var customWordCountHighWords: Int { completion.customWordCountHighWords }
+
+    var debounceMilliseconds: Int { completion.debounceMilliseconds }
+
+    var focusPollIntervalMilliseconds: Int { completion.focusPollIntervalMilliseconds }
+
+    var isMultiLineEnabled: Bool { completion.isMultiLineEnabled }
+
+    var suggestWithinWords: Bool { completion.suggestWithinWords }
+
+    var showFollowingWords: Bool { completion.showFollowingWords }
+
+    var autoAcceptTrailingPunctuation: Bool { completion.autoAcceptTrailingPunctuation }
+
+    var addSpaceAfterAccept: Bool { completion.addSpaceAfterAccept }
+
+    var predictAheadWhileTyping: Bool { completion.predictAheadWhileTyping }
+
+    var streamSuggestionsWhileGenerating: Bool { completion.streamSuggestionsWhileGenerating }
+
+    var acceptanceGranularity: AcceptanceGranularity { completion.acceptanceGranularity }
+
+    var isClipboardContextEnabled: Bool { context.isClipboardContextEnabled }
+
+    var isSurfaceContextEnabled: Bool { context.isSurfaceContextEnabled }
+
+    var isFastModeEnabled: Bool { context.isFastModeEnabled }
+
+    var userName: String { context.userName }
+
+    var customRules: [String] { context.customRules }
+
+    var responseLanguages: [String] { context.responseLanguages }
+
+    var extendedContext: String { context.extendedContext }
+
+    var suppressCompletionsOnTypo: Bool { correction.suppressCompletionsOnTypo }
+
+    var offerTypoCorrections: Bool { correction.offerTypoCorrections }
+
+    var enabledSpellingDictionaryCodes: [String] { correction.enabledSpellingDictionaryCodes }
+
+    var automaticallyFixTypos: Bool { correction.automaticallyFixTypos }
+
+    var showIndicator: Bool { presentation.showIndicator }
+
+    var showAcceptanceHint: Bool { presentation.showAcceptanceHint }
+
+    var customSuggestionTextColorHex: String? { presentation.customSuggestionTextColorHex }
+
+    var ghostTextOpacity: Double { presentation.ghostTextOpacity }
+
+    var ghostTextSizeMultiplier: Double { presentation.ghostTextSizeMultiplier }
+
+    var ghostFontSizeFloor: Double { presentation.ghostFontSizeFloor }
+
+    var ghostFontSizeCeiling: Double { presentation.ghostFontSizeCeiling }
+
+    var isMenuBarIconVisible: Bool { presentation.isMenuBarIconVisible }
+
+    var isMenuBarWordCountVisible: Bool { presentation.isMenuBarWordCountVisible }
+
+    var mirrorPreference: MirrorPreference { presentation.mirrorPreference }
+
+    var fadeInSuggestions: Bool { presentation.fadeInSuggestions }
+
+    var isGhostTextBold: Bool { presentation.isGhostTextBold }
+
+    var isGhostTextItalic: Bool { presentation.isGhostTextItalic }
+
+    var fadeInDurationSeconds: Double { presentation.fadeInDurationSeconds }
+
+    var matchesHostTextSize: Bool { presentation.matchesHostTextSize }
+
+    var isEmojiPickerEnabled: Bool { inlineFeatures.isEmojiPickerEnabled }
+
+    var isMacroExpansionEnabled: Bool { inlineFeatures.isMacroExpansionEnabled }
+
+    var preferredEmojiSkinTone: EmojiSkinTone { inlineFeatures.preferredEmojiSkinTone }
+
+    var preferredEmojiGender: EmojiGender { inlineFeatures.preferredEmojiGender }
+
+    var acceptanceKeyCode: CGKeyCode { shortcuts.acceptance.keyCode }
+
+    var acceptanceKeyModifiers: ShortcutModifierMask { shortcuts.acceptance.modifiers }
+
+    var acceptanceKeyLabel: String { shortcuts.acceptance.label }
+
+    var fullAcceptanceKeyCode: CGKeyCode { shortcuts.fullAcceptance.keyCode }
+
+    var fullAcceptanceKeyModifiers: ShortcutModifierMask { shortcuts.fullAcceptance.modifiers }
+
+    var fullAcceptanceKeyLabel: String { shortcuts.fullAcceptance.label }
+
+    var globalToggleKeyCode: CGKeyCode { shortcuts.globalToggle.keyCode }
+
+    var globalToggleKeyModifiers: ShortcutModifierMask { shortcuts.globalToggle.modifiers }
+
+    var globalToggleKeyLabel: String { shortcuts.globalToggle.label }
+
+    var perAppShortcutOverrides: [PerAppShortcutOverride] { shortcuts.perAppOverrides }
+
+    var doubleTapAcceptsEntireSuggestion: Bool { shortcuts.doubleTapAcceptsEntireSuggestion }
+
+    var tabLeavesSingleLineFields: Bool { shortcuts.tabLeavesSingleLineFields }
 }

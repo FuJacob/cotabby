@@ -6,8 +6,7 @@ import SwiftUI
 /// rather than repeating layout boilerplate.
 ///
 /// Why a callout slot:
-/// The legacy settings window puts a single attention banner at the top of the form. The redesign
-/// surfaces attention per pane: when a pane is in a degraded state (missing permission, runtime
+/// Attention is surfaced per pane: when a pane is in a degraded state (missing permission, runtime
 /// unavailable) we render an inline callout above the form so the actionable surface lives next to
 /// the controls that fix it.
 ///
@@ -92,7 +91,7 @@ struct SettingsPaneCallout: Equatable {
 
 /// Renders a single callout (warning/info) with a tinted background and matching icon. Used both by
 /// the scaffold's top-of-pane slot and inline inside a pane section when an attention message belongs
-/// next to a specific control (e.g. the Extended Context cost warning in the Advanced pane).
+/// next to a specific control (e.g. the Extended Context cost warning in the Context pane).
 struct SettingsCalloutView: View {
     let callout: SettingsPaneCallout
 

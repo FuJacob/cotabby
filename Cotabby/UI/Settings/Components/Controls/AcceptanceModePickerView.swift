@@ -5,15 +5,8 @@ import SwiftUI
 struct AcceptanceModePickerView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
-    private var acceptanceGranularityBinding: Binding<AcceptanceGranularity> {
-        Binding(
-            get: { suggestionSettings.acceptanceGranularity },
-            set: { suggestionSettings.setAcceptanceGranularity($0) }
-        )
-    }
-
     var body: some View {
-        Picker(selection: acceptanceGranularityBinding) {
+        Picker(selection: suggestionSettings.binding(\.acceptanceGranularity) { $0.setAcceptanceGranularity($1) }) {
             Text("Word").tag(AcceptanceGranularity.word)
             Text("Phrase").tag(AcceptanceGranularity.phrase)
         } label: {

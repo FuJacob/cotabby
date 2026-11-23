@@ -20,7 +20,7 @@ struct HomePaneView: View {
     @ObservedObject var openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     let attentionCategories: Set<SettingsCategory>
 
-    @State private var query = ""
+    @State private var search = SettingsSearchQuery()
     @FocusState private var isSearchFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,7 +42,7 @@ struct HomePaneView: View {
                     hero
                     searchField
 
-                    if trimmedQuery.isEmpty {
+                    if search.isBlank {
                         statusRow
                         quickLinksSection
                         showcaseSection
@@ -77,10 +77,6 @@ struct HomePaneView: View {
         }
     }
 
-    private var trimmedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     // MARK: - Hero
 
     /// A soft accent wash behind the top of the page. Static (it does not scroll) so it reads as
@@ -113,7 +109,7 @@ struct HomePaneView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Cotabby")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
-                if let version = appVersionText {
+                if let version = Bundle.main.cotabbyDisplayVersion {
                     Text(version)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
@@ -138,10 +134,6 @@ struct HomePaneView: View {
         GhostTextPalette.automaticTextColor(dark: colorScheme == .dark)
     }
 
-    private var appVersionText: String? {
-        Bundle.main.cotabbyDisplayVersion
-    }
-
     // MARK: - Search
 
     private var searchField: some View {
@@ -151,13 +143,13 @@ struct HomePaneView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField("Search every setting", text: $query)
+            TextField("Search every setting", text: $search.text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .focused($isSearchFocused)
                 .onSubmit(openTopResult)
 
-            if trimmedQuery.isEmpty {
+            if search.isBlank {
                 Text("⌘F")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.tertiary)
@@ -167,7 +159,7 @@ struct HomePaneView: View {
                     .accessibilityHidden(true)
             } else {
                 Button {
-                    query = ""
+                    search.text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -194,7 +186,7 @@ struct HomePaneView: View {
     }
 
     private var searchResults: [SettingsItem] {
-        Array(SettingsItem.results(for: trimmedQuery).prefix(Self.maximumSearchResults))
+        search.results(limit: Self.maximumSearchResults)
     }
 
     private var searchResultsCard: some View {
@@ -205,7 +197,7 @@ struct HomePaneView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 22))
                         .foregroundStyle(.tertiary)
-                    Text("No settings match \u{201C}\(trimmedQuery)\u{201D}")
+                    Text("No settings match \u{201C}\(search.trimmed)\u{201D}")
                         .foregroundStyle(.secondary)
                     Text("Try \u{201C}color\u{201D}, \u{201C}shortcut\u{201D}, \u{201C}battery\u{201D}, or \u{201C}privacy\u{201D}.")
                         .font(.caption)
@@ -241,7 +233,7 @@ struct HomePaneView: View {
 
     private func open(_ item: SettingsItem) {
         navigation.reveal(item)
-        query = ""
+        search.text = ""
     }
 
     // MARK: - Status row
@@ -261,7 +253,7 @@ struct HomePaneView: View {
             title: "Cotabby",
             caption: suggestionSettings.isGloballyEnabled ? "Active" : "Paused"
         ) {
-            Toggle("", isOn: globallyEnabledBinding)
+            Toggle("", isOn: suggestionSettings.binding(\.isGloballyEnabled) { $0.setGloballyEnabled($1) })
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
@@ -334,13 +326,6 @@ struct HomePaneView: View {
                 ? "No model selected"
                 : suggestionSettings.openAICompatibleModelName
         }
-    }
-
-    private var globallyEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isGloballyEnabled },
-            set: { suggestionSettings.setGloballyEnabled($0) }
-        )
     }
 
     // MARK: - Quick links

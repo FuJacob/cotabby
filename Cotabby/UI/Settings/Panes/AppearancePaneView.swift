@@ -3,8 +3,8 @@ import SwiftUI
 /// File overview:
 /// "Appearance" detail pane: everything about how suggestions are presented, split out of the old
 /// General pane so each surface has one focus. Two sections: Display (where and how the suggestion
-/// shows) and Appearance (the ghost text's color and opacity). The `Suggestion Display` label
-/// matches the menu-bar quick control so users can connect the two.
+/// shows) and Appearance (the ghost text's color, style, opacity, and size). The
+/// `Suggestion Display` label matches the menu-bar quick control so users can connect the two.
 struct AppearancePaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -13,7 +13,7 @@ struct AppearancePaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Display") {
-                Picker(selection: mirrorPreferenceBinding) {
+                Picker(selection: suggestionSettings.binding(\.mirrorPreference) { $0.setMirrorPreference($1) }) {
                     ForEach(MirrorPreference.allCases) { preference in
                         Text(preference.displayLabel).tag(preference)
                     }
@@ -28,7 +28,11 @@ struct AppearancePaneView: View {
                 .pickerStyle(.menu)
                 .settingsItem(.suggestionDisplay)
 
-                Toggle(isOn: streamWhileGeneratingBinding) {
+                Toggle(
+                    isOn: suggestionSettings.binding(\.streamSuggestionsWhileGenerating) {
+                        $0.setStreamSuggestionsWhileGenerating($1)
+                    }
+                ) {
                     SettingsRowLabel(
                         title: "Stream Suggestions While Generating",
                         description: "Reveal ghost text token-by-token as the model writes it, and let you accept " +
@@ -38,7 +42,7 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.streamWhileGenerating)
 
-                Toggle(isOn: fadeInSuggestionsBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.fadeInSuggestions) { $0.setFadeInSuggestions($1) }) {
                     SettingsRowLabel(
                         title: "Fade In Suggestions",
                         description: "Let a new suggestion fade in smoothly instead of appearing all at once. " +
@@ -77,7 +81,7 @@ struct AppearancePaneView: View {
                     }
                 }
 
-                Toggle(isOn: showIndicatorBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.showIndicator) { $0.setShowIndicator($1) }) {
                     SettingsRowLabel(
                         title: "Show Field Indicator",
                         description: "Show a small icon at the edge of a field when Cotabby is ready to suggest.",
@@ -86,7 +90,7 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.showFieldIndicator)
 
-                Toggle(isOn: menuBarWordCountVisibleBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isMenuBarWordCountVisible) { $0.setMenuBarWordCountVisible($1) }) {
                     SettingsRowLabel(
                         title: "Show Word Count in Menu Bar",
                         description: "Show a running count of words you've accepted next to the menu bar icon.",
@@ -96,7 +100,7 @@ struct AppearancePaneView: View {
                 .disabled(!suggestionSettings.isMenuBarIconVisible)
                 .settingsItem(.showWordCount)
 
-                Toggle(isOn: menuBarIconVisibleBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isMenuBarIconVisible) { $0.setMenuBarIconVisible($1) }) {
                     SettingsRowLabel(
                         title: "Show Cotabby in Menu Bar",
                         description: "Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.",
@@ -105,7 +109,7 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.showMenuBarIcon)
 
-                Toggle(isOn: showAcceptanceHintBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.showAcceptanceHint) { $0.setShowAcceptanceHint($1) }) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Image(systemName: "keyboard")
                             .foregroundStyle(.secondary)
@@ -163,8 +167,8 @@ struct AppearancePaneView: View {
 
                 LabeledContent {
                     HStack(spacing: 12) {
-                        Toggle("Bold", isOn: ghostTextBoldBinding)
-                        Toggle("Italic", isOn: ghostTextItalicBinding)
+                        Toggle("Bold", isOn: suggestionSettings.binding(\.isGhostTextBold) { $0.setGhostTextBold($1) })
+                        Toggle("Italic", isOn: suggestionSettings.binding(\.isGhostTextItalic) { $0.setGhostTextItalic($1) })
                     }
                     .toggleStyle(.checkbox)
                 } label: {
@@ -177,21 +181,13 @@ struct AppearancePaneView: View {
                 .settingsItem(.ghostTextStyle)
 
                 LabeledContent {
-                    HStack(spacing: 10) {
-                        TickMarkSlider(
-                            value: ghostTextOpacityBinding,
-                            range: SuggestionSettingsModel.minimumGhostTextOpacity
-                                ... SuggestionSettingsModel.maximumGhostTextOpacity,
-                            step: SuggestionSettingsModel.ghostTextOpacityStep
-                        )
-                        .frame(width: 180)
-
-                        Text(ghostTextOpacityLabel)
-                            .font(.callout)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 42, alignment: .trailing)
-                    }
+                    valueSlider(
+                        value: suggestionSettings.binding(\.ghostTextOpacity) { $0.setGhostTextOpacity($1) },
+                        range: SuggestionSettingsModel.minimumGhostTextOpacity
+                            ... SuggestionSettingsModel.maximumGhostTextOpacity,
+                        step: SuggestionSettingsModel.ghostTextOpacityStep,
+                        valueLabel: ghostTextOpacityLabel
+                    )
                 } label: {
                     SettingsRowLabel(
                         title: "Ghost Text Opacity",
@@ -201,7 +197,7 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.ghostTextOpacity)
 
-                Toggle(isOn: matchesHostTextSizeBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.matchesHostTextSize) { $0.setMatchesHostTextSize($1) }) {
                     SettingsRowLabel(
                         title: "Match Original Text Size",
                         description: "Draw suggestions at exactly the size of the text you are typing. " +
@@ -212,21 +208,13 @@ struct AppearancePaneView: View {
                 .settingsItem(.matchHostTextSize)
 
                 LabeledContent {
-                    HStack(spacing: 10) {
-                        TickMarkSlider(
-                            value: ghostTextSizeBinding,
-                            range: SuggestionSettingsModel.minimumGhostTextSizeMultiplier
-                                ... SuggestionSettingsModel.maximumGhostTextSizeMultiplier,
-                            step: SuggestionSettingsModel.ghostTextSizeMultiplierStep
-                        )
-                        .frame(width: 180)
-
-                        Text(ghostTextSizeLabel)
-                            .font(.callout)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 42, alignment: .trailing)
-                    }
+                    valueSlider(
+                        value: suggestionSettings.binding(\.ghostTextSizeMultiplier) { $0.setGhostTextSizeMultiplier($1) },
+                        range: SuggestionSettingsModel.minimumGhostTextSizeMultiplier
+                            ... SuggestionSettingsModel.maximumGhostTextSizeMultiplier,
+                        step: SuggestionSettingsModel.ghostTextSizeMultiplierStep,
+                        valueLabel: ghostTextSizeLabel
+                    )
                 } label: {
                     SettingsRowLabel(
                         title: "Ghost Text Size",
@@ -238,21 +226,13 @@ struct AppearancePaneView: View {
                 .disabled(suggestionSettings.matchesHostTextSize)
 
                 LabeledContent {
-                    HStack(spacing: 10) {
-                        TickMarkSlider(
-                            value: ghostFontSizeFloorBinding,
-                            range: SuggestionSettingsModel.minimumGhostFontSizeFloor
-                                ... SuggestionSettingsModel.maximumGhostFontSizeFloor,
-                            step: SuggestionSettingsModel.ghostFontSizeStep
-                        )
-                        .frame(width: 180)
-
-                        Text(ghostFontSizeFloorLabel)
-                            .font(.callout)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 42, alignment: .trailing)
-                    }
+                    valueSlider(
+                        value: suggestionSettings.binding(\.ghostFontSizeFloor) { $0.setGhostFontSizeFloor($1) },
+                        range: SuggestionSettingsModel.minimumGhostFontSizeFloor
+                            ... SuggestionSettingsModel.maximumGhostFontSizeFloor,
+                        step: SuggestionSettingsModel.ghostFontSizeStep,
+                        valueLabel: ghostFontSizeFloorLabel
+                    )
                 } label: {
                     SettingsRowLabel(
                         title: "Smallest Ghost Text",
@@ -264,21 +244,13 @@ struct AppearancePaneView: View {
                 .disabled(suggestionSettings.matchesHostTextSize)
 
                 LabeledContent {
-                    HStack(spacing: 10) {
-                        TickMarkSlider(
-                            value: ghostFontSizeCeilingBinding,
-                            range: SuggestionSettingsModel.minimumGhostFontSizeCeiling
-                                ... SuggestionSettingsModel.maximumGhostFontSizeCeiling,
-                            step: SuggestionSettingsModel.ghostFontSizeStep
-                        )
-                        .frame(width: 180)
-
-                        Text(ghostFontSizeCeilingLabel)
-                            .font(.callout)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 42, alignment: .trailing)
-                    }
+                    valueSlider(
+                        value: suggestionSettings.binding(\.ghostFontSizeCeiling) { $0.setGhostFontSizeCeiling($1) },
+                        range: SuggestionSettingsModel.minimumGhostFontSizeCeiling
+                            ... SuggestionSettingsModel.maximumGhostFontSizeCeiling,
+                        step: SuggestionSettingsModel.ghostFontSizeStep,
+                        valueLabel: ghostFontSizeCeilingLabel
+                    )
                 } label: {
                     SettingsRowLabel(
                         title: "Largest Ghost Text",
@@ -292,123 +264,39 @@ struct AppearancePaneView: View {
         }
     }
 
+    // MARK: - Sliders
+
+    /// A tick-mark slider with its current value beside it. The fixed widths keep the four
+    /// appearance sliders aligned in a column whatever each value's label reads.
+    private func valueSlider(
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueLabel: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            TickMarkSlider(value: value, range: range, step: step)
+                .frame(width: 180)
+
+            Text(valueLabel)
+                .font(.callout)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 42, alignment: .trailing)
+        }
+    }
+
     // MARK: - Bindings
-
-    private var streamWhileGeneratingBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.streamSuggestionsWhileGenerating },
-            set: { suggestionSettings.setStreamSuggestionsWhileGenerating($0) }
-        )
-    }
-
-    private var ghostTextBoldBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isGhostTextBold },
-            set: { suggestionSettings.setGhostTextBold($0) }
-        )
-    }
-
-    private var ghostTextItalicBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isGhostTextItalic },
-            set: { suggestionSettings.setGhostTextItalic($0) }
-        )
-    }
-
-    private var fadeInSuggestionsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.fadeInSuggestions },
-            set: { suggestionSettings.setFadeInSuggestions($0) }
-        )
-    }
 
     /// The slider reads left-to-right as Slow -> Fast, but the stored value is a *duration*, which
     /// runs the other way (a faster fade is a shorter duration). Reflecting the duration across the
     /// midpoint of its range lets the plain `TickMarkSlider` — whose ticks and snapping assume an
     /// increasing value — present a speed axis with no custom AppKit work: the knob moves right as the
-    /// duration shrinks. `fadeSpeedAxis` is an involution, so the same map serves get and set.
+    /// duration shrinks. `FadeSpeedAxis.reflected` is an involution, so the same map serves get and set.
     private var fadeSpeedBinding: Binding<Double> {
         Binding(
-            get: { Self.fadeSpeedAxis(suggestionSettings.fadeInDurationSeconds) },
-            set: { suggestionSettings.setFadeInDurationSeconds(Self.fadeSpeedAxis($0)) }
-        )
-    }
-
-    /// Reflects a value across the midpoint of the fade-duration band, mapping a stored duration to
-    /// its slider position and back. Applying it twice is the identity, so get and set stay in sync.
-    private static func fadeSpeedAxis(_ value: Double) -> Double {
-        (SuggestionSettingsModel.minimumFadeInDuration + SuggestionSettingsModel.maximumFadeInDuration) - value
-    }
-
-    private var showIndicatorBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showIndicator },
-            set: { suggestionSettings.setShowIndicator($0) }
-        )
-    }
-
-    private var showAcceptanceHintBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showAcceptanceHint },
-            set: { suggestionSettings.setShowAcceptanceHint($0) }
-        )
-    }
-
-    private var mirrorPreferenceBinding: Binding<MirrorPreference> {
-        Binding(
-            get: { suggestionSettings.mirrorPreference },
-            set: { suggestionSettings.setMirrorPreference($0) }
-        )
-    }
-
-    private var menuBarWordCountVisibleBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isMenuBarWordCountVisible },
-            set: { suggestionSettings.setMenuBarWordCountVisible($0) }
-        )
-    }
-
-    private var menuBarIconVisibleBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isMenuBarIconVisible },
-            set: { suggestionSettings.setMenuBarIconVisible($0) }
-        )
-    }
-
-    private var ghostTextOpacityBinding: Binding<Double> {
-        Binding(
-            get: { suggestionSettings.ghostTextOpacity },
-            set: { suggestionSettings.setGhostTextOpacity($0) }
-        )
-    }
-
-    private var matchesHostTextSizeBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.matchesHostTextSize },
-            set: { suggestionSettings.setMatchesHostTextSize($0) }
-        )
-    }
-
-    private var ghostTextSizeBinding: Binding<Double> {
-        Binding(
-            get: { suggestionSettings.ghostTextSizeMultiplier },
-            set: { suggestionSettings.setGhostTextSizeMultiplier($0) }
-        )
-    }
-
-    /// The model keeps floor <= ceiling by pushing the other value along, so these bindings can stay
-    /// plain pass-throughs; the slider simply reflects whatever the model settled on.
-    private var ghostFontSizeFloorBinding: Binding<Double> {
-        Binding(
-            get: { suggestionSettings.ghostFontSizeFloor },
-            set: { suggestionSettings.setGhostFontSizeFloor($0) }
-        )
-    }
-
-    private var ghostFontSizeCeilingBinding: Binding<Double> {
-        Binding(
-            get: { suggestionSettings.ghostFontSizeCeiling },
-            set: { suggestionSettings.setGhostFontSizeCeiling($0) }
+            get: { FadeSpeedAxis.reflected(suggestionSettings.fadeInDurationSeconds) },
+            set: { suggestionSettings.setFadeInDurationSeconds(FadeSpeedAxis.reflected($0)) }
         )
     }
 

@@ -66,11 +66,11 @@ struct ContextPaneView: View {
 
                 // The active engine, so the user knows which backend they're exercising. The live
                 // suggestion, latency, and accept cues come from the real overlay, not this pane.
-                Text(suggestionSettings.snapshot.selectedEngine.displayLabel)
+                Text(suggestionSettings.selectedEngine.displayLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text(Self.livePreviewPrivacyNote(for: suggestionSettings.snapshot.selectedEngine))
+                Text(Self.livePreviewPrivacyNote(for: suggestionSettings.selectedEngine))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -116,7 +116,7 @@ struct ContextPaneView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                TextEditor(text: editorBinding)
+                TextEditor(text: suggestionSettings.binding(\.extendedContext) { $0.setExtendedContext($1) })
                     .font(.system(size: 13, design: .monospaced))
                     .frame(minHeight: Self.extendedContextEditorMinHeight)
                     .padding(8)
@@ -174,14 +174,7 @@ struct ContextPaneView: View {
         }
     }
 
-    // MARK: - Bindings & helpers
-
-    private var editorBinding: Binding<String> {
-        Binding(
-            get: { suggestionSettings.extendedContext },
-            set: { suggestionSettings.setExtendedContext($0) }
-        )
-    }
+    // MARK: - Helpers
 
     private var characterCountLabel: String {
         let current = suggestionSettings.extendedContext.count

@@ -709,14 +709,33 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.disabledAppRules.first?.displayName, "com.example.keep")
     }
 
-    func test_sortedDisabledAppRules_tieBreaksEqualNamesByBundleIdentifier() async {
-        let sorted = SuggestionSettingsStore.sortedDisabledAppRules([
+    func test_sortedByDisplayName_tieBreaksEqualNamesByBundleIdentifier() async {
+        let sorted = SuggestionSettingsStore.sortedByDisplayName([
             DisabledApplicationRule(bundleIdentifier: "com.z.notes", displayName: "Notes"),
             DisabledApplicationRule(bundleIdentifier: "com.a.notes", displayName: "notes")
         ])
 
         // Case-insensitively equal display names must order deterministically by identifier.
         XCTAssertEqual(sorted.map(\.bundleIdentifier), ["com.a.notes", "com.z.notes"])
+    }
+
+    func test_upserting_replacesTheEntryForTheSameAppAndKeepsListedOrder() async {
+        let existing = [
+            DisabledApplicationRule(bundleIdentifier: "com.example.alpha", displayName: "Alpha"),
+            DisabledApplicationRule(bundleIdentifier: "com.example.mid", displayName: "Mid")
+        ]
+
+        let renamed = SuggestionSettingsStore.upserting(
+            DisabledApplicationRule(bundleIdentifier: "com.example.alpha", displayName: "Zulu"),
+            into: existing
+        )
+        XCTAssertEqual(renamed.map(\.displayName), ["Mid", "Zulu"], "one entry per app, re-sorted by name")
+
+        let added = SuggestionSettingsStore.upserting(
+            DisabledApplicationRule(bundleIdentifier: "com.example.beta", displayName: "beta"),
+            into: existing
+        )
+        XCTAssertEqual(added.map(\.bundleIdentifier), ["com.example.alpha", "com.example.beta", "com.example.mid"])
     }
 
     func test_normalizedBundleIdentifier_nilAndBlankCollapseToNil() async {

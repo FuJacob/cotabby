@@ -59,7 +59,7 @@ struct AppsPaneView: View {
             }
 
             Section("Integrated Terminals") {
-                Toggle(isOn: suggestInIntegratedTerminalsBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.suggestInIntegratedTerminals) { $0.setSuggestInIntegratedTerminals($1) }) {
                     SettingsRowLabel(
                         title: "Suggest in Integrated Terminals",
                         description: "Show ghost text in VS Code and Cursor integrated terminals. "
@@ -88,13 +88,6 @@ struct AppsPaneView: View {
         .onAppear {
             runningAppSuggestions = RunningAppSuggestion.collect()
         }
-    }
-
-    private var suggestInIntegratedTerminalsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.suggestInIntegratedTerminals },
-            set: { suggestionSettings.setSuggestInIntegratedTerminals($0) }
-        )
     }
 
     /// Hide suggestions that are already in the disabled list so the row never shows a
@@ -373,19 +366,11 @@ struct AppsPaneView: View {
     }
 
     private func presentPerAppOverridePicker() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Add"
-        panel.message = "Choose apps that should get their own accept shortcut."
-
-        guard panel.runModal() == .OK else { return }
-
-        for url in panel.urls {
-            guard let metadata = ApplicationBundleMetadata(appURL: url) else { continue }
+        let chosen = chooseApplications(
+            prompt: "Add",
+            message: "Choose apps that should get their own accept shortcut."
+        )
+        for metadata in chosen {
             suggestionSettings.addPerAppShortcutApp(
                 bundleIdentifier: metadata.bundleIdentifier,
                 displayName: metadata.displayName
@@ -393,6 +378,25 @@ struct AppsPaneView: View {
         }
     }
 
+    /// Runs an open panel over /Applications and returns the chosen apps that carry a bundle
+    /// identifier. An open panel names any installed app whether or not it is running, which the
+    /// running-app suggestions cannot.
+    private func chooseApplications(prompt: String, message: String) -> [ApplicationBundleMetadata] {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = prompt
+        panel.message = message
+
+        guard panel.runModal() == .OK else { return [] }
+        return panel.urls.compactMap { ApplicationBundleMetadata(appURL: $0) }
+    }
+
+    /// Bundle IDs are durable; app paths are not. Resolve the current app URL at render time so
+    /// Settings naturally picks up app updates, moves, or reinstalls without persisting UI cache.
     private func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
             return NSWorkspace.shared.icon(for: .applicationBundle)
@@ -403,7 +407,7 @@ struct AppsPaneView: View {
     @ViewBuilder
     private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
         HStack(spacing: 12) {
-            Image(nsImage: icon(for: rule))
+            Image(nsImage: icon(forBundleIdentifier: rule.bundleIdentifier))
                 .resizable()
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
@@ -431,39 +435,16 @@ struct AppsPaneView: View {
         }
     }
 
-    /// Bundle IDs are durable; app paths are not. Resolve the current app URL at render time so
-    /// Settings naturally picks up app updates, moves, or reinstalls without persisting UI cache.
-    private func icon(for rule: DisabledApplicationRule) -> NSImage {
-        guard let appURL = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: rule.bundleIdentifier
-        ) else {
-            return NSWorkspace.shared.icon(for: .applicationBundle)
-        }
-        return NSWorkspace.shared.icon(forFile: appURL.path)
-    }
-
     /// Lets the user disable Cotabby in an app they can't reach from the menu bar. The menu-bar
     /// "Enable in <app>" switch only targets the frontmost app, so a launcher like Raycast or
     /// Spotlight (which dismisses itself the instant the menu bar is clicked) can never be turned
-    /// off that way. An open panel names any installed app whether or not it is running.
+    /// off that way.
     private func presentDisabledAppPicker() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Disable"
-        panel.message = "Choose apps where Cotabby should not autocomplete."
-
-        guard panel.runModal() == .OK else {
-            return
-        }
-
-        for url in panel.urls {
-            guard let metadata = ApplicationBundleMetadata(appURL: url) else {
-                continue
-            }
+        let chosen = chooseApplications(
+            prompt: "Disable",
+            message: "Choose apps where Cotabby should not autocomplete."
+        )
+        for metadata in chosen {
             suggestionSettings.disableApplication(
                 bundleIdentifier: metadata.bundleIdentifier,
                 displayName: metadata.displayName

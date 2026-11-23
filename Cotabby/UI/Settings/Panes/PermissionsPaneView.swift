@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// File overview:
-/// "Permissions" detail pane of the redesigned Settings window. Renders status rows for the three
+/// "Permissions" detail pane. Renders status rows for the three
 /// permissions Cotabby requires (Accessibility, Input Monitoring, Screen Recording) and offers a
 /// shortcut into the relevant System Settings pane when one of them is missing.
 struct PermissionsPaneView: View {

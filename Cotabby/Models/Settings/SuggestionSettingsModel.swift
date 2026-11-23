@@ -108,8 +108,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customRules: [String]
     @Published private(set) var responseLanguages: [String]
     /// Free-form user-authored context (glossary, jargon, style notes) injected into every
-    /// completion request. Empty string when unset. Trimmed and length-capped on write so an
-    /// accidental paste of a huge document can't blow out the model's context window.
+    /// completion request. Empty string when unset. Length-capped on write so an accidental paste
+    /// of a huge document can't blow out the model's context window; whitespace is kept as typed
+    /// (see `SuggestionSettingsStore.normalizedExtendedContext`).
     @Published private(set) var extendedContext: String
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
@@ -208,10 +209,8 @@ final class SuggestionSettingsModel: ObservableObject {
     static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
-    static let defaultGhostFontSizeFloor = SuggestionSettingsStore.defaultGhostFontSizeFloor
     static let minimumGhostFontSizeFloor = SuggestionSettingsStore.minimumGhostFontSizeFloor
     static let maximumGhostFontSizeFloor = SuggestionSettingsStore.maximumGhostFontSizeFloor
-    static let defaultGhostFontSizeCeiling = SuggestionSettingsStore.defaultGhostFontSizeCeiling
     static let minimumGhostFontSizeCeiling = SuggestionSettingsStore.minimumGhostFontSizeCeiling
     static let maximumGhostFontSizeCeiling = SuggestionSettingsStore.maximumGhostFontSizeCeiling
     static let ghostFontSizeStep = SuggestionSettingsStore.ghostFontSizeStep
@@ -327,8 +326,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// the `@Published` properties so SwiftUI, the snapshot publisher, and every live reader (overlay,
     /// input monitor, coordinator) pick up the defaults immediately, with no relaunch. The assignment
     /// list mirrors `init` on purpose — `test_resetToDefaults_restoresEveryFieldToItsDefault` fails if
-    /// the two ever drift. Scope matches the store: unrelated app state (onboarding, the lifetime
-    /// accepted-word count, emoji history, the login-item flag) is intentionally left untouched.
+    /// the two ever drift. Scope matches the store's `allPreferenceDefaultsKeys`: unrelated app state
+    /// (onboarding, the lifetime accepted-word count, emoji history, the login-item flag) is left
+    /// untouched, and so is menu bar icon visibility, whose key is not in that list.
     func resetToDefaults() {
         let data = store.resetToDefaults(configuration: configuration)
 
@@ -604,6 +604,20 @@ final class SuggestionSettingsModel: ObservableObject {
                 modelName: openAICompatibleModelName,
                 apiMode: openAICompatibleAPIMode
             )
+        }
+    }
+
+    /// Why the endpoint cannot be used as configured, or nil when it can. The sidebar's attention
+    /// dot and the Engine & Model pane's callout both read this, so a dot always has a callout
+    /// explaining it. An empty model name passes URL validation but still cannot serve a request.
+    var openAICompatibleConfigurationError: String? {
+        do {
+            let configuration = try openAICompatibleConfiguration
+            return configuration.modelName.isEmpty
+                ? OpenAICompatibleEndpointError.emptyModelName.localizedDescription
+                : nil
+        } catch {
+            return error.localizedDescription
         }
     }
 
@@ -1224,11 +1238,7 @@ final class SuggestionSettingsModel: ObservableObject {
             bundleIdentifier: normalizedBundleIdentifier,
             displayName: normalizedDisplayName
         )
-        var updatedRulesByBundleIdentifier = Dictionary(
-            uniqueKeysWithValues: disabledAppRules.map { ($0.bundleIdentifier, $0) }
-        )
-        updatedRulesByBundleIdentifier[normalizedBundleIdentifier] = rule
-        let updatedRules = SuggestionSettingsStore.sortedDisabledAppRules(Array(updatedRulesByBundleIdentifier.values))
+        let updatedRules = SuggestionSettingsStore.upserting(rule, into: disabledAppRules)
 
         guard disabledAppRules != updatedRules else {
             return
@@ -1419,10 +1429,10 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
-    /// All extended-context mutations funnel through here so storage stays bounded — leading and
-    /// trailing whitespace is trimmed and the body is hard-capped at
-    /// `maximumExtendedContextCharacters` so a runaway paste cannot blow out the model's context
-    /// window on every subsequent request.
+    /// All extended-context mutations funnel through here so storage stays bounded: the body is
+    /// hard-capped at `maximumExtendedContextCharacters` so a runaway paste cannot blow out the
+    /// model's context window on every subsequent request. Whitespace is deliberately not trimmed,
+    /// because the editor writes back on every keystroke and a trim would eat a trailing space.
     func setExtendedContext(_ context: String) {
         let normalized = SuggestionSettingsStore.normalizedExtendedContext(context)
         guard extendedContext != normalized else {
@@ -1645,9 +1655,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
     /// Inherited-only rows remain until the user removes the tracked app explicitly.
     private func upsertPerAppOverride(_ override: PerAppShortcutOverride) {
-        var byBundle = Dictionary(uniqueKeysWithValues: perAppShortcutOverrides.map { ($0.bundleIdentifier, $0) })
-        byBundle[override.bundleIdentifier] = override
-        let updated = SuggestionSettingsStore.sortedPerAppShortcutOverrides(Array(byBundle.values))
+        let updated = SuggestionSettingsStore.upserting(override, into: perAppShortcutOverrides)
         guard perAppShortcutOverrides != updated else { return }
         perAppShortcutOverrides = updated
         store.savePerAppShortcutOverrides(updated)
@@ -1759,13 +1767,10 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        // The publisher count creeps up as we add settings, but Combine caps each operator at 4
-        // upstreams. Group related settings into nested combiners so the shape stays readable.
-        // `presentationToggles` carries the visual-pipeline knobs (clipboard, fast mode, mirror
-        // preference); they share the property of "affects how/when suggestions are shown".
-        //
-        // The outer CombineLatest4 is at the cap, so `$acceptanceGranularity` is layered above it
-        // via a second CombineLatest to avoid restructuring the existing groupings.
+        // Combine caps each operator at four upstreams, so related settings are grouped into
+        // nested combiners. Every value is read from the emitted tuple rather than from `self`:
+        // `@Published` publishes from `willSet`, so the model still holds the previous value while
+        // a subscriber runs.
         let primary = Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 Publishers.CombineLatest($isGloballyEnabled, $pauseState),
@@ -1808,10 +1813,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 )
             )
         )
-        // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
-        // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
-        // alongside `acceptanceGranularity` here for the same reason. The three custom-range fields
-        // travel together as a single tuple so they only cost one slot in this outer layer.
+        // The three custom-range fields travel together so they cost one slot in the outer layer.
         let customRange = Publishers.CombineLatest3(
             $isUsingCustomWordCountRange,
             $customWordCountLowWords,

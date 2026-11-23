@@ -18,7 +18,7 @@ struct GeneralPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Status") {
-                Toggle(isOn: globallyEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isGloballyEnabled) { $0.setGloballyEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Enable Globally",
                         description: "Turn Cotabby off everywhere without quitting the app.",
@@ -55,7 +55,7 @@ struct GeneralPaneView: View {
                 .disabled(screenContextUnavailable)
                 .settingsItem(.useScreenContext)
 
-                Toggle(isOn: clipboardContextEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isClipboardContextEnabled) { $0.setClipboardContextEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Include Clipboard Context",
                         description: "Let suggestions reference whatever you most recently copied.",
@@ -64,7 +64,7 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.includeClipboardContext)
 
-                Toggle(isOn: surfaceContextEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isSurfaceContextEnabled) { $0.setSurfaceContextEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Include App Context",
                         description: "Include the app and window name in suggestions. " +
@@ -76,7 +76,7 @@ struct GeneralPaneView: View {
             }
 
             Section("Suggestions") {
-                Toggle(isOn: predictAheadWhileTypingBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.predictAheadWhileTyping) { $0.setPredictAheadWhileTyping($1) }) {
                     SettingsRowLabel(
                         title: "Predict Ahead While Typing",
                         description: "Keep on-device predictions ready as you type, then show matching suggestions " +
@@ -86,7 +86,7 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.predictAheadWhileTyping)
 
-                Toggle(isOn: suggestWithinWordsBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.suggestWithinWords) { $0.setSuggestWithinWords($1) }) {
                     SettingsRowLabel(
                         title: "Suggest while typing a word",
                         description: "Show new suggestions before you finish a word. Turn off to wait for a space " +
@@ -96,7 +96,7 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.suggestWithinWords)
 
-                Toggle(isOn: showFollowingWordsBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.showFollowingWords) { $0.setShowFollowingWords($1) }) {
                     SettingsRowLabel(
                         title: "Show following words",
                         description: "Preview the phrase after the current word. Turn off to see one word at a time; " +
@@ -106,7 +106,7 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.showFollowingWords)
 
-                Toggle(isOn: multiLineEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isMultiLineEnabled) { $0.setMultiLineEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Allow Multi-line Suggestions",
                         description: "Allow continuations that span more than one line. Off keeps suggestions to a single line.",
@@ -115,7 +115,7 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.allowMultiLine)
 
-                Toggle(isOn: macroExpansionEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isMacroExpansionEnabled) { $0.setMacroExpansionEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Inline Macros",
                         description: "Type / then a macro: dates (today, tmrw, next-fri), math (5+5=), " +
@@ -191,27 +191,6 @@ struct GeneralPaneView: View {
 
     // MARK: - Bindings
 
-    private var globallyEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isGloballyEnabled },
-            set: { suggestionSettings.setGloballyEnabled($0) }
-        )
-    }
-
-    private var clipboardContextEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isClipboardContextEnabled },
-            set: { suggestionSettings.setClipboardContextEnabled($0) }
-        )
-    }
-
-    private var surfaceContextEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isSurfaceContextEnabled },
-            set: { suggestionSettings.setSurfaceContextEnabled($0) }
-        )
-    }
-
     /// Keep the positive UI control compatible with the existing inverse stored preference.
     private var screenContextEnabledBinding: Binding<Bool> {
         Binding(
@@ -234,40 +213,4 @@ struct GeneralPaneView: View {
         return "Help suggestions understand surrounding text using screenshots of the focused window."
     }
 
-    private var multiLineEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isMultiLineEnabled },
-            set: { suggestionSettings.setMultiLineEnabled($0) }
-        )
-    }
-
-    // This view only edits the settings facade. Its snapshot publisher cancels obsolete work
-    // immediately when the toggle changes, so the coordinator never keeps a disabled prediction.
-    private var predictAheadWhileTypingBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.predictAheadWhileTyping },
-            set: { suggestionSettings.setPredictAheadWhileTyping($0) }
-        )
-    }
-
-    private var suggestWithinWordsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.suggestWithinWords },
-            set: { suggestionSettings.setSuggestWithinWords($0) }
-        )
-    }
-
-    private var showFollowingWordsBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showFollowingWords },
-            set: { suggestionSettings.setShowFollowingWords($0) }
-        )
-    }
-
-    private var macroExpansionEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isMacroExpansionEnabled },
-            set: { suggestionSettings.setMacroExpansionEnabled($0) }
-        )
-    }
 }

@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 /// File overview:
-/// "Performance" detail pane of the redesigned Settings window. Combines two things a debugging
+/// "Performance" detail pane. Combines two things a debugging
 /// session wants side by side: an opt-in, persisted log of per-request latencies (the table, plus a
 /// trend graph) and an always-live view of the app's own CPU, memory, and GPU use. The live graphs
 /// only sample while this pane is on screen — `onAppear`/`onDisappear` drive `SystemMetricsStore` so
@@ -21,7 +21,7 @@ struct PerformancePaneView: View {
             suggestionQualitySection
 
             Section("Tracking") {
-                Toggle(isOn: trackingEnabledBinding) {
+                Toggle(isOn: suggestionSettings.binding(\.isPerformanceTrackingEnabled) { $0.setPerformanceTrackingEnabled($1) }) {
                     SettingsRowLabel(
                         title: "Enable Performance Tracking",
                         description: "Record the timestamp, model, and elapsed time of every LLM " +
@@ -342,15 +342,6 @@ struct PerformancePaneView: View {
         }
         .font(.callout)
         .padding(.vertical, 4)
-    }
-
-    // MARK: - Bindings
-
-    private var trackingEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isPerformanceTrackingEnabled },
-            set: { suggestionSettings.setPerformanceTrackingEnabled($0) }
-        )
     }
 
     // MARK: - Helpers

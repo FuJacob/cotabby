@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// File overview:
-/// Root of the redesigned Settings window. A `NavigationSplitView` with a sidebar of clustered
+/// Root of the Settings window. A `NavigationSplitView` with a sidebar of clustered
 /// category rows sits on the left and a switching detail pane fills the right side. The detail body
 /// is built from `SettingsCategory`, so adding a new pane is a matter of adding an enum case and a
 /// `case` in the switch below.
@@ -75,10 +75,7 @@ struct SettingsContainerView: View {
         // an exact column size forever.
         .frame(maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
         .onAppear {
-            // Migration: the previous sidebar had two engine sub-rows (`appleIntelligence`,
-            // `openSource`). Users whose persisted selection still points to either should land on
-            // the unified Engine & Model pane rather than fall back to General.
-            navigation.selection = Self.restoreSelection(from: storedCategoryRawValue)
+            navigation.selection = SettingsCategory.restored(fromStoredRawValue: storedCategoryRawValue)
             permissionManager.refresh()
         }
         .onChange(of: navigation.selection) { _, newValue in
@@ -101,7 +98,7 @@ struct SettingsContainerView: View {
                 selectedEngine: suggestionSettings.selectedEngine,
                 foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
                 llamaRuntimeFailedReason: runtimeModel.state.failureDetail,
-                endpointConfigurationError: endpointConfigurationError,
+                endpointConfigurationError: suggestionSettings.openAICompatibleConfigurationError,
                 endpointConnectionFailedReason: openAICompatibleConnectionModel.state.failureDetail
             )
         )
@@ -165,31 +162,5 @@ struct SettingsContainerView: View {
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
         }
-    }
-
-    private var endpointConfigurationError: String? {
-        do {
-            let configuration = try suggestionSettings.openAICompatibleConfiguration
-            return configuration.modelName.isEmpty
-                ? OpenAICompatibleEndpointError.emptyModelName.localizedDescription
-                : nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    private static func restoreSelection(from rawValue: String) -> SettingsCategory {
-        if let category = SettingsCategory(rawValue: rawValue) {
-            return category
-        }
-        // Legacy sub-row raw values from the prior nested layout.
-        if rawValue == "appleIntelligence" || rawValue == "openSource" {
-            return .engineAndModel
-        }
-        // The Advanced pane was renamed to Context; keep returning users on the same pane.
-        if rawValue == "advanced" {
-            return .context
-        }
-        return .general
     }
 }

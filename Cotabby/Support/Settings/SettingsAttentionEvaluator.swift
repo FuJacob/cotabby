@@ -1,19 +1,17 @@
 import Foundation
 
 /// File overview:
-/// Pure decision for which `SettingsCategory` rows in the redesigned Settings sidebar should
-/// render an attention dot.
+/// Pure decision for which `SettingsCategory` rows in the Settings sidebar should render an
+/// attention dot.
 ///
 /// Why this lives in `Support/`:
-/// The legacy settings window puts a single attention banner at the top of one giant form. The
-/// redesign surfaces attention per pane: a sidebar dot signals "look in here," and the affected
-/// Keeping the rule outside the view layer makes it unit-testable without AppKit and keeps the
-/// sidebar view free of state-mapping logic.
+/// Attention is surfaced per pane: a sidebar dot signals "look in here," and the affected pane
+/// shows a callout next to the controls that fix it. Keeping the rule outside the view layer makes
+/// it unit-testable without AppKit and keeps the sidebar view free of state-mapping logic.
 enum SettingsAttentionEvaluator {
     /// Snapshot of the app state the evaluator inspects. Keeping inputs as a flat value type means
     /// callers can build it from whatever observables they hold without dragging the model graph
-    /// into the helper. A future "no models found" attention can be added without breaking
-    /// callers because new fields default at the call site.
+    /// into the helper.
     struct Inputs: Equatable {
         let permissionsGranted: Bool
         let selectedEngine: SuggestionEngineKind
