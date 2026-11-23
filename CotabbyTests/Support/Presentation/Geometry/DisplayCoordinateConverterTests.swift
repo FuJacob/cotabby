@@ -148,4 +148,38 @@ final class DisplayCoordinateConverterTests: XCTestCase {
 
         XCTAssertEqual(rects, [CGRect(x: 50, y: 830, width: 40, height: 20)])
     }
+
+    // MARK: - AppKit <-> CoreGraphics global flip
+
+    /// The desk arrangement that broke pixel captures: a 2560x1440 primary with a portrait monitor
+    /// to its left whose top sits 52pt above the primary's. A composer line near the bottom of the
+    /// primary must map to the same rows CoreGraphics uses, not 52pt lower.
+    func test_globalFlip_usesThePrimaryDisplayHeightWhenAnotherDisplayReachesAboveIt() {
+        let composerLine = CGRect(x: 773, y: 83, width: 164, height: 38)
+
+        let flipped = DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(composerLine, primaryDisplayHeight: 1440)
+
+        XCTAssertEqual(flipped, CGRect(x: 773, y: 1319, width: 164, height: 38))
+    }
+
+    func test_globalFlip_mapsARectOnADisplayAboveThePrimaryToNegativeRows() {
+        // AppKit y 1450...1480 lies above a 1440pt primary; CoreGraphics counts those rows upward
+        // from the primary's top as negative y.
+        let flipped = DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(
+            CGRect(x: -500, y: 1450, width: 100, height: 30), primaryDisplayHeight: 1440
+        )
+
+        XCTAssertEqual(flipped, CGRect(x: -500, y: -40, width: 100, height: 30))
+    }
+
+    func test_globalFlip_isItsOwnInverse() {
+        let rect = CGRect(x: 12.5, y: -300, width: 80, height: 22)
+
+        let roundTrip = DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(
+            DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(rect, primaryDisplayHeight: 1329),
+            primaryDisplayHeight: 1329
+        )
+
+        XCTAssertEqual(roundTrip, rect)
+    }
 }

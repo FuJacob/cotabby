@@ -41,10 +41,11 @@ final class HostPixelCapture {
     /// pixel-aligned screenshot of the same text scored 0.95. Whole pixels in, the copy is exact.
     func capture(_ requested: CGRect) async throws -> Capture {
         let content = try await currentShareableContent()
-        let desktop = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
         let scale = NSScreen.screens.first { $0.frame.contains(CGPoint(x: requested.midX, y: requested.midY)) }?.backingScaleFactor ?? 2
         let region = Self.snappedToPixels(requested, scale: scale)
-        let regionCG = CGRect(x: region.minX, y: desktop.maxY - region.maxY, width: region.width, height: region.height)
+        let regionCG = DisplayCoordinateConverter.flippedBetweenAppKitAndCoreGraphics(
+            region, primaryDisplayHeight: CGDisplayBounds(CGMainDisplayID()).height
+        )
         guard let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: regionCG.midX, y: regionCG.midY)) }) else {
             throw CaptureError.noDisplay
         }
