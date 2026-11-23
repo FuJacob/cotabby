@@ -1,0 +1,31 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_e65c4614052033 490,504,1330,1467,2490,3159,5233,5325
+Cotabby/Support/Presentation/Geometry/SuggestionAnchorCache.swift
+  s_b9af9eb54478c8::t_42b337de514033 22,107-109
+Cotabby/Support/Presentation/Policy/SuggestionOverlayStabilityGate.swift
+  s_b9af9eb54478c8::t_df3b24e42e1269 74-92
+CotabbyTests/Services/Presentation/HostBaselineCalibratorTests.swift
+  s_b9af9eb54478c8::t_ce074b5fe6d68b 45-50
+CotabbyTests/Services/Presentation/HostPixelCaptureTests.swift
+  s_b9af9eb54478c8::t_58cdbf883b6d9b 1-15
+CotabbyTests/Support/Presentation/Geometry/CaretLineRectTests.swift
+  s_b9af9eb54478c8::t_61637f670ff07f 10
+CotabbyTests/Support/Presentation/Style/GhostFontStylerTests.swift
+  s_b9af9eb54478c8::t_ed05ece032f2b6 11-16,25,43,52,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e3a58189c31ef8b5bc07ff0595bb77cd1cfdd42a",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
