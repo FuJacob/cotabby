@@ -52,6 +52,23 @@ final class EmojiPickerControllerTests: XCTestCase {
         )
     }
 
+    /// The replace runs a run-loop turn after the commit key. Its target must be the app the capture
+    /// ran in, taken before the hop: read afterwards it would follow focus to the new app, and the
+    /// inserter's pre-post check would compare that app against itself.
+    func test_replaceTargetsTheCapturedAppEvenWhenFocusMovesBeforeTheHop() {
+        let harness = makeHarness()
+        harness.type(":smile")
+
+        harness.controller.observe(InlineFeatureKeys.key(InlineFeatureKeys.tab))
+        harness.focus.publish(precedingText: "", focusChangeSequence: 2, processIdentifier: 999)
+        drainInlineFeatureMainQueue()
+
+        XCTAssertEqual(
+            harness.inserter.targets,
+            [InsertionTarget(processIdentifier: 123, bundleIdentifier: "com.example.TestApp")]
+        )
+    }
+
     func test_deleteCountComesFromTheFieldsMeasuredRunNotTheTypedLength() {
         // Host autocorrect (or a dropped keystroke) left only ":smi" in the field even though the
         // observer saw ":smile". Deleting the typed length would eat two unrelated characters.

@@ -750,7 +750,8 @@ extension SuggestionCoordinator {
 
         guard suggestionInserter.replace(
             deletingUTF16Count: replacement.deletingUTF16Count,
-            with: replacement.replacementText
+            with: replacement.replacementText,
+            in: InsertionTarget(snapshot: rawContext)
         ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Automatic correction insertion failed."
             cancelPredictionWork()

@@ -327,25 +327,36 @@ final class EmojiPickerController {
     /// so the synthetic events are never posted re-entrantly from inside the keystroke's own tap
     /// callback: posting them synchronously from the observer pass makes the panel vanish with no
     /// emoji landing. Deferring also lets the field settle before the run to delete is measured.
+    ///
+    /// The insertion target is taken here, while the commit key is still being handled, and carried
+    /// across the hop. Reading it after the hop would describe whichever app holds focus by then, so
+    /// the inserter's pre-post check could never notice that focus had left the captured field.
     private func scheduleReplaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
+        guard let context = focusModel.snapshot.context else {
+            CotabbyLogger.suggestion.debug("emoji commit skipped: no focused field to replace in")
+            return
+        }
+        let target = InsertionTarget(snapshot: context)
         DispatchQueue.main.async { [weak self] in
-            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16)
+            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16, in: target)
         }
     }
 
-    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
+    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int, in target: InsertionTarget) {
         // Measure the literal run from the field and replace it. `trailingRunUTF16Length` returns nil
         // when the field no longer ends in a `:query` run, so we fall back to the known typed length;
         // that nil-check is what keeps a stray commit from deleting unrelated text. We deliberately do
         // NOT force a fresh AX resolve + `focusChangeSequence` guard here: the resolve re-stamped the
         // sequence and made the guard abort legitimate commits (the panel vanished with no emoji).
+        // The inserter's own pre-post check compares app identity only, which a re-resolve of the
+        // same field cannot change, so it does not bring that false abort back.
         let preceding = focusModel.snapshot.context?.precedingText ?? ""
         let measured = EmojiQueryRun.trailingRunUTF16Length(in: preceding)
         let deleteCount = measured ?? fallbackUTF16
         CotabbyLogger.suggestion.debug(
             "emoji replace glyph=\(glyph) deleteUTF16=\(deleteCount) measured=\(measured != nil)"
         )
-        _ = inserter.replace(deletingUTF16Count: deleteCount, with: glyph)
+        _ = inserter.replace(deletingUTF16Count: deleteCount, with: glyph, in: target)
         // Let the focus pipeline re-read the field so any pending suggestion uses the post-insertion
         // text instead of the stale `:query` we just removed.
         focusModel.refreshNow()

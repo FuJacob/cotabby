@@ -407,6 +407,24 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertNil(rig.coordinator.lastAcceptanceAt, "A failed insert is not an acceptance")
     }
 
+    /// The inserter re-checks focus against the app the coordinator validated, so the coordinator must
+    /// hand over that snapshot's app, not something read later.
+    func test_acceptHandsTheValidatedFieldsAppToTheInserter() {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(
+                bundleIdentifier: "com.example.Validated", processIdentifier: 4242, precedingText: "Hello"
+            )
+        ))
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(
+            rig.inserter.targets,
+            [InsertionTarget(processIdentifier: 4242, bundleIdentifier: "com.example.Validated")]
+        )
+    }
+
     // MARK: - Correction acceptance
 
     func test_correctionPassesThroughWhenTheLiveWordNoLongerMatchesTheOffer() {

@@ -33,7 +33,8 @@ final class InlineFeatureFocusStub: SuggestionFocusProviding {
             precedingText: precedingText,
             isSecure: isSecure,
             focusChangeSequence: focusChangeSequence,
-            caretRect: caretRect
+            caretRect: caretRect,
+            processIdentifier: 123
         )
     }
 
@@ -41,18 +42,21 @@ final class InlineFeatureFocusStub: SuggestionFocusProviding {
         refreshCount += 1
     }
 
-    /// Replaces the current snapshot and pushes it through the publisher.
+    /// Replaces the current snapshot and pushes it through the publisher. The owner pid defaults to
+    /// the one the stub starts with (123), so only a test about app identity needs to pass it.
     func publish(
         precedingText: String = "",
         isSecure: Bool = false,
         focusChangeSequence: UInt64,
-        caretRect: CGRect = CGRect(x: 10, y: 20, width: 2, height: 18)
+        caretRect: CGRect = CGRect(x: 10, y: 20, width: 2, height: 18),
+        processIdentifier: Int32 = 123
     ) {
         snapshot = Self.make(
             precedingText: precedingText,
             isSecure: isSecure,
             focusChangeSequence: focusChangeSequence,
-            caretRect: caretRect
+            caretRect: caretRect,
+            processIdentifier: processIdentifier
         )
         subject.send(snapshot)
     }
@@ -61,9 +65,11 @@ final class InlineFeatureFocusStub: SuggestionFocusProviding {
         precedingText: String,
         isSecure: Bool,
         focusChangeSequence: UInt64,
-        caretRect: CGRect
+        caretRect: CGRect,
+        processIdentifier: Int32
     ) -> FocusSnapshot {
         let context = CotabbyTestFixtures.focusedInputSnapshot(
+            processIdentifier: processIdentifier,
             caretRect: caretRect,
             precedingText: precedingText,
             isSecure: isSecure,
@@ -104,9 +110,12 @@ final class InlineFeatureRecordingInserter: InlineCommandTextInserting {
     }
 
     private(set) var calls: [Call] = []
+    /// The target each replace was asked to revalidate, in call order.
+    private(set) var targets: [InsertionTarget] = []
 
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool {
+    func replace(deletingUTF16Count: Int, with text: String, in target: InsertionTarget) -> Bool {
         calls.append(Call(deleteCount: deletingUTF16Count, text: text))
+        targets.append(target)
         return true
     }
 }

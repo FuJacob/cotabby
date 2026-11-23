@@ -202,19 +202,25 @@ protocol ClipboardRelevanceFiltering: AnyObject {
 protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
-    func insert(_ suggestion: String) -> Bool
+    /// Types `suggestion` into the focused field. `target` is the app whose field the caller just
+    /// validated; the inserter re-checks it immediately before posting and returns false, having
+    /// posted nothing, when keyboard focus has moved away or a secure field has taken it.
+    func insert(_ suggestion: String, into target: InsertionTarget) -> Bool
 
     /// Deletes `deletingUTF16Count` already-typed units and types `text` in one suppressed synthetic
     /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
     /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool
+    /// `target` is re-checked before posting exactly as in `insert(_:into:)`.
+    func replace(deletingUTF16Count: Int, with text: String, in target: InsertionTarget) -> Bool
 }
 
 /// The inline-command features' slice of the inserter: replace a run of already-typed characters
 /// (the literal `:query` or `/query`) with the chosen text in one suppressed synthetic burst.
+/// `target` is the app whose field held the capture, taken when the commit key arrived, not after
+/// the deferred hop.
 @MainActor
 protocol InlineCommandTextInserting: AnyObject {
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool
+    func replace(deletingUTF16Count: Int, with text: String, in target: InsertionTarget) -> Bool
 }
 
 /// The emoji picker's slice of its floating panel: present/move/hide the match list. Behind a
