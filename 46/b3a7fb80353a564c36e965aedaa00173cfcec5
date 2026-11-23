@@ -1,0 +1,31 @@
+Cotabby/Services/Presentation/HostTypefaceResolver.swift
+  s_b9af9eb54478c8::t_7b72f67baa3921 191,226-236,240,243,251,273
+Cotabby/Services/Presentation/OverlayController.swift
+  s_b9af9eb54478c8::t_596eb6e664c17c 423-426,444-445,460-461,489-490
+Cotabby/Services/Presentation/PixelCaretLocator.swift
+  s_b9af9eb54478c8::t_d32635b36603bc 67,79-81
+Cotabby/Support/Presentation/Style/GhostFontResolver.swift
+  s_b9af9eb54478c8::t_949c8d2df2bd8f 51-56
+Cotabby/Support/Presentation/Style/HostAdvanceFit.swift
+  s_b9af9eb54478c8::t_9741f69d7aa4d0 58-64,94-96,98-103,119,132-139
+CotabbyTests/Services/Presentation/HostTypefaceResolverTests.swift
+  s_b9af9eb54478c8::t_dfbd511f162e23 217-223,225-238
+CotabbyTests/Support/Presentation/Style/HostAdvanceFitTests.swift
+  s_b9af9eb54478c8::t_6321d430a386f7 110-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "46b3a7fb80353a564c36e965aedaa00173cfcec5",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
