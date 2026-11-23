@@ -461,11 +461,11 @@ private final class StubVisualContextGenerator: ScreenshotContextGenerating {
 
     func generateContext(
         for context: FocusedInputSnapshot,
-        configuration: VisualContextConfiguration?,
+        configuration: VisualContextConfiguration,
         onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)?
     ) async throws -> VisualContextExcerpt {
         contexts.append(context)
-        configurations.append(configuration ?? .default)
+        configurations.append(configuration)
         onStatusChange?(.capturing)
         if suspendNext {
             suspendNext = false

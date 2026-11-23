@@ -35,12 +35,9 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
 
     func test_generateContext_ocrTextIsCappedAndSanitized() async throws {
         let configuration = makeConfiguration(maxSummaryCharacters: 60)
-        let generator = makeGenerator(
-            extracted: extracted(text: "gLVWrt bDokE 54tbdbDX\n\(Self.meaningfulLine)"),
-            configuration: configuration
-        )
+        let generator = makeGenerator(extracted: extracted(text: "gLVWrt bDokE 54tbdbDX\n\(Self.meaningfulLine)"))
 
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
+        let excerpt = try await generator.generateContext(for: makeSnapshot(), configuration: configuration)
 
         XCTAssertLessThanOrEqual(excerpt.text.count, configuration.maxSummaryCharacters)
         XCTAssertFalse(excerpt.text.contains("gLVWrt"))
@@ -61,11 +58,13 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
             extracted: extracted([
                 OCRTextHygiene.OCRLine(text: "The quarterly report is due on Friday afternoon.", confidence: 0.2),
                 OCRTextHygiene.OCRLine(text: "Please review the attached budget spreadsheet carefully.", confidence: 0.95)
-            ]),
-            configuration: makeConfiguration(maxSummaryCharacters: 200)
+            ])
         )
 
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
+        let excerpt = try await generator.generateContext(
+            for: makeSnapshot(),
+            configuration: makeConfiguration(maxSummaryCharacters: 200)
+        )
 
         XCTAssertFalse(excerpt.text.contains("quarterly report"))
         XCTAssertTrue(excerpt.text.contains("budget spreadsheet"))
@@ -77,7 +76,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
 
         _ = try await generator.generateContext(
             for: makeSnapshot(),
-            configuration: nil,
+            configuration: .default,
             onStatusChange: { recorder.statuses.append($0) }
         )
 
@@ -91,12 +90,11 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
         let generator = ScreenshotContextGenerator(
             screenshotService: RecordingScreenshotCapture(image: makeImage()),
-            textExtractor: extractor,
-            configuration: .default
+            textExtractor: extractor
         )
 
-        let first = try await generator.generateContext(for: makeSnapshot())
-        let second = try await generator.generateContext(for: makeSnapshot())
+        let first = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
+        let second = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
 
         XCTAssertEqual(extractor.extractionCount, 1, "Pixel-identical recaptures must skip the Vision pass.")
         XCTAssertEqual(first.text, second.text, "A cache hit must produce the same excerpt as a fresh OCR.")
@@ -105,16 +103,12 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
     func test_generateContext_cacheHoldsTheFourMostRecentCrops() async throws {
         let extractor = CountingTextExtractor(extracted: extracted(text: Self.meaningfulLine))
         let capture = RecordingScreenshotCapture(image: makeImage())
-        let generator = ScreenshotContextGenerator(
-            screenshotService: capture,
-            textExtractor: extractor,
-            configuration: .default
-        )
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
         // Width is mixed into the pixel hash, so each width is a distinct cache key.
         func generate(width: Int) async throws {
             capture.image = makeImage(width: width)
-            _ = try await generator.generateContext(for: makeSnapshot())
+            _ = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
         }
 
         for width in 1...5 {
@@ -174,11 +168,14 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         ])
         let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
         capture.fieldRegion = Self.composer
-        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
-        let first = try await generator.generateContext(for: makeSnapshot())
+        let first = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
         capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 12, y: 1, width: 10, height: 3))
-        let second = try await generator.generateContext(for: makeSnapshot(precedingText: "Screen Recording permission"))
+        let second = try await generator.generateContext(
+            for: makeSnapshot(precedingText: "Screen Recording permission"),
+            configuration: .local
+        )
 
         XCTAssertEqual(extractor.extractionCount, 1, "A typing-only recapture must reuse the previous OCR")
         XCTAssertEqual(first.text, second.text)
@@ -186,9 +183,9 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         // Control: the same keystroke pixels are a real change when no field region is known.
         capture.fieldRegion = nil
         capture.image = makeImage(width: 40, height: 20)
-        _ = try await generator.generateContext(for: makeSnapshot())
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
         capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 12, y: 1, width: 10, height: 3))
-        _ = try await generator.generateContext(for: makeSnapshot())
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
         XCTAssertEqual(extractor.extractionCount, 3)
     }
 
@@ -205,11 +202,11 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         ])
         let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
         capture.fieldRegion = Self.composer
-        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
-        _ = try await generator.generateContext(for: makeSnapshot())
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
         capture.image = makeImage(width: 40, height: 20, painting: CGRect(x: 2, y: 10, width: 10, height: 6))
-        let second = try await generator.generateContext(for: makeSnapshot())
+        let second = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
 
         XCTAssertEqual(extractor.extractionCount, 2)
         XCTAssertEqual(second.text, newMessage)
@@ -221,11 +218,11 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         let extractor = CountingTextExtractor(extracted: extracted([Self.conversationLine]))
         let capture = RecordingScreenshotCapture(image: makeImage(width: 40, height: 20))
         capture.fieldRegion = Self.composer
-        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor, configuration: .local)
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
-        _ = try await generator.generateContext(for: makeSnapshot())
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
         capture.fieldRegion = FocusedFieldScreenRegion(bounds: CGRect(x: 0.25, y: 0, width: 0.5, height: 0.35))
-        _ = try await generator.generateContext(for: makeSnapshot())
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
 
         XCTAssertEqual(extractor.extractionCount, 2)
     }
@@ -240,7 +237,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
             windowTitle: "Quarterly budget review draft for the finance meeting"
         )
 
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
+        let excerpt = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
 
         XCTAssertTrue(excerpt.text.contains("Quarterly budget review"))
     }
@@ -292,7 +289,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
 
         do {
-            _ = try await generator.generateContext(for: makeSnapshot())
+            _ = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
             XCTFail("Expected a permission error")
         } catch ScreenshotContextGenerationError.permissionMissing(let message) {
             XCTAssertEqual(message, "Screen Recording permission is required to capture screenshot context.")
@@ -339,22 +336,17 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         )
     }
 
-    private func makeGenerator(
-        extracted: ExtractedScreenText,
-        configuration: VisualContextConfiguration = .default
-    ) -> ScreenshotContextGenerator {
+    private func makeGenerator(extracted: ExtractedScreenText) -> ScreenshotContextGenerator {
         ScreenshotContextGenerator(
             screenshotService: RecordingScreenshotCapture(image: makeImage()),
-            textExtractor: StubTextExtractor(result: .success(extracted)),
-            configuration: configuration
+            textExtractor: StubTextExtractor(result: .success(extracted))
         )
     }
 
     private func makeGenerator(extractionError: Error, windowTitle: String?) -> ScreenshotContextGenerator {
         ScreenshotContextGenerator(
             screenshotService: RecordingScreenshotCapture(image: makeImage(), windowTitle: windowTitle),
-            textExtractor: StubTextExtractor(result: .failure(extractionError)),
-            configuration: .default
+            textExtractor: StubTextExtractor(result: .failure(extractionError))
         )
     }
 
@@ -365,7 +357,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         line: UInt = #line
     ) async {
         do {
-            _ = try await generator.generateContext(for: makeSnapshot())
+            _ = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
             XCTFail("Expected unavailable", file: file, line: line)
         } catch ScreenshotContextGenerationError.unavailable(let message) {
             XCTAssertTrue(message.contains(expectedMessage), "Got: \(message)", file: file, line: line)
@@ -380,7 +372,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         line: UInt = #line
     ) async {
         do {
-            _ = try await generator.generateContext(for: makeSnapshot())
+            _ = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
             XCTFail("Expected failure", file: file, line: line)
         } catch ScreenshotContextGenerationError.failed {
             // Errors outside the capture/OCR vocabularies keep their distinct "failed" classification.
