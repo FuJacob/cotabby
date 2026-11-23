@@ -19,10 +19,10 @@ import Logging
 /// both guarded by `lock`. FileHandle itself is not Sendable so we cannot mark it cleanly.
 nonisolated final class JSONLFileWriter: @unchecked Sendable {
     /// Main event stream (`cotabby.jsonl`).
-    static let events = JSONLFileWriter(fileName: "cotabby.jsonl")
+    static let events = JSONLFileWriter(fileName: CotabbyDebugArtifacts.eventLogName)
     /// Full prompts and completions (`llm-io.jsonl`). Records are larger per line, so the same
     /// cap holds fewer events, which is fine for a debug-only sink.
-    static let llmIO = JSONLFileWriter(fileName: "llm-io.jsonl")
+    static let llmIO = JSONLFileWriter(fileName: CotabbyDebugArtifacts.llmIOLogName)
 
     /// Large enough for hours of debug output without ballooning disk.
     static let defaultSizeCapBytes: UInt64 = 10 * 1024 * 1024
@@ -33,12 +33,13 @@ nonisolated final class JSONLFileWriter: @unchecked Sendable {
     private var handle: FileHandle?
     private var currentByteOffset: UInt64 = 0
 
-    /// `fileURL` overrides the default `~/Library/Logs/<bundle>/<fileName>` destination. Tests
-    /// inject a temp-directory URL so rotation and write behavior can be exercised against a real
-    /// file handle without touching the user's live logs.
+    /// `fileURL` overrides the default destination, `fileName` in the debug artifact directory
+    /// (`CotabbyDebugArtifacts.directoryURL`, `~/Library/Logs/<bundle>/`). Tests inject a
+    /// temp-directory URL so rotation and write behavior can be exercised against a real file
+    /// handle without touching the user's live logs.
     init(fileName: String, sizeCapBytes: UInt64 = JSONLFileWriter.defaultSizeCapBytes, fileURL: URL? = nil) {
         self.sizeCapBytes = sizeCapBytes
-        self.logFileURL = fileURL ?? Self.makeLogFileURL(fileName: fileName)
+        self.logFileURL = fileURL ?? CotabbyDebugArtifacts.directoryURL?.appendingPathComponent(fileName, isDirectory: false)
         openHandle()
     }
 
@@ -93,7 +94,7 @@ nonisolated final class JSONLFileWriter: @unchecked Sendable {
         // exactly the history rotation was meant to preserve.
         let didRotate = rotateOnDisk(currentURL: logFileURL)
         if didRotate {
-            FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+            CotabbyDebugArtifacts.writePrivateFile(Data(), to: logFileURL)
         }
         openHandleLocked()
     }
@@ -126,29 +127,34 @@ nonisolated final class JSONLFileWriter: @unchecked Sendable {
         openHandleLocked()
     }
 
+    /// Opens (creating if needed) the log file owner-only, in an owner-only directory: each line
+    /// can carry typed text (see `CotabbyDebugArtifacts`). A file an earlier build left at 0644 is
+    /// tightened here too.
     private func openHandleLocked() {
         guard let logFileURL else { return }
-        let fileManager = FileManager.default
-        let directory = logFileURL.deletingLastPathComponent()
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        if !fileManager.fileExists(atPath: logFileURL.path) {
-            fileManager.createFile(atPath: logFileURL.path, contents: nil)
+        CotabbyDebugArtifacts.preparePrivateDirectory(logFileURL.deletingLastPathComponent())
+        if !FileManager.default.fileExists(atPath: logFileURL.path) {
+            CotabbyDebugArtifacts.writePrivateFile(Data(), to: logFileURL)
         }
+        CotabbyDebugArtifacts.restrictToOwner(logFileURL)
         handle = try? FileHandle(forWritingTo: logFileURL)
         currentByteOffset = (try? handle?.seekToEnd()) ?? 0
     }
 
-    private static func makeLogFileURL(fileName: String) -> URL? {
-        let fileManager = FileManager.default
-        guard let libraryURL = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
-            return nil
+    /// Closes the handle and opens the file at its path again, creating it empty when it is gone.
+    /// Typing history's Delete All removes the log files out from under a running writer
+    /// (`CotabbyDebugArtifacts.deleteUserTextArtifacts`); without this every later line would be
+    /// appended to the unlinked file and never reach disk.
+    func reopen() {
+        lock.lock()
+        defer { lock.unlock() }
+        do {
+            try handle?.close()
+        } catch {
+            // A handle to a deleted file may fail to close; the fresh one below is what matters.
         }
-        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Cotabby"
-        let directory = libraryURL
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent(bundleName, isDirectory: true)
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent(fileName)
+        handle = nil
+        openHandleLocked()
     }
 }
 

@@ -34,6 +34,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
+            debugModeNotice
             Divider().padding(.bottom, 12)
             controlsSection
             permissionsCard
@@ -93,6 +94,24 @@ struct MenuBarView: View {
                 .font(.subheadline)
         }
         .padding(.bottom, 12)
+    }
+
+    /// Says so whenever a release build was launched with `-cotabby-debug` (see
+    /// `CotabbyDebugOptions.showsDebugModeNotice`): the flag makes Cotabby save prompts and screen
+    /// captures to disk, which nothing else on screen would reveal. Plain text rather than a control,
+    /// because the only way to turn it off is to relaunch without the flag.
+    @ViewBuilder
+    private var debugModeNotice: some View {
+        if CotabbyDebugOptions.showsDebugModeNotice {
+            Label("Debug logging is on", systemImage: "ladybug")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .help(
+                    "Cotabby was opened with \(CotabbyDebugOptions.launchArgument) and is saving prompts, " +
+                        "screen captures, and logs in ~/Library/Logs. Quit and reopen Cotabby to turn it off."
+                )
+                .padding(.bottom, 8)
+        }
     }
 
     private func configureMenuBarWindowIfNeeded(_ window: NSWindow) {

@@ -284,6 +284,38 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: vault.fileURL.path))
     }
 
+    func test_deleteAllAlsoClearsTheDebugArtifacts() async throws {
+        // Debug logs and captures can hold the same typing, so Delete All removes them too.
+        var artifactDeletions = 0
+        let store = TestLifetime.retain(TypingHistoryStore(
+            vault: makeVault(), userDefaults: defaults, loadsArchive: false,
+            deletesDebugArtifacts: { artifactDeletions += 1 }
+        ))
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+
+        store.deleteAll()
+
+        XCTAssertEqual(artifactDeletions, 1)
+        XCTAssertEqual(store.recordCount, 0)
+    }
+
+    func test_aFailedDeleteAllStillClearsTheDebugArtifacts() async throws {
+        let keyStore = InMemoryKeyStore()
+        var artifactDeletions = 0
+        let store = TestLifetime.retain(TypingHistoryStore(
+            vault: makeVault(keyStore: keyStore), userDefaults: defaults, loadsArchive: false,
+            deletesDebugArtifacts: { artifactDeletions += 1 }
+        ))
+        await store.importCotypistExport(from: try writeExport(signOffRows(count: 3)))
+        store.flush()
+        keyStore.setDeletionFails(true)
+
+        store.deleteAll()
+
+        XCTAssertNotNil(store.deletionError)
+        XCTAssertEqual(artifactDeletions, 1, "A Keychain failure is no reason to keep the debug copies")
+    }
+
     // MARK: - Review fixes
 
     func test_aSaveCapturedBeforeDeleteAllIsNeverWritten() throws {

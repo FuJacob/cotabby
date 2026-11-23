@@ -68,7 +68,10 @@ struct TypingHistorySectionView: View {
             ) {
                 Button(deleteAllConfirmationTitle, role: .destructive) { store.deleteAll() }
             } message: {
-                Text("This removes every recorded and imported entry and its encryption key. It can't be undone.")
+                Text(
+                    "This removes every recorded and imported entry, its encryption key, and any diagnostic " +
+                        "logs Cotabby saved. It can't be undone."
+                )
             }
         }
     }

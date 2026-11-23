@@ -304,8 +304,9 @@ developer-only diagnostics:
   polling events, and visual-context pipeline status.
 - **Suggestion debug logger**: color-coded console output for each generation cycle: prompt sent,
   raw model response, and normalized output.
-- **Screenshot capture**: saves OCR debug screenshots to disk when the visual-context pipeline
-  runs.
+- **Screenshot capture**: saves OCR debug screenshots to `~/Library/Logs/<app>/screenshots/` when
+  the visual-context pipeline runs. Every debug artifact stays in that owner-only log directory,
+  never on the Desktop.
 
 To disable it, uncheck `-cotabby-debug` in the scheme's Run → Arguments tab.
 

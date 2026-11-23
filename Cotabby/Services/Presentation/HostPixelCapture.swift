@@ -107,18 +107,23 @@ final class HostPixelCapture {
 
     // MARK: - Capture dumps (developer diagnostics)
 
-    /// Debug-only: with `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES`, every
-    /// capture is written as a PNG plus a JSON sidecar under ~/Library/Logs/<app>/strips, so a
-    /// measurement that went wrong on a live capture can be re-run offline on exactly the pixels it
-    /// saw. Off by default; a session that leaves it on writes a file pair per capture.
-    static let dumpsCaptures = UserDefaults.standard.bool(forKey: "cotabbyDumpCalibrationStrips")
+    /// Developer builds only: with `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES`,
+    /// every capture is written as a PNG plus a JSON sidecar under `strips/` in the debug artifact
+    /// directory, so a measurement that went wrong on a live capture can be re-run offline on
+    /// exactly the pixels it saw. Off by default. The switch itself, compiled out of shipping
+    /// builds, lives in `CotabbyDebugArtifacts.dumpsCalibrationStrips`.
+    static var dumpsCaptures: Bool { CotabbyDebugArtifacts.dumpsCalibrationStrips }
 
-    /// Writes `<prefix>-<milliseconds>.png` and `.json` into the strips folder. The sidecar is
-    /// written even when the PNG cannot be encoded: it still says what was asked of the capture.
+    /// Writes `<prefix>-<milliseconds>.png` and `.json` into the strips folder, owner-only, then
+    /// drops all but the newest `CotabbyDebugArtifacts.maximumCalibrationCaptures` captures: the
+    /// sidecar carries the caret line's text, and a session left dumping writes one pair per
+    /// capture. The sidecar is written even when the PNG cannot be encoded: it still says what was
+    /// asked of the capture.
     nonisolated static func dump(_ bitmap: RGBABitmap, prefix: String, sidecar: [String: Any]) {
-        let folder = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/\(ProcessInfo.processInfo.processName)/strips", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        guard let folder = CotabbyDebugArtifacts.preparedDirectory([CotabbyDebugArtifacts.stripsFolderName]) else { return }
+        defer {
+            CotabbyDebugArtifacts.evictOldCaptures(in: folder, keeping: CotabbyDebugArtifacts.maximumCalibrationCaptures)
+        }
         let stamp = Int(Date().timeIntervalSince1970 * 1000)
         if let representation = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: bitmap.width, pixelsHigh: bitmap.height, bitsPerSample: 8, samplesPerPixel: 4,
@@ -129,11 +134,12 @@ final class HostPixelCapture {
                     data.update(from: base, count: bytes.count)
                 }
             }
-            try? representation.representation(using: .png, properties: [:])?
-                .write(to: folder.appendingPathComponent("\(prefix)-\(stamp).png"))
+            if let png = representation.representation(using: .png, properties: [:]) {
+                CotabbyDebugArtifacts.writePrivateFile(png, to: folder.appendingPathComponent("\(prefix)-\(stamp).png"))
+            }
         }
         if let json = try? JSONSerialization.data(withJSONObject: sidecar) {
-            try? json.write(to: folder.appendingPathComponent("\(prefix)-\(stamp).json"))
+            CotabbyDebugArtifacts.writePrivateFile(json, to: folder.appendingPathComponent("\(prefix)-\(stamp).json"))
         }
     }
 }

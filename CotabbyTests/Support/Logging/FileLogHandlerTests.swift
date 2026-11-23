@@ -239,4 +239,51 @@ final class FileLogHandlerTests: XCTestCase {
 
         XCTAssertEqual(lines(of: nestedURL), ["hello"])
     }
+
+    // MARK: - Owner-only files
+
+    private func permissions(of url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return try XCTUnwrap(attributes[.posixPermissions] as? Int) & 0o777
+    }
+
+    func test_writer_createsTheLogAndItsDirectoryOwnerOnly() throws {
+        makeWriter().write("hello\n")
+
+        XCTAssertEqual(try permissions(of: logURL), 0o600)
+        XCTAssertEqual(try permissions(of: directory), 0o700)
+    }
+
+    func test_writer_tightensALogAnEarlierBuildLeftWorldReadable() throws {
+        try Data("old\n".utf8).write(to: logURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: logURL.path)
+
+        makeWriter().write("new\n")
+
+        XCTAssertEqual(try permissions(of: logURL), 0o600)
+        XCTAssertEqual(lines(of: logURL), ["old", "new"])
+    }
+
+    func test_writer_keepsBothFilesOwnerOnlyAcrossARotation() throws {
+        let writer = makeWriter(cap: 10)
+        writer.write(String(repeating: "x", count: 12) + "\n")
+        writer.write("next\n")
+
+        XCTAssertEqual(try permissions(of: rotatedURL), 0o600)
+        XCTAssertEqual(try permissions(of: logURL), 0o600)
+    }
+
+    func test_reopen_recreatesALogDeletedUnderTheWriter() throws {
+        // Typing history's Delete All unlinks the live log; without a reopen every later line
+        // would be appended to the deleted file.
+        let writer = makeWriter()
+        writer.write("before\n")
+        try FileManager.default.removeItem(at: logURL)
+
+        writer.reopen()
+        writer.write("after\n")
+
+        XCTAssertEqual(lines(of: logURL), ["after"])
+        XCTAssertEqual(try permissions(of: logURL), 0o600)
+    }
 }

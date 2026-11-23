@@ -260,22 +260,33 @@ It also creates better tests.
 
 Cotabby has a structured logging system built for AI-assisted debugging. During development the app
 is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to the always-on
-Console.app stream.
+Console.app stream. The flag also works in release builds, so a user can collect diagnostics for a
+bug report; a release build launched with it says "Debug logging is on" in the menu bar panel.
 
-**Log file locations** (only populated when `-cotabby-debug` is set):
+**Log file locations** (only populated when `-cotabby-debug` is set). Every debug artifact lives in
+one owner-only (0700) directory, `~/Library/Logs/<app>/`, with 0600 files; `CotabbyDebugArtifacts`
+owns the layout. `<app>` is `Cotabby`, or `Cotabby Dev` for the dev identity, so when debugging a
+dev-built app read `~/Library/Logs/Cotabby Dev/` first. Nothing is written to the Desktop.
 
 - `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line, with all
   metadata flattened as top-level fields so it can be filtered with `jq`.
 - `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
   generation. Shares `request_id` with the main log so a single suggestion can be joined across
   files.
-- `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
-  Chrome focus change (debounced by focused-element identity).
+- `~/Library/Logs/Cotabby/ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
+  Chrome focus change (debounced by focused-element identity). Secure fields, and everything inside
+  them, are printed without their value, selection, or caret.
+- `~/Library/Logs/Cotabby/screenshots/<app>/` — the newest 20 visual-context captures per app, as a
+  PNG plus its raw OCR text.
 - Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
-- `~/Library/Logs/<app>/strips/` — every calibration strip the overlay captured, as PNG plus a JSON
-  sidecar (caret column, size, line text), written only while
-  `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES` is set at launch. Replay one
-  through `TypefaceMatcher` offline to see why a face was or was not matched.
+- `~/Library/Logs/<app>/strips/` — the newest 200 calibration strips and caret captures the overlay
+  took, as PNG plus a JSON sidecar (caret column, size, line text), written only while
+  `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES` is set at launch. Only DEBUG and
+  `Cotabby Dev` builds honor that switch; the shipped app ignores it. Replay one through
+  `TypefaceMatcher` offline to see why a face was or was not matched.
+
+Typing history's Delete All also removes everything above that can hold typed text: both JSONL logs
+and their rotations, the AX dump, the screenshots, and the strips.
 
 **Correlation IDs.** Every prediction gets a `request_id` like `req_a3f9k2lq`, stamped on every log
 line touching that request (coordinator state transitions, router selection, engine generation, LLM
@@ -309,7 +320,7 @@ jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
   acceptance
 - Model won't load / decode fails → `runtime` + `models`
 - Permission dialog loop → `app` (permission state transitions)
-- Chrome-specific weirdness → start with `~/Desktop/cotabby-ax-dump.txt`, then `focus`
+- Chrome-specific weirdness → start with `~/Library/Logs/Cotabby/ax-dump.txt`, then `focus`
 - Wrong backend chosen → `suggestion` router selection log (`engine`, `fallback_engine`)
 
 **Console.app fallback** (when `-cotabby-debug` wasn't set):

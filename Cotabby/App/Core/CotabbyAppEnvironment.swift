@@ -235,7 +235,12 @@ final class CotabbyAppEnvironment {
         )
         // Typing history owns its own encrypted archive. Inside the XCTest host it starts empty and
         // never opens the real archive or Keychain item, so tests cannot read or overwrite it.
-        let typingHistoryStore = TypingHistoryStore(loadsArchive: !Self.isRunningUnderXCTest)
+        // Delete All also clears the debug artifacts that can hold typed text, except in the test
+        // host, where it must never reach the developer's own logs.
+        let typingHistoryStore = TypingHistoryStore(
+            loadsArchive: !Self.isRunningUnderXCTest,
+            deletesDebugArtifacts: Self.isRunningUnderXCTest ? {} : { CotabbyDebugArtifacts.deleteUserTextArtifacts() }
+        )
         // Phrase shortcuts answer from history before the router runs. The live engine kind is
         // read per request so a power-source switch to the endpoint stops shortcuts immediately.
         let historyAwareEngine = TypingHistoryPhraseEngine(

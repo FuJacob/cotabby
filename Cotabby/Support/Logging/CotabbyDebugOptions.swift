@@ -5,8 +5,10 @@ import os
 /// File overview:
 /// Centralizes Cotabby's developer-only runtime switches.
 ///
-/// Passing `-cotabby-debug` opts into local logs and screenshot/OCR captures. On-screen overlays
-/// have a separate, default-off setting so a development session can keep logging quietly.
+/// Passing `-cotabby-debug` opts into local logs and screenshot/OCR captures, written owner-only
+/// under `~/Library/Logs/<app>/` (see `CotabbyDebugArtifacts`). It works in release builds on
+/// purpose, so a user can collect diagnostics for a bug report. On-screen overlays have a separate,
+/// default-off setting so a development session can keep logging quietly.
 nonisolated enum CotabbyDebugOptions {
     static let launchArgument = "-cotabby-debug"
 
@@ -22,6 +24,18 @@ nonisolated enum CotabbyDebugOptions {
 
     static var isEnabled: Bool {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
+    }
+
+    /// Whether the menu bar panel says that debug logging is on. Anything that can relaunch the
+    /// released app with the flag starts it writing prompts and screen captures to disk, so a
+    /// release build always shows it. Debug builds get the flag from the Xcode scheme on every run,
+    /// where the notice would only be noise.
+    static var showsDebugModeNotice: Bool {
+        #if DEBUG
+        false
+        #else
+        isEnabled
+        #endif
     }
 
     /// The swift-log floor applied to the always-on `OSLogHandler` and the debug-only file sinks.
