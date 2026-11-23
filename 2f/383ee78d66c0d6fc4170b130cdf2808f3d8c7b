@@ -1,0 +1,19 @@
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_b9af9eb54478c8::t_e88a74b3e90f0e 47,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f383ee78d66c0d6fc4170b130cdf2808f3d8c7b",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
