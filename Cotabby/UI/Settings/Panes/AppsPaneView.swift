@@ -126,29 +126,10 @@ struct AppsPaneView: View {
     @ViewBuilder
     private func perAppOverrideRow(_ override: PerAppShortcutOverride) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(nsImage: icon(forBundleIdentifier: override.bundleIdentifier))
-                    .resizable()
-                    .frame(width: 28, height: 28)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(override.displayName)
-                    Text(override.bundleIdentifier)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                Spacer(minLength: 0)
-
-                Button {
+            appIdentityRow(bundleIdentifier: override.bundleIdentifier, displayName: override.displayName) {
+                removeAppButton {
                     suggestionSettings.removePerAppOverride(bundleIdentifier: override.bundleIdentifier)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderless)
                 .accessibilityLabel("Remove per-app shortcuts for \(override.displayName)")
                 .help("Remove this app's overrides. Cotabby will use the global accept keys here.")
             }
@@ -229,7 +210,7 @@ struct AppsPaneView: View {
             } else {
                 KeybindRow(
                     label: binding.label,
-                    isBound: binding.keyCode != SuggestionSettingsModel.disabledKeyCode,
+                    isBound: binding.isBound,
                     isRecording: recordingBinding,
                     onRecord: { keyCode, modifiers, recordedLabel in
                         applyPerAppBinding(
@@ -342,12 +323,13 @@ struct AppsPaneView: View {
         override: PerAppShortcutOverride,
         action: PerAppShortcutAction
     ) {
+        let unbound = SuggestionShortcutBindingSettings.unbound
         applyPerAppBinding(
             override: override,
             action: action,
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
-            modifiers: [],
-            label: SuggestionSettingsModel.disabledKeyLabel
+            keyCode: unbound.keyCode,
+            modifiers: unbound.modifiers,
+            label: unbound.label
         )
     }
 
@@ -404,18 +386,30 @@ struct AppsPaneView: View {
         return NSWorkspace.shared.icon(forFile: appURL.path)
     }
 
-    @ViewBuilder
     private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
+        appIdentityRow(bundleIdentifier: rule.bundleIdentifier, displayName: rule.displayName) {
+            removeAppButton {
+                suggestionSettings.removeDisabledApplication(bundleIdentifier: rule.bundleIdentifier)
+            }
+        }
+    }
+
+    /// The icon, name and bundle identifier every listed app leads with, then the row's own remove
+    /// button, so a tracked app reads the same in each section.
+    private func appIdentityRow<RemoveButton: View>(
+        bundleIdentifier: String,
+        displayName: String,
+        @ViewBuilder removeButton: () -> RemoveButton
+    ) -> some View {
         HStack(spacing: 12) {
-            Image(nsImage: icon(forBundleIdentifier: rule.bundleIdentifier))
+            Image(nsImage: icon(forBundleIdentifier: bundleIdentifier))
                 .resizable()
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(rule.displayName)
-
-                Text(rule.bundleIdentifier)
+                Text(displayName)
+                Text(bundleIdentifier)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -423,16 +417,16 @@ struct AppsPaneView: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                suggestionSettings.removeDisabledApplication(
-                    bundleIdentifier: rule.bundleIdentifier
-                )
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
+            removeButton()
         }
+    }
+
+    private func removeAppButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
     }
 
     /// Lets the user disable Cotabby in an app they can't reach from the menu bar. The menu-bar

@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// File overview:
-/// "Emoji" detail pane: the inline emoji picker feature and its presentation options, split out of
-/// the old General pane so the feature has a home of its own. The skin-tone and people-style options
-/// only appear when the picker is enabled, so the pane stays empty-handed when the feature is off.
+/// "Emoji" detail pane: the inline emoji picker feature and its presentation options. The skin-tone,
+/// people-style and history rows only appear when the picker is enabled, so the pane holds a single
+/// switch while the feature is off.
 struct EmojiPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     let clearEmojiHistory: () -> Void

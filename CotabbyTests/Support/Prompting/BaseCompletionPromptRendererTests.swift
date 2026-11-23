@@ -229,7 +229,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     /// otherwise the settings UI advertises a limit the prompt silently undercuts.
     @MainActor
     func test_notesSectionAdmitsTheFullAdvertisedExtendedContext() async {
-        let notes = String(repeating: "n", count: SuggestionSettingsModel.maximumExtendedContextCharacters)
+        let notes = String(repeating: "n", count: SuggestionSettingsStore.maximumExtendedContextCharacters)
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
             userName: nil,

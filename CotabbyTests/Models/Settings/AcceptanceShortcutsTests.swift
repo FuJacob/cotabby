@@ -132,6 +132,26 @@ final class AcceptanceShortcutsTests: XCTestCase {
         XCTAssertEqual(state, shortcuts(.unbound))
     }
 
+    func test_resettingEachSideRestoresItsFactoryKey() {
+        var state = AcceptanceShortcuts(acceptWord: optionTab, acceptEntireSuggestion: .doubleTapOfAcceptWord)
+
+        state.resetAcceptWord()
+        state.resetAcceptEntireSuggestion()
+
+        XCTAssertEqual(state, AcceptanceShortcuts(acceptWord: tab, acceptEntireSuggestion: .key(grave)))
+        XCTAssertTrue(state.isAcceptWordFactoryDefault)
+        XCTAssertTrue(state.isAcceptEntireSuggestionFactoryDefault)
+    }
+
+    /// Reset is a recording of the factory key, so it obeys the same "no shared key" rule.
+    func test_resettingAcceptWordTakesTabBackFromTheSlot() {
+        var state = AcceptanceShortcuts(acceptWord: .unbound, acceptEntireSuggestion: .key(tab))
+
+        state.resetAcceptWord()
+
+        XCTAssertEqual(state, AcceptanceShortcuts(acceptWord: tab, acceptEntireSuggestion: .unbound))
+    }
+
     // MARK: - Reading
 
     func test_doubleTapIsInertWhileAcceptWordIsUnbound() {
@@ -147,5 +167,18 @@ final class AcceptanceShortcutsTests: XCTestCase {
         XCTAssertFalse(shortcuts(.key(optionTab)).isAcceptEntireSuggestionFactoryDefault)
         XCTAssertFalse(shortcuts(.doubleTapOfAcceptWord).isAcceptEntireSuggestionFactoryDefault)
         XCTAssertFalse(shortcuts(.unbound).isAcceptEntireSuggestionFactoryDefault)
+    }
+
+    /// The label is display-only: Tab recorded under another layout's name is still the factory key.
+    func test_onlyPlainTabCountsAsTheFactoryAcceptWordKey() {
+        let relabelledTab = ShortcutBinding(keyCode: 48, modifiers: [], label: "⇥")
+        XCTAssertTrue(AcceptanceShortcuts(acceptWord: relabelledTab, acceptEntireSuggestion: .unbound).isAcceptWordFactoryDefault)
+        XCTAssertFalse(AcceptanceShortcuts(acceptWord: optionTab, acceptEntireSuggestion: .unbound).isAcceptWordFactoryDefault)
+        XCTAssertFalse(AcceptanceShortcuts(acceptWord: .unbound, acceptEntireSuggestion: .unbound).isAcceptWordFactoryDefault)
+    }
+
+    func test_doubleTapRecordingKeyIsTheAcceptWordKeyOnlyWhileBound() {
+        XCTAssertEqual(shortcuts(.key(grave)).doubleTapRecordingKey, tab)
+        XCTAssertNil(AcceptanceShortcuts(acceptWord: .unbound, acceptEntireSuggestion: .key(grave)).doubleTapRecordingKey)
     }
 }

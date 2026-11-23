@@ -45,17 +45,9 @@ struct WelcomeKeybindStepView: View {
                             label: label
                         )
                     },
-                    onReset: (
-                        suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode
-                            || !suggestionSettings.acceptanceKeyModifiers.isEmpty
-                    ) ? {
-                        suggestionSettings.setAcceptanceKey(
-                            keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
-                            modifiers: [],
-                            label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
-                        )
-                    } : nil,
-                    onClear: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
+                    onReset: !suggestionSettings.isAcceptanceShortcutDefault
+                        ? { suggestionSettings.resetAcceptanceKey() } : nil,
+                    onClear: suggestionSettings.acceptanceBinding.isBound
                         ? { suggestionSettings.clearAcceptanceKey() } : nil
                 )
                 .onboardingReveal(2)
@@ -71,22 +63,12 @@ struct WelcomeKeybindStepView: View {
                             label: label
                         )
                     },
-                    onReset: !suggestionSettings.isFullAcceptanceShortcutDefault ? {
-                        suggestionSettings.setFullAcceptanceKey(
-                            keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
-                            modifiers: [],
-                            label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
-                        )
-                    } : nil,
+                    onReset: !suggestionSettings.isFullAcceptanceShortcutDefault
+                        ? { suggestionSettings.resetFullAcceptanceKey() } : nil,
                     onClear: suggestionSettings.hasFullAcceptanceShortcut
                         ? { suggestionSettings.clearFullAcceptanceKey() } : nil,
                     // Pressing Accept Word twice here binds the double tap, the same as in Settings.
-                    doubleTapKey: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
-                        ? DoubleTapRecordingKey(
-                            keyCode: suggestionSettings.acceptanceKeyCode,
-                            modifiers: suggestionSettings.acceptanceKeyModifiers,
-                            label: suggestionSettings.acceptanceKeyLabel
-                        ) : nil,
+                    doubleTapKey: suggestionSettings.doubleTapRecordingKey,
                     onDoubleTapRecorded: { suggestionSettings.setDoubleTapFullAcceptance() }
                 )
                 .onboardingReveal(3)
@@ -105,7 +87,7 @@ struct WelcomeKeybindStepView: View {
                         )
                     },
                     onReset: nil,
-                    onClear: suggestionSettings.globalToggleKeyCode != SuggestionSettingsModel.disabledKeyCode
+                    onClear: suggestionSettings.globalToggleBinding.isBound
                         ? { suggestionSettings.clearGlobalToggleKey() } : nil
                 )
                 .onboardingReveal(4)
@@ -127,7 +109,7 @@ struct WelcomeKeybindStepView: View {
         onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
         onReset: (() -> Void)? = nil,
         onClear: (() -> Void)? = nil,
-        doubleTapKey: DoubleTapRecordingKey? = nil,
+        doubleTapKey: SuggestionShortcutBindingSettings? = nil,
         onDoubleTapRecorded: (() -> Void)? = nil
     ) -> some View {
         let isRecording = recordingAction == action

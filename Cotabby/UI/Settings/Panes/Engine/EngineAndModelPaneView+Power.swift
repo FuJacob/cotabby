@@ -13,10 +13,9 @@ extension EngineAndModelPaneView {
     var powerSection: some View {
         Section("Power") {
             Toggle(
-                isOn: Binding(
-                    get: { suggestionSettings.isLowPowerModeAutoDisableEnabled },
-                    set: { suggestionSettings.setLowPowerModeAutoDisableEnabled($0) }
-                )
+                isOn: suggestionSettings.binding(\.isLowPowerModeAutoDisableEnabled) {
+                    $0.setLowPowerModeAutoDisableEnabled($1)
+                }
             ) {
                 SettingsRowLabel(
                     title: "Pause in Low Power Mode",
@@ -27,10 +26,9 @@ extension EngineAndModelPaneView {
             .settingsItem(.lowPowerModeAutoDisable)
 
             Toggle(
-                isOn: Binding(
-                    get: { suggestionSettings.isPowerBasedModelSwitchingEnabled },
-                    set: { suggestionSettings.setPowerBasedModelSwitchingEnabled($0) }
-                )
+                isOn: suggestionSettings.binding(\.isPowerBasedModelSwitchingEnabled) {
+                    $0.setPowerBasedModelSwitchingEnabled($1)
+                }
             ) {
                 SettingsRowLabel(
                     title: "Switch Based on Power Source",

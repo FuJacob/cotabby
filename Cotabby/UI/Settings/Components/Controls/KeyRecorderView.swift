@@ -17,7 +17,7 @@ struct KeyRecorderView: View {
     var conflictChecker: ((CGKeyCode, ShortcutModifierMask) -> String?)?
     /// A key that may be recorded as a double press instead of a single key: the Accept Word key,
     /// when recording Accept Entire Suggestion. A single press of it is still a conflict.
-    var doubleTapKey: DoubleTapRecordingKey?
+    var doubleTapKey: SuggestionShortcutBindingSettings?
     var onDoubleTapRecorded: (() -> Void)?
 
     @State private var monitor: Any?
@@ -31,7 +31,7 @@ struct KeyRecorderView: View {
     }
 
     /// The double tap is only on offer when the caller can also store it.
-    private var recordableDoubleTapKey: DoubleTapRecordingKey? {
+    private var recordableDoubleTapKey: SuggestionShortcutBindingSettings? {
         onDoubleTapRecorded == nil ? nil : doubleTapKey
     }
 

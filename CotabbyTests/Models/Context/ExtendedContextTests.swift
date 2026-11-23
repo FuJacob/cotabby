@@ -39,11 +39,11 @@ final class ExtendedContextTests: XCTestCase {
     func test_setExtendedContext_truncatesAtMaximumCharacters() {
         let defaults = IsolatedUserDefaults.make()
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
-        let huge = String(repeating: "a", count: SuggestionSettingsModel.maximumExtendedContextCharacters + 250)
+        let huge = String(repeating: "a", count: SuggestionSettingsStore.maximumExtendedContextCharacters + 250)
 
         model.setExtendedContext(huge)
 
-        XCTAssertEqual(model.extendedContext.count, SuggestionSettingsModel.maximumExtendedContextCharacters)
+        XCTAssertEqual(model.extendedContext.count, SuggestionSettingsStore.maximumExtendedContextCharacters)
     }
 
     func test_setExtendedContext_emptyStringClearsPersistedValue() {

@@ -28,7 +28,7 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
 
         XCTAssertFalse(model.isDoubleTapFullAcceptanceActive)
         XCTAssertTrue(model.isFullAcceptanceShortcutDefault)
-        XCTAssertEqual(model.fullAcceptanceDisplayLabel, SuggestionSettingsModel.defaultFullAcceptanceKeyLabel)
+        XCTAssertEqual(model.fullAcceptanceDisplayLabel, SuggestionSettingsStore.defaultFullAcceptanceKeyLabel)
         XCTAssertFalse(model.snapshot.doubleTapAcceptsEntireSuggestion)
     }
 
@@ -38,7 +38,7 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         model.setDoubleTapFullAcceptance()
 
         XCTAssertTrue(model.isDoubleTapFullAcceptanceActive)
-        XCTAssertEqual(model.fullAcceptanceKeyCode, SuggestionSettingsModel.disabledKeyCode)
+        XCTAssertEqual(model.fullAcceptanceKeyCode, SuggestionSettingsStore.disabledKeyCode)
         XCTAssertEqual(model.fullAcceptanceDisplayLabel, "Tab Tab")
         XCTAssertTrue(model.hasFullAcceptanceShortcut)
         XCTAssertFalse(model.isFullAcceptanceShortcutDefault)
@@ -46,7 +46,7 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
 
         let reloaded = makeModel()
         XCTAssertTrue(reloaded.isDoubleTapFullAcceptanceActive)
-        XCTAssertEqual(reloaded.fullAcceptanceKeyCode, SuggestionSettingsModel.disabledKeyCode)
+        XCTAssertEqual(reloaded.fullAcceptanceKeyCode, SuggestionSettingsStore.disabledKeyCode)
     }
 
     /// The slot is one value in memory but still two facts on disk. These are the exact values
@@ -89,9 +89,9 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         model.setDoubleTapFullAcceptance()
 
         model.setAcceptanceKey(
-            keyCode: SuggestionSettingsModel.disabledKeyCode,
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
             modifiers: [],
-            label: SuggestionSettingsModel.disabledKeyLabel
+            label: SuggestionSettingsStore.disabledKeyLabel
         )
 
         XCTAssertTrue(model.doubleTapAcceptsEntireSuggestion)
@@ -118,14 +118,11 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         let model = makeModel()
         model.setDoubleTapFullAcceptance()
 
-        model.setFullAcceptanceKey(
-            keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
-            modifiers: [],
-            label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
-        )
+        model.resetFullAcceptanceKey()
 
         XCTAssertTrue(model.isFullAcceptanceShortcutDefault)
         XCTAssertFalse(model.isDoubleTapFullAcceptanceActive)
+        XCTAssertEqual(makeModel().fullAcceptanceDisplayLabel, SuggestionSettingsStore.defaultFullAcceptanceKeyLabel)
     }
 
     func test_clearRemovesTheDoubleTapToo() {
@@ -136,7 +133,7 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
 
         XCTAssertFalse(model.hasFullAcceptanceShortcut)
         XCTAssertFalse(model.doubleTapAcceptsEntireSuggestion)
-        XCTAssertEqual(model.fullAcceptanceDisplayLabel, SuggestionSettingsModel.disabledKeyLabel)
+        XCTAssertEqual(model.fullAcceptanceDisplayLabel, SuggestionSettingsStore.disabledKeyLabel)
     }
 
     func test_doubleTapCannotBeBoundWithoutAnAcceptWordKey() {
@@ -182,10 +179,10 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         let model = makeModel()
         model.setDoubleTapFullAcceptance()
         model.setPerAppAcceptKey(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
-                                 keyCode: SuggestionSettingsModel.disabledKeyCode, modifiers: [], label: "None")
+                                 keyCode: SuggestionSettingsStore.disabledKeyCode, modifiers: [], label: "None")
 
         XCTAssertEqual(model.inheritedFullAcceptanceDisplayLabel(forBundleIdentifier: "com.apple.Terminal"),
-                       SuggestionSettingsModel.disabledKeyLabel)
+                       SuggestionSettingsStore.disabledKeyLabel)
     }
 
     func test_appsWithTheirOwnFullAcceptBindingKeepItOverTheDoubleTap() {
@@ -193,7 +190,7 @@ final class SuggestionSettingsModelDoubleTapTests: XCTestCase {
         model.setDoubleTapFullAcceptance()
         // Disable is an explicit per-app binding too: "no key accepts everything here".
         model.setPerAppFullAcceptKey(bundleIdentifier: "com.apple.Terminal", displayName: "Terminal",
-                                     keyCode: SuggestionSettingsModel.disabledKeyCode, modifiers: [], label: "None")
+                                     keyCode: SuggestionSettingsStore.disabledKeyCode, modifiers: [], label: "None")
         model.setPerAppAcceptKey(bundleIdentifier: "com.apple.mail", displayName: "Mail",
                                  keyCode: 36, modifiers: [], label: "Return")
 

@@ -73,20 +73,6 @@ extension EngineAndModelPaneView {
         )
     }
 
-    var endpointModelBinding: Binding<String> {
-        Binding(
-            get: { suggestionSettings.openAICompatibleModelName },
-            set: { suggestionSettings.setOpenAICompatibleModelName($0) }
-        )
-    }
-
-    var endpointAPIModeBinding: Binding<OpenAICompatibleAPIMode> {
-        Binding(
-            get: { suggestionSettings.openAICompatibleAPIMode },
-            set: { suggestionSettings.setOpenAICompatibleAPIMode($0) }
-        )
-    }
-
     var endpointPrivacyWarning: String? {
         (try? suggestionSettings.openAICompatibleConfiguration)?.privacyWarning
     }

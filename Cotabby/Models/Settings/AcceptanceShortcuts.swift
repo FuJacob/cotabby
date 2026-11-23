@@ -10,6 +10,20 @@ extension SuggestionShortcutBindingSettings {
         label: SuggestionSettingsStore.disabledKeyLabel
     )
 
+    /// The factory Accept Word key: plain Tab.
+    static let defaultAcceptWord = SuggestionShortcutBindingSettings(
+        keyCode: SuggestionSettingsStore.defaultAcceptanceKeyCode,
+        modifiers: [],
+        label: SuggestionSettingsStore.defaultAcceptanceKeyLabel
+    )
+
+    /// The factory Accept Entire Suggestion key: plain `` ` ``.
+    static let defaultAcceptEntireSuggestion = SuggestionShortcutBindingSettings(
+        keyCode: SuggestionSettingsStore.defaultFullAcceptanceKeyCode,
+        modifiers: [],
+        label: SuggestionSettingsStore.defaultFullAcceptanceKeyLabel
+    )
+
     var isBound: Bool {
         keyCode != SuggestionSettingsStore.disabledKeyCode
     }
@@ -32,12 +46,20 @@ extension SuggestionShortcutBindingSettings {
     }
 }
 
+extension ShortcutResolver.ResolvedBinding {
+    /// False for an app whose override is Disable, or that inherits an unbound global shortcut.
+    var isBound: Bool {
+        keyCode != SuggestionSettingsStore.disabledKeyCode
+    }
+}
+
 /// What occupies the Accept Entire Suggestion slot. The slot holds exactly one shortcut, which is
 /// why this is an enum rather than a key plus a "double tap" flag: a one-press key and the double
 /// tap cannot both be set.
 ///
-/// On disk the slot is still two facts (the one-press key triple and a double-tap flag), decoded
-/// by `init(keyBinding:doubleTap:)` and re-encoded through `keyBinding` and `isDoubleTap`.
+/// On disk the slot is still two facts (the one-press key triple and a double-tap flag), which
+/// `SuggestionSettingsStore` decodes with `init(keyBinding:doubleTap:)` and re-encodes through
+/// `keyBinding` and `isDoubleTap`.
 enum FullAcceptanceShortcut: Equatable {
     case unbound
     /// A one-press key. Always a bound binding; "no key" is `.unbound`.
@@ -98,15 +120,37 @@ struct AcceptanceShortcuts: Equatable {
         isDoubleTapActive || acceptEntireSuggestion.keyBinding.isBound
     }
 
+    /// The key a recorder may take as a double press: the Accept Word key, or `nil` while it is
+    /// unbound because there is then nothing to press twice.
+    var doubleTapRecordingKey: SuggestionShortcutBindingSettings? {
+        acceptWord.isBound ? acceptWord : nil
+    }
+
+    /// Whether Accept Word still holds the factory key, so views can hide Reset. The label is
+    /// display-only and not compared.
+    var isAcceptWordFactoryDefault: Bool {
+        let factory = SuggestionShortcutBindingSettings.defaultAcceptWord
+        return acceptWord.matches(keyCode: factory.keyCode, modifiers: factory.modifiers)
+    }
+
     /// Whether the slot still holds the factory one-press key, so views can hide Reset.
     var isAcceptEntireSuggestionFactoryDefault: Bool {
         guard case .key(let binding) = acceptEntireSuggestion else {
             return false
         }
-        return binding.keyCode == SuggestionSettingsStore.defaultFullAcceptanceKeyCode && binding.modifiers.isEmpty
+        let factory = SuggestionShortcutBindingSettings.defaultAcceptEntireSuggestion
+        return binding.matches(keyCode: factory.keyCode, modifiers: factory.modifiers)
     }
 
     // MARK: - Transitions
+
+    mutating func resetAcceptWord() {
+        recordAcceptWord(.defaultAcceptWord)
+    }
+
+    mutating func resetAcceptEntireSuggestion() {
+        recordAcceptEntireSuggestion(.defaultAcceptEntireSuggestion)
+    }
 
     mutating func recordAcceptWord(_ binding: SuggestionShortcutBindingSettings) {
         guard acceptWord != binding else {

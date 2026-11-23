@@ -4,17 +4,14 @@ import SwiftUI
 /// "Context" detail pane of the Settings window. It leads with a live preview: a real, native text
 /// field that the running app completes in exactly as it does anywhere else. Typing in it drives the
 /// production focus -> suggestion -> overlay pipeline end to end, so the gray suggestion, Tab to
-/// accept, and Esc to dismiss are the real thing, not an in-app reimplementation. Below it sits the
+/// accept, and Esc to dismiss are the real thing, not an in-app reimplementation. Below it sit the
 /// Extended Context editor (a free-form blob folded into every prompt) with its cost warning
-/// co-located, then a short "how this is used" note.
+/// co-located, a short "how this is used" note, and the Typing History section.
 ///
-/// Why the field is real (the redesign):
-/// the preview previously hand-rolled an `NSTextView` that mirrored a SwiftUI binding and rendered a
-/// ghost run inside its own editable storage. That reconciliation raced with live keystrokes and
-/// corrupted typed text, so the box felt unnatural to type in. The field is now plain and inert:
-/// `FocusTracker` lifts its "never complete in our own UI" rule for this one element (keyed on
-/// `ContextLivePreview.accessibilityIdentifier`), and the real overlay draws the suggestion at the
-/// caret. The text view owns its string outright, so nothing competes with the user's typing.
+/// Why the field is real: `FocusTracker` lifts its "never complete in our own UI" rule for this one
+/// element (keyed on `ContextLivePreview.accessibilityIdentifier`) and the real overlay draws the
+/// suggestion at the caret, so the text view owns its string outright and nothing competes with the
+/// user's typing. See `ContextLivePreviewField` for why an in-app ghost renderer cannot do that.
 ///
 /// Why a dedicated pane (not Writing): the Writing pane carries name and language personalization.
 /// Extended Context is a different shape (long-form, free markdown, and noticeably more expensive on
@@ -98,8 +95,8 @@ struct ContextPaneView: View {
     private var extendedContextSection: some View {
         Section("Extended Context") {
             VStack(alignment: .leading, spacing: 12) {
-                // The cost warning lives next to the editor it describes (it used to be a pane-level
-                // banner) so the trade-off is read right where the user is about to paste a big block.
+                // The cost warning sits next to the editor it describes so the trade-off is read
+                // right where the user is about to paste a big block.
                 SettingsCalloutView(
                     callout: SettingsPaneCallout(
                         tone: .warning,
@@ -160,7 +157,7 @@ struct ContextPaneView: View {
                         "core behavior."
                 )
                 bulletLine(
-                    "Capped at \(SuggestionSettingsModel.maximumExtendedContextCharacters) " +
+                    "Capped at \(SuggestionSettingsStore.maximumExtendedContextCharacters) " +
                         "characters. Anything pasted beyond that is trimmed automatically."
                 )
                 bulletLine(
@@ -178,7 +175,7 @@ struct ContextPaneView: View {
 
     private var characterCountLabel: String {
         let current = suggestionSettings.extendedContext.count
-        let maximum = SuggestionSettingsModel.maximumExtendedContextCharacters
+        let maximum = SuggestionSettingsStore.maximumExtendedContextCharacters
         return "\(current) / \(maximum) characters"
     }
 
@@ -186,7 +183,7 @@ struct ContextPaneView: View {
     /// without the user noticing the counter creeping toward the limit.
     private var isApproachingLimit: Bool {
         let current = suggestionSettings.extendedContext.count
-        let maximum = SuggestionSettingsModel.maximumExtendedContextCharacters
+        let maximum = SuggestionSettingsStore.maximumExtendedContextCharacters
         return current >= Int(Double(maximum) * 0.9)
     }
 

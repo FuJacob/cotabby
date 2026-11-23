@@ -4,8 +4,10 @@ import SwiftUI
 /// Single pane that hosts everything engine-and-model related. The dropdown at the top is both
 /// the active-engine selector and the in-pane switcher: picking Apple Intelligence shows the
 /// availability section; picking Open Source shows the local-runtime stack (model picker,
-/// downloads, Hugging Face browser, folder controls, installed models). One pane keeps the
-/// settings sidebar flat and gives users a single place to manage everything model-related.
+/// downloads, Hugging Face browser, folder controls, installed models); picking Local Endpoint
+/// shows the server connection and model controls. The Power section applies to every engine. One
+/// pane keeps the settings sidebar flat and gives users a single place to manage everything
+/// model-related.
 struct EngineAndModelPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var openAICompatibleConnectionModel: OpenAICompatibleConnectionModel

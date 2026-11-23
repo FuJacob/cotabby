@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// File overview:
-/// "Writing" detail pane. Owns how the completion reads:
-/// preferred length, profile (display name), preferred response languages, and the user's custom
-/// style rules.
+/// "Writing" detail pane. Owns how the completion reads: preferred length, what an accept inserts
+/// beyond the word, typo handling and the word dictionaries, the profile (display name), preferred
+/// response languages, and the user's custom style rules.
 struct WritingPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -28,9 +28,8 @@ struct WritingPaneView: View {
                 // Min and Max are editable while Custom is active: type a value or nudge it with the
                 // arrows. Both rows commit through `setCustomWordCountRange`, which clamps to
                 // [minimumWord, maximumWord] and keeps Max >= Min, so neither a typed nor a stepped
-                // value can leave the sensible range. Stacked as their own rows (rather than the old
-                // side-by-side steppers) so each reads as one editable field. Shown only in Custom so
-                // the curated picker stays the common path.
+                // value can leave the sensible range. Stacked as their own rows so each reads as one
+                // editable field. Shown only in Custom so the curated picker stays the common path.
                 if suggestionSettings.isUsingCustomWordCountRange {
                     LabeledContent("Minimum") {
                         wordCountField(value: customLowBinding, label: "Minimum word count")
@@ -70,15 +69,11 @@ struct WritingPaneView: View {
                 .settingsItem(.addSpaceAfterAccept)
             }
 
-            // Typo handling is a dependency chain, so the UI discloses it progressively rather than
-            // showing every control at once. The master gate ("Hide Suggestions on Typo") detects
-            // misspellings; the correction actions only function while it is on; the dictionaries
-            // only matter once an action can consume them. Revealing each level when it becomes
-            // relevant — instead of dimming dependents in place — makes the hierarchy unmistakable:
-            // turning the gate off removes the controls that depend on it. This is the established
-            // master/dependent idiom in this app (see `EmojiPaneView`). The earlier flat layout put
-            // all three toggles at the same visual level, so it was not obvious the gate governed the
-            // other two.
+            // Typo handling is a dependency chain, so the UI discloses it progressively: the master
+            // gate ("Hide Suggestions on Typo") detects misspellings, and the correction actions only
+            // function while it is on. Revealing the actions only while they can act, instead of
+            // dimming them in place, makes the hierarchy unmistakable: turning the gate off removes
+            // the controls that depend on it, the same master/dependent idiom `EmojiPaneView` uses.
             Section("Typos") {
                 Toggle(isOn: suggestionSettings.binding(\.suppressCompletionsOnTypo) { $0.setSuppressCompletionsOnTypo($1) }) {
                     SettingsRowLabel(
@@ -137,10 +132,10 @@ struct WritingPaneView: View {
                         Text("Name")
                             .font(.system(size: 13, weight: .medium))
 
-                        TextField("What should Cotabby call you?", text: Binding(
-                            get: { suggestionSettings.userName },
-                            set: { suggestionSettings.setUserName($0) }
-                        ))
+                        TextField(
+                            "What should Cotabby call you?",
+                            text: suggestionSettings.binding(\.userName) { $0.setUserName($1) }
+                        )
                         .textFieldStyle(.roundedBorder)
                     }
                 }

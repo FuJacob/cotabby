@@ -1,13 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// The key a recorder may accept as a double press, with the label shown while it waits.
-struct DoubleTapRecordingKey: Equatable {
-    let keyCode: CGKeyCode
-    let modifiers: ShortcutModifierMask
-    let label: String
-}
-
 /// Pure state machine behind `KeyRecorderView`: what a shortcut recorder does with each key event.
 ///
 /// The view owns the `NSEvent` monitor and the timer and feeds events in; this type decides whether
@@ -67,7 +60,7 @@ struct KeyRecorderState: Equatable {
     ///   - conflictOwner: Names the action already bound to a combination, or `nil` if it is free.
     mutating func handle(
         _ input: Input,
-        doubleTapKey: DoubleTapRecordingKey?,
+        doubleTapKey: SuggestionShortcutBindingSettings?,
         conflictOwner: (CGKeyCode, ShortcutModifierMask) -> String?
     ) -> Effect? {
         switch input {
@@ -90,7 +83,7 @@ struct KeyRecorderState: Equatable {
         }
     }
 
-    func prompt(doubleTapKey: DoubleTapRecordingKey?) -> String {
+    func prompt(doubleTapKey: SuggestionShortcutBindingSettings?) -> String {
         switch phase {
         case .rejected(let message):
             return message
@@ -107,7 +100,7 @@ struct KeyRecorderState: Equatable {
 
     private mutating func handleKeyDown(
         _ press: KeyPress,
-        doubleTapKey: DoubleTapRecordingKey?,
+        doubleTapKey: SuggestionShortcutBindingSettings?,
         conflictOwner: (CGKeyCode, ShortcutModifierMask) -> String?
     ) -> Effect? {
         // Plain Escape stays the universal "get me out" affordance. With any modifier held, Escape

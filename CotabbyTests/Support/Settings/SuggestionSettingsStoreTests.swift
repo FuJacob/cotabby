@@ -188,8 +188,8 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
         // Absence means a pre-modifier-support install: the bare-key binding must keep working.
-        XCTAssertTrue(data.acceptanceKeyModifiers.isEmpty)
-        XCTAssertEqual(data.acceptanceKeyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
+        XCTAssertTrue(data.shortcuts.acceptance.modifiers.isEmpty)
+        XCTAssertEqual(data.shortcuts.acceptance.keyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
     }
 
     func test_load_globalToggleAbsentDefaultsToDisabledSentinel() async {
@@ -198,8 +198,54 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
         // The global-toggle hotkey is opt-in; an absent entry must NOT bind a real key.
-        XCTAssertEqual(data.globalToggleKeyCode, SuggestionSettingsStore.disabledKeyCode)
-        XCTAssertEqual(data.globalToggleKeyLabel, SuggestionSettingsStore.disabledKeyLabel)
+        XCTAssertEqual(data.shortcuts.globalToggle, .unbound)
+    }
+
+    func test_load_absentFullAcceptanceKeysDecodeAsTheFactoryKey() async {
+        let defaults = IsolatedUserDefaults.make()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.shortcuts.fullAcceptance, .key(.defaultAcceptEntireSuggestion))
+    }
+
+    /// The slot is one enum in memory but the same four keys earlier builds wrote. Load must decode
+    /// every combination they could write, and its write-back must leave those keys as it found them.
+    func test_load_decodesEachPersistedFullAcceptanceSlotAndWritesItBackUnchanged() async {
+        struct PersistedSlot {
+            let keyCode: Int
+            let modifiers: Int
+            let label: String
+            let doubleTap: Bool
+            let expected: FullAcceptanceShortcut
+        }
+        let slots = [
+            PersistedSlot(
+                keyCode: 48,
+                modifiers: Int(ShortcutModifierMask.option.rawValue),
+                label: "⌥ Tab",
+                doubleTap: false,
+                expected: .key(SuggestionShortcutBindingSettings(keyCode: 48, modifiers: [.option], label: "⌥ Tab"))
+            ),
+            PersistedSlot(keyCode: 65_535, modifiers: 0, label: "None", doubleTap: true, expected: .doubleTapOfAcceptWord),
+            PersistedSlot(keyCode: 65_535, modifiers: 0, label: "None", doubleTap: false, expected: .unbound)
+        ]
+
+        for slot in slots {
+            let defaults = IsolatedUserDefaults.make()
+            defaults.set(slot.keyCode, forKey: "cotabbyFullAcceptanceKeyCode")
+            defaults.set(slot.modifiers, forKey: "cotabbyFullAcceptanceKeyModifiers")
+            defaults.set(slot.label, forKey: "cotabbyFullAcceptanceKeyLabel")
+            defaults.set(slot.doubleTap, forKey: "cotabbyDoubleTapAcceptsEntireSuggestion")
+
+            let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+            XCTAssertEqual(data.shortcuts.fullAcceptance, slot.expected)
+            XCTAssertEqual(defaults.object(forKey: "cotabbyFullAcceptanceKeyCode") as? Int, slot.keyCode)
+            XCTAssertEqual(defaults.object(forKey: "cotabbyFullAcceptanceKeyModifiers") as? Int, slot.modifiers)
+            XCTAssertEqual(defaults.string(forKey: "cotabbyFullAcceptanceKeyLabel"), slot.label)
+            XCTAssertEqual(defaults.object(forKey: "cotabbyDoubleTapAcceptsEntireSuggestion") as? Bool, slot.doubleTap)
+        }
     }
 
     // MARK: - Custom rules: absent seeds defaults, present is honored
@@ -406,13 +452,11 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
-        store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
+        store.saveAcceptanceKey(SuggestionShortcutBindingSettings(keyCode: 36, modifiers: [], label: "Return"))
 
         let data = store.load(configuration: .standard)
 
-        XCTAssertEqual(data.acceptanceKeyCode, 36)
-        XCTAssertEqual(data.acceptanceKeyLabel, "Return")
-        XCTAssertTrue(data.acceptanceKeyModifiers.isEmpty)
+        XCTAssertEqual(data.shortcuts.acceptance, SuggestionShortcutBindingSettings(keyCode: 36, modifiers: [], label: "Return"))
     }
 
     func test_load_clampsOutOfRangeGhostTextOpacity() async {
@@ -823,9 +867,9 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePredictAheadWhileTyping(false)
         store.saveFadeInSuggestions(false)
         store.saveFadeInDurationSeconds(0.25)
-        store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
-        store.saveFullAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
-        store.saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
+        store.saveAcceptanceKey(SuggestionShortcutBindingSettings(keyCode: 36, modifiers: [], label: "Return"))
+        store.saveFullAcceptance(.doubleTapOfAcceptWord)
+        store.saveGlobalToggleKey(SuggestionShortcutBindingSettings(keyCode: 47, modifiers: [], label: "."))
         store.saveAcceptanceGranularity(.phrase)
         store.savePowerBasedModelSwitchingEnabled(true)
         store.saveBatteryEngine(.appleIntelligence)

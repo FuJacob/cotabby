@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 /// File overview:
-/// "About" detail pane of the redesigned Settings window. Consolidates what used to live across
-/// three legacy sections (header, support CTA, uninstall) plus a new Acknowledgements modal that
-/// lists the third-party packages Cotabby ships with.
+/// "About" detail pane: the version header with the update check, the support call to action,
+/// project links, uninstall instructions, and an Acknowledgements sheet listing the third-party
+/// packages Cotabby ships with.
 struct AboutPaneView: View {
     let appUpdateManager: AppUpdateManager
 

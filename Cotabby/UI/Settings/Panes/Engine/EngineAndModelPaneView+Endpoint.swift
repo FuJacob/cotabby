@@ -95,10 +95,14 @@ extension EngineAndModelPaneView {
         Section("Model") {
             LabeledContent {
                 HStack(spacing: 6) {
-                    TextField("", text: endpointModelBinding, prompt: Text("Enter model identifier"))
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                        .frame(minWidth: 220, idealWidth: 280, maxWidth: 320)
+                    TextField(
+                        "",
+                        text: suggestionSettings.binding(\.openAICompatibleModelName) { $0.setOpenAICompatibleModelName($1) },
+                        prompt: Text("Enter model identifier")
+                    )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 220, idealWidth: 280, maxWidth: 320)
 
                     Menu {
                         ForEach(openAICompatibleConnectionModel.models) { model in
@@ -126,7 +130,7 @@ extension EngineAndModelPaneView {
             }
             .settingsItem(.endpointModel)
 
-            Picker(selection: endpointAPIModeBinding) {
+            Picker(selection: suggestionSettings.binding(\.openAICompatibleAPIMode) { $0.setOpenAICompatibleAPIMode($1) }) {
                 Text("Chat Completions").tag(OpenAICompatibleAPIMode.chatCompletions)
                 Text("Text Completions").tag(OpenAICompatibleAPIMode.completions)
             } label: {

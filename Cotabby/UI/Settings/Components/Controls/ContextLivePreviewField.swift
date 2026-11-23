@@ -13,11 +13,10 @@ import SwiftUI
 /// same one every other app gets.
 ///
 /// Because the real overlay renders the gray suggestion at the caret and the real inserter commits it
-/// on the accept key, this view renders nothing itself. That is the whole point of the redesign: the
-/// previous in-app editor mirrored a SwiftUI binding into an `NSTextView` and reconciled a ghost run
-/// inside the editable storage, and that reconciliation raced with live keystrokes and corrupted typed
-/// text. Here the `NSTextView` owns its string outright and nothing reaches into it, so typing is fully
-/// native.
+/// on the accept key, this view renders nothing itself. That is deliberate: an editor that mirrors a
+/// SwiftUI binding into an `NSTextView` and reconciles a ghost run inside the editable storage races
+/// with live keystrokes and corrupts typed text. Here the `NSTextView` owns its string outright and
+/// nothing reaches into it, so typing is fully native.
 enum ContextLivePreview {
     /// AX identifier on the preview field. `FocusTracker` keys on this exact value to allow
     /// self-capture for this element and nothing else in Cotabby's own windows. Wired into the focus

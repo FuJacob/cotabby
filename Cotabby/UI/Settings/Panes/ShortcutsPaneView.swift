@@ -32,17 +32,9 @@ struct ShortcutsPaneView: View {
                                 label: label
                             )
                         },
-                        onReset: {
-                            suggestionSettings.setAcceptanceKey(
-                                keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
-                                modifiers: [],
-                                label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
-                            )
-                        },
+                        onReset: { suggestionSettings.resetAcceptanceKey() },
                         resetLabel: "Reset",
-                        shouldShowReset: suggestionSettings.acceptanceKeyCode
-                            != SuggestionSettingsModel.defaultAcceptanceKeyCode
-                            || !suggestionSettings.acceptanceKeyModifiers.isEmpty,
+                        shouldShowReset: !suggestionSettings.isAcceptanceShortcutDefault,
                         onClear: { suggestionSettings.clearAcceptanceKey() },
                         clearLabel: "Clear",
                         clearHelp: "Unbind this shortcut. No key will accept word-by-word.",
@@ -77,13 +69,7 @@ struct ShortcutsPaneView: View {
                                 label: label
                             )
                         },
-                        onReset: {
-                            suggestionSettings.setFullAcceptanceKey(
-                                keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
-                                modifiers: [],
-                                label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
-                            )
-                        },
+                        onReset: { suggestionSettings.resetFullAcceptanceKey() },
                         resetLabel: "Reset",
                         shouldShowReset: !suggestionSettings.isFullAcceptanceShortcutDefault,
                         onClear: { suggestionSettings.clearFullAcceptanceKey() },
@@ -96,7 +82,7 @@ struct ShortcutsPaneView: View {
                                 excluding: .acceptEntireSuggestion
                             )
                         },
-                        doubleTapKey: acceptWordDoubleTapKey,
+                        doubleTapKey: suggestionSettings.doubleTapRecordingKey,
                         onDoubleTapRecorded: { suggestionSettings.setDoubleTapFullAcceptance() }
                     )
                 } label: {
@@ -192,19 +178,6 @@ struct ShortcutsPaneView: View {
         )
     }
 
-    /// The Accept Word key, offered to the recorder as a double press. Nil while Accept Word is
-    /// unbound, because there is then no key to press twice.
-    private var acceptWordDoubleTapKey: DoubleTapRecordingKey? {
-        guard suggestionSettings.acceptanceBinding.isBound else {
-            return nil
-        }
-        return DoubleTapRecordingKey(
-            keyCode: suggestionSettings.acceptanceKeyCode,
-            modifiers: suggestionSettings.acceptanceKeyModifiers,
-            label: suggestionSettings.acceptanceKeyLabel
-        )
-    }
-
     private var fullAcceptanceDescription: String {
         let wordKey = suggestionSettings.acceptanceKeyLabel
         if suggestionSettings.isDoubleTapFullAcceptanceActive {
@@ -213,7 +186,7 @@ struct ShortcutsPaneView: View {
             return "Press \(wordKey) twice quickly to insert the whole suggestion. "
                 + "A single press still inserts the next \(singlePress)."
         }
-        if acceptWordDoubleTapKey != nil {
+        if suggestionSettings.doubleTapRecordingKey != nil {
             return "Insert the whole remaining suggestion at once. For a double tap, click Change and press \(wordKey) twice."
         }
         return "Insert the whole remaining suggestion in one keystroke."
