@@ -1,0 +1,25 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_d1f69a71e15bd8 429,569,889,1453,1554,2720,3427,4289,4654,4984
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_26a5fc7c05e06a 342-345,352-354,366-367,369-370,372,399-401,404,430-432,458,466,476,484,486
+Cotabby/Support/Suggestion/Request/HostPublishPoll.swift
+  s_b9af9eb54478c8::t_1a56154abe1ecd 1-71
+CotabbyTests/Support/Suggestion/Request/HostPublishPollTests.swift
+  s_b9af9eb54478c8::t_f14445ef4d680a 1-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8deab6d4c7e2e44b3a473ddbfd6397ec111ef6e",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
