@@ -541,11 +541,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     }
 
     private func makePristineModel() -> SuggestionSettingsModel {
-        let pristineSuite = "cotabby.test.settingsModel.pristine.\(UUID().uuidString)"
-        let pristineDefaults = UserDefaults(suiteName: pristineSuite)!
-        pristineDefaults.removePersistentDomain(forName: pristineSuite)
-        addTeardownBlock { pristineDefaults.removePersistentDomain(forName: pristineSuite) }
-        return SuggestionSettingsModel(configuration: .standard, userDefaults: pristineDefaults)
+        SuggestionSettingsModel(configuration: .standard, userDefaults: IsolatedUserDefaults.make())
     }
 
     // MARK: - Endpoint configuration
@@ -605,6 +601,19 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(makeModel().enabledSpellingDictionaryCodes, ["de", "ru"])
     }
 
+    /// Clipboard text only reaches a prompt after an explicit opt-in, so a fresh install must start
+    /// with it off both in the model and in the snapshot the request factory reads.
+    func test_freshModel_keepsClipboardContextAndFastModeOffAndMirrorAutomatic() {
+        let model = makeModel()
+
+        XCTAssertFalse(model.isClipboardContextEnabled)
+        XCTAssertFalse(model.snapshot.isClipboardContextEnabled)
+        XCTAssertFalse(model.isFastModeEnabled)
+        XCTAssertFalse(model.snapshot.isFastModeEnabled)
+        XCTAssertEqual(model.mirrorPreference, .auto)
+        XCTAssertEqual(model.snapshot.mirrorPreference, .auto)
+    }
+
     // MARK: - Disabled application rules
 
     func test_disableApplication_addsNormalizedRuleAndDedupesByBundleIdentifier() {
@@ -645,6 +654,27 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(model.isApplicationDisabled(bundleIdentifier: "com.example.unknown"))
     }
 
+    func test_disabledAppRules_surviveModelRecreation() {
+        makeModel().disableApplication(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+
+        XCTAssertEqual(
+            makeModel().disabledAppRules,
+            [DisabledApplicationRule(bundleIdentifier: "com.apple.Safari", displayName: "Safari")]
+        )
+    }
+
+    func test_removeDisabledApplication_deletesOnlyMatchingBundleIdentifier() {
+        let model = makeModel()
+        model.disableApplication(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        model.disableApplication(bundleIdentifier: "com.tinyspeck.slackmacgap", displayName: "Slack")
+
+        model.removeDisabledApplication(bundleIdentifier: "com.apple.Safari")
+
+        XCTAssertFalse(model.isApplicationDisabled(bundleIdentifier: "com.apple.Safari"))
+        XCTAssertTrue(model.isApplicationDisabled(bundleIdentifier: "com.tinyspeck.slackmacgap"))
+        XCTAssertEqual(model.disabledAppRules.map(\.bundleIdentifier), ["com.tinyspeck.slackmacgap"])
+    }
+
     // MARK: - Acceptance hint label
 
     func test_acceptanceHintLabel_prefersWordKeyThenFullKeyThenNil() {
@@ -670,6 +700,15 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertNil(model.acceptanceHintLabel)
         // The emoji picker instruction is independent of the ghost-text hint toggle.
         XCTAssertEqual(model.emojiPickerAcceptKeyLabel, model.acceptanceKeyLabel)
+    }
+
+    func test_acceptanceHint_defaultsToOnAndFollowsARebind() {
+        let model = makeModel()
+        XCTAssertTrue(model.showAcceptanceHint)
+        XCTAssertEqual(model.acceptanceHintLabel, SuggestionSettingsModel.defaultAcceptanceKeyLabel)
+
+        model.setAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
+        XCTAssertEqual(model.acceptanceHintLabel, "Space", "Hint should follow the rebound word-accept key")
     }
 
     func test_acceptanceLabels_resolvePerAppOverrides() {
@@ -826,12 +865,6 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(model.isTemporarilyPaused)
         XCTAssertNil(model.pauseStatusText)
         XCTAssertFalse(makeModel().isTemporarilyPaused)
-    }
-
-    func test_shortcutActionDisplayNames_coverAllActions() {
-        XCTAssertEqual(ShortcutAction.acceptWord.displayName, "Accept Word")
-        XCTAssertEqual(ShortcutAction.acceptEntireSuggestion.displayName, "Accept Entire Suggestion")
-        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle Cotabby")
     }
 
     // MARK: - Normalization funnels

@@ -2,32 +2,36 @@ import Foundation
 import XCTest
 @testable import Cotabby
 
-/// Covers both halves of `DeviceInfo`: the host snapshot (sanity-bounded, since values come from
-/// the real machine) and the pure query-item serialization that feedback links rely on.
+/// Covers `DeviceInfo`: the host snapshot (sanity-bounded, since values come from the real
+/// machine), the pure version and memory formatting, and the query-item serialization that
+/// feedback links rely on.
 final class DeviceInfoTests: XCTestCase {
     // MARK: - Host snapshot
 
-    func test_snapshot_reportsShortMacOSVersionString() {
+    func test_snapshot_reportsHostVersionAndMemory() throws {
         let snapshot = DeviceInfo.snapshot()
 
-        // Same composition rule as production: the point is locking the short "14.6" format
-        // (no "Version" prefix, no build number, patch omitted when zero).
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        let expected: String
-        if version.patchVersion == 0 {
-            expected = "\(version.majorVersion).\(version.minorVersion)"
-        } else {
-            expected = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
-        }
-        XCTAssertEqual(snapshot.macosVersion, expected)
+        XCTAssertFalse(try XCTUnwrap(snapshot.macosVersion).isEmpty)
+        XCTAssertGreaterThan(try XCTUnwrap(snapshot.memoryGB), 0)
     }
 
-    func test_snapshot_reportsWholeGigabyteMemory() {
-        let snapshot = DeviceInfo.snapshot()
+    func test_shortVersionString_dropsOnlyAZeroPatch() {
+        func version(_ major: Int, _ minor: Int, _ patch: Int) -> OperatingSystemVersion {
+            OperatingSystemVersion(majorVersion: major, minorVersion: minor, patchVersion: patch)
+        }
 
-        let expected = Int((Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0).rounded())
-        XCTAssertEqual(snapshot.memoryGB, expected)
-        XCTAssertGreaterThan(snapshot.memoryGB ?? 0, 0)
+        XCTAssertEqual(DeviceInfo.shortVersionString(version(14, 6, 0)), "14.6")
+        XCTAssertEqual(DeviceInfo.shortVersionString(version(14, 6, 1)), "14.6.1")
+        XCTAssertEqual(DeviceInfo.shortVersionString(version(15, 0, 0)), "15.0")
+    }
+
+    func test_wholeGigabytes_roundsToNearestAndTreatsZeroAsUnreported() {
+        let gibibyte: UInt64 = 1_073_741_824
+
+        XCTAssertEqual(DeviceInfo.wholeGigabytes(fromBytes: 16 * gibibyte), 16)
+        XCTAssertEqual(DeviceInfo.wholeGigabytes(fromBytes: 16 * gibibyte + gibibyte / 4), 16)
+        XCTAssertEqual(DeviceInfo.wholeGigabytes(fromBytes: 17 * gibibyte - gibibyte / 4), 17)
+        XCTAssertNil(DeviceInfo.wholeGigabytes(fromBytes: 0))
     }
 
     func test_snapshot_reportsTrimmedHardwareIdentifiers() throws {

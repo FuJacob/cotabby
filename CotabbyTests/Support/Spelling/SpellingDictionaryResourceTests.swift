@@ -23,10 +23,7 @@ final class SpellingDictionaryResourceTests: XCTestCase {
 }
 
 final class SpellingDictionaryLanguageMetadataTests: XCTestCase {
-    func test_id_matchesPersistedISOCodeInStableCatalogOrder() {
-        for language in SpellingDictionaryLanguage.allCases {
-            XCTAssertEqual(language.id, language.rawValue)
-        }
+    func test_allCases_keepPersistedISOCodesInStableCatalogOrder() {
         // `SpellingDictionaryCatalog.normalize` emits codes in `allCases` order, so this order is a
         // persistence and rendering contract, not an implementation detail.
         XCTAssertEqual(

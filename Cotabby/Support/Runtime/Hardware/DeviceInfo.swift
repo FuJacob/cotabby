@@ -44,9 +44,13 @@ enum DeviceInfo {
     }
 
     private static func macosVersionString() -> String? {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        // We want a short, user-friendly "14.6" rather than `operatingSystemVersionString` which
-        // includes the build number and a "Version " prefix.
+        shortVersionString(ProcessInfo.processInfo.operatingSystemVersion)
+    }
+
+    /// A short, user-friendly "14.6" rather than `operatingSystemVersionString`, which includes the
+    /// build number and a "Version " prefix. A zero patch is dropped, matching how macOS names
+    /// its own releases.
+    nonisolated static func shortVersionString(_ version: OperatingSystemVersion) -> String {
         if version.patchVersion == 0 {
             return "\(version.majorVersion).\(version.minorVersion)"
         }
@@ -69,9 +73,13 @@ enum DeviceInfo {
         return value.isEmpty ? nil : value
     }
 
-    /// Physical memory rounded to the nearest whole GB. Returns nil only if reporting fails.
     private static func physicalMemoryGB() -> Int? {
-        let bytes = ProcessInfo.processInfo.physicalMemory
+        wholeGigabytes(fromBytes: ProcessInfo.processInfo.physicalMemory)
+    }
+
+    /// Memory rounded to the nearest whole GB. Returns nil for a zero reading, which means the
+    /// host failed to report rather than that the Mac has no memory.
+    nonisolated static func wholeGigabytes(fromBytes bytes: UInt64) -> Int? {
         guard bytes > 0 else { return nil }
         let gigabytes = Double(bytes) / 1_073_741_824.0
         return Int(gigabytes.rounded())

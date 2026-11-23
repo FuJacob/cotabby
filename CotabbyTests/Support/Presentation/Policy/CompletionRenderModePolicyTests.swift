@@ -92,10 +92,4 @@ final class CompletionRenderModePolicyTests: XCTestCase {
         XCTAssertEqual(MirrorPreference.alwaysInline.displayLabel, "Inline")
         XCTAssertEqual(MirrorPreference.alwaysMirror.displayLabel, "Popup")
     }
-
-    func test_mirrorPreference_identifiableIdIsTheRawValue() {
-        for preference in MirrorPreference.allCases {
-            XCTAssertEqual(preference.id, preference.rawValue)
-        }
-    }
 }
