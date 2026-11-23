@@ -24,6 +24,10 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only token: this job only checks out, builds and runs tests.
+permissions:
+  contents: read
+
 jobs:
   tests:
     name: xcodebuild test (macOS)
@@ -36,13 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Same Xcode pin policy as the Build workflow. Drift between these two
-      # would let a test-only cert mismatch turn into spooky green-red
-      # flapping; keep them in lock-step.
+      # Same Xcode pin policy as the Build workflow: an explicit version, bumped
+      # on purpose. 26.3 is the newest Xcode the macos-15 image ships (and what
+      # latest-stable resolved to there); Build and Release use 26.6 on
+      # macos-26. Move this up when the image gains a newer one.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.3'
 
       - name: Prepare matching inference dependency
         run: scripts/prepare_cotabby_workspace.sh
@@ -66,6 +71,7 @@ jobs:
         run: |
           xcodebuild test \
             -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -onlyUsePackageVersionsFromResolvedFile \
             -scheme Cotabby \
             -destination 'platform=macOS' \
             -derivedDataPath build/DerivedData \

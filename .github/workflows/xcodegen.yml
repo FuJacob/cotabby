@@ -22,6 +22,10 @@ concurrency:
   group: xcodegen-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only token: the job only reads the checkout.
+permissions:
+  contents: read
+
 jobs:
   drift:
     name: project.yml matches Cotabby.xcodeproj

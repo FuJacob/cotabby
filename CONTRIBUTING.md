@@ -175,8 +175,9 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-CI retains upstream’s macOS 15 test runner and latest-stable Xcode selection. Real Apple
-Intelligence drift evaluation remains opt-in and excluded from CI. Run Python tooling tests with
+CI runs tests on macOS 15 with Xcode 26.3, and builds and releases on macOS 26 with Xcode 26.6;
+both versions are pinned in the workflows and bumped on purpose. Real Apple Intelligence drift
+evaluation remains opt-in and excluded from CI. Run Python tooling tests with
 `python3 -m unittest discover -s scripts/tests` and lint with `swiftlint --strict`. Clean
 `build/DerivedData` after validation; do not run concurrent builds in the same checkout.
 

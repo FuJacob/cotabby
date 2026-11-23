@@ -24,10 +24,18 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only token: this job only checks out and compiles. Stating it here keeps
+# it read-only even if the repository's default token permissions change.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: xcodebuild (macOS)
-    runs-on: macos-latest
+    # Same image as the Release workflow. macos-latest moves to a new macOS
+    # (and drops this Xcode) without notice; the image and Xcode move together
+    # and on purpose.
+    runs-on: macos-26
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,11 +43,12 @@ jobs:
       # Pin Xcode explicitly. GitHub-hosted runner images drift their default
       # Xcode without notice, which surfaces as false-red or false-green
       # builds. Bump `xcode-version` deliberately when the project is known
-      # to support a newer one.
+      # to support a newer one, together with release.yml. '26.6' matches any
+      # 26.6.x the image ships.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.6'
 
       - name: Prepare matching inference dependency
         run: scripts/prepare_cotabby_workspace.sh
@@ -49,14 +58,17 @@ jobs:
           xcodebuild -version
           swift --version
 
-      # Package.resolved is gitignored, so SwiftPM must materialize it before
-      # the Sparkle pin check can compare against it.
+      # prepare_cotabby_workspace.sh copies Config/Package.resolved into the
+      # workspace; resolving here materializes the packages before the Sparkle
+      # pin check. -onlyUsePackageVersionsFromResolvedFile fails the job instead
+      # of quietly re-resolving to versions Config/Package.resolved doesn't pin.
       - name: Resolve Swift package dependencies
         run: |
           xcodebuild \
             -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
             -scheme Cotabby \
             -derivedDataPath build/DerivedData \
+            -onlyUsePackageVersionsFromResolvedFile \
             -resolvePackageDependencies
 
       - name: Verify Sparkle version pin
@@ -105,6 +117,7 @@ jobs:
         run: |
           xcodebuild \
             -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -onlyUsePackageVersionsFromResolvedFile \
             -scheme Cotabby \
             -configuration Debug \
             -destination 'platform=macOS' \

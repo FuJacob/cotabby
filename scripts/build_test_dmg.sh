@@ -11,7 +11,9 @@ APP_PATH="$DERIVED_DATA/Build/Products/Debug/Cotabby.app"
 OUTPUT_PATH="/tmp/Cotabby-test.dmg"
 BACKGROUND="$REPO_ROOT/assets/release/dmg_background.png"
 BACKGROUND_2X="$REPO_ROOT/assets/release/dmg_background@2x.png"
-VENV_DIR="/tmp/Cotabby-dmg-venv"
+# Same reason as kickstart.sh: a checkout-scoped venv, never a fixed /tmp path another account
+# could pre-create.
+VENV_DIR="$REPO_ROOT/build/dmg-venv"
 VENV_PY="$VENV_DIR/bin/python3"
 
 # Ensure dmgbuild is available in an isolated venv.
