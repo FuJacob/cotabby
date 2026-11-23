@@ -395,9 +395,12 @@ Local excerpts use confidence/line hygiene without the legacy English token whit
 recognized names, ordinary words, dates and amounts instead of silently stripping them.
 
 Secure fields cannot schedule generation, show a suggestion, accept text, or open an inline command,
-so their context cannot flow into an engine request. VisualContextCoordinator also rejects secure
-fields before starting screenshot/OCR work. FocusSnapshotResolver still creates a bounded AX context
-before marking a secure field blocked; that lower-level acquisition remains separate privacy debt.
+so their context cannot flow into an engine request. Screenshot/OCR never starts in a secure field,
+a sign-in or verification field, a Mail header row, or a search box, and entering one drops the
+previous field's excerpt (`SuggestionAvailabilityEvaluator.excludesFieldFromVisualContext`);
+VisualContextCoordinator also rejects secure fields itself. FocusSnapshotResolver still creates a
+bounded AX context before marking a secure field blocked; that lower-level acquisition remains
+separate privacy debt.
 
 Endpoint credentials are stored in Keychain. A remote endpoint receives its bounded, legacy-scope
 request; its privacy scope must remain visible in settings and documentation.

@@ -59,8 +59,10 @@ enum SuggestionAvailabilityEvaluator {
     /// Whether the environment allows visual context capture to start.
     ///
     /// Delegates to `disabledReason` with capability checking disabled so transient field
-    /// states (text selected, secure field) are intentionally ignored — OCR should start
-    /// early in those cases and be ready by the time the user begins typing.
+    /// states (text selected, caret bounds momentarily missing) are intentionally ignored — OCR
+    /// should start early in those cases and be ready by the time the user begins typing. Blocks
+    /// that describe the field itself are not transient and do stop capture
+    /// (`excludesFieldFromVisualContext`).
     ///
     /// Two conditions gate capture here and deliberately NOT in `disabledReason`, because both
     /// suppress only the screenshot/OCR pipeline while predictions keep running (they just go out
@@ -89,6 +91,10 @@ enum SuggestionAvailabilityEvaluator {
             return false
         }
 
+        guard !excludesFieldFromVisualContext(focusSnapshot) else {
+            return false
+        }
+
         return disabledReason(
             globallyEnabled: globallyEnabled,
             temporarilyPaused: temporarilyPaused,
@@ -101,6 +107,31 @@ enum SuggestionAvailabilityEvaluator {
             focusSnapshot: focusSnapshot,
             checkCapability: false
         ) == nil
+    }
+
+    /// Whether the focused field must not be screenshotted at all, even where capture is otherwise
+    /// allowed: a secure field, a sign-in or verification field (email, one-time code, card number),
+    /// one of Mail's address or subject rows, or a search box.
+    ///
+    /// Suggestions never run in these fields, and an excerpt only serves the field it was captured
+    /// for, so a capture there feeds no prompt. For the first two it would still copy what the user
+    /// is typing (a card number, a code, an address) into OCR text held in memory; for the others it
+    /// only costs a screenshot and OCR every few seconds. "Text is selected" and missing AX data are
+    /// not listed: they pass within the same field, whose context should stay warm.
+    static func excludesFieldFromVisualContext(_ focusSnapshot: FocusSnapshot) -> Bool {
+        if focusSnapshot.context?.isSecure == true {
+            return true
+        }
+        guard case let .blocked(reason) = focusSnapshot.capability else {
+            return false
+        }
+        // The detectors' own reason constants, which the resolver publishes verbatim: these blocks
+        // describe what the field is, so they hold for as long as focus stays there.
+        return [
+            CredentialFieldDetector.blockedReason,
+            MailHeaderFieldDetector.blockedReason,
+            SearchFieldDetector.blockedReason
+        ].contains(reason)
     }
 
     /// Whether a prediction teardown should leave the focused field's visual-context session alive.

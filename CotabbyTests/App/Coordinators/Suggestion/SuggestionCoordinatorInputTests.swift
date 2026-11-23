@@ -261,6 +261,29 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertTrue(rig.visualContext.startedSessions.isEmpty, "Fast mode skips screenshot/OCR work entirely")
     }
 
+    /// A sign-in field (or Mail header, search box) is never screenshotted: no capture starts, and
+    /// the previous field's excerpt and any capture in flight are dropped on the way in.
+    func test_focusChangeToCredentialFieldEndsVisualContextWithoutCapturing() {
+        let rig = retained(makeCoordinatorRig(capability: .blocked(CredentialFieldDetector.blockedReason)))
+
+        rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
+
+        XCTAssertEqual(rig.coordinator.state, .disabled(CredentialFieldDetector.blockedReason))
+        XCTAssertTrue(rig.visualContext.startedSessions.isEmpty, "No screenshot of a sign-in field")
+        XCTAssertEqual(rig.visualContext.cancelCount, 1, "The old field's excerpt is dropped on entry")
+        XCTAssertNil(rig.coordinator.currentVisualRefreshContext(), "The refresh timer may not capture it either")
+    }
+
+    /// The field's own passing state ("text is selected") still keeps its screen context warm.
+    func test_focusChangeToSelectedTextStillStartsVisualContextCapture() {
+        let rig = retained(makeCoordinatorRig(capability: .blocked("Text is currently selected.")))
+
+        rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
+
+        XCTAssertEqual(rig.visualContext.startedSessions.count, 1)
+        XCTAssertEqual(rig.visualContext.cancelCount, 0)
+    }
+
     func test_focusChangeToDisabledAppPreservesVisualContextSession() {
         let rig = retained(makeCoordinatorRig(
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
