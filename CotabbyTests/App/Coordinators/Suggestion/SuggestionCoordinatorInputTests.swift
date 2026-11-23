@@ -103,7 +103,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
 
         // The reschedule waits for the host to publish the keystroke; simulate the publish by
         // changing the live preceding text so the poll's change gate fires.
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hellox"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hellox"))
         await waitUntil("Divergent typing never rescheduled generation") {
             rig.coordinator.state == .debouncing || rig.engine.requests.count == 1
         }
@@ -210,7 +210,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         XCTAssertFalse(consumed)
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
 
-        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Helloa"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Helloa"))
         await waitUntil("Keystroke never rescheduled generation") {
             rig.coordinator.state == .debouncing || !rig.engine.requests.isEmpty
         }
@@ -286,12 +286,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             processIdentifier: 456,
             precedingText: "Hi"
         )
-        let otherFocus = FocusSnapshot(
-            applicationName: otherApp.applicationName,
-            bundleIdentifier: otherApp.bundleIdentifier,
-            capability: .supported,
-            context: otherApp
-        )
+        let otherFocus = CotabbyTestFixtures.focusSnapshot(for: otherApp)
         rig.coordinator.handleSupportedSnapshot(otherFocus)
 
         XCTAssertEqual(rig.coordinator.state, .idle)
@@ -313,12 +308,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
         rig.clipboardFilter.filtered = "Quarterly numbers attached"
 
         let otherApp = CotabbyTestFixtures.focusedInputSnapshot(processIdentifier: 456, precedingText: "Hi")
-        rig.coordinator.handleSupportedSnapshot(FocusSnapshot(
-            applicationName: otherApp.applicationName,
-            bundleIdentifier: otherApp.bundleIdentifier,
-            capability: .supported,
-            context: otherApp
-        ))
+        rig.coordinator.handleSupportedSnapshot(CotabbyTestFixtures.focusSnapshot(for: otherApp))
 
         await waitUntil("Engine was never prewarmed for the new field") {
             !rig.engine.prewarmedRequests.isEmpty
@@ -500,12 +490,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             precedingText: precedingText,
             hostMarkedTextRange: marked
         )
-        return FocusSnapshot(
-            applicationName: context.applicationName,
-            bundleIdentifier: context.bundleIdentifier,
-            capability: .supported,
-            context: context
-        )
+        return CotabbyTestFixtures.focusSnapshot(for: context)
     }
 
     func test_hostMarkedText_hidesTheGhostButKeepsTheSessionThenRestoresIt() {

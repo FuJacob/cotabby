@@ -17,7 +17,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // startup, which can crash the native runtime. Yielding cooperatively avoids that.
 
     func test_predictAheadPreservesDefaultUserChoiceAndReset() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
         XCTAssertTrue(store.load(configuration: .standard).predictAheadWhileTyping)
         XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
@@ -33,7 +33,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     /// Bold and italic suggestions are opt-in: a fresh install draws plain ghost text, each choice
     /// persists on its own key, and a reset returns both to plain.
     func test_ghostTextStyle_defaultsPlainPersistsAndResets() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
         let fresh = store.load(configuration: .standard)
         XCTAssertFalse(fresh.isGhostTextBold)
@@ -53,7 +53,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_tabLeavesSingleLineFields_defaultsOffPersistsChoiceAndResets() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
         XCTAssertFalse(store.load(configuration: .standard).tabLeavesSingleLineFields)
 
@@ -68,7 +68,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Suggestion timing
 
     func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         XCTAssertTrue(store.load(configuration: .standard).suggestWithinWords)
@@ -83,7 +83,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_showFollowingWords_preservesDefaultUserChoiceAndReset() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         XCTAssertTrue(store.load(configuration: .standard).showFollowingWords)
@@ -100,7 +100,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Word-count preset migration (#475)
 
     func test_load_migratesRetiredShortPresetToFourToSeven() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set("3-7", forKey: "cotabbySelectedWordCountPreset")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -111,7 +111,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Indicator mode vs legacy bool
 
     func test_load_prefersIndicatorModeOverLegacyBool() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // Conflicting values: the newer mode key says hidden, the legacy bool says shown. The mode
         // key must win so users who toggled the indicator off in a newer build keep it off.
         defaults.set(ActivationIndicatorMode.hidden.rawValue, forKey: "cotabbySelectedIndicatorMode")
@@ -123,7 +123,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_fallsBackToLegacyBoolWhenModeAbsent() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(false, forKey: "cotabbyShowCaretIndicator")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -132,7 +132,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_writesBothIndicatorKeysBack() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         _ = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -145,7 +145,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Debounce / focus-poll capping
 
     func test_load_capsPersistedDebounceAtShippedDefault() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(999, forKey: "cotabbyDebounceMilliseconds")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -156,7 +156,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_capsPersistedFocusPollAtShippedDefault() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(999, forKey: "cotabbyFocusPollIntervalMilliseconds")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -170,7 +170,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     /// Below the shipped default, persisted timings are honored down to a 10 ms floor so a corrupt
     /// value cannot turn debounce or focus polling into a busy loop.
     func test_load_floorsPersistedDebounceAndFocusPollAtTenMilliseconds() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(1, forKey: "cotabbyDebounceMilliseconds")
         defaults.set(-5, forKey: "cotabbyFocusPollIntervalMilliseconds")
 
@@ -183,7 +183,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Keybinding defaults
 
     func test_load_acceptanceKeyModifiersAbsentDefaultsToEmpty() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -193,7 +193,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_globalToggleAbsentDefaultsToDisabledSentinel() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -205,7 +205,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Custom rules: absent seeds defaults, present is honored
 
     func test_load_customRulesAbsentSeedsBaseline() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -213,7 +213,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_customRulesPresentHonoredVerbatim() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(["Write in the user's voice"], forKey: "cotabbyCustomRules")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -224,7 +224,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Legacy custom-indicator PNG scrub
 
     func test_load_scrubsLegacyCustomIndicatorImageData() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(Data([0x1, 0x2, 0x3]), forKey: "cotabbyCustomIndicatorImageData")
 
         _ = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -235,7 +235,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Save / load round-trips
 
     func test_load_automaticTypoFixingDefaultsOff() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -243,7 +243,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_menuBarIconDefaultsVisible() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -251,7 +251,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_lowPowerModeAutoDisableDefaultsOn() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -259,7 +259,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_saveThenLoad_roundTripsScalarFields() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.saveGloballyEnabled(false)
@@ -290,7 +290,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_saveThenLoad_roundTripsIndefinitePause() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.savePauseState(.indefinitely)
@@ -299,7 +299,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_loadDropsExpiredTimedPause() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.savePauseState(.until(Date().addingTimeInterval(-1)))
@@ -309,7 +309,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_fadeInSuggestionsDefaultsOn() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -318,7 +318,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_matchesHostTextSize_defaultsOffAndRoundTrips() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         XCTAssertFalse(store.load(configuration: .standard).matchesHostTextSize, "off keeps the user's size tuning")
@@ -328,7 +328,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -350,7 +350,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_migratesShippedFastestDefaultWithoutReenablingFade() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // v0.6.1-beta wrote its 0.05s default during every load, even when the slider was untouched.
         defaults.set(0.05, forKey: "cotabbyFadeInDurationSeconds")
         defaults.set(false, forKey: "cotabbyFadeInSuggestions")
@@ -363,7 +363,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_preservesCustomizedFadeInDurationDuringDefaultMigration() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set(0.25, forKey: "cotabbyFadeInDurationSeconds")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -373,7 +373,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_preservesFastestTickChosenAfterDefaultMigration() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
         // First launch upgrades the shipped default and records the one-time revision.
         defaults.set(0.05, forKey: "cotabbyFadeInDurationSeconds")
@@ -388,7 +388,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_clampsOutOfRangeFadeInDuration() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // Above the ceiling: must clamp down so a hand-edited default can't strand the user on a fade
         // long enough to read as the suggestion lagging the caret.
         defaults.set(5.0, forKey: "cotabbyFadeInDurationSeconds")
@@ -403,7 +403,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_saveThenLoad_roundTripsAcceptanceKey() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
@@ -416,7 +416,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_clampsOutOfRangeGhostTextOpacity() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // Below the floor: must clamp up rather than render the suggestion invisible.
         defaults.set(0.01, forKey: "cotabbyGhostTextOpacity")
 
@@ -428,7 +428,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Ghost text size multiplier
 
     func test_load_defaultsGhostTextSizeMultiplierWhenUnset() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -440,7 +440,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_clampsOutOfRangeGhostTextSizeMultiplier() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // Above the ceiling: must clamp down so a hand-edited default can't render giant ghost text.
         defaults.set(5.0, forKey: "cotabbyGhostTextSizeMultiplier")
 
@@ -456,7 +456,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Spelling dictionaries
 
     func test_load_spellingDictionariesAbsentDefaultsToEnglish() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -467,7 +467,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_spellingDictionariesFiltersUnknownCodesAndStabilizesOrder() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set([" ru ", "unknown", "de", "ru"], forKey: "cotabbyEnabledSpellingDictionaryCodes")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -480,7 +480,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_spellingDictionariesPreservesExplicitEmptySelection() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set([String](), forKey: "cotabbyEnabledSpellingDictionaryCodes")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -491,7 +491,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Power-based switching profiles
 
     func test_load_powerProfileEnginesDefaultToOpenSourceWhenAbsent() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -502,7 +502,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_saveThenLoad_roundTripsPowerProfileEngines() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.saveBatteryEngine(.appleIntelligence)
@@ -521,7 +521,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_endpointDefaultsAndSettingsRoundTrip() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         let initial = store.load(configuration: .standard)
@@ -543,7 +543,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_legacyModelOnlyProfilePreservedWithOpenSourceEngine() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // A user upgrading from the model-only release has filenames but no engine keys. The model
         // selections must survive and the engine must resolve to Open Source so their setup is intact.
         defaults.set("small-model.gguf", forKey: "cotabbyBatteryModelFilename")
@@ -560,7 +560,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Custom suggestion text color
 
     func test_load_normalizesPersistedColorHexAndWritesItBack() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // Hand-written value: leading #, lowercase, stray whitespace. The store must canonicalize it
         // so the overlay and the picker agree on one representation.
         defaults.set("  #a1b2c3 ", forKey: "cotabbyCustomSuggestionTextColorHex")
@@ -572,7 +572,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_discardsMalformedColorHex() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set("ZZZZZZ", forKey: "cotabbyCustomSuggestionTextColorHex")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
@@ -583,7 +583,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_saveCustomSuggestionTextColorHex_persistsValueAndNilRemoves() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         store.saveCustomSuggestionTextColorHex("AABBCC")
@@ -645,7 +645,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
             (24, 16, 24, 24)         // inverted pair: ceiling raised to the floor
         ]
         for testCase in cases {
-            let defaults = makeIsolatedDefaults()
+            let defaults = IsolatedUserDefaults.make()
             if let floor = testCase.floor { defaults.set(floor, forKey: "cotabbyGhostFontSizeFloor") }
             if let ceiling = testCase.ceiling { defaults.set(ceiling, forKey: "cotabbyGhostFontSizeCeiling") }
 
@@ -670,7 +670,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     }
 
     func test_load_capsPersistedExtendedContext() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let maximum = SuggestionSettingsStore.maximumExtendedContextCharacters
         defaults.set(String(repeating: "x", count: maximum + 300), forKey: "cotabbyExtendedContext")
 
@@ -693,7 +693,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Disabled-app rule sanitization
 
     func test_load_dropsDisabledAppRulesWithBlankBundleIdentifiers() async throws {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // A rule without a bundle identifier can never match a focused app, so it must be dropped
         // on load instead of lingering as an unmatchable ghost row in Settings.
         let persisted = [
@@ -747,7 +747,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // MARK: - Corrupt persisted types degrade gracefully
 
     func test_load_recoversFromWrongValueTypesInDefaults() async {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         // A hand-edited or corrupted plist can hold the wrong type under our keys. Load must treat
         // each one as "present but unusable" and degrade to a safe value instead of crashing.
         // Data is used for the user name because UserDefaults converts numbers to strings.
@@ -768,10 +768,10 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
     func test_resetToDefaults_clearsAllKeysAndReloadsDefaults() async {
         // Baseline: defaults resolved from a clean suite.
-        let pristine = SuggestionSettingsStore(userDefaults: makeIsolatedDefaults())
+        let pristine = SuggestionSettingsStore(userDefaults: IsolatedUserDefaults.make())
             .load(configuration: .standard)
 
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let store = SuggestionSettingsStore(userDefaults: defaults)
 
         // Dirty every persisted field with a genuine non-default (correct types, through the same save
@@ -844,20 +844,5 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(afterReset, pristine)
         XCTAssertEqual(store.load(configuration: .standard), pristine, "reset must persist for the next launch")
         XCTAssertNil(defaults.object(forKey: "cotabbyResponseLanguage"), "the legacy key must be scrubbed too")
-    }
-
-    // MARK: - helpers
-
-    /// Each store test gets its own isolated UserDefaults so state cannot leak between cases.
-    /// `removePersistentDomain` resets the in-memory suite to a clean slate before use, and the
-    /// teardown block removes whatever the test persisted so suites do not accumulate on disk.
-    private func makeIsolatedDefaults() -> UserDefaults {
-        let suiteName = "cotabby.test.settingsStore.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-        return defaults
     }
 }

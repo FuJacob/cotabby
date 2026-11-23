@@ -8,27 +8,9 @@ import XCTest
 /// These live beside the evaluator tests because the two pieces form one contract: settings own
 /// persistence, while the evaluator consumes the snapshot produced from those settings.
 final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
-    /// Hosted macOS tests are currently crashing while deallocating short-lived
-    /// `SuggestionSettingsModel` instances. Retaining the models for the full process lifetime
-    /// quarantines that runtime issue so these tests can keep asserting the persistence contract.
-    private static var retainedModels: [SuggestionSettingsModel] = []
-
-    /// Keep the suite object and its name together so teardown clears the exact domain each test
-    /// created. This avoids reaching back through `UserDefaults.standard`, which is a broader
-    /// global API surface than these tests actually need.
-    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
-
-    override func tearDown() {
-        for suite in userDefaultsSuites {
-            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
-        }
-        userDefaultsSuites.removeAll()
-        super.tearDown()
-    }
-
     func test_disabledAppRules_surviveModelRecreation() {
         runOnMainActor {
-            let userDefaults = makeUserDefaults()
+            let userDefaults = IsolatedUserDefaults.make()
             let model = makeModel(userDefaults: userDefaults)
 
             model.disableApplication(
@@ -123,7 +105,7 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
 
     func test_clipboardContextEnabled_defaultsToFalseAndPersists() {
         runOnMainActor {
-            let userDefaults = makeUserDefaults()
+            let userDefaults = IsolatedUserDefaults.make()
             let model = makeModel(userDefaults: userDefaults)
 
             XCTAssertFalse(model.isClipboardContextEnabled)
@@ -161,7 +143,7 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
 
     func test_fastMode_defaultsToFalseAndPersists() {
         runOnMainActor {
-            let userDefaults = makeUserDefaults()
+            let userDefaults = IsolatedUserDefaults.make()
             let model = makeModel(userDefaults: userDefaults)
 
             XCTAssertFalse(model.isFastModeEnabled)
@@ -199,7 +181,7 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
 
     func test_mirrorPreference_defaultsToAutoAndPersists() {
         runOnMainActor {
-            let userDefaults = makeUserDefaults()
+            let userDefaults = IsolatedUserDefaults.make()
             let model = makeModel(userDefaults: userDefaults)
 
             XCTAssertEqual(model.mirrorPreference, .auto)
@@ -246,7 +228,7 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
 
     func test_showAcceptanceHint_persistsAcrossModelRecreation() {
         runOnMainActor {
-            let userDefaults = makeUserDefaults()
+            let userDefaults = IsolatedUserDefaults.make()
             let model = makeModel(userDefaults: userDefaults)
 
             model.setShowAcceptanceHint(false)
@@ -290,39 +272,9 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
     private func makeModel(
         userDefaults: UserDefaults? = nil
     ) -> SuggestionSettingsModel {
-        let model = SuggestionSettingsModel(
+        TestLifetime.retain(SuggestionSettingsModel(
             configuration: .standard,
-            userDefaults: userDefaults ?? makeUserDefaults()
-        )
-        Self.retainedModels.append(model)
-        return model
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "SuggestionSettingsModelDisabledAppsTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-
-        userDefaults.removePersistentDomain(forName: suiteName)
-        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
-        return userDefaults
-    }
-
-    /// `MainActor.assumeIsolated` lets the compiler treat the closure as main-actor bound once we
-    /// have synchronously hopped to the main thread. This keeps the tests deterministic without
-    /// wrapping each case in a Swift concurrency task, which is the teardown path that was
-    /// crashing during hosted test execution.
-    private func runOnMainActor<Result>(
-        _ body: @MainActor () throws -> Result
-    ) rethrows -> Result {
-        if Thread.isMainThread {
-            return try MainActor.assumeIsolated(body)
-        }
-
-        return try DispatchQueue.main.sync {
-            try MainActor.assumeIsolated(body)
-        }
+            userDefaults: userDefaults ?? IsolatedUserDefaults.make()
+        ))
     }
 }

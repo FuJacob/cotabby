@@ -109,10 +109,10 @@ final class SymSpellCorrectorTests: XCTestCase {
     }
 
     func test_coldLookupsShareOneBackgroundLoadThenServeCorrections() {
-        let calls = LockedCounter()
+        let calls = Locked(0)
         let release = DispatchSemaphore(value: 0)
         let corrector = SymSpellCorrector(preloadLanguage: nil, resourceLoader: { _ in
-            calls.increment()
+            calls.withLock { $0 += 1 }
             // Hold the load open so the second lookup definitely arrives while it is in flight.
             release.wait()
             return "bonjour 1000\nbonsoir 500"
@@ -169,24 +169,6 @@ final class SymSpellCorrectorTests: XCTestCase {
     }
 }
 
-/// Thread-safe call counter for resource loaders, which run on a background queue.
-private final class LockedCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-
-    var value: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return count
-    }
-
-    func increment() {
-        lock.lock()
-        count += 1
-        lock.unlock()
-    }
-}
-
 /// Behavioral contract tests for the `NSSpellChecker` wrapper used by the typo gate.
 ///
 /// `NSSpellChecker` verdicts depend on the machine's spelling configuration, enabled languages, and
@@ -202,14 +184,8 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
     /// relative assertions stay true on any machine.
     private let probeWords = ["hello", "helo", "nmae,", "ok nmae", "I'm", "Teh", "qqqqzzzzqq"]
 
-    /// App-hosted tests have crashed deallocating short-lived `@MainActor` objects, so checkers are
-    /// retained for the process lifetime (mirrors `SuggestionStateHelperTests`).
-    private static var retainedCheckers: [CurrentWordSpellChecker] = []
-
     private func makeChecker() -> CurrentWordSpellChecker {
-        let checker = CurrentWordSpellChecker()
-        Self.retainedCheckers.append(checker)
-        return checker
+        TestLifetime.retain(CurrentWordSpellChecker())
     }
 
     func test_isTypo_emptyWordIsNeverATypo() {

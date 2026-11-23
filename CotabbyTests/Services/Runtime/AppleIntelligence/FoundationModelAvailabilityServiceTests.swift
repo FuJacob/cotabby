@@ -9,39 +9,12 @@ import XCTest
 /// this contract can be locked deterministically.
 @MainActor
 final class FoundationModelAvailabilityServiceTests: XCTestCase {
-    /// Production @MainActor classes deallocate through the buggy back-deploy executor shim in
-    /// this app-hosted runner; quarantine instances for the process lifetime.
-    private static var retained: [AnyObject] = []
-
-    @MainActor
-    private final class FakeProvider: FoundationModelAvailabilityProviding {
-        var currentState: FoundationModelAvailabilityState
-        var refreshResult: FoundationModelAvailabilityState
-        private(set) var onChange: (@MainActor (FoundationModelAvailabilityState) -> Void)?
-
-        init(initial: FoundationModelAvailabilityState) {
-            currentState = initial
-            refreshResult = initial
-        }
-
-        func refresh() -> FoundationModelAvailabilityState {
-            refreshResult
-        }
-
-        func observe(
-            onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void
-        ) -> Task<Void, Never>? {
-            self.onChange = onChange
-            return nil
-        }
-    }
 
     private func makeService(
         initial: FoundationModelAvailabilityState
-    ) -> (service: FoundationModelAvailabilityService, provider: FakeProvider) {
-        let provider = FakeProvider(initial: initial)
-        let service = FoundationModelAvailabilityService(provider: provider)
-        Self.retained.append(service)
+    ) -> (service: FoundationModelAvailabilityService, provider: FakeFoundationModelAvailabilityProvider) {
+        let provider = FakeFoundationModelAvailabilityProvider(current: initial)
+        let service = TestLifetime.retain(FoundationModelAvailabilityService(provider: provider))
         return (service, provider)
     }
 

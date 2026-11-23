@@ -10,20 +10,15 @@ import XCTest
 /// which is exactly the layer a renamed defaults key or a dropped save call would break.
 @MainActor
 final class SuggestionSettingsModelTests: XCTestCase {
-    private var suiteName: String!
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        suiteName = "cotabby.test.settingsModel.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        suiteName = nil
         super.tearDown()
     }
 
@@ -252,11 +247,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         // A model freshly loaded on a clean suite IS the default state; compare field-for-field so a
         // dropped assignment in `resetToDefaults` (or a missed store key) fails here.
-        let pristineSuite = "cotabby.test.settingsModel.pristine.\(UUID().uuidString)"
-        let pristineDefaults = UserDefaults(suiteName: pristineSuite)!
-        pristineDefaults.removePersistentDomain(forName: pristineSuite)
-        addTeardownBlock { pristineDefaults.removePersistentDomain(forName: pristineSuite) }
-        let pristine = SuggestionSettingsModel(configuration: .standard, userDefaults: pristineDefaults)
+        let pristine = SuggestionSettingsModel(configuration: .standard, userDefaults: IsolatedUserDefaults.make())
 
         XCTAssertEqual(model.isGloballyEnabled, pristine.isGloballyEnabled)
         XCTAssertEqual(model.selectedEngine, pristine.selectedEngine)

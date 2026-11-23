@@ -267,8 +267,8 @@ final class FoundationModelPromptRendererTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// The shared fixture cannot set the bundle identifier, suffix bound, or surface facts, which
-    /// are exactly the inputs the Apple prompt branches on.
+    /// Pins the token budget and length instruction the rendered prompts quote, and exposes only
+    /// the inputs the Apple prompt branches on.
     private func makeRequest(
         applicationName: String = "TestApp",
         bundleIdentifier: String = "com.example.TestApp",
@@ -279,32 +279,17 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         visualContextSummary: String? = nil,
         surfaceContext: SurfaceContext? = nil
     ) -> SuggestionRequest {
-        SuggestionRequest(
-            context: CotabbyTestFixtures.focusedInputContext(
-                applicationName: applicationName,
-                bundleIdentifier: bundleIdentifier,
-                precedingText: prefixText,
-                trailingText: trailingText
-            ),
+        CotabbyTestFixtures.suggestionRequest(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
             prefixText: prefixText,
-            prompt: "PROMPT",
-            generation: 1,
+            trailingText: trailingText,
             maxPredictionTokens: 16,
-            temperature: 0.1,
-            topK: 20,
-            topP: 0.7,
-            minP: 0.08,
-            repetitionPenalty: 1.05,
-            randomSeed: 42,
             maxSuffixCharacters: maxSuffixCharacters,
             completionLengthInstruction: "Return only the next 7 to 12 words.",
-            userName: nil,
-            customRules: [],
-            languageInstruction: nil,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
-            surfaceContext: surfaceContext,
-            isMultiLineEnabled: false
+            surfaceContext: surfaceContext
         )
     }
 }

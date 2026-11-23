@@ -12,14 +12,12 @@ import XCTest
 final class FileLogHandlerTests: XCTestCase {
     private var directory: URL!
 
-    override func setUp() {
-        super.setUp()
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        directory = try makeTemporaryDirectory()
     }
 
     override func tearDown() {
-        try? FileManager.default.removeItem(at: directory)
         directory = nil
         super.tearDown()
     }

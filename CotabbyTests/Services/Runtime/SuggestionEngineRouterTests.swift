@@ -8,10 +8,6 @@ import XCTest
 /// to the wrong backend, so each path asserts which engine was actually asked.
 @MainActor
 final class SuggestionEngineRouterRoutingTests: XCTestCase {
-    /// Production classes built with the app target's default MainActor isolation crash the
-    /// app-hosted runner when deallocated (back-deploy executor shim); quarantine them for the
-    /// process lifetime instead.
-    private static var retained: [AnyObject] = []
 
     private struct Rig {
         let router: SuggestionEngineRouter
@@ -50,28 +46,13 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         }
     }
 
-    private var suiteNames: [String] = []
-
-    override func tearDown() {
-        for suiteName in suiteNames {
-            UserDefaults.standard.removePersistentDomain(forName: suiteName)
-        }
-        suiteNames.removeAll()
-        super.tearDown()
-    }
-
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "cotabby.test.router.\(UUID().uuidString)"
-        suiteNames.append(suiteName)
-        return UserDefaults(suiteName: suiteName)!
-    }
 
     private func makeRig(
         engine: SuggestionEngineKind,
         performanceTracking: Bool = true,
         llamaModelName: String? = "test-model.gguf"
     ) -> Rig {
-        let defaults = makeDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
         settings.selectEngine(engine)
         settings.setPerformanceTrackingEnabled(performanceTracking)
@@ -90,7 +71,10 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
             openAICompatibleEngine: endpoint,
             endpointModelNameProvider: { "endpoint-model" }
         )
-        Self.retained.append(contentsOf: [router, settings, metrics, quality] as [AnyObject])
+        TestLifetime.retain(router)
+        TestLifetime.retain(settings)
+        TestLifetime.retain(metrics)
+        TestLifetime.retain(quality)
         return Rig(
             router: router,
             settings: settings,
@@ -196,9 +180,9 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
     }
 
     func test_fallbackSettingsDefaultToTodaysBehaviorAndPersist() {
-        let defaults = makeDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
-        Self.retained.append(settings)
+        TestLifetime.retain(settings)
         XCTAssertTrue(settings.isAppleLanguageFallbackEnabled)
         XCTAssertFalse(settings.keepsFallbackModelLoaded)
 
@@ -206,7 +190,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         settings.setKeepsFallbackModelLoaded(true)
 
         let reloaded = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
-        Self.retained.append(reloaded)
+        TestLifetime.retain(reloaded)
         XCTAssertFalse(reloaded.isAppleLanguageFallbackEnabled)
         XCTAssertTrue(reloaded.keepsFallbackModelLoaded)
     }
@@ -280,7 +264,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
 
     func test_missingEndpointEngineAndModelName_useUnavailableEngineAndGenericLabel() async throws {
         let rig = makeRig(engine: .openAICompatible)
-        let defaults = makeDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let metrics = PerformanceMetricsStore(userDefaults: defaults)
         let bareRouter = SuggestionEngineRouter(
             suggestionSettings: rig.settings,
@@ -290,7 +274,8 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
             qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
             llamaModelNameProvider: { nil }
         )
-        Self.retained.append(contentsOf: [bareRouter, metrics] as [AnyObject])
+        TestLifetime.retain(bareRouter)
+        TestLifetime.retain(metrics)
 
         do {
             _ = try await bareRouter.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
@@ -310,7 +295,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
             llamaModelNameProvider: { nil },
             openAICompatibleEngine: rig.endpoint
         )
-        Self.retained.append(labelRouter)
+        TestLifetime.retain(labelRouter)
         _ = try await labelRouter.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
         XCTAssertEqual(metrics.entries.first?.modelName, "Local Endpoint")
     }

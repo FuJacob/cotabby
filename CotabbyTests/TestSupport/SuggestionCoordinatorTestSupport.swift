@@ -5,10 +5,9 @@ import XCTest
 
 /// Shared, recording test doubles for `SuggestionCoordinator` suites.
 ///
-/// `SuggestionCoordinatorAcceptanceTests` predates this file and keeps its own private stubs;
-/// new coordinator suites (prediction, input, lifecycle) build on these so the protocol surface
-/// is mocked once. Every double records what the coordinator asked of it, because most of the
-/// pipeline's contracts are about *which* boundary was poked, not return values.
+/// Every coordinator suite builds on these so the protocol surface is mocked once. Each double
+/// records what the coordinator asked of it, because most of the pipeline's contracts are about
+/// *which* boundary was poked, not return values.
 @MainActor
 final class RigPermissionProvider: SuggestionPermissionProviding {
     var inputMonitoringGranted = true
@@ -279,6 +278,19 @@ struct CoordinatorRig {
     let clipboardFilter: RigClipboardFilter
     let visualContext: RigVisualContextCoordinator
     let interactionState: SuggestionInteractionState
+
+    /// Replaces the focused field without publishing a focus event, mimicking a host that has
+    /// updated AX before Cotabby's poll or publisher notices.
+    func setFocusedInput(_ raw: FocusedInputSnapshot, capability: FocusCapability = .supported) {
+        focusProvider.snapshot = CotabbyTestFixtures.focusSnapshot(for: raw, capability: capability)
+    }
+
+    /// Replaces the focused field and emits it on the focus publisher, the path a real focus
+    /// change or polled text change takes into the coordinator.
+    func publishFocusedInput(_ raw: FocusedInputSnapshot, capability: FocusCapability = .supported) {
+        setFocusedInput(raw, capability: capability)
+        focusProvider.snapshotSubject.send(focusProvider.snapshot)
+    }
 }
 
 // App-hosted tests on macOS 15 can over-release @MainActor instances in Swift's
@@ -298,12 +310,7 @@ func makeCoordinatorRig(
     generationEngine: (any SuggestionGenerating)? = nil,
     configuration: SuggestionConfiguration = .standard
 ) -> CoordinatorRig {
-    let focusSnapshot = FocusSnapshot(
-        applicationName: snapshot.applicationName,
-        bundleIdentifier: snapshot.bundleIdentifier,
-        capability: capability,
-        context: snapshot
-    )
+    let focusSnapshot = CotabbyTestFixtures.focusSnapshot(for: snapshot, capability: capability)
     let permissionProvider = RigPermissionProvider()
     let lowPowerModeProvider = RigLowPowerModeProvider(isLowPowerModeEnabled: lowPowerModeEnabled)
     let focusProvider = RigFocusProvider(snapshot: focusSnapshot)
@@ -335,10 +342,8 @@ func makeCoordinatorRig(
         // locale of the machine running the tests.
         spellChecker: CurrentWordSpellChecker(language: "en"),
         symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
-        qualityMetricsStore: SuggestionQualityMetricsStore(
-            userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.quality.\(UUID().uuidString)") ?? .standard
-        ),
-        userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.\(UUID().uuidString)") ?? .standard
+        qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: IsolatedUserDefaults.make()),
+        userDefaults: IsolatedUserDefaults.make()
     )
     let rig = CoordinatorRig(
         coordinator: coordinator,

@@ -7,24 +7,21 @@ import XCTest
 /// machine running the tests, while still exercising the model's publishing and polling plumbing.
 ///
 /// `FocusTrackingModel` is `@MainActor` with stored properties and no `nonisolated deinit`, so
-/// instances are quarantined in a process-lifetime retain list (the `InputMonitorTests` pattern)
-/// and every interaction runs through `runOnMainActor`.
+/// instances are kept alive through `TestLifetime` and every interaction runs through
+/// `runOnMainActor`.
 final class FocusTrackingModelTests: XCTestCase {
-    @MainActor private static var retainedModels: [FocusTrackingModel] = []
-
     /// The exact snapshot the tracker publishes when Accessibility permission is missing.
     /// Asserted verbatim because the menu bar UI renders these strings.
     private static let blockedApplicationName = "Accessibility permission missing"
 
     @MainActor
     private func makeModel(publishesPollingEvents: Bool = false) -> FocusTrackingModel {
-        let model = FocusTrackingModel(
+        let model = TestLifetime.retain(FocusTrackingModel(
             permissionProvider: { false },
             ignoredBundleIdentifier: nil,
             publishesPollingEvents: publishesPollingEvents
-        )
-        Self.retainedModels.append(model)
-        // The retain list keeps instances alive for the whole run, so make sure no poll timer
+        ))
+        // `TestLifetime` keeps instances alive for the whole run, so make sure no poll timer
         // outlives its test even when an assertion fails first.
         addTeardownBlock {
             runOnMainActor { model.stop() }
@@ -161,17 +158,5 @@ final class FocusTrackingModelTests: XCTestCase {
             // The restart performs an immediate capture, which is observable as a new poll event.
             XCTAssertEqual(model.latestPollEvent?.sequence, 2)
         }
-    }
-}
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
     }
 }

@@ -9,7 +9,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
     }
 
     func test_addPerAppShortcutApp_persistsInheritedBindings() throws {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         makeModel(defaults).addPerAppShortcutApp(
             bundleIdentifier: "com.apple.notes",
             displayName: "Notes"
@@ -22,7 +22,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
     }
 
     func test_setPerAppAcceptKey_roundTripsAtomicBinding() throws {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         makeModel(defaults).setPerAppAcceptKey(
             bundleIdentifier: "com.apple.notes",
             displayName: "Notes",
@@ -112,7 +112,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
     }
 
     func test_load_normalizesAndDeduplicatesBundleIdentifiers() throws {
-        let defaults = makeIsolatedDefaults()
+        let defaults = IsolatedUserDefaults.make()
         let staleRows = [
             PerAppShortcutOverride(
                 bundleIdentifier: " com.apple.notes ",
@@ -156,17 +156,7 @@ final class PerAppShortcutOverrideStoreTests: XCTestCase {
     private func makeModel(_ defaults: UserDefaults? = nil) -> SuggestionSettingsModel {
         SuggestionSettingsModel(
             configuration: .standard,
-            userDefaults: defaults ?? makeIsolatedDefaults()
+            userDefaults: defaults ?? IsolatedUserDefaults.make()
         )
-    }
-
-    private func makeIsolatedDefaults() -> UserDefaults {
-        let suiteName = "cotabby.test.perAppOverride.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-        return defaults
     }
 }

@@ -109,7 +109,7 @@ final class LanguageMigrationTests: XCTestCase {
     // @MainActor test blocks the main actor while the host app is still doing its own main-actor
     // startup, which can crash the native runtime. Yielding cooperatively avoids that.
     func test_init_migratesLegacySingleLanguageIntoArray() async {
-        let defaults = makeUserDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set("de", forKey: "cotabbyResponseLanguage")
 
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
@@ -120,7 +120,7 @@ final class LanguageMigrationTests: XCTestCase {
     }
 
     func test_init_migratesLegacyEnglishToNoDeclaredLanguages() async {
-        let defaults = makeUserDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set("en", forKey: "cotabbyResponseLanguage")
 
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
@@ -130,24 +130,12 @@ final class LanguageMigrationTests: XCTestCase {
     }
 
     func test_init_prefersNewMultiLanguageValueOverLegacy() async {
-        let defaults = makeUserDefaults()
+        let defaults = IsolatedUserDefaults.make()
         defaults.set("de", forKey: "cotabbyResponseLanguage")
         defaults.set(["French", "Italian"], forKey: "cotabbyResponseLanguages")
 
         let settings = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
 
         XCTAssertEqual(settings.responseLanguages, ["French", "Italian"])
-    }
-
-    private func makeUserDefaults() -> UserDefaults {
-        let suiteName = "LanguageMigrationTests-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected an isolated UserDefaults suite")
-            return .standard
-        }
-
-        userDefaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock { userDefaults.removePersistentDomain(forName: suiteName) }
-        return userDefaults
     }
 }

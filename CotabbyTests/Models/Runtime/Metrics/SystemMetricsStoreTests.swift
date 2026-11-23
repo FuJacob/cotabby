@@ -356,15 +356,3 @@ final class SystemMetricsStoreTests: XCTestCase {
         }
     }
 }
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
-    }
-}

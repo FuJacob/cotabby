@@ -3,13 +3,8 @@ import XCTest
 
 @MainActor
 final class ContextBufferNavigationTests: XCTestCase {
-    // Match the existing ContextBuffer tests' workaround for the app-hosted isolated-deinit shim.
-    private static var retainedBuffers: [ContextBuffer] = []
-
     private func makeBuffer() -> ContextBuffer {
-        let buffer = ContextBuffer()
-        Self.retainedBuffers.append(buffer)
-        return buffer
+        TestLifetime.retain(ContextBuffer())
     }
 
     func test_identicalDraftInAnotherSessionAdvancesGenerationAndPredictionCacheKey() {

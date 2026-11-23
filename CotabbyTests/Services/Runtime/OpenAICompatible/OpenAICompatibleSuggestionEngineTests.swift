@@ -8,9 +8,6 @@ import XCTest
 /// server so no network or model is involved.
 @MainActor
 final class OpenAICompatibleSuggestionEngineTests: XCTestCase {
-    /// Production @MainActor classes can crash the app-hosted runner when deallocated (back-deploy
-    /// executor shim); quarantine them for the process lifetime.
-    private static var retained: [AnyObject] = []
 
     override func tearDown() {
         EngineStubURLProtocol.handler = nil
@@ -112,8 +109,8 @@ final class OpenAICompatibleSuggestionEngineTests: XCTestCase {
             configurationProvider: configuration,
             apiKeyProvider: { apiKey }
         )
-        Self.retained.append(contentsOf: [client, engine] as [AnyObject])
-        return engine
+        TestLifetime.retain(client)
+        return TestLifetime.retain(engine)
     }
 
     private func assertThrows(

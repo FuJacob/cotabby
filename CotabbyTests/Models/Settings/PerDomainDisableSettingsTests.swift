@@ -6,17 +6,14 @@ import XCTest
 /// The contract that matters: the feature is off and the list empty unless explicitly configured, so
 /// the focus-capture URL read and the per-site gate stay inert by default.
 final class PerDomainDisableSettingsTests: XCTestCase {
-    private let suiteName = "PerDomainDisableSettingsTests"
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults(suiteName: suiteName)
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         super.tearDown()
     }

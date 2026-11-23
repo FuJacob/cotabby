@@ -6,16 +6,15 @@ import XCTest
 /// publication. The recording rig keeps the engine and host editor deterministic while the real
 /// coordinator owns cancellation and promotion of following words.
 @MainActor
-final class SuggestionCoordinatorContinuityTests: XCTestCase {
+final class SuggestionCoordinatorContinuityTests: SuggestionCoordinatorRigTestCase {
     func testConfiguredEndpointWaitsForCorrectionAcceptanceAndPublicationBeforeRequesting() async {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 selectedEngine: .openAICompatible, debounceMilliseconds: 1,
                 suppressCompletionsOnTypo: true, offerTypoCorrections: true
             )
-        )
-        defer { rig.coordinator.stop() }
+        ))
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
@@ -26,16 +25,15 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         XCTAssertTrue(rig.engine.requests.isEmpty, "An unaccepted hypothetical edit must not create endpoint traffic")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertTrue(rig.engine.requests.isEmpty)
-        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please receive "), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please receive "))
         await waitUntil { !rig.engine.requests.isEmpty }
         XCTAssertTrue(rig.engine.requests.allSatisfy { $0.prefixText == "Please receive " })
     }
 
     func testUnknownWordEndingRetainsFollowingWordsUntilTheVisibleEndingIsAccepted() async {
-        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(
+        let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: "Use Zorbquux"
-        ))
-        defer { rig.coordinator.stop() }
+        )))
         rig.engine.resultProvider = { request in
             // Pin only the invented joined word's lexical evidence. This keeps the integration
             // replay independent of the user's installed spell-checking dictionaries.
@@ -57,11 +55,10 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testOneWordPresentationFullAcceptInsertsOnlyTheVisibleWordThenOffersTheNext() async {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1, showFollowingWords: false)
-        )
-        defer { rig.coordinator.stop() }
+        ))
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: "world again tomorrow",
                              text: "world again tomorrow", latency: 0.01)
@@ -79,12 +76,12 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testStreamingGrowsFollowingWordBufferWithoutRedisplayingTheSameVisibleWord() async {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1, showFollowingWords: false, streamSuggestionsWhileGenerating: true
             )
-        )
+        ))
         let gate = ResultGate()
         defer { gate.resume(text: "world again tomorrow"); rig.coordinator.stop() }
         rig.engine.partialTexts = ["world again ", "world again tomorrow "]
@@ -110,12 +107,12 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testAcceptingAStreamedWordNeverRevealsAnIncompleteHiddenFollowingWord() async {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1, showFollowingWords: false, streamSuggestionsWhileGenerating: true
             )
-        )
+        ))
         let gate = ResultGate()
         defer { gate.resume(text: "world again"); rig.coordinator.stop() }
         rig.engine.partialTexts = ["world ag"]
@@ -143,8 +140,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testLocalFallbackPredictsAfterTheCompletedWordAndAttachesTheHiddenContinuation() async {
-        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu"))
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu")))
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "schedule 100\nscheduled 5\n")
         rig.engine.resultProvider = { request in
             let text = request.prefixText == "Please schedu" ? " schedule a meeting" : "a meeting"
@@ -163,7 +159,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testAXOnlyWordExhaustionPreservesTheInflightContinuation() async {
-        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu"))
+        let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu")))
         let gate = ResultGate()
         defer { gate.resume(text: "a meeting"); rig.coordinator.stop() }
         rig.engine.resultProvider = { request in
@@ -192,7 +188,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
 
     func testRestoredCachedWordEndingImmediatelyPreparesItsFollowingWords() async {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu")
-        let rig = makeCoordinatorRig(snapshot: snapshot)
+        let rig = retained(makeCoordinatorRig(snapshot: snapshot))
         let gate = ResultGate()
         defer { gate.resume(text: "a meeting"); rig.coordinator.stop() }
         let context = rig.interactionState.materializeContext(from: snapshot)
@@ -216,7 +212,6 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
 
     func testCorrectionContinuationStaysHiddenUntilTheExactReplacementPublishes() async {
         let rig = correctionRig()
-        defer { rig.coordinator.stop() }
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
@@ -283,9 +278,9 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
 
         // The corrected text has already published, so its publication poll may stand down while
         // the engine still runs. There is no active session left to notice a subsequent field switch.
-        publish(CotabbyTestFixtures.focusedInputSnapshot(
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "other-field", precedingText: "Please receive ", focusChangeSequence: 2
-        ), in: rig)
+        ))
         rig.coordinator.handleSupportedSnapshot(rig.focusProvider.snapshot)
         XCTAssertNil(rig.coordinator.preparedContinuation,
                      "Focus handling must cancel prepared work even when the source session is gone")
@@ -301,7 +296,6 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
 
     func testEditorChangeBeforeTheQueuedContinuationAppliesRequestsAFreshPrediction() async {
         let rig = correctionRig()
-        defer { rig.coordinator.stop() }
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
@@ -410,7 +404,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         let otherField = CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "other-field", precedingText: "Please recieve ", focusChangeSequence: 2
         )
-        publish(otherField, in: rig)
+        rig.setFocusedInput(otherField)
         rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
         XCTAssertNil(rig.coordinator.preparedContinuation)
         XCTAssertNil(rig.interactionState.activeSession)
@@ -424,16 +418,15 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
     }
 
     func testCorrectionAndItsPreparedContinuationSurviveAXElementTokenChurn() async {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(
                 precedingText: "Please recieve ", isWebContentField: true
             ),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1, suppressCompletionsOnTypo: true, offerTypoCorrections: true
             )
-        )
+        ))
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
-        defer { rig.coordinator.stop() }
         rig.engine.resultProvider = { request in
             SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
         }
@@ -443,43 +436,38 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         // Chromium may replace the AX element token without a focus change. Sequence and exact
         // content still identify the original edit; treating token churn as a field switch would
         // remove the correction just as the user reaches for Tab.
-        publish(CotabbyTestFixtures.focusedInputSnapshot(
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "recycled-ax-token", precedingText: "Please recieve ",
             isWebContentField: true, focusChangeSequence: 1
-        ), in: rig)
+        ))
         rig.coordinator.handleFocusSnapshotChange(rig.focusProvider.snapshot)
         XCTAssertEqual(rig.interactionState.activeSession?.kind, .correction(typoWord: "recieve"))
         XCTAssertEqual(rig.coordinator.preparedContinuation?.text, "the package")
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.replacements.map(\.text), ["receive "])
 
-        publish(CotabbyTestFixtures.focusedInputSnapshot(
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "recycled-ax-token", precedingText: "Please receive ",
             isWebContentField: true, focusChangeSequence: 1
-        ), in: rig)
+        ))
         XCTAssertTrue(rig.coordinator.usePreparedContinuationIfPossible())
         await waitUntil { rig.interactionState.activeSession?.remainingText == "the package" }
         XCTAssertEqual(rig.engine.requests.count, 1)
     }
 
     private func correctionRig() -> CoordinatorRig {
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1, suppressCompletionsOnTypo: true, offerTypoCorrections: true
             )
-        )
+        ))
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
         return rig
     }
 
     private func publishText(_ text: String, in rig: CoordinatorRig) {
-        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: text), in: rig)
-    }
-
-    private func publish(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {
-        rig.focusProvider.snapshot = FocusSnapshot(applicationName: snapshot.applicationName,
-            bundleIdentifier: snapshot.bundleIdentifier, capability: .supported, context: snapshot)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: text))
     }
 
     /// A test-owned engine suspension deliberately ignores task cancellation. Releasing it after

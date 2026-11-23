@@ -161,12 +161,6 @@ final class ShortcutConflictTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeModel() -> SuggestionSettingsModel {
-        let suiteName = "cotabby.test.shortcutConflict.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-        return SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
+        SuggestionSettingsModel(configuration: .standard, userDefaults: IsolatedUserDefaults.make())
     }
 }

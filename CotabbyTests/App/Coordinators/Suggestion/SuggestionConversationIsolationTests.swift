@@ -6,15 +6,14 @@ import XCTest
 /// conversation switch (visible tail, anchor cache, late result, streamed partial, speculative
 /// exemption, screen context) must retire it on the navigation signal alone.
 @MainActor
-final class SuggestionConversationIsolationTests: XCTestCase {
+final class SuggestionConversationIsolationTests: SuggestionCoordinatorRigTestCase {
     func test_navigationImmediatelyRetiresVisibleSuggestionAndCachedTail() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.coordinator.overlayState.isVisible }
         let oldContext = rig.interactionState.currentContext!
 
-        publish(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), in: rig)
+        rig.publishFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2))
         XCTAssertNil(rig.interactionState.activeSession)
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
@@ -25,11 +24,10 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_lateResultWithIdenticalDraftIsDroppedAfterNavigation() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
         // Deliberately skip the publisher: apply must defend itself on its fresh snapshot alone.
-        setSnapshot(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2))
         await rig.coordinator.apply(result: SuggestionResult(
             generation: source.generation, rawText: " old chat", text: " old chat", latency: 0.01
         ), workID: rig.coordinator.currentWorkID)
@@ -40,11 +38,10 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     func test_speculativeTextMatchCannotOverrideConversationMismatch() async {
         // The speculation was built while the title was readable; a different known title is
         // another conversation (a nil one would only be a timed-out read of the same field).
-        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This conversation"))
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "This conversation")))
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
         rig.coordinator.pendingSpeculativeContext = source
-        setSnapshot(CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Different conversation"), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Different conversation"))
         await rig.coordinator.apply(result: SuggestionResult(
             generation: source.generation, rawText: " old chat", text: " old chat", latency: 0.01
         ), workID: rig.coordinator.currentWorkID)
@@ -53,10 +50,9 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_streamedResultWithIdenticalDraftIsDroppedAfterNavigation() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
-        setSnapshot(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2))
         rig.coordinator.queueStreamedPartial(SuggestionResult(
             generation: source.generation, rawText: " world", text: " world", latency: 0.01
         ), workID: rig.coordinator.currentWorkID)
@@ -68,13 +64,12 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_cacheCannotRestorePriorConversationWithoutFocusCallback() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         let source = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
         rig.coordinator.suggestionAnchorCache.record(
             identityKey: source.suggestionSessionIdentityKey, precedingText: source.precedingText, fullText: " old chat"
         )
-        setSnapshot(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), in: rig)
+        rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2))
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.coordinator.overlayState.isVisible }
         XCTAssertEqual(rig.engine.requests.count, 1)
@@ -82,8 +77,7 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_expiringScreenContextRetiresConditionedPrediction() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         rig.visualContext.onStateChange?(.ready, "Previous conversation")
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.coordinator.overlayState.isVisible }
@@ -95,8 +89,7 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     }
 
     func test_changedScreenTextReplacesVisiblePredictionEvenWhenHostIdentityIsUnchanged() async {
-        let rig = makeCoordinatorRig()
-        defer { rig.coordinator.stop() }
+        let rig = retained(makeCoordinatorRig())
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.coordinator.overlayState.isVisible }
         rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
@@ -108,27 +101,14 @@ final class SuggestionConversationIsolationTests: XCTestCase {
     func test_changedScreenTextKeepsTheVisiblePredictionInATerminalScreenField() async {
         // HerdrM's status line redraws every few seconds; each pane is its own field, so changed
         // screen text there is not a navigation signal and must not retire the visible suggestion.
-        let rig = makeCoordinatorRig(
+        let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(bundleIdentifier: "dev.bybee.herdrm", precedingText: "Hello")
-        )
-        defer { rig.coordinator.stop() }
+        ))
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.coordinator.overlayState.isVisible }
         rig.visualContext.onInjectedContextReady?(rig.focusProvider.snapshot.context!.identity)
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertNotNil(rig.interactionState.activeSession)
         XCTAssertEqual(rig.engine.requests.count, 1)
-    }
-
-    private func publish(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {
-        setSnapshot(snapshot, in: rig)
-        rig.focusProvider.snapshotSubject.send(rig.focusProvider.snapshot)
-    }
-
-    private func setSnapshot(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {
-        rig.focusProvider.snapshot = FocusSnapshot(
-            applicationName: snapshot.applicationName, bundleIdentifier: snapshot.bundleIdentifier,
-            capability: .supported, context: snapshot
-        )
     }
 }

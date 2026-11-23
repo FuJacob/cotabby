@@ -9,9 +9,6 @@ import XCTest
 /// context, and images are summarized by format and pixel size rather than passed through.
 @MainActor
 final class ClipboardContextProviderTests: XCTestCase {
-    /// Providers are `@MainActor` objects; retaining them sidesteps the app-hosted isolated-deinit
-    /// crash other suites work around the same way.
-    private static var retainedProviders: [ClipboardContextProvider] = []
 
     private var pasteboard: NSPasteboard!
 
@@ -28,9 +25,7 @@ final class ClipboardContextProviderTests: XCTestCase {
     }
 
     private func makeProvider() -> ClipboardContextProvider {
-        let provider = ClipboardContextProvider(pasteboard: pasteboard)
-        Self.retainedProviders.append(provider)
-        return provider
+        TestLifetime.retain(ClipboardContextProvider(pasteboard: pasteboard))
     }
 
     private func pngData(width: Int, height: Int) throws -> Data {

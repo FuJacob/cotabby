@@ -7,17 +7,14 @@ import XCTest
 /// rebuild (and without touching process-global defaults from the test host).
 @MainActor
 final class LlamaDecodeGateDefaultsTests: XCTestCase {
-    private let suiteName = "LlamaDecodeGateDefaultsTests"
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults(suiteName: suiteName)
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         super.tearDown()
     }

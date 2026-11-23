@@ -87,12 +87,12 @@ final class Aria2ProvisionerTests: XCTestCase {
     func test_provisioner_propagatesInstallerErrorsAndPassesTheBrewURL() async {
         struct InstallerBoom: Error {}
         let brewURL = URL(fileURLWithPath: "/mock/bin/brew")
-        let receivedBrewPaths = LockedStrings()
+        let receivedBrewPaths = Locked<[String]>([])
         let provisioner = Aria2Provisioner(
             fileManager: StubExecutableFileManager(),
             brewLocator: { brewURL },
             installer: { url in
-                receivedBrewPaths.append(url.path)
+                receivedBrewPaths.withLock { $0.append(url.path) }
                 throw InstallerBoom()
             }
         )
@@ -105,7 +105,7 @@ final class Aria2ProvisionerTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
-        XCTAssertEqual(receivedBrewPaths.values, ["/mock/bin/brew"])
+        XCTAssertEqual(receivedBrewPaths.value, ["/mock/bin/brew"])
     }
 
     func test_provisioner_keepsSharedInstallAliveWhenOneCallerCancels() async throws {
@@ -113,12 +113,12 @@ final class Aria2ProvisionerTests: XCTestCase {
         let brewURL = URL(fileURLWithPath: "/mock/bin/brew")
         let installerStarted = expectation(description: "installer started")
         let gate = AsyncTestGate()
-        let installCount = LockedCounter()
+        let installCount = Locked(0)
         let provisioner = Aria2Provisioner(
             fileManager: stub,
             brewLocator: { brewURL },
             installer: { _ in
-                installCount.increment()
+                installCount.withLock { $0 += 1 }
                 installerStarted.fulfill()
                 await gate.wait()
                 try Task.checkCancellation()
@@ -244,33 +244,5 @@ private actor AsyncTestGate {
         for waiter in pendingWaiters {
             waiter.resume()
         }
-    }
-}
-
-private final class LockedCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-
-    var value: Int {
-        lock.withLock { count }
-    }
-
-    func increment() {
-        lock.withLock {
-            count += 1
-        }
-    }
-}
-
-private final class LockedStrings: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [String] = []
-
-    var values: [String] {
-        lock.withLock { storage }
-    }
-
-    func append(_ value: String) {
-        lock.withLock { storage.append(value) }
     }
 }

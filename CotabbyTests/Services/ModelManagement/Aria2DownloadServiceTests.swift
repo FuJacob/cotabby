@@ -112,7 +112,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
         let executable = try makeWritingExecutable(
             beforeWrite: #"printf '[#abc123 1B/1B(100%%) CN:1 DL:1MiB ETA:0s]\n'"#
         )
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let recorder = Aria2ProgressRecorder()
         let service = Aria2DownloadService { recorder.append($0) }
@@ -132,7 +132,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_downloadReducesOutputToTheLeafFilename() async throws {
         let executable = try makeWritingExecutable()
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let service = Aria2DownloadService { _ in }
 
@@ -151,7 +151,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
     /// directory is rejected before a process launches.
     func test_downloadRejectsFilenamesWithoutAUsableLeaf() async {
         let service = Aria2DownloadService { _ in }
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(stagingDirectory) }
 
         for filename in ["", ".", "..", "/", "models/.."] {
@@ -177,7 +177,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
         let executable = try makeWritingExecutable(
             beforeWrite: #"for argument in "$@"; do printf '%s\n' "$argument"; done > "\#(argumentsFile.path)""#
         )
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory, argumentsFile) }
         let service = Aria2DownloadService { _ in }
 
@@ -208,7 +208,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_downloadWithSilentFailureReportsTheExitCode() async throws {
         let executable = try makeExecutableScript(contents: "#!/bin/sh\nexit 3\n")
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let service = Aria2DownloadService { _ in }
 
@@ -264,7 +264,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
             exit 7
             """
         )
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let service = Aria2DownloadService { _ in }
 
@@ -288,7 +288,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_pauseStopsRunningProcessAsPaused() async throws {
         let executable = try makeLongRunningExecutable()
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let recorder = Aria2ProgressRecorder()
         let service = Aria2DownloadService { recorder.append($0) }
@@ -316,7 +316,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
 
     func test_cancelStopsRunningProcessAsCancelled() async throws {
         let executable = try makeLongRunningExecutable()
-        let stagingDirectory = makeTemporaryDirectory()
+        let stagingDirectory = makeStagingDirectoryURL()
         defer { removeFixtures(executable, stagingDirectory) }
         let recorder = Aria2ProgressRecorder()
         let service = Aria2DownloadService { recorder.append($0) }
@@ -383,7 +383,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
         return url
     }
 
-    private func makeTemporaryDirectory() -> URL {
+    private func makeStagingDirectoryURL() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     }
 

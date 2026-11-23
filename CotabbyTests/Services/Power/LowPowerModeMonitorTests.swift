@@ -8,14 +8,8 @@ import XCTest
 /// actual power state is not controllable here, so the tests only assert relative to it.
 @MainActor
 final class LowPowerModeMonitorTests: XCTestCase {
-    /// `@MainActor` objects with observers are retained for the process lifetime to avoid the
-    /// app-hosted isolated-deinit crash other suites work around the same way.
-    private static var retainedMonitors: [LowPowerModeMonitor] = []
-
     private func makeMonitor() -> LowPowerModeMonitor {
-        let monitor = LowPowerModeMonitor()
-        Self.retainedMonitors.append(monitor)
-        return monitor
+        TestLifetime.retain(LowPowerModeMonitor())
     }
 
     func test_initialValueMirrorsProcessInfo() {

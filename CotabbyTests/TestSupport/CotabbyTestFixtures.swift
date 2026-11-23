@@ -66,6 +66,20 @@ enum CotabbyTestFixtures {
         )
     }
 
+    /// The published focus state for a field: the app identity always comes from the field itself,
+    /// so a test cannot build a snapshot whose app and context disagree.
+    static func focusSnapshot(
+        for context: FocusedInputSnapshot,
+        capability: FocusCapability = .supported
+    ) -> FocusSnapshot {
+        FocusSnapshot(
+            applicationName: context.applicationName,
+            bundleIdentifier: context.bundleIdentifier,
+            capability: capability,
+            context: context
+        )
+    }
+
     static func focusedInputContext(
         applicationName: String = "TestApp",
         bundleIdentifier: String = "com.example.TestApp",
@@ -115,12 +129,19 @@ enum CotabbyTestFixtures {
     }
 
     static func suggestionRequest(
+        applicationName: String = "TestApp",
+        bundleIdentifier: String = "com.example.TestApp",
+        processIdentifier: Int32 = 123,
+        elementIdentifier: String = "field",
+        inputFrameRect: CGRect? = CGRect(x: 0, y: 0, width: 240, height: 32),
         prefixText: String = "Hello",
         prompt: String = "PROMPT",
         precedingText: String? = nil,
         trailingText: String = "",
         generation: UInt64 = 1,
         maxPredictionTokens: Int = 8,
+        topK: Int = 20,
+        maxSuffixCharacters: Int = 192,
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
         customRules: [String] = [],
@@ -129,10 +150,16 @@ enum CotabbyTestFixtures {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         historyExamples: [String] = [],
+        surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
         let context = focusedInputContext(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
+            processIdentifier: processIdentifier,
+            elementIdentifier: elementIdentifier,
+            inputFrameRect: inputFrameRect,
             precedingText: resolvedPrecedingText,
             trailingText: trailingText,
             generation: generation
@@ -145,12 +172,12 @@ enum CotabbyTestFixtures {
             generation: generation,
             maxPredictionTokens: maxPredictionTokens,
             temperature: 0.1,
-            topK: 20,
+            topK: topK,
             topP: 0.7,
             minP: 0.08,
             repetitionPenalty: 1.05,
             randomSeed: 42,
-            maxSuffixCharacters: 192,
+            maxSuffixCharacters: maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,
@@ -158,6 +185,7 @@ enum CotabbyTestFixtures {
             languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
+            surfaceContext: surfaceContext,
             historyExamples: historyExamples,
             isMultiLineEnabled: isMultiLineEnabled
         )

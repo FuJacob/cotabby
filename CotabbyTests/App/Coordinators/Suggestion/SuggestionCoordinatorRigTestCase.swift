@@ -31,15 +31,24 @@ class SuggestionCoordinatorRigTestCase: XCTestCase {
         return rig
     }
 
-    /// Replaces the rig's focused field without publishing a focus event, mimicking a host that
-    /// has updated AX before Cotabby's poll or publisher notices.
-    func setFocusedInput(_ raw: FocusedInputSnapshot, capability: FocusCapability = .supported, in rig: CoordinatorRig) {
-        rig.focusProvider.snapshot = FocusSnapshot(
-            applicationName: raw.applicationName,
-            bundleIdentifier: raw.bundleIdentifier,
-            capability: capability,
-            context: raw
-        )
+    /// Builds a rig whose engine answers every request with `completion`, runs one prediction, and
+    /// waits for its session. Suites that drive real key events start here, because the keys only
+    /// mean anything once a suggestion produced by the pipeline is on screen. `configure` runs
+    /// before the prediction is scheduled, for doubles that must be in place first.
+    func makeRigWithPredictedSession(
+        snapshot: FocusedInputSnapshot,
+        settingsSnapshot: SuggestionSettingsSnapshot,
+        completion: String = "world again tomorrow",
+        configure: (CoordinatorRig) -> Void = { _ in }
+    ) async -> CoordinatorRig {
+        let rig = retained(makeCoordinatorRig(snapshot: snapshot, settingsSnapshot: settingsSnapshot))
+        configure(rig)
+        rig.engine.resultProvider = { request in
+            SuggestionResult(generation: request.generation, rawText: completion, text: completion, latency: 0.01)
+        }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.interactionState.activeSession != nil }
+        return rig
     }
 
     /// Starts a live session on the rig's current field and shows its tail, the precondition for

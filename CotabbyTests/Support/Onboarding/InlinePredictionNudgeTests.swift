@@ -7,16 +7,14 @@ import XCTest
 final class InlinePredictionNudgeTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
     private var defaults: UserDefaults!
-    private var suiteName: String!
 
     override func setUp() {
         super.setUp()
-        suiteName = "InlinePredictionNudgeTests-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)
+        defaults = IsolatedUserDefaults.make()
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
         super.tearDown()
     }
 

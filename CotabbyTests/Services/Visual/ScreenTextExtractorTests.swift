@@ -62,14 +62,14 @@ final class ScreenTextExtractorTests: XCTestCase {
         let gate = OCRWorkGate(label: "test.ocr.wedged")
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
-        let wedgedStart = LockedDate()
-        let secondRan = LockedFlag()
+        let wedgedStart = Locked<Date?>(nil)
+        let secondRan = Locked(false)
         // Long enough that the queue starts the pass before its caller gives up (work whose caller
         // already timed out is skipped, and then nothing would be wedged).
         let wedgedTimeout: TimeInterval = 0.5
 
         let wedged = Task {
-            try await gate.run(timeout: wedgedTimeout) { wedgedStart.set(Date()); release.wait(); return 1 }
+            try await gate.run(timeout: wedgedTimeout) { wedgedStart.withLock { $0 = Date() }; release.wait(); return 1 }
         }
         let startedAt = try await waitForStart(of: wedgedStart)
         // The gate stamps its deadline just before calling the work, so the deadline is at most
@@ -78,7 +78,7 @@ final class ScreenTextExtractorTests: XCTestCase {
 
         let refusedAt = Date()
         do {
-            _ = try await gate.run(timeout: 5) { secondRan.set(); return 2 }
+            _ = try await gate.run(timeout: 5) { secondRan.withLock { $0 = true }; return 2 }
             XCTFail("While a pass is past its timeout, new passes must be refused.")
         } catch OCRWorkGate.Failure.busy {
             XCTAssertLessThan(Date().timeIntervalSince(refusedAt), 1, "Refusal must not wait out the timeout.")
@@ -90,41 +90,41 @@ final class ScreenTextExtractorTests: XCTestCase {
         _ = try? await wedged.value
         let value = try await waitForAdmission(gate)
         XCTAssertEqual(value, 3)
-        XCTAssertFalse(secondRan.isSet)
+        XCTAssertFalse(secondRan.value)
     }
 
     func test_gate_skipsQueuedWorkWhoseCallerAlreadyGaveUp() async throws {
         let gate = OCRWorkGate(label: "test.ocr.abandoned")
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
-        let firstStart = LockedDate()
-        let queuedRan = LockedFlag()
+        let firstStart = Locked<Date?>(nil)
+        let queuedRan = Locked(false)
 
         // A long pass (well inside its timeout) occupies the serial queue. Waiting for it to start
         // guarantees the next item really queues behind it rather than running first.
-        let first = Task { try await gate.run(timeout: 30) { firstStart.set(Date()); release.wait(); return 1 } }
+        let first = Task { try await gate.run(timeout: 30) { firstStart.withLock { $0 = Date() }; release.wait(); return 1 } }
         _ = try await waitForStart(of: firstStart)
 
         // A second caller queues behind it and times out before its turn. The first pass cannot
         // finish until released, so this caller's turn cannot come early however slow the machine.
         do {
-            _ = try await gate.run(timeout: 0.1) { queuedRan.set(); return 2 }
+            _ = try await gate.run(timeout: 0.1) { queuedRan.withLock { $0 = true }; return 2 }
             XCTFail("Expected the queued caller to time out.")
         } catch OCRWorkGate.Failure.timedOut {}
 
         release.signal()
         _ = try await first.value
         _ = try await gate.run(timeout: 5) { 0 } // drains the queue past the abandoned item
-        XCTAssertFalse(queuedRan.isSet, "Work for a caller that already gave up must not run.")
+        XCTAssertFalse(queuedRan.value, "Work for a caller that already gave up must not run.")
     }
 
     func test_gate_cancellingTheCallerStopsItsWait() async throws {
         let gate = OCRWorkGate(label: "test.ocr.cancel")
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
-        let workStart = LockedDate()
+        let workStart = Locked<Date?>(nil)
 
-        let task = Task { try await gate.run(timeout: 30) { workStart.set(Date()); release.wait(); return 1 } }
+        let task = Task { try await gate.run(timeout: 30) { workStart.withLock { $0 = Date() }; release.wait(); return 1 } }
         // Cancel only once the pass is running, so this exercises a caller waiting on live work
         // rather than one cancelled before it reached the gate.
         _ = try await waitForStart(of: workStart)
@@ -150,7 +150,7 @@ final class ScreenTextExtractorTests: XCTestCase {
     /// Polls (without blocking a cooperative thread) until gated work records that it started.
     /// Bounded so a pass the gate never started fails the test instead of hanging it.
     private func waitForStart(
-        of start: LockedDate,
+        of start: Locked<Date?>,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async throws -> Date {
@@ -203,23 +203,4 @@ final class ScreenTextExtractorTests: XCTestCase {
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         return try XCTUnwrap(context.makeImage())
     }
-}
-
-/// Thread-safe flag for observing whether gated work ran on the gate's queue.
-private final class LockedFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value = false
-
-    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return value }
-    func set() { lock.lock(); value = true; lock.unlock() }
-}
-
-/// Thread-safe slot for the moment gated work started, written on the gate's queue and read by
-/// the test's polling loop.
-private final class LockedDate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var stored: Date?
-
-    var value: Date? { lock.lock(); defer { lock.unlock() }; return stored }
-    func set(_ date: Date) { lock.lock(); stored = date; lock.unlock() }
 }

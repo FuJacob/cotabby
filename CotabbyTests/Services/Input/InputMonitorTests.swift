@@ -10,21 +10,14 @@ import XCTest
 /// enters through the semantic `InputMonitorKeyEvent` seams, so no real CGEvent tap is installed.
 @MainActor
 final class InputMonitorTests: XCTestCase {
-    /// XCTest's app-host memory checker can deallocate `@MainActor` service objects outside the
-    /// executor context Swift expects, which crashes in the runtime's actor deinit path.
-    /// Retaining the handful of monitors for the process lifetime keeps these tests about routing.
-    private static var retainedMonitors: [InputMonitor] = []
-
     private static let tab: CGKeyCode = 48
     private static let backtick: CGKeyCode = 50
 
     private func makeMonitor() -> InputMonitor {
-        let monitor = InputMonitor(
+        TestLifetime.retain(InputMonitor(
             permissionProvider: { true },
             suppressionController: InputSuppressionController()
-        )
-        Self.retainedMonitors.append(monitor)
-        return monitor
+        ))
     }
 
     /// Installs an `onEvent` that records every delivered kind and answers with `accepts`.
