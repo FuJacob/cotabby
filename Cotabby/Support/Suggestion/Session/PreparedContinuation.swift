@@ -46,6 +46,14 @@ struct PreparedContinuation {
         return text
     }
 
+    /// Whether the host-publish poll must keep waiting for this continuation's target in
+    /// `snapshot`: the source was committed and the user is still in the field it came from. A
+    /// field switch is not the target arriving, and the focus-change path cancels the plan.
+    func awaitsTarget(in snapshot: FocusedInputSnapshot?) -> Bool {
+        guard isCommitted, let snapshot else { return false }
+        return SuggestionContinuationPlan.sameFocusedField(snapshot, plan.sourceSnapshot)
+    }
+
     func belongs(to session: ActiveSuggestionSession) -> Bool {
         sourceSession.baseContext == session.baseContext
             && sourceSession.fullText == session.fullText && sourceSession.kind == session.kind

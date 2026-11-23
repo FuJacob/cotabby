@@ -1433,7 +1433,7 @@ extension SuggestionCoordinator {
         clearTypingPrediction()
         cancelDelayedStreamPresentation()
         speculativeBet.clear()
-        hostPublishPollGeneration &+= 1
+        cancelHostPublishPoll()
         workController.cancelAll()
     }
 

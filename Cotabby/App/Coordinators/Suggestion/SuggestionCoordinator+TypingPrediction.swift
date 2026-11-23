@@ -132,7 +132,7 @@ extension SuggestionCoordinator {
                 }
                 // Delivery itself proved publication. Retire any scheduled validator so it
                 // cannot wake after the candidate is cleared and launch a duplicate request.
-                hostPublishPollGeneration &+= 1
+                cancelHostPublishPoll()
                 clearTypingPrediction()
                 if consumed > 0 {
                     logStage("typing-prediction-reused", workID: workID, generation: live.generation,

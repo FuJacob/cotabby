@@ -115,8 +115,8 @@ final class SuggestionCoordinator: ObservableObject {
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
     /// token, every key starts its own delayed polling chain and those chains stack up, each doing
-    /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
-    /// no-op before they can perform another expensive AX read.
+    /// synchronous `refreshNow()` calls on the main actor. `cancelHostPublishPoll()` bumps the
+    /// token, which makes older chains no-op before they can perform another expensive AX read.
     var hostPublishPollGeneration: UInt64 = 0
     /// Suppresses single-poll `Supported → Blocked → Supported` flicker on the same focused element
     /// so the overlay does not tear down and rebuild on every transient AX redraw. See

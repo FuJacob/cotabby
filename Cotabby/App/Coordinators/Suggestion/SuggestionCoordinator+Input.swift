@@ -342,10 +342,10 @@ extension SuggestionCoordinator {
     /// changed text and abandon the refresh on timeout so stale AX cannot repeatedly correct the
     /// same word.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
-    /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
-    /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
+    /// still collapse cleanly. Starting a poll retires the previous one, which adds the missing
+    /// outer coalescing layer: only the newest keystroke's polling chain may keep reading AX.
     func schedulePredictionAfterHostPublishDelay(requiresTextChange: Bool = false) {
-        hostPublishPollGeneration &+= 1
+        cancelHostPublishPoll()
         let pollGeneration = hostPublishPollGeneration
         let baseline = HostPublishBaseline(
             snapshot: focusModel.snapshot.context, requiresTextChange: requiresTextChange
@@ -417,73 +417,75 @@ extension SuggestionCoordinator {
         if usePreparedContinuationIfPossible() { return }
         if keepTypingPredictionAfterHostPublish() { return }
 
-        // A replacement can publish intermediate backspaces before its final insertion. A prepared
-        // continuation names the exact target, so do not turn those intermediate slices into new
-        // predictions. Real user input cancels this plan before it starts another polling chain.
-        let awaitingPreparedTarget = preparedContinuation.map { prepared in
-            prepared.isCommitted && currentContext.map {
-                SuggestionContinuationPlan.sameFocusedField($0, prepared.plan.sourceSnapshot)
-            } == true
-        } ?? false
-        // A genuine field switch during a replacement's poll still cancels it through the
-        // focus-change path.
-        if !awaitingPreparedTarget && baseline.hostMovedOn(to: currentContext) {
-            // The publish arrived. When it matches the snapshot a speculative post-acceptance
-            // generation was built against, that generation is already in flight (or applied) for
-            // exactly this content: scheduling another would only retire it and pay the full
-            // round-trip the speculation existed to skip. Stand down and let it land; `apply`
-            // validates via the same signature. Any divergence falls through to the normal
-            // reschedule, whose newer work id retires the speculation automatically.
-            if let currentContext, speculativeBet.isPaidOff(by: currentContext) {
-                logStage(
-                    "speculation-validated",
-                    workID: currentWorkID,
-                    generation: latestGenerationNumber,
-                    message: "Host published exactly the speculated text; keeping the in-flight generation."
+        // Real user input cancels a prepared continuation before it starts another polling chain,
+        // so a plan still awaiting its target here is the replacement's own publication.
+        switch baseline.nextStep(
+            after: currentContext,
+            awaitingPreparedTarget: preparedContinuation?.awaitsTarget(in: currentContext) ?? false,
+            elapsedMilliseconds: elapsedMs
+        ) {
+        case .published:
+            schedulePredictionForHostPublish(currentContext, keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds)
+
+        case .generateAtCeiling:
+            schedulePrediction(
+                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
+            )
+
+        case .abandonAtCeiling:
+            // Release any queued Tab now instead of accepting a second copy of the correction.
+            releasePostExhaustionAcceptanceWindow()
+            cancelPreparedContinuation()
+
+        case let .pollAgain(interval):
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { [weak self] in
+                self?.pollForHostPublish(
+                    baseline: baseline,
+                    keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
+                    pollGeneration: pollGeneration,
+                    elapsedMs: elapsedMs + interval
                 )
-                // The generation may already have finished against the unpublished text and been
-                // parked by `apply`; now that the text matches, it is exactly current.
-                if let parked = speculativeBet.takeParked() {
-                    Task { [weak self] in await self?.apply(result: parked.result, workID: parked.workID) }
-                }
-                return
             }
-            if let expected = speculativeBet.expected, let published = currentContext {
-                logSpeculationMiss(expected: expected, published: published)
-            }
-            speculativeBet.clear()
-            schedulePrediction(
-                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
+        }
+    }
+
+    /// The publish arrived. When it matches the snapshot a speculative generation was built
+    /// against, that generation is already in flight (or applied) for exactly this content:
+    /// scheduling another would only retire it and pay the full round-trip the speculation existed
+    /// to skip. Stand down and let it land; `apply` validates via the same signature. Any
+    /// divergence falls through to the normal reschedule, whose newer work id retires the
+    /// speculation automatically.
+    private func schedulePredictionForHostPublish(
+        _ published: FocusedInputSnapshot?,
+        keystrokeUptimeNanoseconds: UInt64
+    ) {
+        if let published, speculativeBet.isPaidOff(by: published) {
+            logStage(
+                "speculation-validated",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Host published exactly the speculated text; keeping the in-flight generation."
             )
+            // The generation may already have finished against the unpublished text and been
+            // parked by `apply`; now that the text matches, it is exactly current.
+            if let parked = speculativeBet.takeParked() {
+                Task { [weak self] in await self?.apply(result: parked.result, workID: parked.workID) }
+            }
             return
         }
-
-        // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
-        // produces no AX change (rare but possible — e.g. dead-key composition) would never get
-        // its next prediction.
-        guard let interval = HostPublishPollSchedule.nextInterval(afterElapsedMilliseconds: elapsedMs) else {
-            if baseline.requiresTextChange {
-                // A delayed or rejected replacement must not become a loop of correcting the
-                // same stale word. Let the next real input restart prediction, and release any
-                // queued Tab now instead of accepting a second copy of the correction.
-                releasePostExhaustionAcceptanceWindow()
-                cancelPreparedContinuation()
-                return
-            }
-            schedulePrediction(
-                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
-            )
-            return
+        if let expected = speculativeBet.expected, let published {
+            logSpeculationMiss(expected: expected, published: published)
         }
+        speculativeBet.clear()
+        schedulePrediction(
+            consumedDelayMilliseconds: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds)
+        )
+    }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { [weak self] in
-            self?.pollForHostPublish(
-                baseline: baseline,
-                keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
-                pollGeneration: pollGeneration,
-                elapsedMs: elapsedMs + interval
-            )
-        }
+    /// Retires the newest host-publish poll chain, so its next wake returns before reading AX.
+    /// Every path that cancels or replaces the prediction the poll would schedule calls this.
+    func cancelHostPublishPoll() {
+        hostPublishPollGeneration &+= 1
     }
 
     private static func elapsedMilliseconds(since uptimeNanoseconds: UInt64) -> Int {

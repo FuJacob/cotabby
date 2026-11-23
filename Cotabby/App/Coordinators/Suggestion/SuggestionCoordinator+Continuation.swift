@@ -121,7 +121,7 @@ extension SuggestionCoordinator {
         // Exact publication has arrived. Retire the acceptance poll before consuming its plan;
         // otherwise a queued poll can see no plan and start a duplicate request while apply waits
         // for presentation. That older callback no longer owns this context transition.
-        hostPublishPollGeneration &+= 1
+        cancelHostPublishPoll()
         cancelPreparedContinuation()
         workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }

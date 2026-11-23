@@ -1,8 +1,9 @@
 import XCTest
 @testable import Cotabby
 
-/// Verifies the timing and the "host moved on" rule of the wait between a keystroke and the
-/// prediction it schedules. The coordinator tests only reach these through real sleeps.
+/// Verifies the timing, the "host moved on" rule, and the step table of the wait between a
+/// keystroke and the prediction it schedules. The coordinator tests only reach these through real
+/// sleeps.
 @MainActor
 final class HostPublishPollTests: XCTestCase {
     // MARK: - Schedule
@@ -85,5 +86,61 @@ final class HostPublishPollTests: XCTestCase {
 
         XCTAssertFalse(baseline.hostMovedOn(to: nil))
         XCTAssertTrue(baseline.hostMovedOn(to: snapshot("Hello")))
+    }
+
+    // MARK: - Step
+
+    func test_aPublishIsSeenEvenOnTheReadThatReachesTheCeiling() {
+        let baseline = HostPublishBaseline(snapshot: snapshot("Hello"), requiresTextChange: true)
+
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("Hello "), awaitingPreparedTarget: false, elapsedMilliseconds: 6),
+            .published
+        )
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("Hello "), awaitingPreparedTarget: false, elapsedMilliseconds: 390),
+            .published
+        )
+    }
+
+    func test_noChangeKeepsPollingOnTheSchedule() {
+        let baseline = HostPublishBaseline(snapshot: snapshot("Hello"), requiresTextChange: false)
+
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("Hello"), awaitingPreparedTarget: false, elapsedMilliseconds: 6),
+            .pollAgain(afterMilliseconds: 8)
+        )
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("Hello"), awaitingPreparedTarget: false, elapsedMilliseconds: 200),
+            .pollAgain(afterMilliseconds: 30)
+        )
+    }
+
+    func test_atTheCeilingOrdinaryInputGeneratesAndAReplacementIsAbandoned() {
+        let ordinary = HostPublishBaseline(snapshot: snapshot("Hello"), requiresTextChange: false)
+        let replacement = HostPublishBaseline(snapshot: snapshot("teh "), requiresTextChange: true)
+
+        XCTAssertEqual(
+            ordinary.nextStep(after: snapshot("Hello"), awaitingPreparedTarget: false, elapsedMilliseconds: 390),
+            .generateAtCeiling
+        )
+        XCTAssertEqual(
+            replacement.nextStep(after: snapshot("teh "), awaitingPreparedTarget: false, elapsedMilliseconds: 390),
+            .abandonAtCeiling
+        )
+    }
+
+    func test_anAwaitedPreparedTargetHoldsOffIntermediatePublishesUntilTheCeiling() {
+        let baseline = HostPublishBaseline(snapshot: snapshot("teh "), requiresTextChange: true)
+
+        // A replacement's backspaces publish before its insert; that slice is not the user's edit.
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("te"), awaitingPreparedTarget: true, elapsedMilliseconds: 14),
+            .pollAgain(afterMilliseconds: 8)
+        )
+        XCTAssertEqual(
+            baseline.nextStep(after: snapshot("te"), awaitingPreparedTarget: true, elapsedMilliseconds: 390),
+            .abandonAtCeiling
+        )
     }
 }
