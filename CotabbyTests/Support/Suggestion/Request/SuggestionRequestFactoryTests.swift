@@ -354,6 +354,35 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertFalse(result.promptPreview.contains("+++"))
     }
 
+    /// Redaction runs before sanitizing; afterwards the key's `-` separators would already be spaces
+    /// and its pieces too short for the scrubber to recognise.
+    func test_buildRequest_redactsSecretsInClipboardContext() throws {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            settings: CotabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+            configuration: .standard,
+            clipboardContext: "staging key sk-live-abcd-efgh-ijkl-mnop-1234 expires friday"
+        )
+
+        let clipboard = try XCTUnwrap(result.request.clipboardContext)
+        XCTAssertTrue(clipboard.contains("staging key"))
+        XCTAssertTrue(clipboard.contains("expires friday"))
+        XCTAssertFalse(clipboard.contains("abcd"))
+        XCTAssertFalse(result.promptPreview.contains("mnop"))
+    }
+
+    func test_buildRequest_dropsClipboardContextThatIsOnlyASecret() {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            settings: CotabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+            configuration: .standard,
+            clipboardContext: "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        )
+
+        XCTAssertNil(result.request.clipboardContext)
+        XCTAssertFalse(result.promptPreview.contains("On the clipboard:"))
+    }
+
     func test_buildRequest_omitsClipboardContextWhenDisabled() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 

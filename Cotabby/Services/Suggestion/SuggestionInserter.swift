@@ -28,7 +28,12 @@ final class SuggestionInserter {
     /// (the pasteboard then holds OUR completion, which would leak back to the user), so overlapping
     /// pastes coalesce onto this single saved clipboard and reschedule the one pending restore.
     private var pendingPasteboardRestore: DispatchWorkItem?
-    private var savedClipboardForRestore: [[NSPasteboard.PasteboardType: Data]]?
+    private var savedClipboardForRestore: [PasteboardItemSnapshot]?
+
+    /// One pasteboard item's representations in the order its writer declared them. Order matters: a
+    /// reader takes the first type it understands, so the writer lists its richest form first, and a
+    /// restore that reorders them can paste plain text where the user copied rich text.
+    private typealias PasteboardItemSnapshot = [(type: NSPasteboard.PasteboardType, data: Data)]
 
     /// Paste menu items located by `AXHelper.pasteMenuItem(forApplicationPID:)`, cached per app so
     /// repeat accepts skip the menu-bar walk. A cached item is validated by its `AXPress` result;
@@ -203,7 +208,7 @@ final class SuggestionInserter {
         let saved = savedClipboardForRestore ?? []
 
         pasteboard.clearContents()
-        guard pasteboard.setString(text, forType: .string) else {
+        guard pasteboard.writeObjects([Self.completionPasteboardItem(for: text)]) else {
             pendingPasteboardRestore?.cancel()
             Self.restorePasteboard(saved, to: pasteboard)
             clearPendingPasteboardRestore()
@@ -293,28 +298,42 @@ final class SuggestionInserter {
         savedClipboardForRestore = nil
     }
 
-    /// Captures every representation of every pasteboard item so the user's clipboard can be restored
-    /// exactly, not just its plain-text form.
-    private static func snapshotPasteboard(_ pasteboard: NSPasteboard) -> [[NSPasteboard.PasteboardType: Data]] {
+    /// The pasteboard item that carries a completion for the paste insert. Besides the text it carries
+    /// the nspasteboard.org transient and concealed markers, so clipboard managers do not record the
+    /// completion into their history during the restore window, and Cotabby's own clipboard context
+    /// (`ClipboardContextProvider`) never reads its completion back as something the user copied.
+    static func completionPasteboardItem(for text: String) -> NSPasteboardItem {
+        let item = NSPasteboardItem()
+        item.setString(text, forType: .string)
+        // Readers test for the marker's presence; its data is ignored, so an empty value is enough.
+        for marker in ClipboardPrivacyPolicy.markersForCotabbyPasteWrites {
+            item.setData(Data(), forType: NSPasteboard.PasteboardType(marker))
+        }
+        return item
+    }
+
+    /// Captures every representation of every pasteboard item, in declared order, so the user's
+    /// clipboard can be restored exactly, not just its plain-text form.
+    private static func snapshotPasteboard(_ pasteboard: NSPasteboard) -> [PasteboardItemSnapshot] {
         (pasteboard.pasteboardItems ?? []).map { item in
-            var representations: [NSPasteboard.PasteboardType: Data] = [:]
-            for type in item.types where item.data(forType: type) != nil {
-                representations[type] = item.data(forType: type)
+            // One read per type: a promised (lazy) representation can be costly for the owning app
+            // to produce, so it is not asked for twice.
+            item.types.compactMap { type in
+                item.data(forType: type).map { (type: type, data: $0) }
             }
-            return representations
         }
     }
 
     private static func restorePasteboard(
-        _ snapshot: [[NSPasteboard.PasteboardType: Data]],
+        _ snapshot: [PasteboardItemSnapshot],
         to pasteboard: NSPasteboard
     ) {
         pasteboard.clearContents()
         guard !snapshot.isEmpty else { return }
         let items = snapshot.map { representations -> NSPasteboardItem in
             let item = NSPasteboardItem()
-            for (type, data) in representations {
-                item.setData(data, forType: type)
+            for representation in representations {
+                item.setData(representation.data, forType: representation.type)
             }
             return item
         }

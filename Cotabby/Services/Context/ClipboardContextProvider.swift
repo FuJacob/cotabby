@@ -6,7 +6,11 @@ import UniformTypeIdentifiers
 ///
 /// Clipboard contents are highly sensitive and change outside Cotabby's control, so this service does
 /// not cache or publish them. The coordinator asks for a fresh, bounded description at generation
-/// time, and `SuggestionRequestFactory` still owns the final prompt clipping policy.
+/// time, and `SuggestionRequestFactory` still owns the final prompt clipping and secret redaction.
+///
+/// A copy that its writer marked concealed, transient, or auto-generated (`ClipboardPrivacyPolicy`)
+/// is never read at all: password managers mark every copied credential this way, and Cotabby's own
+/// paste-insert marks the completion it puts there for a moment.
 @MainActor
 final class ClipboardContextProvider: ClipboardContextProviding {
     private let pasteboard: NSPasteboard
@@ -18,6 +22,12 @@ final class ClipboardContextProvider: ClipboardContextProviding {
     var currentChangeCount: Int { pasteboard.changeCount }
 
     func currentContext() -> String? {
+        // Checked before any data is read, so a marked secret is never even copied into this process.
+        let types = (pasteboard.types ?? []).map(\.rawValue)
+        guard !ClipboardPrivacyPolicy.excludesContext(pasteboardTypes: types) else {
+            return nil
+        }
+
         if let text = normalizedText(pasteboard.string(forType: .string)) {
             return text
         }
