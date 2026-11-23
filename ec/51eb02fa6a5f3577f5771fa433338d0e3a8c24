@@ -1,0 +1,23 @@
+.github/workflows/republish-pages.yml
+  s_9990f9098df800::t_2d6b3aae06d27c 3-12,28-30,38-47,53-58,61-84,86-92,94-95,105,121,127-129
+.github/workflows/release.yml
+  s_9990f9098df800::t_36c2c523855ca4 70,244-256,263-270,675,709,736,753,777,795-819,851,853-857,867,871,881,885,892,916-917
+RELEASING.md
+  s_9990f9098df800::t_fd917407148488 13-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec51eb02fa6a5f3577f5771fa433338d0e3a8c24",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
