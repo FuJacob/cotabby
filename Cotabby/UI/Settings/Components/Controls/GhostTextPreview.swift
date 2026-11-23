@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// Fidelity: the typed prefix renders in the primary label color (like text the user already typed)
 /// and the trailing run renders in the resolved ghost color at the chosen opacity (like a live
-/// suggestion), matching how `GhostSuggestionView` splits already-typed text from the ghost. The two
+/// suggestion), matching how the inline ghost continues the text the user already typed. The two
 /// runs are concatenated into one `Text` so the sample wraps as a single paragraph when a large size
 /// multiplier makes it outgrow the row, instead of clipping the ghost half.
 ///

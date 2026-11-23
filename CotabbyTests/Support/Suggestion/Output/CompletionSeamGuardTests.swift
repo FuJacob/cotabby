@@ -758,3 +758,37 @@ final class CompletionSeamGuardTests: XCTestCase {
         )
     }
 }
+
+/// Terse views of `presentation(...)`, the one decision production consumes, so each case above can
+/// state only the outcome it pins: the final suppression reason, or the streamed wait/show/suppress.
+private extension CompletionSeamGuard {
+    enum StreamedLeadingWordVerdict: Equatable {
+        case wait
+        case allow
+        case suppress
+    }
+
+    static func verdict(
+        precedingText: String, completion: String,
+        spellingAssessment: (String) -> SpellingAssessment
+    ) -> Verdict {
+        switch presentation(precedingText: precedingText, completion: completion,
+                            isFinal: true, spellingAssessment: spellingAssessment) {
+        case let .suppress(reason): return reason
+        case .show, .wait: return .allow
+        }
+    }
+
+    static func streamedLeadingWordVerdict(
+        precedingText: String,
+        completion: String,
+        spellingAssessment: (String) -> SpellingAssessment
+    ) -> StreamedLeadingWordVerdict {
+        switch presentation(precedingText: precedingText, completion: completion,
+                            isFinal: false, spellingAssessment: spellingAssessment) {
+        case .wait: return .wait
+        case .suppress: return .suppress
+        case .show: return .allow
+        }
+    }
+}

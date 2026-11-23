@@ -71,18 +71,6 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             : SuggestionSessionReconciler.nextAcceptanceChunk(from: availableText)
     }
 
-    var hasBufferedContinuation: Bool {
-        predictedRemainingText.count > remainingText.count
-    }
-
-    var acceptedCount: Int {
-        consumedCharacterCount
-    }
-
-    var remainingCount: Int {
-        remainingText.count
-    }
-
     /// A whitespace-only tail is effectively exhausted for inline UX.
     /// Showing "ghost spaces" is visually confusing and not worth preserving.
     var isExhausted: Bool {

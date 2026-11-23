@@ -32,10 +32,6 @@ struct DoubleTapAcceptanceState: Equatable {
 
     private var pendingPress: PendingPress?
 
-    var hasPendingPress: Bool {
-        pendingPress != nil
-    }
-
     /// Remembers a first press that accepted a word and left the suggestion with text remaining.
     mutating func recordWordAccept(of session: SessionToken, at uptime: TimeInterval) {
         pendingPress = PendingPress(session: session, uptime: uptime)

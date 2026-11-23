@@ -37,15 +37,6 @@ nonisolated enum CompletionSeamGuard {
         case abandonedWord(word: String)
     }
 
-    /// Streaming must not expose the first generated word until it is complete enough to assess.
-    /// The coordinator memoizes spelling by the exact assembled word, not a blanket permission
-    /// for all later partials. Changed letters must be assessed again.
-    enum StreamedLeadingWordVerdict: Equatable {
-        case wait
-        case allow
-        case suppress
-    }
-
     /// Identical punctuation/symbol characters in a row that count as junk when freshly introduced.
     private static let junkRunLength = 4
 
@@ -81,22 +72,6 @@ nonisolated enum CompletionSeamGuard {
         return .allow
     }
 
-    /// Leading-word half of the streaming guard. Incomplete first words remain buffered; testing a
-    /// prefix such as `ecr` would create false positives and repeating the lookup on every token
-    /// would put an AppKit/XPC call on the hot streaming path.
-    static func streamedLeadingWordVerdict(
-        precedingText: String,
-        completion: String,
-        spellingAssessment: (String) -> SpellingAssessment
-    ) -> StreamedLeadingWordVerdict {
-        switch presentation(precedingText: precedingText, completion: completion,
-                            isFinal: false, spellingAssessment: spellingAssessment) {
-        case .wait: return .wait
-        case .suppress: return .suppress
-        case .show: return .allow
-        }
-    }
-
     /// One decision is consumed by the streaming, final, and cached-result paths. `wordOnly`
     /// records conservative lexical evidence, not a calibrated model probability: an unknown
     /// joined word can offer its ending without endorsing the following phrase.
@@ -106,17 +81,11 @@ nonisolated enum CompletionSeamGuard {
         case show(text: String, wordOnly: Bool)
     }
 
-    static func verdict(
-        precedingText: String, completion: String,
-        spellingAssessment: (String) -> SpellingAssessment
-    ) -> Verdict {
-        switch presentation(precedingText: precedingText, completion: completion,
-                            isFinal: true, spellingAssessment: spellingAssessment) {
-        case let .suppress(reason): return reason
-        case .show, .wait: return .allow
-        }
-    }
-
+    /// Streaming must not expose the first generated word until it is complete enough to assess:
+    /// testing a prefix such as `ecr` would create false positives, so incomplete first words
+    /// return `.wait`. The coordinator memoizes spelling by the exact assembled word, not as a
+    /// blanket permission for later partials, which keeps the AppKit/XPC lookup off the hot path
+    /// while changed letters are still assessed again.
     static func presentation(
         precedingText: String, completion: String, isFinal: Bool,
         spellingAssessment: (String) -> SpellingAssessment

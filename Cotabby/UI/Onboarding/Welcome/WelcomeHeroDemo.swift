@@ -118,7 +118,7 @@ struct WelcomeHeroDemo: View {
         )
     }
 
-    /// The default inline ghost-text color, matching `GhostSuggestionView`'s fallback (replicated
+    /// The default inline ghost-text color, matching `OverlayController.ghostTextColor(for:)`'s fallback (replicated
     /// the same way `OnboardingFeatureShowcase` does, since the original is private).
     private var ghostColor: Color {
         colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)

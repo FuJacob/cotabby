@@ -1537,10 +1537,7 @@ final class OverlayController: SuggestionOverlayControlling {
     private func ghostTextColor(for geometry: SuggestionOverlayGeometry) -> NSColor {
         let opacity = CGFloat(suggestionSettings.ghostTextOpacity)
         if geometry.isCorrection {
-            let green = isDarkAppearance
-                ? NSColor(srgbRed: 0.45, green: 0.85, blue: 0.45, alpha: 1)
-                : NSColor(srgbRed: 0.15, green: 0.60, blue: 0.20, alpha: 1)
-            return green.withAlphaComponent(opacity)
+            return SuggestionCorrectionStyle.nsColor(isDark: isDarkAppearance).withAlphaComponent(opacity)
         }
         let base = SuggestionTextColorCodec.nsColor(fromHex: suggestionSettings.customSuggestionTextColorHex)
             ?? fieldGhostColor(from: geometry.resolvedFieldStyle)

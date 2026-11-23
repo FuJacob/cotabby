@@ -62,8 +62,6 @@ nonisolated struct TypingHistoryIndex: Sendable {
     private let postings: [String: [Int32]]
     private let inverseDocumentFrequency: [String: Double]
 
-    var documentCount: Int { documents.count }
-
     init(records: [TypingHistoryRecord]) {
         var documents: [Document] = []
         var postings: [String: [Int32]] = [:]

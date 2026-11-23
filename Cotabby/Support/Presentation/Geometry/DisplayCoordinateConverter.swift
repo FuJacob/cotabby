@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Describes one physical display in both coordinate systems Tabby has to bridge.
+/// Describes one physical display in both coordinate systems Cotabby has to bridge.
 ///
 /// Accessibility and CoreGraphics APIs report rectangles in a top-left-origin display space.
 /// AppKit windows use a bottom-left-origin screen space. Keeping both frames together lets the

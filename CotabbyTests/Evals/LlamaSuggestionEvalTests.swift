@@ -204,10 +204,10 @@ final class LlamaSuggestionEvalTests: XCTestCase {
 
         // Mirrors the coordinator's display-time seam guard.
         if let candidate = shownText {
-            let verdict = CompletionSeamGuard.verdict(
-                precedingText: evalCase.precedingText, completion: candidate, spellingAssessment: assessment
+            let decision = CompletionSeamGuard.presentation(
+                precedingText: evalCase.precedingText, completion: candidate, isFinal: true, spellingAssessment: assessment
             )
-            if verdict != .allow {
+            if case .suppress = decision {
                 shownText = nil
                 suppressionStage = "seam-guard"
             }

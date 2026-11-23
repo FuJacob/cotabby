@@ -53,8 +53,6 @@ nonisolated struct TypingHistoryPhrasePredictor: Sendable {
     /// Two-word fallback, kept only for pairs seen at least `backoffMinimumCount` times.
     private let shortContinuations: [ShortContext: [Int32: Int32]]
 
-    var contextCount: Int { continuations.count }
-
     init(records: [TypingHistoryRecord]) {
         var vocabulary: [String: Int32] = [:]
         var displayForms: [String] = []

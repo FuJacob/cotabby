@@ -126,7 +126,7 @@ private struct GhostTextDemoCard: View {
     }
 
     /// The default inline ghost-text color (no user customization in a demo): `Color(white:)` gated
-    /// on the color scheme, matching `GhostSuggestionView`'s fallback in `OverlayController`.
+    /// on the color scheme, matching the adaptive-gray fallback in `OverlayController.ghostTextColor(for:)`.
     private var ghostColor: Color {
         colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
     }
@@ -255,11 +255,8 @@ private struct AutocorrectDemoCard: View {
         (showCorrection && !accepted) ? correctionColor : .primary
     }
 
-    /// The inline correction green, replicated from `OverlayController`'s `SuggestionCorrectionStyle`.
     private var correctionColor: Color {
-        colorScheme == .dark
-            ? Color(red: 0.45, green: 0.85, blue: 0.45)
-            : Color(red: 0.15, green: 0.60, blue: 0.20)
+        SuggestionCorrectionStyle.color(for: colorScheme)
     }
 
     private func runLoop() async {

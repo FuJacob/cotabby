@@ -513,17 +513,16 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.disabledAppRules.first?.displayName, "Example")
     }
 
-    func test_setApplicationDisabled_routesAddAndRemoveAndIgnoresInvalidBundles() {
+    func test_disableAndRemoveApplication_ignoreInvalidBundles() {
         let model = makeModel()
 
-        model.setApplicationDisabled(bundleIdentifier: nil, displayName: "Ghost", disabled: true)
-        model.setApplicationDisabled(bundleIdentifier: "   ", displayName: "Blank", disabled: true)
+        model.disableApplication(bundleIdentifier: "   ", displayName: "Blank")
         XCTAssertTrue(model.disabledAppRules.isEmpty)
 
-        model.setApplicationDisabled(bundleIdentifier: "com.example.one", displayName: "One", disabled: true)
+        model.disableApplication(bundleIdentifier: "com.example.one", displayName: "One")
         XCTAssertTrue(model.isApplicationDisabled(bundleIdentifier: "com.example.one"))
 
-        model.setApplicationDisabled(bundleIdentifier: "com.example.one", displayName: "One", disabled: false)
+        model.removeDisabledApplication(bundleIdentifier: "com.example.one")
         XCTAssertFalse(model.isApplicationDisabled(bundleIdentifier: "com.example.one"))
 
         // Removing a bundle that was never disabled must not dirty the rule list.

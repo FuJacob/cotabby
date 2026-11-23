@@ -36,9 +36,6 @@ struct TypefaceEvidence: Equatable {
     }
 
     static let minimumEvidenceLength = 8
-    /// Shortest sample worth scaling the system face to; below it, rounding noise outweighs the
-    /// scale it would set.
-    static let minimumScalingLength = 6
     /// The first sample at least this long fixes the scaled system face's size for the field's
     /// life. Measured 2026-09-10 in Gemini's prompt bar: scaling to the longest sample so far
     /// resized the ghost three times in one sentence (17 → 15.87 → 15.94 → 16.24) as longer samples

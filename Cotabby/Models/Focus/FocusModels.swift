@@ -626,26 +626,6 @@ struct FocusSnapshot: Equatable {
         capability: .unsupported("No focused text input"),
         context: nil
     )
-
-    /// Returns the app identity that user-facing controls should target.
-    ///
-    /// Opening Cotabby's menu bar window can briefly make Cotabby the focused app. Treating Cotabby's own
-    /// bundle identifier as ineligible protects the invariant that "Enable in X" continues to refer
-    /// to the user's last real work app, not the helper UI they opened to change the setting.
-    func externalApplicationIdentity(
-        ignoredBundleIdentifier: String?
-    ) -> FocusedApplicationIdentity? {
-        guard let bundleIdentifier,
-              bundleIdentifier != ignoredBundleIdentifier
-        else {
-            return nil
-        }
-
-        return FocusedApplicationIdentity(
-            applicationName: applicationName,
-            bundleIdentifier: bundleIdentifier
-        )
-    }
 }
 
 /// Debug-only signal that one focus polling pass completed.
@@ -659,18 +639,8 @@ struct FocusPollingEvent: Equatable {
     let didChangeFocusedInput: Bool
     let applicationName: String
     let capabilitySummary: String
-    let occurredAt: Date
 
     var changeSummary: String {
         didChangeFocusedInput ? "changed" : "unchanged"
     }
-}
-
-/// Minimal identity for the last non-Cotabby application the user was working in.
-///
-/// The menu bar panel can steal focus when opened, so UI controls that target "the current app"
-/// need a stable application identity that does not immediately collapse to Cotabby's own process.
-struct FocusedApplicationIdentity: Equatable {
-    let applicationName: String
-    let bundleIdentifier: String
 }

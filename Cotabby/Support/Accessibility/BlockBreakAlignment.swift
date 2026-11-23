@@ -34,14 +34,6 @@ nonisolated enum BlockBreakAlignment {
 
     private static let lineFeed: UInt16 = 0x0A
 
-    /// The value offset (UTF-16) just after `rangePrefix`, the range text from the field's start to
-    /// the caret, when that text is the value's start with only line breaks left out; nil when the
-    /// two differ in anything else. A left-out break is skipped only to match the next character,
-    /// so the offset is the earliest spot: before a break that follows.
-    static func valueOffset(following rangePrefix: String, in value: String) -> Int? {
-        match(rangePrefix.utf16, in: Array(value.utf16), from: 0)?.end
-    }
-
     /// The value split at the range text's selection, or nil when the texts do not align (the
     /// caller then keeps the range text). `caretStartsBlock` is asked only for an empty selection
     /// with a break right after it: true puts the caret after that break, at the next block's start.

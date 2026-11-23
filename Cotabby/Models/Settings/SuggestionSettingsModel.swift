@@ -1208,25 +1208,6 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveSuggestInIntegratedTerminals(enabled)
     }
 
-    func setApplicationDisabled(
-        bundleIdentifier: String?,
-        displayName: String,
-        disabled: Bool
-    ) {
-        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
-            return
-        }
-
-        if disabled {
-            disableApplication(
-                bundleIdentifier: normalizedBundleIdentifier,
-                displayName: displayName
-            )
-        } else {
-            removeDisabledApplication(bundleIdentifier: normalizedBundleIdentifier)
-        }
-    }
-
     func disableApplication(
         bundleIdentifier: String,
         displayName: String

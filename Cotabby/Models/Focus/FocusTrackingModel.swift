@@ -9,12 +9,10 @@ import Foundation
 @MainActor
 final class FocusTrackingModel: ObservableObject {
     @Published private(set) var snapshot: FocusSnapshot
-    @Published private(set) var latestExternalApplication: FocusedApplicationIdentity?
     /// Debug-only polling diagnostics for the bottom-edge overlay; not used by suggestion generation.
     @Published private(set) var latestPollEvent: FocusPollingEvent?
 
     private let tracker: FocusTracker
-    private let ignoredBundleIdentifier: String?
     private var isStarted = false
 
     init(
@@ -24,7 +22,6 @@ final class FocusTrackingModel: ObservableObject {
         isCaptureSuppressedForBundle: @escaping @MainActor (String?) -> Bool = { _ in false },
         publishesPollingEvents: Bool = false
     ) {
-        self.ignoredBundleIdentifier = ignoredBundleIdentifier
         tracker = FocusTracker(
             permissionProvider: permissionProvider,
             ignoredBundleIdentifier: ignoredBundleIdentifier,
@@ -32,13 +29,9 @@ final class FocusTrackingModel: ObservableObject {
             isCaptureSuppressedForBundle: isCaptureSuppressedForBundle
         )
         snapshot = tracker.snapshot
-        latestExternalApplication = tracker.snapshot.externalApplicationIdentity(
-            ignoredBundleIdentifier: ignoredBundleIdentifier
-        )
 
         tracker.onSnapshotChange = { [weak self] snapshot in
             self?.snapshot = snapshot
-            self?.updateLatestExternalApplication(from: snapshot)
         }
 
         setPollingDiagnosticsEnabled(publishesPollingEvents)
@@ -89,16 +82,6 @@ final class FocusTrackingModel: ObservableObject {
     /// Updates the AX polling interval at runtime. Restarts the timer if already running.
     func updatePollInterval(milliseconds: Int) {
         tracker.updatePollInterval(TimeInterval(milliseconds) / 1000.0)
-    }
-
-    private func updateLatestExternalApplication(from snapshot: FocusSnapshot) {
-        guard let application = snapshot.externalApplicationIdentity(
-            ignoredBundleIdentifier: ignoredBundleIdentifier
-        ) else {
-            return
-        }
-
-        latestExternalApplication = application
     }
 }
 

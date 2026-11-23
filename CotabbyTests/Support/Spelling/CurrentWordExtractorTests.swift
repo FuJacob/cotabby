@@ -5,9 +5,7 @@ import XCTest
 /// reuses it. Both feed destructive edits, so the rejection cases matter as much as the matches.
 final class CurrentWordExtractorTests: XCTestCase {
     func test_extractsTrailingWordAtCaret() {
-        let result = CurrentWordExtractor.extract(from: "hi my nmae")
-        XCTAssertEqual(result?.word, "nmae")
-        XCTAssertEqual(result?.characterCount, 4)
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "hi my nmae"), "nmae")
     }
 
     func test_returnsNilWhenCaretFollowsWhitespace() {
@@ -43,60 +41,23 @@ final class CurrentWordExtractorTests: XCTestCase {
     }
 
     func test_acceptsMixedCaseNaturalWord() {
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "fix teh")?.word, "teh")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "fix teh"), "teh")
         // Leading-capital natural words are fine; only ALL-caps tokens are rejected.
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "say Teh")?.word, "Teh")
-    }
-
-    func test_characterCountIsGraphemeCount() {
-        // A decomposed "é" (e + U+0301 combining acute) is two scalars and two UTF-16 units but one
-        // grapheme, and one Delete keypress removes it, so it counts once.
-        let word = "cafe\u{0301}"
-        let result = CurrentWordExtractor.extract(from: "a " + word)
-        XCTAssertEqual(result?.word, word)
-        XCTAssertEqual(result?.characterCount, 4)
-        XCTAssertEqual((word as NSString).length, 5)
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "say Teh"), "Teh")
     }
 
     func test_wordBoundaryIsAnyWhitespace() {
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "line one\nteh")?.word, "teh")
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "col\tteh")?.word, "teh")
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "teh")?.word, "teh")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "line one\nteh"), "teh")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "col\tteh"), "teh")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "teh"), "teh")
     }
 
     func test_apostrophesHyphensAndTrailingProsePunctuationStayInTheToken() {
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "I didn't")?.word, "didn't")
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "a well-knwon")?.word, "well-knwon")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "I didn't"), "didn't")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "a well-knwon"), "well-knwon")
         // Trailing prose punctuation is not stripped here; the spell checker's whole-word range test
         // rejects it downstream (see `isPlausibleNaturalWord`).
-        XCTAssertEqual(CurrentWordExtractor.extract(from: "hi nmae,")?.word, "nmae,")
-    }
-
-    // MARK: - Tolerant trailing-space extraction
-
-    func test_trailingWord_noSpaceMatchesStrictExtraction() {
-        let extracted = CurrentWordExtractor.extractTrailingWord(from: "hi my nmae")
-        XCTAssertEqual(extracted?.result.word, "nmae")
-        XCTAssertEqual(extracted?.trailingSpaceCount, 0)
-    }
-
-    func test_trailingWord_toleratesOneTrailingSpace() {
-        let extracted = CurrentWordExtractor.extractTrailingWord(from: "hi my nmae ")
-        XCTAssertEqual(extracted?.result.word, "nmae")
-        XCTAssertEqual(extracted?.trailingSpaceCount, 1)
-    }
-
-    func test_trailingWord_rejectsTwoTrailingSpaces() {
-        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae  "))
-    }
-
-    func test_trailingWord_rejectsTrailingTabOrNewline() {
-        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae\t"))
-        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae\n"))
-    }
-
-    func test_trailingWord_rejectsImplausibleWordEvenWithSpace() {
-        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "open https://example.com "))
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "hi nmae,"), "nmae,")
     }
 
     // MARK: - Typo replacement planning

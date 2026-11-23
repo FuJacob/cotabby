@@ -170,8 +170,7 @@ final class FocusModelsTests: XCTestCase {
             focusChangeSequence: 2,
             didChangeFocusedInput: didChange,
             applicationName: "Notes",
-            capabilitySummary: "Supported",
-            occurredAt: Date(timeIntervalSinceReferenceDate: 0)
+            capabilitySummary: "Supported"
         )
     }
 }

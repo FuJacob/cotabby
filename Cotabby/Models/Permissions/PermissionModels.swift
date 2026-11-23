@@ -1,21 +1,9 @@
 import Foundation
 
-/// File overview:
-/// Centralizes Cotabby's permission metadata in one place.
-///
-/// Before this file, permission titles, subtitles, required/optional rules, and Settings URLs were
-/// spread across multiple views and services. Pulling that information into a model gives the app
-/// a single source of truth for permission semantics, while leaving the actual permission checks in
-/// `PermissionManager`.
-nonisolated enum PermissionGuidanceStyle: Equatable, Sendable {
-    /// Launch System Settings and show Cotabby's drag-and-drop helper overlay.
-    case guidedOverlay
-
-    /// Launch System Settings without the overlay. This is useful for lower-priority or legacy
-    /// permissions where investing in a richer walkthrough does not meaningfully improve the core
-    /// product experience.
-    case settingsOnly
-}
+// File overview:
+// Centralizes Cotabby's permission metadata in one place: titles, subtitles, required/optional
+// rules, and Settings URLs. Views and services read permission semantics from here, while the
+// actual permission checks stay in `PermissionManager`.
 
 /// Describes one macOS privacy permission Cotabby can request.
 ///
@@ -67,13 +55,6 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
             "Detect typing and accept with Tab."
         case .screenRecording:
             "Optional: capture screen context for richer suggestions."
-        }
-    }
-
-    var guidanceStyle: PermissionGuidanceStyle {
-        switch self {
-        case .accessibility, .inputMonitoring, .screenRecording:
-            .guidedOverlay
         }
     }
 

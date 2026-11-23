@@ -2,11 +2,10 @@ import SwiftUI
 
 /// Searchable HuggingFace GGUF model browser embedded in the Settings "Local Models" section.
 /// Users search for repos, drill into one to see available GGUF quantizations, and download
-/// directly into Tabby's model directory via the existing ModelDownloadManager.
+/// directly into Cotabby's model directory via the existing ModelDownloadManager.
 struct HuggingFaceModelBrowserView: View {
     @ObservedObject var searchService: HuggingFaceSearchService
     @ObservedObject var modelDownloadManager: ModelDownloadManager
-    let onRefreshModels: () -> Void
 
     @State private var isExpanded = false
 

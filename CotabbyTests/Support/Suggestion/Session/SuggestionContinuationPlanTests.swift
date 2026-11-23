@@ -130,7 +130,6 @@ final class SuggestionContinuationPlanTests: XCTestCase {
     func testMatchingRequiresTheSameFieldProcessFocusSequenceAndContent() throws {
         let source = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu", trailingText: " today")
         let plan = try XCTUnwrap(SuggestionContinuationPlan.completing("le", in: source))
-        XCTAssertTrue(plan.matchesSource(source))
         XCTAssertTrue(plan.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedule", trailingText: " today")))
         XCTAssertFalse(plan.matchesTarget(source))
         for changed in [
@@ -157,7 +156,7 @@ final class SuggestionContinuationPlanTests: XCTestCase {
         let spacedTarget = CotabbyTestFixtures.focusedInputSnapshot(
             elementIdentifier: "third-ax-token", precedingText: "Please schedule ", isWebContentField: true
         )
-        XCTAssertTrue(plan.matchesSource(refreshedSource))
+        XCTAssertTrue(SuggestionContinuationPlan.sameFocusedField(refreshedSource, plan.sourceSnapshot))
         XCTAssertTrue(plan.matchesTarget(publishedTarget))
         XCTAssertFalse(plan.matchesTarget(spacedTarget))
         XCTAssertTrue(plan.matchesTargetWithJoiningSeparator(spacedTarget))

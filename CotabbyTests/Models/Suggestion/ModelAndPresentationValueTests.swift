@@ -62,7 +62,7 @@ final class SuggestionModelValueTests: XCTestCase {
 
         XCTAssertEqual(session.initialVisibleCharacterCount, 3)
         XCTAssertEqual(session.remainingText, "abc")
-        XCTAssertFalse(session.hasBufferedContinuation)
+        XCTAssertEqual(session.predictedRemainingText, "abc")
     }
 
     func test_activeSuggestionSession_retainsFollowingWordsBehindAnInitialWordEnding() {
@@ -75,16 +75,15 @@ final class SuggestionModelValueTests: XCTestCase {
 
         XCTAssertEqual(session.remainingText, "beam")
         XCTAssertEqual(session.predictedRemainingText, "beam for the device")
-        XCTAssertTrue(session.hasBufferedContinuation)
 
         let partlyTyped = session.advancing(by: 2)
         XCTAssertEqual(partlyTyped.remainingText, "am")
-        XCTAssertTrue(partlyTyped.hasBufferedContinuation)
+        XCTAssertEqual(partlyTyped.predictedRemainingText, "am for the device")
 
         let completedWord = partlyTyped.advancing(by: 2)
         XCTAssertEqual(completedWord.remainingText, " for the device")
+        XCTAssertEqual(completedWord.predictedRemainingText, " for the device")
         XCTAssertFalse(completedWord.isExhausted)
-        XCTAssertFalse(completedWord.hasBufferedContinuation)
         XCTAssertEqual(completedWord.baseContext, session.baseContext)
     }
 

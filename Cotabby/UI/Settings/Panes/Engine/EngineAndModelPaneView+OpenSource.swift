@@ -64,8 +64,7 @@ extension EngineAndModelPaneView {
 
             HuggingFaceModelBrowserView(
                 searchService: huggingFaceSearchService,
-                modelDownloadManager: modelDownloadManager,
-                onRefreshModels: refreshModels
+                modelDownloadManager: modelDownloadManager
             )
             .settingsItem(.huggingFaceBrowser)
         }
