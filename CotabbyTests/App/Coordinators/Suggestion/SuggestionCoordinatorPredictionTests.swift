@@ -18,22 +18,17 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.coordinator.schedulePrediction()
         XCTAssertEqual(rig.coordinator.state, .debouncing)
 
-        await waitUntil("Suggestion never became ready") {
-            rig.coordinator.state == .ready(text: "world", latency: 0.01)
-        }
+        await waitUntil("Suggestion never became ready") { rig.coordinator.state == .ready }
 
-        guard case let .ready(text, _) = rig.coordinator.state else {
-            return XCTFail("Expected ready state")
-        }
         // The field already ends with a space, so the ghost carries none: `GhostSpaceBoundary`
         // settles that against the live text, and the stub engine's canned " world" (which never
         // went through the normalizer) is corrected here exactly as a real completion would be.
-        XCTAssertEqual(text, "world")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world")
+        XCTAssertEqual(rig.interactionState.activeSession?.latency, 0.01)
         XCTAssertEqual(rig.overlayController.shownTexts, ["world"])
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Hello "])
         XCTAssertEqual(rig.coordinator.latestRequestID, rig.engine.requests.first?.requestID)
-        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world")
         XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.shown, 1)
         // The completed round trip feeds the adaptive debounce for this engine only.
         XCTAssertEqual(rig.coordinator.engineLatency.lastCompletionMilliseconds, [.llamaOpenSource: 10])
@@ -199,9 +194,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.engine.resultProvider = { _ in throw EngineExploded() }
 
         rig.coordinator.schedulePrediction()
-        await waitUntil("Failure never surfaced") {
-            rig.coordinator.state == .failed(EngineExploded().localizedDescription)
-        }
+        await waitUntil("Failure never surfaced") { rig.coordinator.state == .failed }
 
         XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because generation failed.")
         XCTAssertNil(rig.interactionState.activeSession)
@@ -353,7 +346,7 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
         rig.setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo"))
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
 
-        XCTAssertEqual(rig.coordinator.state, .ready(text: "rld", latency: 0.05))
+        XCTAssertEqual(rig.coordinator.state, .ready)
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "rld")
     }
 
@@ -605,12 +598,12 @@ final class SuggestionCoordinatorPredictionTests: SuggestionCoordinatorRigTestCa
 
     func test_hasSuggestionArtifactsToClear_ignoresIdleAndDisabledStates() {
         let rig = retained(makeCoordinatorRig())
-        let cases: [(state: SuggestionDebugState, expected: Bool)] = [
+        let cases: [(state: SuggestionPipelinePhase, expected: Bool)] = [
             (.idle, false),
             (.disabled("off"), false),
             (.debouncing, true),
             (.generating, true),
-            (.failed("boom"), true)
+            (.failed, true)
         ]
         for (state, expected) in cases {
             rig.coordinator.state = state

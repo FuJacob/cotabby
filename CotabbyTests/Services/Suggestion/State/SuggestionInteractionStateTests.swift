@@ -168,7 +168,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
         let context = FocusedInputContext(snapshot: snapshot, generation: 1)
         let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
-        _ = state.commitAcceptedChunk(" world", liveContext: context, session: session)
+        _ = state.commitAcceptedChunk(" world", session: session)
         let stalePublishedOverlay = visibleOverlay(text: " world again", for: snapshot)
 
         guard case .invalid = state.prepareAcceptance(
@@ -191,7 +191,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
         let context = FocusedInputContext(snapshot: snapshot, generation: 1)
         let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
-        _ = state.commitAcceptedChunk(" world", liveContext: context, session: session)
+        _ = state.commitAcceptedChunk(" world", session: session)
         let afterAccept = try XCTUnwrap(state.activeSession)
         _ = state.advanceIfTypedCharactersMatch(" ", expectedSession: afterAccept)
 
@@ -235,9 +235,9 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         ) else { return XCTFail("The visible word ending should be acceptable") }
         XCTAssertEqual(chunk, "beam", "Full accept must never include the hidden following words")
 
-        guard case let .advanced(advanced, _) = state.commitAcceptedChunk(
-            chunk, liveContext: context, session: session
-        ) else { return XCTFail("The buffered phrase should stay ready after the word ending is accepted") }
+        guard case let .advanced(advanced) = state.commitAcceptedChunk(chunk, session: session) else {
+            return XCTFail("The buffered phrase should stay ready after the word ending is accepted")
+        }
         XCTAssertEqual(advanced.remainingText, " for the device")
         XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 4))
 
@@ -327,7 +327,7 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
         let context = FocusedInputContext(snapshot: snapshot, generation: 1)
         let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
-        _ = state.commitAcceptedChunk(" world", liveContext: context, session: session)
+        _ = state.commitAcceptedChunk(" world", session: session)
         let accepted = try XCTUnwrap(state.activeSession)
 
         let extended = try XCTUnwrap(state.extendPrediction(
@@ -575,20 +575,15 @@ final class SuggestionInteractionStateTests: XCTestCase {
     func test_commitAcceptedChunkAdvancesSessionAndSetsPendingInsertionSentinel() {
         runOnMainActor {
             let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", generation: 7)
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
             let session = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
 
-            let progress = state.commitAcceptedChunk(
-                " world",
-                liveContext: context,
-                session: session
-            )
+            let progress = state.commitAcceptedChunk(" world", session: session)
 
-            guard case let .advanced(advancedSession, generation) = progress else {
+            guard case let .advanced(advancedSession) = progress else {
                 XCTFail("Expected partial acceptance to keep the session alive")
                 return
             }
-            XCTAssertEqual(generation, 7)
             XCTAssertEqual(advancedSession.acceptedText, " world")
             XCTAssertEqual(advancedSession.remainingText, " again")
             XCTAssertEqual(state.activeSession, advancedSession)
@@ -600,20 +595,15 @@ final class SuggestionInteractionStateTests: XCTestCase {
     func test_commitAcceptedChunkClearsSessionWhenTailIsExhausted() {
         runOnMainActor {
             let state = makeState()
-            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", generation: 4)
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
             let session = state.startSession(fullText: " world", liveContext: context, latency: 0.1)
 
-            let progress = state.commitAcceptedChunk(
-                " world",
-                liveContext: context,
-                session: session
-            )
+            let progress = state.commitAcceptedChunk(" world", session: session)
 
-            guard case let .exhausted(generation) = progress else {
+            guard case .exhausted = progress else {
                 XCTFail("Expected final chunk to exhaust the session")
                 return
             }
-            XCTAssertEqual(generation, 4)
             XCTAssertNil(state.activeSession)
             XCTAssertEqual(state.publicationLag, .settled)
         }

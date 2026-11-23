@@ -221,11 +221,7 @@ extension SuggestionCoordinator {
         }
         cancelPredictionWork(preservingContinuation: true)
 
-        switch interactionState.commitAcceptedChunk(
-            acceptedChunk,
-            liveContext: liveContext,
-            session: sessionForAcceptance
-        ) {
+        switch interactionState.commitAcceptedChunk(acceptedChunk, session: sessionForAcceptance) {
         case .exhausted:
             let hasPreparedContinuation = markPreparedContinuationCommitted(after: sessionForAcceptance)
             latestGenerationNumber = liveContext.generation
@@ -275,9 +271,9 @@ extension SuggestionCoordinator {
             schedulePredictionAfterHostPublishDelay()
             return true
 
-        case let .advanced(advancedSession, _):
+        case let .advanced(advancedSession):
             latestGenerationNumber = liveContext.generation
-            state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
+            state = .ready
             // The overlay slide stays synchronous on purpose: acceptance validation compares the
             // visible overlay text against the session tail, so a deferred slide could make a
             // rapid follow-up Tab read a stale overlay and pass through to the host.
@@ -665,7 +661,7 @@ extension SuggestionCoordinator {
         if keptTypingPrediction {
             suggestionStreamingState.recordRendered(advancedSession.remainingText)
         }
-        state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
+        state = .ready
         // Nearly typed through: fetch what comes next into the cache now, so exhausting this
         // suggestion lands on a ready one instead of a blank gap (see `prefetchContinuation`).
         if let rawContext = focusModel.snapshot.context {

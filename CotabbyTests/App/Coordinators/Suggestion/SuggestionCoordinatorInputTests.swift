@@ -85,7 +85,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             "world",
             "A matching keystroke advances, never kills"
         )
-        XCTAssertEqual(rig.coordinator.state, .ready(text: "world", latency: 0.05))
+        XCTAssertEqual(rig.coordinator.state, .ready)
     }
 
     func test_divergentTypingInvalidatesAndReschedules() async {
@@ -469,14 +469,14 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
     func test_suppressedSyntheticInputLeavesTheLiveSessionUntouched() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig)
-        rig.coordinator.state = .ready(text: " world", latency: 0.05)
+        rig.coordinator.state = .ready
         let workID = rig.coordinator.currentWorkID
 
         // Cotabby's own synthetic keystrokes echo through the monitor; they are observed, never
         // treated as user typing that would invalidate the tail.
         rig.inputMonitor.onSuppressedSyntheticInput?()
 
-        XCTAssertEqual(rig.coordinator.state, .ready(text: " world", latency: 0.05))
+        XCTAssertEqual(rig.coordinator.state, .ready)
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world")
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.coordinator.currentWorkID, workID)

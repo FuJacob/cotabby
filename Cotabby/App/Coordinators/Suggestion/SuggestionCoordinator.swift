@@ -14,7 +14,7 @@ import Foundation
 final class SuggestionCoordinator: ObservableObject {
     /// Coordinator-owned state machine values. Tests inspect these directly, but no UI subscribes
     /// to them, so keeping them as plain properties avoids unrelated menu re-renders.
-    var state: SuggestionDebugState = .idle
+    var state: SuggestionPipelinePhase = .idle
     var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
     var latestGenerationNumber: UInt64?
     /// True while the latest focus snapshot carried host-owned marked text (system inline
@@ -336,8 +336,7 @@ final class SuggestionCoordinator: ObservableObject {
                 self.cancelPredictionWork()
                 self.clearSuggestion()
                 self.hideOverlay(reason: "Overlay hidden because screen context was invalidated.")
-                if case .disabled = self.state { return }
-                self.state = .idle
+                self.state.settle()
             }
         }
 

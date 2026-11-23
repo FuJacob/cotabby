@@ -94,7 +94,7 @@ extension SuggestionCoordinator {
             // The first word remains the visible acceptance boundary until the user finishes it.
             // Usually only the hidden buffer changed, so avoid an unnecessary overlay re-layout.
             if extended.remainingText != previousText {
-                state = .ready(text: extended.remainingText, latency: extended.latency)
+                state = .ready
                 reconcileActiveSession(with: focusModel.snapshot)
             }
             return

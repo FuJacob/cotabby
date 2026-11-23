@@ -1,18 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Presentation-facing suggestion state shared by the coordinator, presenter, overlays, and diagnostics.
-
-/// High-level suggestion states surfaced to the menu and overlay logic.
-enum SuggestionDebugState: Equatable {
-    case idle
-    case disabled(String)
-    case debouncing
-    case generating
-    case ready(text: String, latency: TimeInterval)
-    case failed(String)
-
-}
+/// Presentation-facing suggestion values shared by the coordinator, presenter, and overlays.
 
 /// Geometry needed to render ghost text in the same visual line box as the host editor.
 ///
@@ -220,9 +209,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility
 /// without poking into AppKit window objects directly.
 ///
-/// `visible` carries the active `CompletionRenderMode` so the focus debug overlay, tests, and
-/// presenter state-diffing can distinguish an inline ghost from a mirror card without inspecting
-/// `OverlayController` internals.
+/// `visible` also records the `CompletionRenderMode` the controller resolved, so tests can tell an
+/// inline ghost from a mirror card without inspecting `OverlayController` internals. Production
+/// consumers compare only text and geometry (see `SuggestionOverlayPresenter`).
 enum OverlayState: Equatable {
     case hidden(reason: String)
     case visible(text: String, geometry: SuggestionOverlayGeometry, mode: CompletionRenderMode)
@@ -233,12 +222,5 @@ enum OverlayState: Equatable {
         }
 
         return false
-    }
-
-    var visibleMode: CompletionRenderMode? {
-        guard case let .visible(_, _, mode) = self else {
-            return nil
-        }
-        return mode
     }
 }

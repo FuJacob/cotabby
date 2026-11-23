@@ -207,7 +207,7 @@ final class TypingExperienceEvalTests: XCTestCase {
         let context = rig.interactionState.materializeContext(from: source)
         let session = rig.interactionState.startSession(fullText: "forward", liveContext: context,
             latency: 0, kind: .correction(typoWord: "forwad"))
-        rig.coordinator.state = .ready(text: "forward", latency: 0)
+        rig.coordinator.state = .ready
         rig.coordinator.presentOverlay(text: "forward", at: source.caretRect, context: context, isCorrection: true)
         rig.coordinator.prepareContinuation(after: session, rawContext: source)
         run.record("correction-offered", text: source.precedingText, rig: rig, engine: engine)

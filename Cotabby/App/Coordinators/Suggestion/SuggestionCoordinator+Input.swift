@@ -98,9 +98,7 @@ extension SuggestionCoordinator {
         // earlier `shouldCaptureVisualContext` check already declined.
         startVisualContextIfAllowed(for: focusedContext, focusSnapshot: snapshot)
 
-        if case .disabled = state {
-            state = .idle
-        }
+        state.reenable()
 
         if interactionState.hasFocusedElementChanged(comparedTo: focusedContext) {
             // Resume lookahead only when the writing itself continues (an identity fact such as a

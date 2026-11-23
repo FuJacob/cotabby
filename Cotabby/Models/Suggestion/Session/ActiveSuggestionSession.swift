@@ -80,15 +80,7 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     /// Returns a new session advanced by the accepted or typed character count.
     /// The original value stays unchanged because this type models immutable interaction state.
     func advancing(by consumedCharacters: Int) -> ActiveSuggestionSession {
-        ActiveSuggestionSession(
-            baseContext: baseContext,
-            fullText: fullText,
-            initialVisibleCharacterCount: initialVisibleCharacterCount,
-            showFollowingWords: showFollowingWords,
-            consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency,
-            kind: kind
-        )
+        withConsumedCharacters(consumedCharacterCount + max(consumedCharacters, 0))
     }
 
     /// Rebuilds the session from a fully observed live editor state during reconciliation.

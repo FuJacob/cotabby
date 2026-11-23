@@ -273,7 +273,6 @@ final class SuggestionInteractionState {
     /// for it.
     func commitAcceptedChunk(
         _ acceptedChunk: String,
-        liveContext: FocusedInputContext,
         session: ActiveSuggestionSession
     ) -> SuggestionAcceptedChunkProgress {
         let advancedSession = session.advancing(by: acceptedChunk.count)
@@ -281,14 +280,14 @@ final class SuggestionInteractionState {
         if advancedSession.isExhausted {
             publicationLag = .settled
             activeSession = nil
-            return .exhausted(generation: liveContext.generation)
+            return .exhausted
         }
 
         // The new synthetic insert now owns publication of the entire consumed prefix, including
         // any matching characters typed immediately before this accept.
         publicationLag = .awaitingSyntheticInsert(consumedCount: advancedSession.consumedCharacterCount)
         activeSession = advancedSession
-        return .advanced(session: advancedSession, generation: liveContext.generation)
+        return .advanced(session: advancedSession)
     }
 
     /// Advances the stored session when the user typed the next expected characters directly.
@@ -342,6 +341,6 @@ enum SuggestionAcceptancePreparation {
 
 /// Describes how the stored session changed after the accepted text was successfully inserted.
 enum SuggestionAcceptedChunkProgress {
-    case advanced(session: ActiveSuggestionSession, generation: UInt64)
-    case exhausted(generation: UInt64)
+    case advanced(session: ActiveSuggestionSession)
+    case exhausted
 }

@@ -17,7 +17,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
     // MARK: - Gating
 
-    func test_acceptCurrentSuggestionAllowsVisibleSessionWhileDebugStateIsDebouncing() {
+    func test_acceptCurrentSuggestionAllowsVisibleSessionWhilePipelineIsDebouncing() {
         let rig = retained(makeCoordinatorRig())
         startVisibleSession(in: rig, fullText: " world again")
         rig.coordinator.state = .debouncing
@@ -29,7 +29,8 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
-        XCTAssertEqual(rig.coordinator.state, .ready(text: " again", latency: 0.05))
+        XCTAssertEqual(rig.coordinator.state, .ready)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " again")
     }
 
     func test_acceptCurrentSuggestionPassesThroughWhileTemporarilyPaused() {
@@ -105,9 +106,10 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         XCTAssertEqual(rig.inserter.insertedChunks, [" world "])
+        XCTAssertEqual(rig.coordinator.state, .ready)
         XCTAssertEqual(
-            rig.coordinator.state,
-            .ready(text: "how", latency: 0.05),
+            rig.interactionState.activeSession?.remainingText,
+            "how",
             "The consumed following space should not lead the tail."
         )
     }
@@ -121,7 +123,8 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
         XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
-        XCTAssertEqual(rig.coordinator.state, .ready(text: " how", latency: 0.05))
+        XCTAssertEqual(rig.coordinator.state, .ready)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " how")
     }
 
     // MARK: - Rapid successive accepts
@@ -626,7 +629,8 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
         await rig.coordinator.generateFromCurrentFocus(workID: rig.coordinator.currentWorkID)
 
-        XCTAssertEqual(rig.coordinator.state, .ready(text: "rld again", latency: 0))
+        XCTAssertEqual(rig.coordinator.state, .ready)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "rld again")
         XCTAssertEqual(rig.interactionState.activeSession?.fullText, "rld again")
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
@@ -639,7 +643,7 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
         await rig.coordinator.generateFromCurrentFocus(workID: rig.coordinator.currentWorkID)
 
-        XCTAssertNotEqual(rig.coordinator.state, .ready(text: "rld again", latency: 0))
+        XCTAssertNotEqual(rig.coordinator.state, .ready)
         await waitUntil { rig.engine.requests.count == 1 }
         XCTAssertEqual(rig.engine.requests.first?.prefixText, "Hello wo")
     }
@@ -654,7 +658,8 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
 
         await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
 
-        XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
+        XCTAssertEqual(rig.coordinator.state, .ready)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "from here on")
         XCTAssertNil(rig.coordinator.speculativeBet.expected, "the exemption is single-use")
     }
 
@@ -677,7 +682,8 @@ final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCa
         rig.setFocusedInput(published)
         let parked = try? XCTUnwrap(rig.coordinator.speculativeBet.takeParked())
         await rig.coordinator.apply(result: parked!.result, workID: parked!.workID)
-        XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
+        XCTAssertEqual(rig.coordinator.state, .ready)
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "from here on")
         XCTAssertEqual(rig.coordinator.speculativeBet, .idle)
     }
 

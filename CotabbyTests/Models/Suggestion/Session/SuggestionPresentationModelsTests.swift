@@ -36,17 +36,12 @@ final class SuggestionPresentationModelsTests: XCTestCase {
         XCTAssertEqual(advanced.observedContentEdges, edges)
     }
 
-    func test_overlayState_visibleExposesRenderModeAndHiddenExposesNone() {
-        let visible = OverlayState.visible(
-            text: "hello",
-            geometry: CotabbyTestFixtures.overlayGeometry(caretQuality: .derived),
-            mode: .mirror(reason: .caretMidLine)
+    func test_overlayState_isVisibleInEitherRenderModeAndNotWhenHidden() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(caretQuality: .derived)
+        XCTAssertTrue(OverlayState.visible(text: "hello", geometry: geometry, mode: .inline).isVisible)
+        XCTAssertTrue(
+            OverlayState.visible(text: "hello", geometry: geometry, mode: .mirror(reason: .caretMidLine)).isVisible
         )
-        XCTAssertTrue(visible.isVisible)
-        XCTAssertEqual(visible.visibleMode, .mirror(reason: .caretMidLine))
-
-        let hidden = OverlayState.hidden(reason: "No suggestion buffered")
-        XCTAssertFalse(hidden.isVisible)
-        XCTAssertNil(hidden.visibleMode)
+        XCTAssertFalse(OverlayState.hidden(reason: "No suggestion buffered").isVisible)
     }
 }

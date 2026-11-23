@@ -205,7 +205,7 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         let session = startCompletionSession(prediction: text, visibleText: visibleText,
             context: context, latency: 0, isFinal: true, wordEndingOnly: wordEndingOnly)
-        state = .ready(text: session.remainingText, latency: session.latency)
+        state = .ready
         presentSessionOverlay(session, context: context)
         logStage(
             "anchor-restore",
@@ -804,7 +804,7 @@ extension SuggestionCoordinator {
             latency: 0,
             kind: .correction(typoWord: typoWord)
         )
-        state = .ready(text: session.remainingText, latency: 0)
+        state = .ready
         presentSessionOverlay(session, context: liveContext, isCorrection: true)
         logStage(
             "typo-correction-ready",
@@ -1052,7 +1052,7 @@ extension SuggestionCoordinator {
             fullText: session.fullText
         )
         hasPrefetchedContinuation = false
-        state = .ready(text: session.remainingText, latency: session.latency)
+        state = .ready
 
         presentFreshSession(session, liveContext: liveContext)
         logStage(
@@ -1089,7 +1089,7 @@ extension SuggestionCoordinator {
 
         clearSuggestion()
         hideOverlay(reason: "Overlay hidden because generation failed.")
-        state = .failed(message)
+        state = .failed
         logStage("failed", workID: workID, generation: latestGenerationNumber, message: message)
     }
 
@@ -1099,8 +1099,8 @@ extension SuggestionCoordinator {
     func reconcileWithCurrentEnvironment() {
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
-        } else if case .disabled = state {
-            state = .idle
+        } else {
+            state.reenable()
         }
     }
 
@@ -1210,7 +1210,7 @@ extension SuggestionCoordinator {
             return
         }
 
-        state = .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
+        state = .ready
         // Reconciliation runs both for legitimate context changes (window drag, field switch,
         // user typing through the tail) and for the +30ms post-insertion AX refresh that fires
         // after every Tab accept. In the post-insertion case the underlying state has not
@@ -1388,27 +1388,13 @@ extension SuggestionCoordinator {
     /// defensive: any path that shows ghost text or starts a session also moves `state` away from
     /// `.disabled`, but re-running the teardown is cheap insurance if that invariant ever slips.
     private func isAlreadyDisabled(for reason: String) -> Bool {
-        guard case .disabled(let currentReason) = state, currentReason == reason else {
-            return false
-        }
-
-        return !overlayState.isVisible && interactionState.activeSession == nil
+        state == .disabled(reason) && !overlayState.isVisible && interactionState.activeSession == nil
     }
 
     /// True when the no-session clear path still has anything to tear down. With no active
-    /// session, most keystrokes arrive with the overlay already hidden and the state already idle.
-    /// `.disabled` counts as nothing-to-clear because entering it already ran the full teardown.
+    /// session, most keystrokes arrive with the overlay already hidden and the pipeline settled.
     var hasSuggestionArtifactsToClear: Bool {
-        if overlayState.isVisible || interactionState.activeSession != nil {
-            return true
-        }
-
-        switch state {
-        case .idle, .disabled:
-            return false
-        default:
-            return true
-        }
+        overlayState.isVisible || interactionState.activeSession != nil || !state.isSettled
     }
 
     /// Ends the suggestion on screen and returns the pipeline to idle: drops the session, hides
