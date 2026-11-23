@@ -1,0 +1,45 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_8a83bbba8fddfe 179,427,528,587,751,781,950,1026,1082,1231,1272,1357,1416,1537,1614,3273,3275,3277,3722,3724,3726,4258,4342,4374,4616,4700,4732,4944,5012,5037
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_b9af9eb54478c8::t_5861ce9d60b329 731
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Continuation.swift
+  s_b9af9eb54478c8::t_28ce1138186d6a 56-58,72,77,112,116,118,138,152
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_cd3f07b1dc4772 470,485,494,499,502
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_b9af9eb54478c8::t_8c45aa957976dd 23,226,273,292,623,902,904-907,1449
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+TypingPrediction.swift
+  s_b9af9eb54478c8::t_4741c9b6e03c45 13
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_b9af9eb54478c8::t_b089d9d5681605 168-170
+CotabbyTests/App/Coordinators/Suggestion/SuggestionConversationIsolationTests.swift
+  s_b9af9eb54478c8::t_a85c32c97e835e 46
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_b9af9eb54478c8::t_2163fa63398ea6 466,483,662,667,677,680-682,690,693,696,701,703,705-707,709-710
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorContinuityTests.swift
+  s_b9af9eb54478c8::t_b018bbe0aca908 184,224,282,309,345,441,452
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorInputTests.swift
+  s_b9af9eb54478c8::t_2201cc50f086c6 341,372,376
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.swift
+  s_b9af9eb54478c8::t_4f1d25f143e3bc 595,597,602
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorWordCompletionTests.swift
+  s_b9af9eb54478c8::t_eb2e4a3ed506f9 228,241
+CotabbyTests/Evals/TypingExperienceEvalTests.swift
+  s_b9af9eb54478c8::t_2d42cc2862b1ca 215,217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f94cad2256e8824db687ab8887843aa7ace9f1d",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
