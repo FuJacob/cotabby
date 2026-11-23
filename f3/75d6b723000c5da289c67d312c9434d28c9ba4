@@ -1,0 +1,29 @@
+Cotabby/Services/ModelManagement/HuggingFaceAPIClient.swift
+  s_b9af9eb54478c8::t_1a7a8f4c21b4ef 4,28
+Cotabby/Services/ModelManagement/ModelDownloadManager.swift
+  s_b9af9eb54478c8::t_9e59e732c86fe7 89-91,145,152,155-156,158,165,200,249,420,548-549
+Cotabby/Support/Runtime/ModelTransferTable.swift
+  s_b9af9eb54478c8::t_fea6d006ae3550 52
+Cotabby/UI/Settings/ModelManagement/DownloadableModelCatalogView.swift
+  s_b9af9eb54478c8::t_10b01e2c6a0e85 79
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Endpoint.swift
+  s_b9af9eb54478c8::t_e30c789b620b3c 151-152
+CotabbyTests/Services/ModelManagement/ModelDownloadManagerTests.swift
+  s_b9af9eb54478c8::t_726627062b320a 204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f375d6b723000c5da289c67d312c9434d28c9ba4",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
