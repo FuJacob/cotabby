@@ -24,7 +24,7 @@ struct MacroEngine {
         MacroEngine(evaluators: [
             DateMacroEvaluator(now: now, calendar: calendar, locale: locale),
             RandomMacroEvaluator(randomSource: randomSource),
-            UnitConversionEvaluator(locale: locale),
+            UnitConversionEvaluator(),
             CurrencyEvaluator(locale: locale),
             ArithmeticEvaluator()
         ])

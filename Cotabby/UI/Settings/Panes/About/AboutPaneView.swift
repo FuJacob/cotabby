@@ -121,9 +121,8 @@ struct AboutPaneView: View {
 
     /// The app bundle is the canonical source for human-facing version text.
     private var appVersionText: String {
-        let shortVersion =
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let shortVersion = Bundle.main.cotabbyShortVersion
+        let buildNumber = Bundle.main.cotabbyBuildNumber
 
         switch (shortVersion, buildNumber) {
         case (let shortVersion?, let buildNumber?) where shortVersion != buildNumber:

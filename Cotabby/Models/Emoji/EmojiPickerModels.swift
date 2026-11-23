@@ -109,35 +109,36 @@ struct EmojiVariantPreferences: Equatable, Sendable {
 
 // MARK: - Trigger state machine vocabulary
 
-/// Direction for moving the highlighted row while the picker is open.
+/// Direction for moving the highlight through the picker's one-dimensional match ribbon. Both
+/// arrow axes map onto it (Up/Left are `previous`, Down/Right are `next`) and it wraps at the ends.
 nonisolated enum EmojiSelectionMove: Equatable {
-    case up
-    case down
+    case previous
+    case next
 }
 
-/// How a capture was committed. `.key` is a consumed Tab/Return; `.closingColon` is the
-/// passed-through second `:` of `:query:` (EMOJI.md Mode B).
+/// How a capture was committed. `.key` is the consumed word-accept key (or a click on a glyph);
+/// `.closingColon` is the passed-through second `:` of `:query:`.
 nonisolated enum EmojiCommitMode: Equatable {
     case key
     case closingColon
 }
 
 /// The reduced keystroke vocabulary the trigger state machine understands. The controller
-/// translates raw `CapturedInputEvent`s plus focus signals into these.
+/// translates raw `CapturedInputEvent`s into these. Focus changes are not an input: they arrive
+/// outside the keystroke stream, so the controller tears the capture down and resets the machine.
 enum EmojiTriggerInput: Equatable {
     case character(Character)
     case backspace
     case navigate(EmojiSelectionMove)
     case commitKey
     case escape
-    case focusChanged
     case dismissExternally
 }
 
 /// Side effects the controller performs after a transition. The machine itself stays pure; it only
 /// describes what should happen.
 nonisolated enum EmojiTriggerAction: Equatable {
-    case open(query: String)
+    case open
     case updateQuery(String)
     case moveSelection(EmojiSelectionMove)
     case commit(EmojiCommitMode)

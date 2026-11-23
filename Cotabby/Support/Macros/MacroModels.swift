@@ -6,8 +6,8 @@ import Foundation
 /// to unit test. UI and runtime wiring live elsewhere.
 
 /// A computed macro result: what to show in the single-row inline preview, and what to insert when
-/// the user accepts. The two can differ (arithmetic keeps the worked expression, `5+5=10`, while a
-/// date inserts the same value it previews).
+/// the user accepts. The two can differ (arithmetic previews `= 10` but inserts the bare `10`, while
+/// a date inserts the same value it previews).
 struct MacroResult: Equatable {
     /// Text shown under the caret while the user types (for example `= 10` or `Jun 4, 2026`).
     let previewText: String

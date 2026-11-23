@@ -7,9 +7,10 @@ import CoreGraphics
 ///
 /// All rectangles are in AppKit screen coordinates (bottom-left origin, y increases upward), the
 /// same space `FocusedInputSnapshot.caretRect` already uses.
-/// Pure geometry for the two-row emoji picker: a typed-query row above a horizontal ribbon of
-/// ranked glyphs. The window width hugs the ribbon's cells up to `maxVisibleCells` (then the ribbon
-/// scrolls), so the panel stays compact for a narrow result set instead of reserving a fixed slab.
+
+/// Sizes for the two-row picker: a typed-query row above a horizontal ribbon of ranked glyphs. The
+/// window width hugs the ribbon's cells up to `maxVisibleCells` (then the ribbon scrolls), so the
+/// panel stays compact for a narrow result set instead of reserving a fixed slab.
 enum EmojiPickerMetrics {
     /// Square cell that holds one glyph and its selection chip.
     static let cellSize: CGFloat = 30

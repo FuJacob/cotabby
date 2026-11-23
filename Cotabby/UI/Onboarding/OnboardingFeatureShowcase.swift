@@ -12,8 +12,8 @@ import SwiftUI
 ///
 /// Nothing here touches the real suggestion pipeline, settings, Accessibility, the event tap, or the
 /// emoji catalog. The cards are inert content, so they can never steal focus or affect a real
-/// suggestion. The keycap and popup styling is replicated (not shared) from `OverlayController` and
-/// `EmojiPickerView`, whose own keycap views are `private`.
+/// suggestion. The keycap, correction green and ribbon cell are the real overlay and picker views,
+/// so the demos cannot drift from what the features actually draw.
 ///
 /// Lifecycle: each card owns its `@State` and drives a looping animation from a `.task`, which
 /// SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
@@ -54,7 +54,7 @@ private let nsPerMillisecond: UInt64 = 1_000_000
 
 // MARK: - Shared card chrome
 
-/// A captioned "mock text field" panel. Mirrors the onboarding `PermissionCard` look (regular
+/// A captioned "mock text field" panel. Mirrors the `OnboardingPermissionCard` look (regular
 /// material plus a hairline stroke) at a tighter corner radius. The content area is pinned to a fixed
 /// height so a card whose inner popup appears and disappears never changes the window's height.
 private struct DemoCard<Content: View>: View {
@@ -395,7 +395,7 @@ private struct DemoEmojiPopup: View {
 
             HStack(spacing: 2) {
                 ForEach(Array(candidates.enumerated()), id: \.element.alias) { index, candidate in
-                    DemoEmojiRibbonCell(glyph: candidate.glyph, isSelected: index == 0)
+                    EmojiRibbonCell(glyph: candidate.glyph, isSelected: index == 0)
                 }
             }
             .padding(.horizontal, 8)
@@ -404,22 +404,6 @@ private struct DemoEmojiPopup: View {
         .frame(width: 174)
         .popupHUDChrome()
         .shadow(color: .black.opacity(0.28), radius: 8, y: 4)
-    }
-}
-
-/// One ribbon glyph in the onboarding replica, mirroring the real `EmojiRibbonCell`.
-private struct DemoEmojiRibbonCell: View {
-    let glyph: String
-    let isSelected: Bool
-
-    var body: some View {
-        Text(glyph)
-            .font(.system(size: 20))
-            .frame(width: EmojiPickerMetrics.cellSize, height: EmojiPickerMetrics.cellSize)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? PopupTheme.selectionFill : Color.clear)
-            )
     }
 }
 
