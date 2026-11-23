@@ -69,4 +69,94 @@ final class CotypistExportImporterTests: XCTestCase {
         XCTAssertThrowsError(try CotypistExportImporter.records(fromExport: Data("{\"a\":1}".utf8)))
         XCTAssertThrowsError(try CotypistExportImporter.records(fromExport: Data("[{\"name\":\"x\"}]".utf8)))
     }
+
+    // MARK: - Bounds
+
+    private func temporaryFile(_ data: Data) throws -> URL {
+        let url = try makeTemporaryDirectory().appendingPathComponent("user_inputs.json")
+        try data.write(to: url)
+        return url
+    }
+
+    func test_readExport_refusesAFileOverTheLimitBeforeReadingIt() throws {
+        let url = try temporaryFile(Data(repeating: 0x20, count: 2_048))
+
+        XCTAssertThrowsError(try CotypistExportImporter.readExport(at: url, maximumBytes: 1_024)) { error in
+            XCTAssertEqual(error as? CotypistExportImporter.ImportError, .fileTooLarge)
+        }
+    }
+
+    func test_readExport_readsAFileWithinTheLimit() throws {
+        let data = try export([["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "Thanks for the quick reply, see you then."]])
+        let url = try temporaryFile(data)
+
+        XCTAssertEqual(try CotypistExportImporter.readExport(at: url, maximumBytes: data.count), data)
+    }
+
+    func test_readExport_refusesSomethingThatIsNotARegularFile() {
+        XCTAssertThrowsError(try CotypistExportImporter.readExport(at: makeTemporaryDirectory())) { error in
+            XCTAssertEqual(error as? CotypistExportImporter.ImportError, .unrecognizedFormat)
+        }
+    }
+
+    func test_anExportWithTooManyRowsIsRefused() throws {
+        let rows: [[String: Any]] = (0..<3).map { index in
+            ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "Message number \(index) about the plan."]
+        }
+
+        XCTAssertThrowsError(try CotypistExportImporter.records(fromExport: export(rows), rowLimit: 2)) { error in
+            XCTAssertEqual(error as? CotypistExportImporter.ImportError, .tooManyRows)
+        }
+        XCTAssertEqual(try CotypistExportImporter.records(fromExport: export(rows), rowLimit: 3).count, 3)
+    }
+
+    func test_boundErrorsExplainThemselves() {
+        XCTAssertNotNil(CotypistExportImporter.ImportError.fileTooLarge.errorDescription)
+        XCTAssertNotNil(CotypistExportImporter.ImportError.tooManyRows.errorDescription)
+    }
+
+    // MARK: - Dedup at scale
+
+    func test_aChainOfEarlySnapshotsCollapsesIntoTheLongestAndASiblingStays() throws {
+        // All shorter than the grouping prefix, so each lands in its own group and only the
+        // prefix pass can collapse them.
+        let data = try export([
+            ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "See you at the offsite"],
+            ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "See you at the offsite next week"],
+            ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "See you at the offsite next week, Senad"],
+            ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": "See you at the office tomorrow"],
+            // The same text in another app is someone else's writing context and stays.
+            ["appBundleIdentifier": "com.tinyspeck.slackmacgap", "textUpToCursor": "See you at the offsite"]
+        ])
+
+        let texts = try CotypistExportImporter.records(fromExport: data).map(\.text).sorted()
+
+        XCTAssertEqual(texts, [
+            "See you at the office tomorrow",
+            "See you at the offsite",
+            "See you at the offsite next week, Senad"
+        ])
+    }
+
+    func test_thousandsOfDistinctMessagesWithOneOpeningAreAllKept() throws {
+        // One support macro opening thousands of different replies: every reply is its own writing.
+        let count = 2_000
+        let rows: [[String: Any]] = (0..<count).map { index in
+            let reply = "Thanks for reaching out about your invoice. Ticket alpha\(index) bravo\(index) "
+                + "charlie\(index) delta\(index) echo\(index) resolved."
+            return ["appBundleIdentifier": "com.apple.mail", "textUpToCursor": reply]
+        }
+
+        XCTAssertEqual(try CotypistExportImporter.records(fromExport: export(rows)).count, count)
+    }
+
+    func test_manySnapshotsOfOneMessageCollapseToTheFinalText() throws {
+        let final = "Hi Arnaud, the POC is ready for review. I tested it on the staging server and everything works fine."
+        let words = final.split(separator: " ")
+        let rows: [[String: Any]] = (8...words.count).map { length in
+            ["appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": words.prefix(length).joined(separator: " ")]
+        }
+
+        XCTAssertEqual(try CotypistExportImporter.records(fromExport: export(rows)).map(\.text), [final])
+    }
 }

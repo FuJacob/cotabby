@@ -27,7 +27,7 @@ struct TypingHistorySectionView: View {
                 SettingsRowLabel(
                     title: "Record What I Type",
                     description: "Saves the text of fields where Cotabby is active, encrypted on this Mac. " +
-                        "Password fields, terminals, and disabled apps are never recorded.",
+                        "Password fields, password managers, terminals, and disabled apps are never recorded.",
                     systemImage: "record.circle"
                 )
             }

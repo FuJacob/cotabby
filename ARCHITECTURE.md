@@ -414,12 +414,13 @@ request; its privacy scope must remain visible in settings and documentation.
 Typing history (Settings → Context → Typing History) is the one store of the user's writing that
 outlives its field. Both of its switches are off by default. When recording is on,
 `TypingHistoryStore` keeps the text of fields where Cotabby is active (the same
-`SuggestionAvailabilityEvaluator` rule as suggestions; never secure fields, terminals, or excluded
-apps), one record per piece of writing (a chat composer that clears after sending yields one record
-per message), scrubs secret-like tokens and card numbers (`TypingHistoryScrubber`), and seals the
+`SuggestionAvailabilityEvaluator` rule as suggestions; never secure fields, terminals, password
+managers (`TypingHistoryDefaultExclusions`), or excluded apps), one record per piece of writing (a
+chat composer that clears after sending yields one record per message), scrubs secret-like tokens,
+labelled secrets and one-time codes, SSNs, and card numbers (`TypingHistoryScrubber`), and seals the
 archive with AES-GCM under a Keychain key that never syncs (`TypingHistoryVault`). Nothing is
 written until something is recorded or imported. Delete All removes the file and the key. A Cotypist
-`user_inputs.json` export can be imported. Only text that was before the caret is learned from,
+`user_inputs.json` export of up to 50 MB and 250,000 rows can be imported. Only text that was before the caret is learned from,
 because the rest of a field is often a quoted thread. History shapes suggestions in two ways:
 `TypingHistoryIndex` adds two short passages of similar past writing to the prompt, and
 `TypingHistoryPhraseEngine` answers from `TypingHistoryPhrasePredictor` when history confidently

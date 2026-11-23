@@ -365,6 +365,20 @@ final class TypingHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.recordCount, 0)
     }
 
+    func test_passwordManagersAreNeverRecordedAndTheUsersListIsLeftAlone() {
+        let store = makeStore()
+        store.setRecording(true)
+
+        store.observe(focus("recovery codes for the bank account, keep these safe", element: "n", sequence: 1,
+                            app: "com.1password.1password")) { true }
+        store.observe(focus("secure note with the alarm code and the wifi details", element: "k", sequence: 2,
+                            app: "com.apple.Passwords")) { true }
+        store.observe(focus("", element: "x", sequence: 3)) { true }
+
+        XCTAssertEqual(store.recordCount, 0)
+        XCTAssertEqual(store.preferences.excludedBundleIdentifiers, [], "The built-in rule is not written into the user's list")
+    }
+
     // MARK: - Storage lifecycle
 
     func test_quittingWithoutHistoryCreatesNoArchiveOrKey() {

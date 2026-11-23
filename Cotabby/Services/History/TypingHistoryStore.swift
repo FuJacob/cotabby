@@ -317,12 +317,14 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     /// disabled; see `CotabbyAppEnvironment`), so history is only ever recorded where Cotabby itself
     /// is active. It is a closure because it builds a settings snapshot, and this runs on every
     /// focus change: it is only evaluated once recording is on and the field's text changed. Secure
-    /// fields never reach here as supported, and are checked again below.
+    /// fields never reach here as supported, and are checked again below. Password managers are
+    /// never recorded either (`TypingHistoryDefaultExclusions`), on top of the user's own list.
     func observe(_ snapshot: FocusSnapshot, isAllowed: () -> Bool) {
         guard status == .ready, preferences.isRecording,
               case .supported = snapshot.capability,
               let input = snapshot.context, !input.isSecure,
               !Self.isTerminal(input),
+              !TypingHistoryDefaultExclusions.isExcluded(bundleIdentifier: input.bundleIdentifier),
               !preferences.excludedBundleIdentifiers.contains(input.bundleIdentifier)
         else {
             finishActiveRecording()
@@ -527,14 +529,15 @@ final class TypingHistoryStore: ObservableObject, SuggestionHistoryProviding {
     // MARK: - Import and deletion
 
     /// Imports a Cotypist `user_inputs.json` export. Entries whose text is already in history are
-    /// skipped, so importing the same file twice adds nothing.
+    /// skipped, so importing the same file twice adds nothing. An oversized file or export is
+    /// refused before it is read or processed (`CotypistExportImporter.readExport`).
     func importCotypistExport(from url: URL) async {
         guard canImport else { return }
         importState = .importing
         let generation = persistenceGeneration
         do {
             let imported = try await Task.detached(priority: .userInitiated) {
-                try CotypistExportImporter.records(fromExport: Data(contentsOf: url))
+                try CotypistExportImporter.records(fromExport: CotypistExportImporter.readExport(at: url))
             }.value
             // Delete All ran while the file was being read; adding the import now would partly undo it.
             guard generation == persistenceGeneration else {
