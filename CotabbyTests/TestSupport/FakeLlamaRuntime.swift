@@ -18,30 +18,25 @@ final class FakeLlamaRuntime: LlamaRuntimeGenerating {
     var prefillError: Error?
 
     private(set) var generateCalls: [Call] = []
-    /// Counts only the streaming entry point, so a test can tell which one the engine chose.
-    private(set) var streamingCallCount = 0
+    /// Generations that asked for partials, so a test can tell whether the engine wanted them.
+    private(set) var partialHookCallCount = 0
     /// Successful prefills only: a throwing prefill decoded nothing the engine may reuse.
     private(set) var prefillCalls: [Call] = []
     private(set) var resetCount = 0
 
     func generate(
         prompt: String,
-        options: LlamaGenerationOptions
-    ) async throws -> LlamaGenerationOutput {
-        generateCalls.append(Call(prompt: prompt, options: options))
-        return try generateResult.get()
-    }
-
-    func generate(
-        prompt: String,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput {
-        streamingCallCount += 1
-        for partial in partialRawTexts {
-            onPartialRawText?(partial)
+        generateCalls.append(Call(prompt: prompt, options: options))
+        if let onPartialRawText {
+            partialHookCallCount += 1
+            for partial in partialRawTexts {
+                onPartialRawText(partial)
+            }
         }
-        return try await generate(prompt: prompt, options: options)
+        return try generateResult.get()
     }
 
     func resetPromptCache() {

@@ -38,7 +38,7 @@ final class LlamaTypingSessionEvalTests: XCTestCase {
             }
         }
         let report = TypingSessionEvalReport(
-            modelFilename: manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown",
+            modelFilename: manager.loadedModelFileURL?.lastPathComponent ?? "unknown",
             seed: LlamaEvalRuntime.seed,
             debounceMilliseconds: runner.configuration.debounceMilliseconds,
             sessions: sessions,

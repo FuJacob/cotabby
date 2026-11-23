@@ -53,8 +53,7 @@ final class GatedModelLoader: @unchecked Sendable {
             contextWindowTokens: Int(configuration.contextWindowTokens),
             batchSize: Int(configuration.batchSize),
             threadCount: 1,
-            gpuLayerCount: 0,
-            backendName: "gated test loader"
+            gpuLayerCount: 0
         )
     }
 

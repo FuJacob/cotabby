@@ -18,10 +18,6 @@ final class RuntimeBootstrapModelTests: XCTestCase {
     /// contract across launches, so a silent rename should fail a test.
     private static let selectionKey = "cotabbySelectedModelFilename"
 
-    /// The manager behind each model, kept so tests can read load diagnostics the bootstrap model
-    /// deliberately does not republish.
-    @MainActor private static var managersByModel: [ObjectIdentifier: LlamaRuntimeManager] = [:]
-
     // MARK: - Harness
 
     private func makeModelDirectory(filenames: [String]) throws -> URL {
@@ -51,14 +47,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             configuration: configuration,
             runtimeLocator: BundledRuntimeLocator()
         )
-        let model = TestLifetime.retain(RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults))
-        Self.managersByModel[ObjectIdentifier(model)] = manager
-        return model
-    }
-
-    @MainActor
-    private func diagnostics(of model: RuntimeBootstrapModel) -> LlamaRuntimeDiagnostics {
-        Self.managersByModel[ObjectIdentifier(model)]?.diagnostics ?? LlamaRuntimeDiagnostics()
+        return TestLifetime.retain(RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults))
     }
 
     /// Subscribes to the model's state and fulfills once it first reports failure. Used to wait
@@ -155,8 +144,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
         cancellable.cancel()
 
         runOnMainActor {
-            XCTAssertNotNil(model.state.failureDetail)
-            XCTAssertNotNil(diagnostics(of: model).lastError, "Diagnostics must surface the resolution failure")
+            XCTAssertNotNil(model.state.failureDetail, "The resolution failure must be published")
         }
     }
 
@@ -264,8 +252,8 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
         runOnMainActor {
             XCTAssertTrue(
-                diagnostics(of: model).lastError?.contains("beta.gguf") == true,
-                "Expected a beta.gguf load failure, got \(diagnostics(of: model).lastError ?? "nil")"
+                model.state.failureDetail?.contains("beta.gguf") == true,
+                "Expected a beta.gguf load failure, got \(model.state.failureDetail ?? "nil")"
             )
         }
     }
@@ -355,20 +343,26 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             model.stop()
 
             XCTAssertEqual(model.state, .idle)
-            XCTAssertEqual(diagnostics(of: model).lastLoadStatus, "Stopped")
         }
     }
 
+    /// Starts from a failed load so `.idle` afterwards proves the shutdown reached the runtime; no
+    /// model was ever loaded, so the bounded native shutdown has nothing to wait for.
     func test_shutdownSync_returnsPromptlyWhenRuntimeNeverLoaded() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
         let userDefaults = IsolatedUserDefaults.make()
         let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
+        try removeModelFile("alpha.gguf", in: directory)
+
+        let (failed, cancellable) = expectFailureState(of: model)
+        runOnMainActor { model.startIfNeeded() }
+        wait(for: [failed], timeout: 10)
+        cancellable.cancel()
 
         runOnMainActor {
             model.shutdownSync(timeoutSeconds: 2.0)
 
             XCTAssertEqual(model.state, .idle)
-            XCTAssertEqual(diagnostics(of: model).lastLoadStatus, "Stopped")
         }
     }
 }

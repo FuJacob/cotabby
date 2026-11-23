@@ -72,14 +72,14 @@ final class PhrasePredictionEvalTests: XCTestCase {
         configurationRecord["selectionSplit"] = options.split
         configurationRecord["selectionSplitSeed"] = String(options.splitSeed)
         configurationRecord["selectionScreenPerCategory"] = String(options.screenPerCategory)
-        let modelPath = try XCTUnwrap(managers.first?.diagnostics.modelFilePath)
-        guard managers.allSatisfy({ $0.diagnostics.modelFilePath == modelPath }) else {
+        let modelURL = try XCTUnwrap(managers.first?.loadedModelFileURL)
+        guard managers.allSatisfy({ $0.loadedModelFileURL == modelURL }) else {
             throw Options.invalid("All workers must evaluate the same model")
         }
-        configurationRecord["modelSHA256"] = try Self.fileSHA256(URL(fileURLWithPath: modelPath))
+        configurationRecord["modelSHA256"] = try Self.fileSHA256(modelURL)
         let metadata = PhrasePredictionReport.Metadata(
             corpusSHA256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
-            corpusVersion: corpus.version, model: modelPath, seed: try XCTUnwrap(configuration.randomSeed),
+            corpusVersion: corpus.version, model: modelURL.path, seed: try XCTUnwrap(configuration.randomSeed),
             mode: options.mode, configuration: configurationRecord, runLabel: options.label,
             contextMode: options.contextMode, workerCount: managers.count
         )

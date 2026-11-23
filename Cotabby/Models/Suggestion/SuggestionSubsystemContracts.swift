@@ -149,21 +149,18 @@ extension SuggestionGenerating {
     }
 }
 
-/// Behavior-shaped view of the llama runtime that `LlamaSuggestionEngine` depends on: run one
-/// generation and drop the native KV cache. Extracted so the engine's failure handling — in
-/// particular the invariant that a *cancelled* generation must NOT reset the cache (resetting it on
-/// every superseded keystroke was the base-model input-lag regression) — can be unit-tested against
-/// a fake runtime instead of loading a real model. `LlamaRuntimeManager` is the production conformer.
+/// Behavior-shaped view of the llama runtime that `LlamaSuggestionEngine` depends on: generate,
+/// prefill, and drop the native KV cache. Extracted so the engine's failure handling — in
+/// particular the invariant that a *cancelled* generation must NOT reset the cache, because
+/// resetting it on every superseded keystroke forces each keystroke to re-decode the whole prompt —
+/// can be unit-tested against a fake runtime instead of loading a real model.
+/// `LlamaRuntimeManager` is the production conformer.
 @MainActor
 protocol LlamaRuntimeGenerating: AnyObject {
-    func generate(
-        prompt: String,
-        options: LlamaGenerationOptions
-    ) async throws -> LlamaGenerationOutput
-    /// Streaming variant: `onPartialRawText` receives the cumulative raw completion after each
-    /// sampled token, called from the decode thread (hence `@Sendable`); callers own hopping to
-    /// their actor. The returned output's text is still the authoritative final completion, and
-    /// its confidence fields describe the whole generation (partials are pre-gate by nature).
+    /// `onPartialRawText`, when non-nil, receives the cumulative raw completion after each sampled
+    /// token, called from the decode thread (hence `@Sendable`); callers own hopping to their actor.
+    /// The returned output's text is still the authoritative final completion, and its confidence
+    /// fields describe the whole generation (partials are pre-gate by nature).
     func generate(
         prompt: String,
         options: LlamaGenerationOptions,
@@ -174,23 +171,6 @@ protocol LlamaRuntimeGenerating: AnyObject {
     /// `generate` whose prompt extends this one only decodes the typed delta. Best-effort warmup:
     /// callers treat failures as "no cache primed", never as a user-facing error.
     func prefill(prompt: String, options: LlamaGenerationOptions) async throws
-}
-
-extension LlamaRuntimeGenerating {
-    /// Default no-op so test fakes that only exercise the generate/cancel contract keep compiling;
-    /// the production manager overrides this with a real prompt prefill.
-    func prefill(prompt: String, options: LlamaGenerationOptions) async throws {}
-}
-
-extension LlamaRuntimeGenerating {
-    /// Default for fakes that only exercise the single-shot contract: ignore the partial hook.
-    func generate(
-        prompt: String,
-        options: LlamaGenerationOptions,
-        onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> LlamaGenerationOutput {
-        try await generate(prompt: prompt, options: options)
-    }
 }
 
 @MainActor

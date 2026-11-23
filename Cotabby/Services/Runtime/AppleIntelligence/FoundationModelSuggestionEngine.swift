@@ -226,8 +226,8 @@ final class FoundationModelSuggestionEngine {
     /// and replaces the cache. The cache key (rendered instructions) keeps this correct if the
     /// renderer composition rules change later.
     ///
-    /// Reuse is gated on three conditions that together avoid two Apple-surfaced failures the
-    /// previous unconditional-reuse design was vulnerable to:
+    /// Reuse is gated on three conditions that together avoid two Apple-surfaced failures that
+    /// unconditional reuse runs into:
     ///
     /// - `cached.instructions == instructions`: the cached session was built with this exact
     ///   instruction string. Any settings edit (custom rules, language override) that re-renders

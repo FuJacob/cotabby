@@ -12,9 +12,6 @@ import Logging
 @MainActor
 final class LlamaRuntimeManager: ObservableObject {
     @Published private(set) var state: RuntimeBootstrapState = .idle
-    /// Deliberately not `@Published`: no view renders it, and every generation error writes it,
-    /// which would otherwise invalidate each view observing the runtime for nothing.
-    private(set) var diagnostics = LlamaRuntimeDiagnostics()
     @Published private(set) var availableModels: [RuntimeModelOption] = []
 
     private let configuration: LlamaRuntimeConfiguration
@@ -45,6 +42,15 @@ final class LlamaRuntimeManager: ObservableObject {
     /// model has been configured yet.
     var currentModelFilename: String? {
         selectedModelFilename
+    }
+
+    /// The GGUF currently held in memory, or nil while nothing is loaded. Eval harnesses label and
+    /// fingerprint their reports with it, which must name the file that actually generated.
+    var loadedModelFileURL: URL? {
+        guard case .loaded(let runtime) = loadPhase else {
+            return nil
+        }
+        return runtime.resolvedRuntime.modelFileURL
     }
 
     convenience init() {
@@ -97,10 +103,7 @@ final class LlamaRuntimeManager: ObservableObject {
     func selectModel(filename: String) async throws {
         CotabbyLogger.runtime.info("Selecting model: \(filename)")
         guard let normalizedFilename = RuntimeModelSelection.resolve(candidates: [filename], available: availableModels) else {
-            let error = LlamaRuntimeError.unavailable(
-                "The selected model \(filename) is unavailable.")
-            diagnostics.lastError = error.localizedDescription
-            throw error
+            throw LlamaRuntimeError.unavailable("The selected model \(filename) is unavailable.")
         }
 
         selectedModelFilename = normalizedFilename
@@ -116,15 +119,7 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     /// Forwards one generation request to the runtime core after ensuring preparation.
-    func generate(
-        prompt: String,
-        options: LlamaGenerationOptions
-    ) async throws -> LlamaGenerationOutput {
-        try await generate(prompt: prompt, options: options, onPartialRawText: nil)
-    }
-
-    /// Streaming variant: `onPartialRawText` is invoked from the decode thread with the cumulative
-    /// raw completion after each sampled token; see `LlamaRuntimeGenerating`.
+    /// `onPartialRawText` is invoked from the decode thread; see `LlamaRuntimeGenerating`.
     func generate(
         prompt: String,
         options: LlamaGenerationOptions,
@@ -172,13 +167,10 @@ final class LlamaRuntimeManager: ObservableObject {
             throw LlamaRuntimeError.cancelled
         } catch let error as LlamaRuntimeError {
             CotabbyLogger.runtime.error("Generation runtime error: \(error.localizedDescription)")
-            diagnostics.lastError = error.localizedDescription
             throw error
         } catch {
             CotabbyLogger.runtime.error("Generation failed: \(error.localizedDescription)")
-            let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
-            diagnostics.lastError = runtimeError.localizedDescription
-            throw runtimeError
+            throw LlamaRuntimeError.generationFailed(error.localizedDescription)
         }
     }
 
@@ -190,7 +182,7 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Decodes `prompt` into the native prompt cache without sampling (the llama half of
     /// prewarm-on-focus). Best-effort by contract: cancellation is silent and failures only log,
     /// because a missed warmup just means the next generate pays the cold prefill it would have
-    /// paid anyway. Errors are deliberately kept out of `diagnostics.lastError`.
+    /// paid anyway.
     func prefill(prompt: String, options: LlamaGenerationOptions) async throws {
         _ = try await preparedRuntime()
 
@@ -233,8 +225,6 @@ final class LlamaRuntimeManager: ObservableObject {
 
     private func prepareForStop() {
         unload()
-
-        diagnostics.lastLoadStatus = "Stopped"
         state = .idle
     }
 
@@ -268,9 +258,6 @@ final class LlamaRuntimeManager: ObservableObject {
             break
         }
 
-        diagnostics.lastError = nil
-        diagnostics.lastLoadStatus = "Starting"
-        diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
         let loadID = UUID()
         let task = Task<PreparedLlamaRuntime, Error> { [weak self, loadModel, configuration] in
             let result: Result<PreparedLlamaRuntime, Error>
@@ -316,8 +303,6 @@ final class LlamaRuntimeManager: ObservableObject {
                 throw LlamaRuntimeError.cancelled
             }
             let runtimeError = (error as? LlamaRuntimeError) ?? .unavailable(error.localizedDescription)
-            diagnostics.lastError = runtimeError.localizedDescription
-            diagnostics.lastLoadStatus = "Failed"
             state = .failed(runtimeError.localizedDescription)
             throw runtimeError
         }
@@ -332,8 +317,6 @@ final class LlamaRuntimeManager: ObservableObject {
             )
         } catch {
             let runtimeError = LlamaRuntimeError.unavailable(error.localizedDescription)
-            diagnostics.lastError = runtimeError.localizedDescription
-            diagnostics.lastLoadStatus = "Failed"
             state = .failed(runtimeError.localizedDescription)
             throw runtimeError
         }
@@ -346,10 +329,6 @@ final class LlamaRuntimeManager: ObservableObject {
         CotabbyLogger.runtime.info(
             "Runtime ready: model=\(model) ctx=\(ctx) threads=\(preparedRuntime.threadCount) gpu=\(preparedRuntime.gpuLayerCount)"
         )
-        diagnostics.modelFilePath = preparedRuntime.resolvedRuntime.modelFileURL.path
-        diagnostics.lastLoadStatus = "Loaded"
-        diagnostics.lastError = nil
-
         state = .ready("Loaded \(preparedRuntime.resolvedRuntime.modelDisplayName) in-process.")
     }
 }

@@ -114,34 +114,36 @@ final class LlamaSuggestionEngine {
                 ]) { _, new in new }
             )
             let options = Self.makeGenerationOptions(for: request)
-            let output: LlamaGenerationOutput
+            // Nil for a single-shot request, so the decode loop schedules no per-token main-actor
+            // work that nobody would receive.
+            let onPartialRawText: (@Sendable (String) -> Void)?
             if let onPartial {
-                output = try await runtimeManager.generate(
-                    prompt: request.prompt,
-                    options: options,
-                    onPartialRawText: { raw in
-                        // Decode-thread callback; normalization and delivery hop to the main
-                        // actor. Hops are independent tasks, so a shorter cumulative can land
-                        // after a longer one — the coordinator's monotonic render policy makes
-                        // that harmless.
-                        Task { @MainActor in
-                            let normalized = SuggestionTextNormalizer.normalizeDetailed(raw, for: request).text
-                            guard !normalized.isEmpty else {
-                                return
-                            }
-                            onPartial(SuggestionResult(
-                                generation: request.generation,
-                                rawText: raw,
-                                text: normalized,
-                                latency: Date().timeIntervalSince(startTime),
-                                spacingIsExact: true
-                            ))
+                onPartialRawText = { raw in
+                    // Decode-thread callback; normalization and delivery hop to the main actor.
+                    // Hops are independent tasks, so a shorter cumulative can land after a longer
+                    // one — the coordinator's monotonic render policy makes that harmless.
+                    Task { @MainActor in
+                        let normalized = SuggestionTextNormalizer.normalizeDetailed(raw, for: request).text
+                        guard !normalized.isEmpty else {
+                            return
                         }
+                        onPartial(SuggestionResult(
+                            generation: request.generation,
+                            rawText: raw,
+                            text: normalized,
+                            latency: Date().timeIntervalSince(startTime),
+                            spacingIsExact: true
+                        ))
                     }
-                )
+                }
             } else {
-                output = try await runtimeManager.generate(prompt: request.prompt, options: options)
+                onPartialRawText = nil
             }
+            let output = try await runtimeManager.generate(
+                prompt: request.prompt,
+                options: options,
+                onPartialRawText: onPartialRawText
+            )
             try Task.checkCancellation()
 
             let rawSuggestion = output.text

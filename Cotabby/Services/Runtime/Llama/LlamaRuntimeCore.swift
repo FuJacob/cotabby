@@ -20,7 +20,6 @@ struct PreparedLlamaRuntime: Sendable {
     let batchSize: Int
     let threadCount: Int
     let gpuLayerCount: Int
-    let backendName: String
 }
 
 nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
@@ -33,7 +32,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// Guarded by `autocompleteLock`.
     private var cachedSequence: CachedSequence?
     /// Prompt tokens the most recent generate/prefill kept from native KV instead of decoding
-    /// (0 after a fresh build). Diagnostics and tests read it to prove reuse actually happened;
+    /// (0 after a fresh build). Integration tests read it to prove reuse actually happened;
     /// equal outputs alone cannot distinguish a reused cache from a silent rebuild.
     private(set) var lastReusedPromptTokens = 0
 
@@ -42,22 +41,22 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// because the abort fires while `autocompleteLock` is held by the very work being aborted.
     private let abortTargetLock = NSLock()
     private var abortTarget: AbortTarget?
-    private var currentOperationID: UUID?
 
     /// A restoration miss describes one checkpoint/prefix, not a model family's permanent
     /// capability. Log the first miss prominently and keep trying later compatible prompts.
     private var loggedTrimRejectionForCurrentModel = false
 
-    /// Coordinates model lifecycle with in-flight generation. `generate()` increments the active
-    /// count on entry and decrements on exit. `shutdown()` sets the
-    /// shutting-down flag and blocks until all active operations finish before unloading.
+    /// Coordinates model lifecycle with in-flight work. `withActiveOperation` counts each generate
+    /// or prefill in and out; `shutdown()` sets the shutting-down flag and blocks until the count
+    /// drains before unloading.
     private let lifecycleCondition = NSCondition()
     private var activeOperationCount = 0
     private var isShuttingDown = false
 
     // MARK: - Model lifecycle
 
-    /// Loads the requested model once and records the runtime characteristics needed for diagnostics.
+    /// Loads the requested model once and records the characteristics prompt budgeting and the
+    /// load log lines need.
     func prepare(
         resolvedRuntime: ResolvedLlamaRuntime,
         configuration: LlamaRuntimeConfiguration
@@ -105,8 +104,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             contextWindowTokens: Int(engine.getContextWindowTokens()),
             batchSize: Int(engine.getBatchSize()),
             threadCount: Int(engine.getThreadCount()),
-            gpuLayerCount: Int(engine.getGPULayerCount()),
-            backendName: "CotabbyInferenceEngine (llama.cpp in-process)"
+            gpuLayerCount: Int(engine.getGPULayerCount())
         )
         self.preparedRuntime = result
         loggedTrimRejectionForCurrentModel = false
@@ -118,7 +116,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 "batch_size": .stringConvertible(result.batchSize),
                 "threads": .stringConvertible(result.threadCount),
                 "gpu_layers": .stringConvertible(result.gpuLayerCount),
-                "backend": .string(result.backendName)
+                "backend": .string("CotabbyInferenceEngine (llama.cpp in-process)")
             ]
         )
         return result
@@ -136,7 +134,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         operationID: UUID = UUID(),
         onPartialRawText: ((String) -> Void)? = nil
     ) throws -> LlamaGenerationOutput {
-        try withActiveOperation(operationID) {
+        try withActiveOperation {
             // Tokenization reads native vocabulary; lifecycle ownership must begin before that
             // read so shutdown cannot free the model while this request waits for the cache lock.
             let preparation = try preparedPrompt(prompt: prompt, options: options, kind: "generate")
@@ -152,7 +150,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             // cancellation before publishing the next operation's target.
             let sequenceID = try obtainAutocompleteSequence(
                 preparation: preparation,
-                options: options
+                options: options,
+                operationID: operationID
             )
             return runEngineSampledDecode(
                 sequenceID: sequenceID,
@@ -172,7 +171,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         options: LlamaGenerationOptions,
         operationID: UUID = UUID()
     ) throws {
-        try withActiveOperation(operationID) {
+        try withActiveOperation {
             let preparation = try preparedPrompt(prompt: prompt, options: options, kind: "prefill")
             // Same exit guarantee as `generate`: see the comment there.
             defer { clearAbortTarget() }
@@ -187,7 +186,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
             let sequenceID = try obtainAutocompleteSequence(
                 preparation: preparation,
-                options: options
+                options: options,
+                operationID: operationID
             )
 
             // The seed is sampled but not decoded; prefill already has prompt-only KV. Trimming
@@ -204,7 +204,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// gate first keeps `shutdown()` from unloading the model underneath it, and holding
     /// `autocompleteLock` for the whole body keeps the cached sequence from being mutated by a
     /// concurrent request.
-    private func withActiveOperation<Value>(_ operationID: UUID, _ body: () throws -> Value) throws -> Value {
+    private func withActiveOperation<Value>(_ body: () throws -> Value) throws -> Value {
         lifecycleCondition.lock()
         guard !isShuttingDown else {
             lifecycleCondition.unlock()
@@ -223,8 +223,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
         try Task.checkCancellation()
-        currentOperationID = operationID
-        defer { currentOperationID = nil }
         return try body()
     }
 
@@ -241,9 +239,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         engine.cancelSequence(abortTarget.sequenceID)
     }
 
-    private func setAbortTarget(_ sequenceID: Int32) {
+    private func setAbortTarget(_ sequenceID: Int32, operationID: UUID) {
         abortTargetLock.lock()
-        abortTarget = AbortTarget(sequenceID: sequenceID, operationID: currentOperationID)
+        abortTarget = AbortTarget(sequenceID: sequenceID, operationID: operationID)
         // A cancellation can arrive during tokenization, before there is a native target. Close
         // that gap when publishing the target so stale work cannot enter an entire prompt decode.
         if Task.isCancelled { engine.cancelSequence(sequenceID) }
@@ -330,7 +328,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// identity so an abort meant for an earlier operation cannot flag its successor.
     private struct AbortTarget {
         let sequenceID: Int32
-        let operationID: UUID?
+        let operationID: UUID
     }
 
     // MARK: - Decoders
@@ -510,7 +508,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         cachedSequence = nil
     }
 
-    /// Waits for all in-flight `generate()` calls to finish, then frees all
+    /// Waits for every in-flight generate or prefill to finish, then frees all
     /// sequences and the loaded model. Blocking is intentional: callers should dispatch this off
     /// the main thread via `Task.detached` when UI responsiveness matters.
     ///
@@ -563,7 +561,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// as after a cancelled request or when the field's frame grows while the user types.
     private func obtainAutocompleteSequence(
         preparation: PreparedPrompt,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        operationID: UUID
     ) throws -> Int32 {
         let promptTokens = preparation.promptTokens
         if adoptSamplingIfNeeded(preparation.fingerprint, options: options),
@@ -581,7 +580,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                         sequenceID: cached.id,
                         preparation: preparation,
                         reusableTokenCount: reusableTokenCount,
-                        options: options
+                        options: options,
+                        operationID: operationID
                     )
                     if status == .cancelled {
                         // The caller's request was superseded between prompt batches. Do NOT
@@ -594,7 +594,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                     if status != .ok {
                         // Reuse failed mid-decode; fall back to a fresh build.
                         destroyCachedSequence()
-                        return try buildFreshSequence(preparation: preparation, options: options)
+                        return try buildFreshSequence(preparation: preparation, options: options, operationID: operationID)
                     }
                     // Recorded only now that the entire prompt decoded successfully.
                     cachedSequence = CachedSequence(
@@ -619,7 +619,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         destroyCachedSequence()
-        return try buildFreshSequence(preparation: preparation, options: options)
+        return try buildFreshSequence(preparation: preparation, options: options, operationID: operationID)
     }
 
     /// Decodes the part of the new prompt that follows the restored prefix into the reused
@@ -629,7 +629,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         sequenceID: Int32,
         preparation: PreparedPrompt,
         reusableTokenCount: Int,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        operationID: UUID
     ) -> EngineStatus {
         // The seed for the reuse path is sampled at the end of this decodePrompt; apply the
         // word-continuation constraint to it like the fresh path does.
@@ -643,7 +644,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // floor is not part of the sampling fingerprint, so a reused sequence must not carry a
         // stale flag.
         engine.setComputeLogprob(sequenceID, options.computesLogprob)
-        setAbortTarget(sequenceID)
+        setAbortTarget(sequenceID, operationID: operationID)
         var remaining = Array(preparation.promptTokens[reusableTokenCount...])
         return engine.decodePrompt(
             sequenceID,
@@ -673,7 +674,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// becomes the cached one only after its whole prompt decoded.
     private func buildFreshSequence(
         preparation: PreparedPrompt,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        operationID: UUID
     ) throws -> Int32 {
         let healingPrefix = preparation.healingPrefix
         lastReusedPromptTokens = 0
@@ -692,7 +694,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // would be summed and then discarded.
         engine.setComputeLogprob(seqID, options.computesLogprob)
 
-        setAbortTarget(seqID)
+        setAbortTarget(seqID, operationID: operationID)
         var tokens = preparation.promptTokens
         let status = engine.decodePrompt(seqID, &tokens, Int32(tokens.count), 0)
         guard status == .ok else {

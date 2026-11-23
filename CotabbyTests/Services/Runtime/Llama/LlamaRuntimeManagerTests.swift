@@ -36,8 +36,7 @@ final class LlamaRuntimeManagerTests: XCTestCase {
 
         XCTAssertEqual(loader.startedFilenames, ["alpha.gguf"])
         XCTAssertEqual(manager.state, .ready("Loaded alpha.gguf in-process."))
-        XCTAssertEqual(manager.diagnostics.lastLoadStatus, "Loaded")
-        XCTAssertNil(manager.diagnostics.lastError)
+        XCTAssertEqual(manager.loadedModelFileURL?.lastPathComponent, "alpha.gguf")
     }
 
     func test_concurrentPreparesShareOneLoad() async throws {
@@ -84,7 +83,7 @@ final class LlamaRuntimeManagerTests: XCTestCase {
         XCTAssertEqual(loader.startedFilenames, ["alpha.gguf", "beta.gguf"])
         XCTAssertEqual(manager.state, .ready("Loaded beta.gguf in-process."))
         XCTAssertFalse(states.contains(.ready("Loaded alpha.gguf in-process.")))
-        XCTAssertEqual(manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent }, "beta.gguf")
+        XCTAssertEqual(manager.loadedModelFileURL?.lastPathComponent, "beta.gguf")
     }
 
     func test_supersededLoadFailureIsNotPublished() async throws {
@@ -102,7 +101,6 @@ final class LlamaRuntimeManagerTests: XCTestCase {
         loader.release(call: 0)
         await assertCancelled(alphaLoad)
         XCTAssertEqual(manager.state, .loading("Loading beta.gguf into memory."))
-        XCTAssertNil(manager.diagnostics.lastError)
 
         loader.release(call: 1)
         try await betaLoad.value
@@ -123,7 +121,7 @@ final class LlamaRuntimeManagerTests: XCTestCase {
         await assertCancelled(load)
 
         XCTAssertEqual(manager.state, .idle, "A load that finishes after stop must not mark the runtime ready")
-        XCTAssertEqual(manager.diagnostics.lastLoadStatus, "Stopped")
+        XCTAssertNil(manager.loadedModelFileURL, "A load that finishes after stop must not be kept in memory")
     }
 
     func test_failedLoadReachesEveryWaiterAndAllowsARetry() async throws {
@@ -151,7 +149,7 @@ final class LlamaRuntimeManagerTests: XCTestCase {
             }
         }
         XCTAssertEqual(manager.state, .failed("alpha is corrupt"))
-        XCTAssertEqual(manager.diagnostics.lastError, "alpha is corrupt")
+        XCTAssertNil(manager.loadedModelFileURL)
         XCTAssertEqual(states.filter { $0 == .failed("alpha is corrupt") }.count, 1, "One load publishes one failure")
 
         let retry = Task { try await manager.prepare() }

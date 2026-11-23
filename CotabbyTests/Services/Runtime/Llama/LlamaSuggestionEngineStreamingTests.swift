@@ -3,8 +3,8 @@ import XCTest
 @testable import Cotabby
 
 /// Tests for the llama engine's streaming contract: cumulative raw partials from the runtime are
-/// normalized and forwarded to `onPartial` on the main actor, and the final result still goes
-/// through the existing single-shot path (tracker recording, normalization, latency).
+/// normalized and forwarded to `onPartial` on the main actor, while the returned result stays the
+/// authoritative final completion.
 @MainActor
 final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
@@ -36,7 +36,7 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
         _ = try await engine.generateSuggestion(for: makeRequest(prompt: "Hello"))
 
-        XCTAssertEqual(runtime.streamingCallCount, 0, "The single-shot entry point must use the non-streaming runtime path.")
+        XCTAssertEqual(runtime.partialHookCallCount, 0, "The single-shot entry point must not ask the runtime for partials.")
     }
 
     // MARK: - Helpers
