@@ -9,9 +9,10 @@ final class TerminalAppDetectorTests: XCTestCase {
 
     func test_isTerminal_recognizesEveryKnownEmulator() {
         let terminals = [
-            "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "io.alacritty",
+            "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty",
+            "net.kovidgoyal.kitty-quick-access", "org.alacritty", "io.alacritty",
             "co.zeit.hyper", "dev.warp.Warp-Stable", "com.github.wez.wezterm",
-            "io.rio.terminal"
+            "com.raphaelamorim.rio"
         ]
         for bundleIdentifier in terminals {
             XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: bundleIdentifier), bundleIdentifier)
