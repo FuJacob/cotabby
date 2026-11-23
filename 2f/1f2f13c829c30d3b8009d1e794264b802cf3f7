@@ -1,0 +1,45 @@
+CotabbyTests/Services/Presentation/HostBaselineCalibratorTypefaceTests.swift
+  s_b9af9eb54478c8::t_d0d6423bf48403 19-20,22-23,28,34-36,40-41,46,55,61,68-69,71,77-81,86-109
+Cotabby/Services/Presentation/OverlayController.swift
+  s_b9af9eb54478c8::t_18021a7b15fe71 28-43,149,163,170,178,202-205,207,211,213,240-241,251,262-264,266-267,277-278,297-306,326,337,350-351,356,623,625-626,628,1153,1275,1300,1312,1334-1335
+CotabbyTests/Support/Presentation/Style/TypefaceEvidenceTests.swift
+  s_b9af9eb54478c8::t_007210bb9a7a85 67
+CotabbyTests/Support/Presentation/Policy/OverlayPresentationLifecycleTests.swift
+  s_b9af9eb54478c8::t_7dc43c3772e41f 1-185
+CotabbyTests/Services/Presentation/OverlayControllerLifecycleTests.swift
+  s_b9af9eb54478c8::t_21038d352b0be7 1-193
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_3c346cd1379f92 326,435,700,984,1233,1553,1699,2086,2358,2805,4417,4788,5114,5116
+Cotabby/Services/Presentation/HostFontRegistry.swift
+  s_b9af9eb54478c8::t_5c7512bb5d14cd 73-87,97,175-177,223-227,229-233,242-243,246,251,276-277
+Cotabby/Support/Presentation/Policy/OverlayPresentationLifecycle.swift
+  s_b9af9eb54478c8::t_747c61cf3dd336 1-148
+Cotabby/Services/Presentation/PixelCaretLocator.swift
+  s_b9af9eb54478c8::t_fbecd756f8a769 163-206,208,227-236,251-256,304-306,310,314,318-337,339,342,344-345,347-371,724,726-729,745,769,771-772,774,782-783,791-792,794
+Cotabby/Services/Presentation/HostBundledFontRegistry.swift
+  s_b9af9eb54478c8::t_2b50d7b040bb07 36-44,55-61,63-64,67,74
+Cotabby/Support/Presentation/Style/TypefaceEvidence.swift
+  s_b9af9eb54478c8::t_c67903116b7be3 51-80,82-87,89-94,105-115,118-119,127,133-146,148
+Cotabby/Services/Presentation/HostBaselineCalibrator.swift
+  s_b9af9eb54478c8::t_1d96afe3653a5e 106,110-197,223-224,251,271,290-294,326,329-334,337
+CotabbyTests/Services/Presentation/PixelCaretLocatorTests.swift
+  s_b9af9eb54478c8::t_c22500a29c163d 489-554
+Cotabby/Services/Presentation/ClickAwayMonitor.swift
+  s_b9af9eb54478c8::t_da8a857c4a1d4e 17-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f1f2f13c829c30d3b8009d1e794264b802cf3f7",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
