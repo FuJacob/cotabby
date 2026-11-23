@@ -1,0 +1,45 @@
+Cotabby/Support/Suggestion/Acceptance/InsertionTargetRevalidation.swift
+  s_9990f9098df800::t_20aed175eb3608 1-82
+  s_9990f9098df800::t_0c6297a4b3ec70 83
+Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift
+  s_9990f9098df800::t_9d34fec0de9d21 395-396
+  s_9990f9098df800::t_8744b5b87f647e 374-377,379-383,385,389,403
+CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorAcceptanceTests.swift
+  s_9990f9098df800::t_a71ed4c9699a47 416-433
+CotabbyTests/Support/Suggestion/Acceptance/InsertionTargetRevalidationTests.swift
+  s_9990f9098df800::t_d13afc83a6457e 1-102
+CotabbyTests/App/Coordinators/InlineFeatures/EmojiPickerControllerTests.swift
+  s_9990f9098df800::t_ee8e752326d34f 55-71
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_faf44f56a82d9e 608,793,804,1211,1526,2574,3354,4247,4600,4918
+Cotabby/App/Coordinators/InlineFeatures/MacroController.swift
+  s_9990f9098df800::t_2e66f4f58fc232 200-202,204,210,215
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_9990f9098df800::t_19fb0a5e33b19f 208,472-473
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_9990f9098df800::t_e87d57132e5534 761-762
+Cotabby/Models/Suggestion/SuggestionSubsystemContracts.swift
+  s_9990f9098df800::t_59dca4ee92393c 227-230,235-236,240-241,244
+Cotabby/Services/Suggestion/SuggestionInserter.swift
+  s_9990f9098df800::t_84160b1306b6a5 3,11-17,25-29,32-37,76-77,85-90,156-160,167-170,199,216-262,266
+CotabbyTests/App/Coordinators/InlineFeatures/InlineFeatureTestDoubles.swift
+  s_9990f9098df800::t_09eb8457a26c24 36-37,45-46,51-52,58-59,68-69,72,113-114,116,118
+CotabbyTests/TestSupport/SuggestionCoordinatorTestSupport.swift
+  s_9990f9098df800::t_c0906462d11616 155-156,159,161,165,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b51c1ecd2a249b201d7eae75fe05188e054bb1ab",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
