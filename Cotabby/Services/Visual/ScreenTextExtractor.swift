@@ -137,36 +137,50 @@ final class OCRWorkGate: @unchecked Sendable {
 /// and later ones are dropped. Cancellation can also fire before the continuation is installed;
 /// the outcome is then held and delivered on install.
 private final class GatedCall<T: Sendable>: @unchecked Sendable {
+    nonisolated private enum State {
+        /// Neither an outcome nor a waiting caller yet.
+        case pending
+        /// The caller is suspended on this continuation.
+        case waiting(CheckedContinuation<T, Error>)
+        /// Decided. A continuation installed from here on resumes at once with this outcome.
+        case settled(Result<T, Error>)
+    }
+
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<T, Error>?
-    private var outcome: Result<T, Error>?
+    /// Guarded by `lock`.
+    private var state = State.pending
 
     var isSettled: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return outcome != nil
+        if case .settled = state { return true }
+        return false
     }
 
     func install(_ continuation: CheckedContinuation<T, Error>) {
         lock.lock()
-        if let outcome {
+        if case .settled(let outcome) = state {
             lock.unlock()
             continuation.resume(with: outcome)
             return
         }
-        self.continuation = continuation
+        state = .waiting(continuation)
         lock.unlock()
     }
 
     func settle(_ result: Result<T, Error>) {
         lock.lock()
-        guard outcome == nil else {
+        let waiting: CheckedContinuation<T, Error>?
+        switch state {
+        case .settled:
             lock.unlock()
             return
+        case .pending:
+            waiting = nil
+        case .waiting(let continuation):
+            waiting = continuation
         }
-        outcome = result
-        let waiting = continuation
-        continuation = nil
+        state = .settled(result)
         lock.unlock()
         waiting?.resume(with: result)
     }
@@ -241,8 +255,8 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                 try VNImageRequestHandler(cgImage: preparedImage, options: [:]).perform([request])
 
                 // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
-                // the recognizer's weakest guesses; the joined `text` below is for logging and the
-                // window-title fallback only.
+                // the recognizer's weakest guesses; the joined `text` below only decides whether
+                // anything was read and feeds the debug log and debug captures.
                 return (request.results ?? [])
                     .sorted {
                         if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
