@@ -238,9 +238,9 @@ struct WelcomeButton: View {
 
 /// Back/Continue navigation bar for the middle wizard steps. The primary button label defaults to
 /// "Continue" but can be overridden (the template step shows "Set up later" when no tier is
-/// chosen). The button can be disabled with a tooltip hint explaining what's needed.
+/// chosen). The button can be disabled with a tooltip hint explaining what's needed. Back appears
+/// exactly when there is somewhere to go back to, which the caller expresses by passing `onBack`.
 struct WelcomeNavigation: View {
-    var canGoBack: Bool = false
     var canContinue: Bool = true
     var continueTitle: String = "Continue"
     var disabledHint: String?
@@ -249,7 +249,7 @@ struct WelcomeNavigation: View {
 
     var body: some View {
         HStack {
-            if canGoBack, let onBack {
+            if let onBack {
                 Button("Back") {
                     onBack()
                 }

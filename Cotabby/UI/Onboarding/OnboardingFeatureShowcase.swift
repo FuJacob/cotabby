@@ -15,8 +15,8 @@ import SwiftUI
 /// suggestion. The keycap, correction green and ribbon cell are the real overlay and picker views,
 /// so the demos cannot drift from what the features actually draw.
 ///
-/// Lifecycle: each card owns its `@State` and drives a looping animation from a `.task`, which
-/// SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
+/// Lifecycle: each typing card holds one `DemoTypingPhase` and plays its `DemoTypingTimeline` from a
+/// `.task`, which SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
 /// height so the onboarding window never resizes mid-loop. Continuous looping is skipped when the
 /// system Reduce Motion setting is on (or when not animating, see below), in which case the card
 /// shows a static accepted state.
@@ -48,9 +48,6 @@ struct OnboardingFeatureShowcase: View {
         .accessibilityHidden(true)
     }
 }
-
-/// One millisecond expressed in nanoseconds, so the demo timings below read in milliseconds.
-private let nsPerMillisecond: UInt64 = 1_000_000
 
 // MARK: - Shared card chrome
 
@@ -90,30 +87,36 @@ private struct GhostTextDemoCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Number of base characters revealed so far (the "typed" portion).
-    @State private var typedCount = 0
-    /// Whether the gray ghost continuation and its keycap are visible.
-    @State private var showGhost = false
-    /// Whether the ghost has been "accepted" and turned solid.
-    @State private var accepted = false
+    @State private var phase = DemoTypingPhase.typing(count: 0)
 
     private let base = "Thanks for the"
     private let ghost = " quick reply!"
+
+    private static let timeline = DemoTypingTimeline(
+        emptyHoldMilliseconds: 350,
+        perCharacterMilliseconds: 55,
+        offerAnimationDuration: 0.18,
+        offerHoldMilliseconds: 1300,
+        acceptAnimationDuration: 0.22,
+        acceptedHoldMilliseconds: 900,
+        resetAnimationDuration: 0.30,
+        resetHoldMilliseconds: 600
+    )
 
     var body: some View {
         DemoCard(caption: "Autocomplete", contentHeight: 40) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(String(base.prefix(typedCount)))
+                    Text(String(base.prefix(phase.typedCount(outOf: base.count))))
                         .foregroundStyle(.primary)
-                    if showGhost {
+                    if phase.showsOffer {
                         Text(ghost)
-                            .foregroundStyle(accepted ? Color.primary : ghostColor)
+                            .foregroundStyle(phase.isAwaitingAccept ? ghostColor : Color.primary)
                     }
                 }
                 .font(.system(size: 16))
 
-                if showGhost && !accepted {
+                if phase.isAwaitingAccept {
                     GhostKeycap(label: "Tab")
                 }
 
@@ -134,40 +137,10 @@ private struct GhostTextDemoCard: View {
         // Idle (not animating) shows the same finished frame as reduce-motion, so the card looks
         // complete at rest and only plays the full typing demo while hovered.
         guard animating, !reduceMotion else {
-            typedCount = base.count
-            showGhost = true
-            accepted = true
+            phase = .accepted
             return
         }
-
-        while !Task.isCancelled {
-            typedCount = 0
-            showGhost = false
-            accepted = false
-            try? await Task.sleep(nanoseconds: 350 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            for index in 1...base.count {
-                typedCount = index
-                try? await Task.sleep(nanoseconds: 55 * nsPerMillisecond)
-                if Task.isCancelled { return }
-            }
-
-            withAnimation(.easeInOut(duration: 0.18)) { showGhost = true }
-            try? await Task.sleep(nanoseconds: 1300 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.22)) { accepted = true }
-            try? await Task.sleep(nanoseconds: 900 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.30)) {
-                showGhost = false
-                accepted = false
-                typedCount = 0
-            }
-            try? await Task.sleep(nanoseconds: 600 * nsPerMillisecond)
-        }
+        await DemoTypingPlayer.play(Self.timeline, characterCount: { base.count }, setPhase: { phase = $0 })
     }
 }
 
@@ -182,17 +155,32 @@ private struct AutocorrectDemoCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Characters of "<leading><typo>" revealed so far while typing.
-    @State private var typedCount = 0
-    /// Whether the green correction (replacing the typo) is shown.
-    @State private var showCorrection = false
-    /// Whether the correction has been accepted (turns solid).
-    @State private var accepted = false
+    @State private var phase = DemoTypingPhase.typing(count: 0)
 
     private let leading = "Pass me "
     private let typo = "teh"
     private let correction = "the"
     private var fullTyped: String { leading + typo }
+
+    /// Starts late so the cards do not animate in lockstep, and lingers on the finished typo for a
+    /// beat before the correction appears, the way detection follows the end of a word.
+    private static let timeline = DemoTypingTimeline(
+        startDelayMilliseconds: 1100,
+        emptyHoldMilliseconds: 350,
+        perCharacterMilliseconds: 55,
+        pauseBeforeOfferMilliseconds: 450,
+        offerAnimationDuration: 0.20,
+        offerHoldMilliseconds: 1300,
+        acceptAnimationDuration: 0.22,
+        acceptedHoldMilliseconds: 900,
+        resetAnimationDuration: 0.30,
+        resetHoldMilliseconds: 600
+    )
+
+    /// Characters of "<leading><typo>" revealed so far.
+    private var typedCount: Int {
+        phase.typedCount(outOf: fullTyped.count)
+    }
 
     var body: some View {
         DemoCard(caption: "Autocorrect", contentHeight: 40) {
@@ -205,7 +193,7 @@ private struct AutocorrectDemoCard: View {
                 }
                 .font(.system(size: 16))
 
-                if showCorrection && !accepted {
+                if phase.isAwaitingAccept {
                     GhostKeycap(label: "Tab")
                 }
 
@@ -219,68 +207,24 @@ private struct AutocorrectDemoCard: View {
 
     /// The last word is the typed-so-far typo until a correction is offered, then the corrected word.
     private var lastWord: String {
-        if showCorrection { return correction }
+        if phase.showsOffer { return correction }
         return String(typo.prefix(max(0, typedCount - leading.count)))
     }
 
     /// Green while the correction is offered, solid once accepted (and during plain typing).
     private var lastWordColor: Color {
-        (showCorrection && !accepted) ? correctionColor : .primary
-    }
-
-    /// The inline correction green.
-    private var correctionColor: Color {
-        GhostTextPalette.correctionColor(dark: colorScheme == .dark)
+        phase.isAwaitingAccept ? GhostTextPalette.correctionColor(dark: colorScheme == .dark) : .primary
     }
 
     private func runLoop() async {
-        // Idle (not animating) and reduce-motion both rest on the green-correction frame so the
-        // card reads as "typos get a green fix" without looping. Keeping `accepted = false` here is
-        // deliberate: it leaves the correction in its green (not-yet-accepted) color, so the static
-        // frame still reads as a correction rather than ordinary solid text.
+        // Idle (not animating) and reduce-motion both rest on the offered frame, not the accepted
+        // one: the correction keeps its green, so the static card still reads as "typos get a green
+        // fix" rather than as ordinary solid text.
         guard animating, !reduceMotion else {
-            typedCount = fullTyped.count
-            showCorrection = true
-            accepted = false
+            phase = .offered
             return
         }
-
-        // Offset the first iteration so the cards do not animate in lockstep.
-        try? await Task.sleep(nanoseconds: 1100 * nsPerMillisecond)
-        if Task.isCancelled { return }
-
-        while !Task.isCancelled {
-            typedCount = 0
-            showCorrection = false
-            accepted = false
-            try? await Task.sleep(nanoseconds: 350 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            for index in 1...fullTyped.count {
-                typedCount = index
-                try? await Task.sleep(nanoseconds: 55 * nsPerMillisecond)
-                if Task.isCancelled { return }
-            }
-
-            // The typo is detected and a green correction is offered.
-            try? await Task.sleep(nanoseconds: 450 * nsPerMillisecond)
-            if Task.isCancelled { return }
-            withAnimation(.easeInOut(duration: 0.20)) { showCorrection = true }
-            try? await Task.sleep(nanoseconds: 1300 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            // Accept: the correction turns solid.
-            withAnimation(.easeInOut(duration: 0.22)) { accepted = true }
-            try? await Task.sleep(nanoseconds: 900 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.30)) {
-                showCorrection = false
-                accepted = false
-                typedCount = 0
-            }
-            try? await Task.sleep(nanoseconds: 600 * nsPerMillisecond)
-        }
+        await DemoTypingPlayer.play(Self.timeline, characterCount: { fullTyped.count }, setPhase: { phase = $0 })
     }
 }
 
@@ -290,12 +234,9 @@ private struct EmojiPickerDemoCard: View {
     let animating: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Number of trigger characters (":smi") revealed so far.
-    @State private var triggerCount = 0
-    /// Whether the candidate popup is open.
-    @State private var showPopup = false
-    /// Whether the chosen emoji has replaced the trigger text.
-    @State private var committed = false
+    /// Typing reveals the trigger (":smi"), the offer is the candidate popup, and accepting
+    /// replaces the trigger text with the chosen emoji.
+    @State private var phase = DemoTypingPhase.typing(count: 0)
 
     private let leadIn = "Nice work "
     private let trigger = ":smi"
@@ -304,6 +245,19 @@ private struct EmojiPickerDemoCard: View {
         ("😄", "smile"), ("😁", "smiley"), ("😊", "blush"), ("😆", "laughing"), ("😅", "sweat_smile")
     ]
 
+    /// Starts late so the cards do not animate in lockstep.
+    private static let timeline = DemoTypingTimeline(
+        startDelayMilliseconds: 700,
+        emptyHoldMilliseconds: 350,
+        perCharacterMilliseconds: 70,
+        offerAnimationDuration: 0.16,
+        offerHoldMilliseconds: 1500,
+        acceptAnimationDuration: 0.20,
+        acceptedHoldMilliseconds: 900,
+        resetAnimationDuration: 0.30,
+        resetHoldMilliseconds: 600
+    )
+
     var body: some View {
         DemoCard(caption: "Inline emoji", contentHeight: 124) {
             ZStack(alignment: .topLeading) {
@@ -311,7 +265,7 @@ private struct EmojiPickerDemoCard: View {
                     .font(.system(size: 16))
                     .foregroundStyle(.primary)
 
-                if showPopup {
+                if phase.isAwaitingAccept {
                     DemoEmojiPopup(query: "smi", candidates: candidates)
                         .offset(x: 84, y: 26)
                         .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
@@ -325,54 +279,18 @@ private struct EmojiPickerDemoCard: View {
     }
 
     private var fieldText: String {
-        if committed {
+        if phase == .accepted {
             return leadIn + chosenGlyph
         }
-        return leadIn + String(trigger.prefix(triggerCount))
+        return leadIn + String(trigger.prefix(phase.typedCount(outOf: trigger.count)))
     }
 
     private func runLoop() async {
         guard animating, !reduceMotion else {
-            triggerCount = trigger.count
-            committed = true
-            showPopup = false
+            phase = .accepted
             return
         }
-
-        // Offset the first iteration so the two demos do not animate in lockstep.
-        try? await Task.sleep(nanoseconds: 700 * nsPerMillisecond)
-        if Task.isCancelled { return }
-
-        while !Task.isCancelled {
-            triggerCount = 0
-            committed = false
-            showPopup = false
-            try? await Task.sleep(nanoseconds: 350 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            for index in 1...trigger.count {
-                triggerCount = index
-                try? await Task.sleep(nanoseconds: 70 * nsPerMillisecond)
-                if Task.isCancelled { return }
-            }
-
-            withAnimation(.easeInOut(duration: 0.16)) { showPopup = true }
-            try? await Task.sleep(nanoseconds: 1500 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.20)) {
-                showPopup = false
-                committed = true
-            }
-            try? await Task.sleep(nanoseconds: 900 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.30)) {
-                committed = false
-                triggerCount = 0
-            }
-            try? await Task.sleep(nanoseconds: 600 * nsPerMillisecond)
-        }
+        await DemoTypingPlayer.play(Self.timeline, characterCount: { trigger.count }, setPhase: { phase = $0 })
     }
 }
 
@@ -496,9 +414,9 @@ private struct MacroDemoCard: View {
         // Idle (not animating) and reduce-motion rest on the first example; only hover/onboarding cycles.
         guard animating, !reduceMotion, !examples.isEmpty else { return }
         // Offset so this card does not advance in lockstep with the others.
-        try? await Task.sleep(nanoseconds: 500 * nsPerMillisecond)
+        await DemoTypingPlayer.sleep(milliseconds: 500)
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 1400 * nsPerMillisecond)
+            await DemoTypingPlayer.sleep(milliseconds: 1400)
             if Task.isCancelled { return }
             withAnimation(.easeInOut(duration: 0.35)) {
                 index = (index + 1) % examples.count

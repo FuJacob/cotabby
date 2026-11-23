@@ -6,9 +6,9 @@ import SwiftUI
 /// the product does in the first five seconds, before the flow asks them for permissions.
 ///
 /// Like `OnboardingFeatureShowcase`, the demo is inert content: hardcoded strings and local
-/// `@State`, no Accessibility, no event tap, nothing from the real suggestion pipeline. The loop is
-/// driven from a `.task`, which SwiftUI cancels when the view leaves the hierarchy, and Reduce
-/// Motion rests on a completed frame instead of looping. The card keeps a fixed height so the
+/// `@State`, no Accessibility, no event tap, nothing from the real suggestion pipeline. It plays the
+/// same `DemoTypingTimeline` loop as the showcase cards from a `.task`, which SwiftUI cancels when
+/// the view leaves the hierarchy, and Reduce Motion rests on a completed frame instead of looping. The card keeps a fixed height so the
 /// welcome window never resizes mid-animation.
 struct WelcomeHeroDemo: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -16,12 +16,7 @@ struct WelcomeHeroDemo: View {
 
     /// Index into `examples` of the phrase currently playing; advances each loop for breadth.
     @State private var exampleIndex = 0
-    /// Number of base characters revealed so far (the "typed" portion).
-    @State private var typedCount = 0
-    /// Whether the gray ghost continuation and its keycap are visible.
-    @State private var showGhost = false
-    /// Whether the ghost has been "accepted" and turned solid.
-    @State private var accepted = false
+    @State private var phase = DemoTypingPhase.typing(count: 0)
     /// Insertion-point blink, driven by its own short-period task while the demo is on screen.
     @State private var caretVisible = true
 
@@ -40,6 +35,20 @@ struct WelcomeHeroDemo: View {
     private var example: Example {
         examples[exampleIndex % examples.count]
     }
+
+    /// Slower than the showcase cards and with a beat before the ghost appears: this is the first
+    /// thing a new user watches, so each phase gets time to register.
+    private static let timeline = DemoTypingTimeline(
+        emptyHoldMilliseconds: 450,
+        perCharacterMilliseconds: 52,
+        pauseBeforeOfferMilliseconds: 280,
+        offerAnimationDuration: 0.18,
+        offerHoldMilliseconds: 1500,
+        acceptAnimationDuration: 0.22,
+        acceptedHoldMilliseconds: 1100,
+        resetAnimationDuration: 0.3,
+        resetHoldMilliseconds: 500
+    )
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -73,7 +82,7 @@ struct WelcomeHeroDemo: View {
     private var mockTextField: some View {
         HStack(alignment: .center, spacing: 6) {
             HStack(alignment: .center, spacing: 0) {
-                Text(String(example.base.prefix(typedCount)))
+                Text(String(example.base.prefix(phase.typedCount(outOf: example.base.count))))
                     .foregroundStyle(.primary)
 
                 // The insertion point sits between the typed text and the ghost, exactly where the
@@ -84,15 +93,15 @@ struct WelcomeHeroDemo: View {
                     .opacity(caretVisible ? 1 : 0)
                     .padding(.horizontal, 1)
 
-                if showGhost {
+                if phase.showsOffer {
                     Text(example.ghost)
-                        .foregroundStyle(accepted ? Color.primary : ghostColor)
+                        .foregroundStyle(phase.isAwaitingAccept ? ghostColor : Color.primary)
                 }
             }
             .font(.system(size: 16))
             .lineLimit(1)
 
-            if showGhost && !accepted {
+            if phase.isAwaitingAccept {
                 GhostKeycap(label: "Tab")
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
@@ -125,45 +134,17 @@ struct WelcomeHeroDemo: View {
 
     private func runLoop() async {
         guard !reduceMotion else {
-            typedCount = example.base.count
-            showGhost = true
-            accepted = true
+            phase = .accepted
             caretVisible = true
             return
         }
-
-        while !Task.isCancelled {
-            typedCount = 0
-            showGhost = false
-            accepted = false
-            try? await Task.sleep(nanoseconds: 450 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            for index in 1...example.base.count {
-                typedCount = index
-                try? await Task.sleep(nanoseconds: 52 * nsPerMillisecond)
-                if Task.isCancelled { return }
-            }
-
-            try? await Task.sleep(nanoseconds: 280 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.18)) { showGhost = true }
-            try? await Task.sleep(nanoseconds: 1500 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.22)) { accepted = true }
-            try? await Task.sleep(nanoseconds: 1100 * nsPerMillisecond)
-            if Task.isCancelled { return }
-
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showGhost = false
-                accepted = false
-                typedCount = 0
-            }
-            exampleIndex += 1
-            try? await Task.sleep(nanoseconds: 500 * nsPerMillisecond)
-        }
+        await DemoTypingPlayer.play(
+            Self.timeline,
+            characterCount: { example.base.count },
+            // The field is empty here, so the next phrase can be swapped in unseen.
+            onLoopReset: { exampleIndex += 1 },
+            setPhase: { phase = $0 }
+        )
     }
 
     /// Standard insertion-point blink. Separate from the typing loop so the cadence stays steady
@@ -174,7 +155,7 @@ struct WelcomeHeroDemo: View {
             return
         }
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 520 * nsPerMillisecond)
+            await DemoTypingPlayer.sleep(milliseconds: 520)
             if Task.isCancelled { return }
             withAnimation(.easeInOut(duration: 0.12)) {
                 caretVisible.toggle()
@@ -182,6 +163,3 @@ struct WelcomeHeroDemo: View {
         }
     }
 }
-
-/// One millisecond in nanoseconds, so the demo timings above read in milliseconds.
-private let nsPerMillisecond: UInt64 = 1_000_000

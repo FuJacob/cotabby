@@ -45,11 +45,10 @@ final class EmojiPickerController {
     /// `@MainActor`: it mutates main-actor `EmojiUsageStore` state.
     private let recordEmojiUsage: @MainActor (String) -> Void
 
-    private var currentQuery = ""
-    private var matches: [EmojiMatch] = []
-    private var selectedIndex = 0
-    private var captureFocusSequence: UInt64?
-    private var lastCaretRect: CGRect?
+    /// The open capture, or `nil` while idle. Set when a `:` opens against a triggerable field and
+    /// cleared by `teardownCapture()`, so it tracks `machine.isCapturing` except inside one
+    /// `observe(_:)` pass, between the machine's own transition and `applyActions(_:)` catching up.
+    private var capture: EmojiCaptureSession?
     private var pendingDecision: InlineCaptureKeyDecision?
     private let idleTimer = InlineCaptureIdleTimer()
     private var cancellables = Set<AnyCancellable>()
@@ -90,7 +89,7 @@ final class EmojiPickerController {
         // `InlineCommandCoordinator` installs it and routes to `decideCaptureKey(_:)`.
         panel.onSelectIndex = { [weak self] index in
             guard let self else { return }
-            self.selectedIndex = index
+            self.capture?.select(index: index)
             self.commitSelectedMatch()
         }
         panel.onClickOutside = { [weak self] in
@@ -121,7 +120,7 @@ final class EmojiPickerController {
         }
 
         let wasCapturing = machine.isCapturing
-        let output = machine.reduce(triggerInput(for: event), selectableMatchCount: matches.count)
+        let output = machine.reduce(triggerInput(for: event), selectableMatchCount: capture?.matches.count ?? 0)
         applyActions(output.actions)
 
         // The feature was involved if we were capturing before this key (covers commit/cancel that
@@ -200,33 +199,33 @@ final class EmojiPickerController {
             machine.reset()
             return
         }
-        captureFocusSequence = context.focusChangeSequence
-        lastCaretRect = context.caretRect
+        var session = EmojiCaptureSession(
+            focusChangeSequence: context.focusChangeSequence,
+            caretRect: context.caretRect
+        )
         // A bare ":" opens with an empty query and immediately shows the user's recents/popular set.
-        refreshMatches(query: "")
-        presentPanel()
+        session.setResults(rankedMatches(for: ""), for: "")
+        capture = session
+        present(session)
         armIdleTimer()
         onCaptureStateChanged?()
-        CotabbyLogger.suggestion.debug("emoji capture opened matches=\(matches.count)")
+        CotabbyLogger.suggestion.debug("emoji capture opened matches=\(session.matches.count)")
     }
 
     private func updateQuery(_ query: String) {
-        guard machine.isCapturing else { return }
-        refreshMatches(query: query)
+        guard machine.isCapturing, var session = capture else { return }
+        session.setResults(rankedMatches(for: query), for: query)
+        capture = session
         // Reposition because the match count (and therefore the panel width) may have changed.
-        presentPanel()
+        present(session)
         armIdleTimer()
     }
 
     private func moveSelection(_ move: EmojiSelectionMove) {
-        guard !matches.isEmpty else { return }
-        switch move {
-        case .previous:
-            selectedIndex = (selectedIndex - 1 + matches.count) % matches.count
-        case .next:
-            selectedIndex = (selectedIndex + 1) % matches.count
-        }
-        panel.setSelectedIndex(selectedIndex)
+        guard var session = capture else { return }
+        guard session.moveSelection(move) else { return }
+        capture = session
+        panel.setSelectedIndex(session.selectedIndex)
         armIdleTimer()
     }
 
@@ -242,16 +241,17 @@ final class EmojiPickerController {
     /// The consumed word-accept key, or a click on a glyph. The field holds `:query`, so delete that
     /// run and insert the highlighted glyph.
     private func commitSelectedMatch() {
-        guard selectedIndex >= 0, selectedIndex < matches.count else {
-            CotabbyLogger.suggestion.debug("emoji commit (key) skipped: no selectable match query=\"\(currentQuery)\"")
+        guard let session = capture, let selected = session.selectedMatch else {
+            CotabbyLogger.suggestion.debug(
+                "emoji commit (key) skipped: no selectable match query=\"\(capture?.query ?? "")\""
+            )
             teardownCapture()
             return
         }
-        let selected = matches[selectedIndex]
         let glyph = selected.glyph
-        let fallback = currentQuery.utf16.count + 1   // ":" + query
+        let fallback = session.query.utf16.count + 1   // ":" + query
         recordUsage(for: selected)
-        CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(currentQuery)\"")
+        CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(session.query)\"")
         teardownCapture()
         scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
     }
@@ -259,9 +259,12 @@ final class EmojiPickerController {
     /// The passed-through closing `:`. The field will hold `:query:` once the colon lands, so defer
     /// one runloop tick, then measure and replace the whole run.
     private func commitClosingColon() {
-        let query = currentQuery
-        let match = bestMatchForClosingColon(query: query)
-        let fallback = query.utf16.count + 2   // ":" + query + ":"
+        guard let session = capture else {
+            teardownCapture()
+            return
+        }
+        let match = bestMatchForClosingColon(query: session.query)
+        let fallback = session.query.utf16.count + 2   // ":" + query + ":"
         teardownCapture()
         guard let match else { return }   // no match: leave the literal ":query:" untouched
         recordUsage(for: match)
@@ -278,11 +281,7 @@ final class EmojiPickerController {
     private func teardownCapture() {
         let wasCapturing = machine.isCapturing
         machine.reset()
-        matches = []
-        selectedIndex = 0
-        currentQuery = ""
-        captureFocusSequence = nil
-        lastCaretRect = nil
+        capture = nil
         pendingDecision = nil
         idleTimer.cancel()
         panel.hide()
@@ -294,25 +293,22 @@ final class EmojiPickerController {
 
     // MARK: - Matching and presentation
 
-    private func refreshMatches(query: String) {
-        currentQuery = query
+    private func rankedMatches(for query: String) -> [EmojiMatch] {
         let usage = emojiUsage()
         // A bare ":" (empty query) shows the user's recents, padded with popular emoji, instead of
         // nothing; a typed query runs the ranked search with the same personal usage signal.
         let base = query.isEmpty
             ? matcher.recents(usage: usage)
             : matcher.matches(for: query, usage: usage)
-        matches = EmojiVariantResolver.resolve(base, preferences: emojiPreferences())
-        selectedIndex = 0
+        return EmojiVariantResolver.resolve(base, preferences: emojiPreferences())
     }
 
-    private func presentPanel() {
-        let caretRect = lastCaretRect ?? focusModel.snapshot.context?.caretRect ?? .zero
+    private func present(_ session: EmojiCaptureSession) {
         panel.show(
-            query: currentQuery,
-            matches: matches,
-            selectedIndex: selectedIndex,
-            caretRect: caretRect
+            query: session.query,
+            matches: session.matches,
+            selectedIndex: session.selectedIndex,
+            caretRect: session.caretRect
         )
     }
 
@@ -359,10 +355,10 @@ final class EmojiPickerController {
     // MARK: - Focus and gating
 
     private func handleFocusSnapshot(_ snapshot: FocusSnapshot) {
-        guard machine.isCapturing else { return }
+        guard machine.isCapturing, var session = capture else { return }
         guard let context = InlineCaptureFocusGate.continuingContext(
             in: snapshot,
-            focusChangeSequence: captureFocusSequence
+            focusChangeSequence: session.focusChangeSequence
         ) else {
             // The field changed (or went secure) under an open capture. This is the other common
             // "panel vanished mid-query" cause, so record it distinctly from a user cancel.
@@ -371,13 +367,9 @@ final class EmojiPickerController {
             return
         }
         // Follow the caret as the user types the query.
-        lastCaretRect = context.caretRect
-        panel.show(
-            query: currentQuery,
-            matches: matches,
-            selectedIndex: selectedIndex,
-            caretRect: context.caretRect
-        )
+        session.caretRect = context.caretRect
+        capture = session
+        present(session)
     }
 
     private func armIdleTimer() {

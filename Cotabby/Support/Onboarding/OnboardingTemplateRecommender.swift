@@ -43,6 +43,63 @@ enum OnboardingTemplateRecommender {
         )
     }
 
+    /// The plan the wizard actually applies, which differs from the template's own plan in one case:
+    /// a returning user on the Custom path with the Open Source engine keeps the local model they
+    /// already selected instead of the template default. The wizard deliberately writes no settings
+    /// for that user, so the plan has to describe what they keep, or the done-step status and model
+    /// activation would talk about a model that was never chosen. A current model that is not in
+    /// the catalog (a manually added GGUF) cannot be expressed as a download, so it falls back to
+    /// the template's plan.
+    static func resolvePlan(
+        for template: OnboardingTemplate,
+        engine: SuggestionEngineKind,
+        isReturningUser: Bool,
+        currentModelFilename: String?
+    ) -> ResolvedTemplatePlan {
+        let base = resolvePlan(for: template, engine: engine)
+        guard
+            template == .custom,
+            isReturningUser,
+            engine == .llamaOpenSource,
+            let currentModelFilename,
+            currentModelFilename != base.modelToDownload?.filename,
+            let currentModel = downloadableModel(filename: currentModelFilename)
+        else {
+            return base
+        }
+        return ResolvedTemplatePlan(
+            engine: base.engine,
+            modelToDownload: currentModel,
+            wordCountPreset: base.wordCountPreset,
+            enablesFastMode: base.enablesFastMode,
+            enablesMultiLine: base.enablesMultiLine,
+            enablesClipboardContext: base.enablesClipboardContext
+        )
+    }
+
+    /// Whether the template step's primary button is enabled. With no tier chosen (`selectedPlan`
+    /// is nil) it always is: the button reads "Set up later" and applies the neutral Custom path.
+    /// With a tier chosen, engines that download nothing are immediately ready, while Open Source
+    /// waits until that tier's model download is at least underway (it finishes in the background),
+    /// so the user cannot reach the end of onboarding with no model on the way.
+    static func canContinueFromTemplateStep(
+        selectedPlan: ResolvedTemplatePlan?,
+        modelDownloadState: ModelDownloadState?
+    ) -> Bool {
+        guard let selectedPlan else {
+            return true
+        }
+        switch selectedPlan.engine {
+        case .appleIntelligence, .openAICompatible:
+            return true
+        case .llamaOpenSource:
+            guard let modelDownloadState else {
+                return false
+            }
+            return modelDownloadState == .downloaded || modelDownloadState.isDownloading
+        }
+    }
+
     /// Whether a template should be recommended, disabled, or warned about under the chosen engine.
     ///
     /// Apple Intelligence has no per-tier download, so every tier is available there. The hardware

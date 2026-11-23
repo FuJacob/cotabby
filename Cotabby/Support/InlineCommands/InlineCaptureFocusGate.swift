@@ -21,7 +21,7 @@ enum InlineCaptureFocusGate {
     /// a different value means the tracked `:query` / `/query` run is no longer under the caret.
     static func continuingContext(
         in snapshot: FocusSnapshot,
-        focusChangeSequence: UInt64?
+        focusChangeSequence: UInt64
     ) -> FocusedInputSnapshot? {
         guard let context = snapshot.context,
               !context.isSecure,

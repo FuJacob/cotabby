@@ -1,14 +1,18 @@
 import Foundation
 
 /// File overview:
-/// Pure sequencing model for the first-run onboarding wizard: the ordered steps, which of them
-/// count toward the progress indicator, and the window size each one prefers. Extracted from
-/// `WelcomeView` so the flow's shape is unit-testable without SwiftUI.
+/// Pure sequencing model for the first-run onboarding wizard: the ordered steps, the edges between
+/// them, which of them count toward the progress indicator, and the window size each one prefers.
+/// Extracted from `WelcomeView` so the flow's shape is unit-testable without SwiftUI.
 ///
-/// Raw values are persisted by `WelcomeCoordinator` as the wizard's resume point, so reordering or
-/// inserting cases is a breaking change for stored progress. If the numbering scheme changes,
-/// `WelcomeCoordinator` must move to a fresh UserDefaults key rather than reinterpret old indices
-/// (see `onboardingProgressStepKey` there).
+/// The flow is strictly linear, so case order is the whole transition graph: Back and Continue are
+/// `previous` and `next`. A view never names a neighbouring step, which means inserting or
+/// reordering a step is a change to this enum alone.
+///
+/// Raw values are persisted as the wizard's resume point (see `OnboardingProgress`), so reordering
+/// or inserting cases is a breaking change for stored progress. If the numbering scheme changes,
+/// `OnboardingProgress.furthestStepKey` must move to a fresh UserDefaults key rather than
+/// reinterpret old indices.
 enum WelcomeStep: Int, CaseIterable, Comparable, Sendable {
     case welcome
     case permissions
@@ -21,24 +25,34 @@ enum WelcomeStep: Int, CaseIterable, Comparable, Sendable {
         lhs.rawValue < rhs.rawValue
     }
 
-    /// Number of steps shown in the progress indicator (the middle, non-terminal steps).
-    static let totalProgressSteps = 4
+    /// The step Back returns to, or `nil` on the first step.
+    var previous: WelcomeStep? {
+        WelcomeStep(rawValue: rawValue - 1)
+    }
 
-    /// 1-based position within the progress indicator, or `nil` for the intro/outro steps that
-    /// intentionally sit outside the counted flow.
+    /// The step Continue advances to, or `nil` on the last step.
+    var next: WelcomeStep? {
+        WelcomeStep(rawValue: rawValue + 1)
+    }
+
+    /// The intro and outro pages frame the flow rather than being steps in it: they carry their
+    /// own single call-to-action instead of the Back/Continue footer and sit outside the progress
+    /// indicator.
+    var isFramingPage: Bool {
+        previous == nil || next == nil
+    }
+
+    /// The steps the progress indicator counts, in order.
+    private static let progressSteps = allCases.filter { !$0.isFramingPage }
+
+    /// Number of steps shown in the progress indicator.
+    static var totalProgressSteps: Int {
+        progressSteps.count
+    }
+
+    /// 1-based position within the progress indicator, or `nil` for the framing pages.
     var progressIndex: Int? {
-        switch self {
-        case .welcome, .done:
-            return nil
-        case .permissions:
-            return 1
-        case .template:
-            return 2
-        case .personalize:
-            return 3
-        case .keybind:
-            return 4
-        }
+        Self.progressSteps.firstIndex(of: self).map { $0 + 1 }
     }
 
     /// Product-chosen window sizes. The coordinator clamps the height to the visible screen, and

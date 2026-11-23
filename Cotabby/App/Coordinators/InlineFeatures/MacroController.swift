@@ -29,10 +29,10 @@ final class MacroController {
     /// in sync without polling.
     var onCaptureStateChanged: (() -> Void)?
 
-    private var currentQuery = ""
-    private var currentResult: MacroResult?
-    private var captureFocusSequence: UInt64?
-    private var lastCaretRect: CGRect?
+    /// The open capture, or `nil` while idle. Set when a `/` opens against a triggerable field and
+    /// cleared by `teardownCapture()`, so it tracks `machine.isCapturing` except inside one
+    /// `observe(_:)` pass, between the machine's own transition and `applyActions(_:)` catching up.
+    private var capture: MacroCaptureSession?
     private var pendingDecision: InlineCaptureKeyDecision?
     private let idleTimer = InlineCaptureIdleTimer()
     private var cancellables = Set<AnyCancellable>()
@@ -81,7 +81,7 @@ final class MacroController {
         }
 
         let wasCapturing = machine.isCapturing
-        let output = machine.reduce(triggerInput(for: event), hasInsertableResult: currentResult != nil)
+        let output = machine.reduce(triggerInput(for: event), hasInsertableResult: capture?.result != nil)
         applyActions(output.actions)
 
         let involved = wasCapturing || machine.isCapturing
@@ -144,29 +144,30 @@ final class MacroController {
             machine.reset()
             return
         }
-        captureFocusSequence = context.focusChangeSequence
-        lastCaretRect = context.caretRect
-        currentQuery = ""
-        currentResult = nil
+        capture = MacroCaptureSession(
+            focusChangeSequence: context.focusChangeSequence,
+            caretRect: context.caretRect
+        )
         armIdleTimer()
         onCaptureStateChanged?()
     }
 
     private func updateQuery(_ query: String) {
-        guard machine.isCapturing else { return }
-        currentQuery = query
-        currentResult = engine.evaluate(query)
-        presentOrHide()
+        guard machine.isCapturing, var session = capture else { return }
+        session.setResult(engine.evaluate(query), for: query)
+        capture = session
+        presentOrHide(session)
         armIdleTimer()
     }
 
-    private func presentOrHide() {
-        guard let result = currentResult else {
+    /// The preview only exists while the query evaluates to something; an incomplete or invalid
+    /// query shows nothing rather than a stale result.
+    private func presentOrHide(_ session: MacroCaptureSession) {
+        guard let result = session.result else {
             panel.hide()
             return
         }
-        let caretRect = lastCaretRect ?? focusModel.snapshot.context?.caretRect ?? .zero
-        panel.show(previewText: result.previewText, caretRect: caretRect, acceptKeyLabel: acceptKeyLabel())
+        panel.show(previewText: result.previewText, caretRect: session.caretRect, acceptKeyLabel: acceptKeyLabel())
     }
 
     /// Replaces the typed `/query` run with the result's insertion text. The delete count is the
@@ -174,13 +175,13 @@ final class MacroController {
     /// touched. Posted on the next runloop tick so the synthetic burst is never re-entrant from
     /// inside the key's own tap callback.
     private func commitIfPossible() {
-        guard let result = currentResult else {
+        guard let session = capture, let result = session.result else {
             teardownCapture()
             return
         }
-        let deleteCount = 1 + currentQuery.utf16.count   // "/" + query
+        let deleteCount = session.typedRunUTF16Count
         let insertion = result.insertionText
-        CotabbyLogger.suggestion.debug("macro commit deleteUTF16=\(deleteCount) query=\"\(currentQuery)\"")
+        CotabbyLogger.suggestion.debug("macro commit deleteUTF16=\(deleteCount) query=\"\(session.query)\"")
         teardownCapture()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -192,10 +193,7 @@ final class MacroController {
     private func teardownCapture() {
         let wasActive = machine.isCapturing
         machine.reset()
-        currentQuery = ""
-        currentResult = nil
-        captureFocusSequence = nil
-        lastCaretRect = nil
+        capture = nil
         pendingDecision = nil
         idleTimer.cancel()
         panel.hide()
@@ -207,16 +205,17 @@ final class MacroController {
     // MARK: - Focus and gating
 
     private func handleFocusSnapshot(_ snapshot: FocusSnapshot) {
-        guard machine.isCapturing else { return }
+        guard machine.isCapturing, var session = capture else { return }
         guard let context = InlineCaptureFocusGate.continuingContext(
             in: snapshot,
-            focusChangeSequence: captureFocusSequence
+            focusChangeSequence: session.focusChangeSequence
         ) else {
             teardownCapture()
             return
         }
-        lastCaretRect = context.caretRect
-        presentOrHide()
+        session.caretRect = context.caretRect
+        capture = session
+        presentOrHide(session)
     }
 
     private func armIdleTimer() {
