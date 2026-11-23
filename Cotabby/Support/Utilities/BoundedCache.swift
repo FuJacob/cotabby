@@ -3,11 +3,12 @@ import Foundation
 /// File overview:
 /// A dictionary that holds at most `limit` entries and forgets the oldest-inserted one when a new
 /// key would exceed that. For the small per-field measurement caches in the presentation layer,
-/// which would otherwise grow by one entry per line or paragraph for the app's lifetime.
+/// which would otherwise grow by one entry per line or paragraph for the app's lifetime, and for
+/// `HostFaceMemory`'s per-style faces.
 ///
 /// Eviction is by insertion order, not by use: replacing the value under a key that is already
-/// present keeps that key's place in line. The callers' keys embed the text or line they measured,
-/// so an entry is superseded by a new key long before recency of use would matter.
+/// present keeps that key's place in line. The measurement caches' keys embed the text or line they
+/// measured, so an entry is superseded by a new key long before recency of use would matter.
 nonisolated struct BoundedCache<Key: Hashable, Value> {
     let limit: Int
     private var values: [Key: Value] = [:]
@@ -19,6 +20,9 @@ nonisolated struct BoundedCache<Key: Hashable, Value> {
     }
 
     var count: Int { values.count }
+
+    /// The keys held, oldest-inserted first: the order they are evicted in.
+    var keys: [Key] { insertionOrder }
 
     subscript(key: Key) -> Value? {
         values[key]
@@ -34,3 +38,5 @@ nonisolated struct BoundedCache<Key: Hashable, Value> {
         values[key] = value
     }
 }
+
+extension BoundedCache: Sendable where Key: Sendable, Value: Sendable {}

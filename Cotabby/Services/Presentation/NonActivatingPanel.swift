@@ -55,17 +55,16 @@ final class NonActivatingPanel: NSPanel {
 }
 
 extension NSScreen {
-    /// The visible frame of the screen an overlay anchored at `rect` belongs on: the screen whose
-    /// usable area holds the rect's centre, else one the rect touches at all (a caret under the
-    /// menu bar or Dock is outside every visible frame), else the main screen.
-    static func visibleFrame(containing rect: CGRect) -> CGRect {
+    /// The screen an overlay anchored at `rect` belongs on: the one whose usable area holds the
+    /// rect's centre, else one the rect touches at all (a caret under the menu bar or Dock is
+    /// outside every visible frame). Nil when the rect is on no screen.
+    static func overlayScreen(for rect: CGRect) -> NSScreen? {
         let midpoint = CGPoint(x: rect.midX, y: rect.midY)
-        if let screen = screens.first(where: { $0.visibleFrame.contains(midpoint) }) {
-            return screen.visibleFrame
-        }
-        if let screen = screens.first(where: { $0.frame.intersects(rect) }) {
-            return screen.visibleFrame
-        }
-        return main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+        return screens.first(where: { $0.visibleFrame.contains(midpoint) }) ?? screens.first(where: { $0.frame.intersects(rect) })
+    }
+
+    /// The visible frame of `overlayScreen(for:)`, else of the main screen.
+    static func visibleFrame(containing rect: CGRect) -> CGRect {
+        (overlayScreen(for: rect) ?? main)?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
     }
 }

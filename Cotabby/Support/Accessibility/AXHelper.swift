@@ -1271,7 +1271,6 @@ enum AXHelper {
             let displayID = CGDirectDisplayID(number.uint32Value)
             return DisplayGeometry(
                 appKitFrame: screen.frame,
-                visibleFrame: screen.visibleFrame,
                 coreGraphicsBounds: CGDisplayBounds(displayID),
                 backingScaleFactor: screen.backingScaleFactor
             )

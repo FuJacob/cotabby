@@ -23,7 +23,7 @@ import Logging
 /// bundle identifier, off the main actor, and its answer is cached for the process's life; until
 /// it lands the match proceeds with the installed candidates, as before.
 ///
-/// Owned by `OverlayController` because the candidates are a presentation concern: they only
+/// Owned by `HostTypefaceResolver` because the candidates are a presentation concern: they only
 /// matter when a ghost is about to be drawn in a stand-in face.
 @MainActor
 final class HostBundledFontRegistry {

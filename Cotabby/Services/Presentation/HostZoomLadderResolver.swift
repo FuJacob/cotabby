@@ -9,7 +9,7 @@ import AppKit
 /// with them, and the list of Electron editors worth priming is deliberately short. Any other host
 /// has no ladder, and its measured sizes stand.
 ///
-/// Owned by `OverlayController` for the app's lifetime, beside `HostBundledFontRegistry`, which
+/// Owned by `HostTypefaceResolver` for the app's lifetime, beside `HostBundledFontRegistry`, which
 /// finds a host's bundle the same way. One file-existence check per bundle, cached.
 @MainActor
 final class HostZoomLadderResolver {

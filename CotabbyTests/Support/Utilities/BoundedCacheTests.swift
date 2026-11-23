@@ -23,6 +23,7 @@ final class BoundedCacheTests: XCTestCase {
         XCTAssertEqual(cache["b"], 2)
         XCTAssertEqual(cache["c"], 3)
         XCTAssertEqual(cache.count, 2)
+        XCTAssertEqual(cache.keys, ["b", "c"], "keys are listed oldest first")
     }
 
     func test_replacingAValueKeepsTheKeysPlaceInLine() {
@@ -32,6 +33,8 @@ final class BoundedCacheTests: XCTestCase {
         cache.insert(10, for: "a")
         XCTAssertEqual(cache["a"], 10)
         XCTAssertEqual(cache.count, 2)
+
+        XCTAssertEqual(cache.keys, ["a", "b"])
 
         // "a" was inserted first, so it is still the one to go: eviction is not by recency of use.
         cache.insert(3, for: "c")

@@ -19,7 +19,7 @@ import AppKit
 /// Short samples (under `minimumEvidenceLength`) are recorded but never decide: three characters
 /// of whole-point-rounded width carry more noise than the gap between families.
 ///
-/// Pure value type owned per field by `OverlayController`; nothing here touches AX or the screen.
+/// Pure value type owned per field by `HostTypefaceResolver`; nothing here touches AX or the screen.
 struct TypefaceEvidence: Equatable {
     struct Sample: Equatable {
         let text: String

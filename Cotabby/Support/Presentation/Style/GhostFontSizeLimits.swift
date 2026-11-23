@@ -7,7 +7,7 @@ import CoreGraphics
 ///
 /// Why this is its own type: two presentation paths size the ghost independently. The inline path
 /// resolves the host's face and size from Accessibility, pixels, and caret advances
-/// (`GhostFontResolver` and `OverlayController`), while the card path uses a fixed size scaled by the
+/// (`GhostFontResolver` and `HostTypefaceResolver`), while the card path uses a fixed size scaled by the
 /// user's multiplier (`MirrorOverlayLayout`). Both must honor the same floor, and the settings model
 /// pins its slider minimum to it, so the number lives in one pure, dependency-free place rather than
 /// being restated in each.

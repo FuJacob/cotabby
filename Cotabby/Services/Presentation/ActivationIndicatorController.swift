@@ -80,7 +80,7 @@ final class ActivationIndicatorController {
         let fallbackRightX = anchorRect.maxX
         let centeredY = caretRect.midY - (contentSize.height / 2)
 
-        guard let screen = screen(for: anchorRect) else {
+        guard let screen = NSScreen.overlayScreen(for: anchorRect) else {
             return CGPoint(x: preferredLeftX, y: centeredY)
         }
 
@@ -99,18 +99,5 @@ final class ActivationIndicatorController {
         )
 
         return CGPoint(x: clampedX, y: clampedY)
-    }
-
-    /// The screen whose usable area contains the rect's centre, else one the rect touches at all.
-    private func screen(for rect: CGRect) -> NSScreen? {
-        let midpoint = CGPoint(x: rect.midX, y: rect.midY)
-
-        if let containingScreen = NSScreen.screens.first(where: {
-            $0.visibleFrame.contains(midpoint)
-        }) {
-            return containingScreen
-        }
-
-        return NSScreen.screens.first(where: { $0.frame.intersects(rect) })
     }
 }

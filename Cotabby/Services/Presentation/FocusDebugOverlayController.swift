@@ -30,9 +30,16 @@ final class FocusDebugOverlayController {
         if !enabled { hide() }
     }
 
-    private lazy var caretPanel: NSPanel = makePanel()
-    private lazy var framePanel: NSPanel = makePanel()
-    private lazy var bottomStatusPanel: NSPanel = makePanel(draggable: true)
+    // At the ghost text's level, above the field-edge icon, so the diagnostics stay in view.
+    private lazy var caretPanel = NonActivatingPanel.makeDisplayOnly()
+    private lazy var framePanel = NonActivatingPanel.makeDisplayOnly()
+    /// The one panel here that takes the mouse: the user drags it by its background out of the way.
+    private lazy var bottomStatusPanel: NonActivatingPanel = {
+        let panel = NonActivatingPanel.makeDisplayOnly()
+        panel.ignoresMouseEvents = false
+        panel.isMovableByWindowBackground = true
+        return panel
+    }()
 
     /// User-dragged origin for the bottom panel. `nil` means use the default centered position.
     private var bottomPanelDraggedOrigin: CGPoint?
@@ -105,7 +112,7 @@ final class FocusDebugOverlayController {
     }()
 
     private func showCaretIndicator(context: FocusedInputSnapshot) {
-        let color = indicatorColor(for: context.caretSource)
+        let color = indicatorColor(for: context.caretQuality)
         let contentView = NSHostingView(rootView: CaretDebugView(
             source: context.caretSource,
             role: context.role,
@@ -206,29 +213,13 @@ final class FocusDebugOverlayController {
         framePanel.orderOut(nil)
     }
 
-    private func makePanel(draggable: Bool = false) -> NSPanel {
-        let panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.ignoresMouseEvents = !draggable
-        panel.isMovableByWindowBackground = draggable
-        panel.hasShadow = false
-        // Above activation indicator and ghost text so it is always visible during debugging.
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        return panel
-    }
-
-    private func indicatorColor(for source: String) -> Color {
-        if source.contains("exact") { return .green }
-        if source.contains("derived") { return .yellow }
-        return .red
+    /// The caret's trust level at a glance; the badge's text spells out which path produced it.
+    private func indicatorColor(for quality: CaretGeometryQuality) -> Color {
+        switch quality {
+        case .exact: return .green
+        case .derived: return .yellow
+        case .estimated, .layoutEstimated: return .red
+        }
     }
 
     private func targetScreenVisibleFrame() -> CGRect {
@@ -276,10 +267,6 @@ private struct BottomDebugStatusView: View {
     let pollEvent: FocusPollingEvent?
     let maxWidth: CGFloat
 
-    private var stages: [VisualContextDebugStage] {
-        VisualContextDebugStage.allCases
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -296,7 +283,7 @@ private struct BottomDebugStatusView: View {
             }
 
             HStack(spacing: 6) {
-                ForEach(stages) { stage in
+                ForEach(VisualContextDebugStage.allCases) { stage in
                     VisualContextStagePill(
                         title: stage.title,
                         state: stageState(for: stage)
@@ -401,7 +388,7 @@ private struct BottomDebugStatusView: View {
         case .unavailable(let reason), .failed(let reason):
             return reason
         case .capturing, .extractingText:
-            let remaining = stages
+            let remaining = VisualContextDebugStage.allCases
                 .filter { stageState(for: $0) == .pending }
                 .map(\.title)
             return remaining.isEmpty ? "No stages left." : "Left: \(remaining.joined(separator: " -> "))"

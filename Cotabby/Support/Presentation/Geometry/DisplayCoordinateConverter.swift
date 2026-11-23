@@ -8,7 +8,6 @@ import CoreGraphics
 /// fragile union of every connected monitor.
 struct DisplayGeometry: Equatable {
     let appKitFrame: CGRect
-    let visibleFrame: CGRect
     let coreGraphicsBounds: CGRect
     let backingScaleFactor: CGFloat
 }

@@ -31,25 +31,6 @@ enum SuggestionOverlayStabilityGate {
     /// so a genuine one-character caret move still re-anchors while noise and residual are absorbed.
     private static let caretDriftTolerance: CGFloat = 6
 
-    /// Returns `true` when the coordinator should call `presentOverlay` for this reconcile tick.
-    /// Returns `false` to hold the existing overlay geometry exactly as it was last drawn.
-    ///
-    /// Re-anchor when:
-    ///   - The overlay is currently hidden (this is a fresh show).
-    ///   - The focus session changed (different field, or the same field after focus toggled).
-    ///   - The displayed text changed (user partially accepted, or typed-through advanced the tail).
-    ///   - The caret moved beyond `caretDriftTolerance` from where the overlay is currently anchored
-    ///     (a genuine caret move, or accumulated advance drift that needs correcting).
-    ///   - The host editor's frame moved on screen (window drag, sheet appear, etc.).
-    ///
-    /// `isAwaitingPostInsertionSync` short-circuits the geometry checks entirely: between a
-    /// synthesized insert and the host publishing it back through AX, the snapshot's caret is the
-    /// PRE-insertion one, a full accepted-word-width left of where the overlay correctly sits. The
-    /// drift tolerance cannot tell that stale rect from a genuine caret move, so the +30ms
-    /// post-insertion refresh used to re-anchor the ghost onto the just-accepted word and the next
-    /// poll tick snapped it back: the left-then-right accept jitter. While the field and text are
-    /// unchanged, stale geometry is never worth re-anchoring to; the hold lasts at most one or two
-    /// poll ticks because the sentinel clears the moment AX catches up.
     /// How long after an acceptance a backward (against the writing direction) caret jump with
     /// unchanged text is treated as stale geometry rather than a real move. Child-run hosts
     /// publish the inserted VALUE tens of milliseconds before their run frames reflow, and the
@@ -90,6 +71,25 @@ enum SuggestionOverlayStabilityGate {
         return !(isBackward && insideHoldWindow)
     }
 
+    /// Returns `true` when the coordinator should call `presentOverlay` for this reconcile tick.
+    /// Returns `false` to hold the existing overlay geometry exactly as it was last drawn.
+    ///
+    /// Re-anchor when:
+    ///   - The overlay is currently hidden (this is a fresh show).
+    ///   - The focus session changed (different field, or the same field after focus toggled).
+    ///   - The displayed text changed (user partially accepted, or typed-through advanced the tail).
+    ///   - The caret moved beyond `caretDriftTolerance` from where the overlay is currently anchored
+    ///     (a genuine caret move, or accumulated advance drift that needs correcting).
+    ///   - The host editor's frame moved on screen (window drag, sheet appear, etc.).
+    ///
+    /// `isAwaitingPostInsertionSync` short-circuits the geometry checks entirely: between a
+    /// synthesized insert and the host publishing it back through AX, the snapshot's caret is the
+    /// PRE-insertion one, a full accepted-word-width left of where the overlay correctly sits. The
+    /// drift tolerance cannot tell that stale rect from a genuine caret move, so the +30ms
+    /// post-insertion refresh would re-anchor the ghost onto the just-accepted word and the next
+    /// poll tick snap it back: the left-then-right accept jitter. While the field and text are
+    /// unchanged, stale geometry is never worth re-anchoring to; the hold lasts at most one or two
+    /// poll ticks because the sentinel clears the moment AX catches up.
     static func shouldRePresent(
         currentOverlay: OverlayState,
         newText: String,

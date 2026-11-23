@@ -106,26 +106,4 @@ final class HostBaselineCalibratorTypefaceTests: XCTestCase {
         XCTAssertNil(misses(matched))
         XCTAssertEqual(matched.record?.attempts, 1)
     }
-
-    func test_typefaceKnowledgeIsKeyedByFieldAlone() {
-        // A size guess that changes with the caret box must not open a second slot for the field.
-        XCTAssertEqual(
-            HostBaselineCalibrator.TypefaceKey(focusedInputIdentityKey: 7),
-            HostBaselineCalibrator.TypefaceKey(focusedInputIdentityKey: 7)
-        )
-    }
-
-    func test_captureRectsAreSnappedOutwardToWholePixels() {
-        let snapped = HostPixelCapture.snappedToPixels(CGRect(x: 279, y: 915.5, width: 227.75, height: 22), scale: 2)
-        XCTAssertEqual(snapped.minX, 279); XCTAssertEqual(snapped.minY, 915.5)
-        XCTAssertEqual(snapped.maxX, 507); XCTAssertEqual(snapped.maxY, 937.5)
-        let odd = HostPixelCapture.snappedToPixels(CGRect(x: 10.3, y: 4.7, width: 10.1, height: 3.1), scale: 2)
-        XCTAssertEqual(odd.minX, 10); XCTAssertEqual(odd.maxX, 20.5); XCTAssertEqual(odd.minY, 4.5); XCTAssertEqual(odd.maxY, 8)
-    }
-
-    func test_aLoneGlyphIsNotEnoughInkForABaseline() {
-        // The lone "A" strip measured in Obsidian carried 170 ink pixels; a word carries hundreds.
-        XCTAssertFalse(HostBaselineCalibrator.hasEnoughInk(.init(baselineRow: 34, bodyTopRow: 15, inkPixelCount: 170)))
-        XCTAssertTrue(HostBaselineCalibrator.hasEnoughInk(.init(baselineRow: 34, bodyTopRow: 15, inkPixelCount: 600)))
-    }
 }

@@ -19,7 +19,7 @@ nonisolated struct SuggestionAnchor: Equatable {
 ///   invalidated for an unrelated reason (focus bounce, shortcut) lands back inside it.
 /// Navigation invalidates entries through the session key even if the new draft is identical.
 ///
-/// One match rule covers all three: the live preceding-text tail must equal a cached anchor's
+/// One match rule covers both: the live preceding-text tail must equal a cached anchor's
 /// tail plus the first `k` characters of its suggestion, for any `k` short of the whole
 /// suggestion; the remainder is what is left to show. `k` strictly less than the full length
 /// keeps a fully-consumed suggestion from re-offering its own tail right after acceptance.
@@ -104,9 +104,9 @@ nonisolated struct SuggestionAnchorCache {
     /// `0 <= k < fullText.count`; nil when the live text is not on the anchor's path.
     ///
     /// The character buffers are built once per entry and every candidate window is then an
-    /// allocation-free slice comparison; the earlier form built a fresh
-    /// `tail(anchorTail + fullText.prefix(k))` string for every k of every scanned entry, which
-    /// is O(n) heap allocations per entry on a scan that visits up to the full cache.
+    /// allocation-free slice comparison: building `tail(anchorTail + fullText.prefix(k))` for every
+    /// k instead would cost O(n) heap allocations per entry on a scan that visits up to the full
+    /// cache.
     private static func consumedPrefixLength(
         liveTail: String,
         anchorTail: String,

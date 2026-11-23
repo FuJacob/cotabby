@@ -42,6 +42,12 @@ final class HostBaselineCalibratorTests: XCTestCase {
 
     // MARK: - Measurement plausibility
 
+    func testALoneGlyphIsNotEnoughInkForABaseline() {
+        // The lone "A" strip measured in Obsidian carried 170 ink pixels; a word carries hundreds.
+        XCTAssertFalse(HostBaselineCalibrator.hasEnoughInk(.init(baselineRow: 34, bodyTopRow: 15, inkPixelCount: 170)))
+        XCTAssertTrue(HostBaselineCalibrator.hasEnoughInk(.init(baselineRow: 34, bodyTopRow: 15, inkPixelCount: 600)))
+    }
+
     private func measurement(bodyTop: Int, baseline: Int) -> InkBaselineAnalyzer.Measurement {
         InkBaselineAnalyzer.Measurement(baselineRow: baseline, bodyTopRow: bodyTop, inkPixelCount: 400)
     }
