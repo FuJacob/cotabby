@@ -21,7 +21,7 @@ import Foundation
 ///
 /// Keyed by what makes two fields the same text style: the app (and, for a browser, the page
 /// origin, since two sites share nothing), the size the host reports, the caret box height, and the
-/// user's size multiplier. A value type in `Support/`; `OverlayController` owns the one instance
+/// user's size multiplier. A value type in `Support/`; `HostTypefaceResolver` owns the one instance
 /// for the app's lifetime and keeps it across launches (`encoded()`, `init(restoring:)`): the first
 /// field after a launch had nothing to start from, and Obsidian's showed the caret box's 17pt for
 /// three seconds of typing before its pixel match named the 16pt system face (2026-09-11).
@@ -85,8 +85,7 @@ nonisolated struct HostFaceMemory: Sendable {
         var pitch: CGFloat?
     }
 
-    private var entries: [Key: Entry] = [:]
-    private var order: [Key] = []
+    private var entries = BoundedCache<Key, Entry>(limit: HostFaceMemory.capacity)
 
     func face(for key: Key) -> Face? {
         entries[key]?.face
@@ -125,15 +124,9 @@ nonisolated struct HostFaceMemory: Sendable {
 
     private mutating func update(_ key: Key, _ change: (inout Entry) -> Void) -> Bool {
         let before = entries[key]
-        if before == nil {
-            order.append(key)
-        }
         var entry = before ?? Entry()
         change(&entry)
-        entries[key] = entry
-        while order.count > Self.capacity {
-            entries[order.removeFirst()] = nil
-        }
+        entries.insert(entry, for: key)
         return entry != before
     }
 
@@ -148,7 +141,7 @@ nonisolated struct HostFaceMemory: Sendable {
     /// kept only while the app runs: its key names the page's origin, and the sites a user typed on
     /// are not something to leave in the app's preferences.
     func encoded() -> Data? {
-        let stored = order.filter { !$0.isPageScoped }.compactMap { key in
+        let stored = entries.keys.filter { !$0.isPageScoped }.compactMap { key in
             entries[key].map { Stored(key: key, face: $0.face, pitch: $0.pitch) }
         }
         return try? JSONEncoder().encode(stored)
