@@ -1,0 +1,19 @@
+CotabbyTests/Support/Focus/CodexFocusSearchTests.swift
+  s_b9af9eb54478c8::t_5050305fa9574c 196-197,199,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5819a447b4f27c48f18f503ac41559ce388cf45d",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
