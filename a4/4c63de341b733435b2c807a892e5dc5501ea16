@@ -1,0 +1,31 @@
+ARCHITECTURE.md
+  s_9990f9098df800::t_082e7aecb1786d 204-208
+Cotabby/Services/Focus/Resolution/FocusSnapshotResolver.swift
+  s_9990f9098df800::t_0d99ba9885db05 27-28,1140-1158,1599-1601,1605
+Cotabby/Support/Accessibility/CredentialFieldDetector.swift
+  s_9990f9098df800::t_942f06b8b915f7 6,22-24,50-51,90-94,97-99
+Cotabby/Support/Accessibility/SecureFieldDetector.swift
+  s_9990f9098df800::t_e140b6d765e2b7 16-20,33-51,54,77-139
+CotabbyTests/Services/Focus/Resolution/FocusSnapshotResolverLiveTests.swift
+  s_9990f9098df800::t_cef373b3bf12d8 222-229,238-239,353-390
+CotabbyTests/Support/Accessibility/CredentialFieldDetectorTests.swift
+  s_9990f9098df800::t_0f79d1da5dcb9b 97-125
+CotabbyTests/Support/Accessibility/SecureFieldDetectorTests.swift
+  s_9990f9098df800::t_b9df22b6df583e 65-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a44c63de341b733435b2c807a892e5dc5501ea16",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
