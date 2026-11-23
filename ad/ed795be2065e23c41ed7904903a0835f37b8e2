@@ -1,0 +1,39 @@
+ARCHITECTURE.md
+  s_9990f9098df800::t_02ec5019ebb2ac 55-59
+Cotabby/Support/History/CotypistExportImporter.swift
+  s_9990f9098df800::t_42a70f10858420 95
+Cotabby/Support/History/TypingHistoryPhrasePredictor.swift
+  s_9990f9098df800::t_c7e18c07a3e53e 5,31,49,127
+CotabbyTests/Services/History/TypingHistoryStoreTests.swift
+  s_9990f9098df800::t_c81f1a93f10f39 109,119,169,173,186,233-234,259,270,272,334,336,346,409-410,485,493,503,505,508,514,584,587,601,604,625-626,631,666,671,675,694-695
+CotabbyTests/Services/Runtime/TypingHistoryPhraseEngineTests.swift
+  s_9990f9098df800::t_f74656d0344cc5 39,43,72,75,101,105-106,112,124,126
+CotabbyTests/Support/Accessibility/CredentialFieldDetectorTests.swift
+  s_9990f9098df800::t_6461f66e9e2be6 68,70
+CotabbyTests/Support/History/CotypistExportImporterTests.swift
+  s_9990f9098df800::t_13757145a89a3e 12,14-15,23,41,44
+CotabbyTests/Support/History/TypingHistoryIndexTests.swift
+  s_9990f9098df800::t_315acf80b0603f 18,23,31,38,41,47-48,59,62,66,71-72,75,77
+CotabbyTests/Support/History/TypingHistoryPhrasePredictorTests.swift
+  s_9990f9098df800::t_b4220d8e12019a 63-64,67,71,77,82,85,91,96,104-105,113
+CotabbyTests/Support/History/TypingHistoryScrubberTests.swift
+  s_9990f9098df800::t_bcba2e8fb87df1 6
+CotabbyTests/Support/Suggestion/Output/PromptPrefaceEchoFilterTests.swift
+  s_9990f9098df800::t_b02cc80f116232 11,16,75,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aded795be2065e23c41ed7904903a0835f37b8e2",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
