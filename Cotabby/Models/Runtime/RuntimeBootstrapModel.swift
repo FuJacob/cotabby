@@ -15,7 +15,44 @@ final class RuntimeBootstrapModel: ObservableObject {
     private let runtimeManager: LlamaRuntimeManager
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
-    private var runtimeTask: Task<Void, Never>?
+    private var activity: Activity = .idle
+
+    /// The one runtime operation this model is driving. A start and a model switch are mutually
+    /// exclusive, so a second request made while one is in flight is refused rather than queued.
+    private enum Activity {
+        case idle
+        case starting(id: UUID, task: Task<Void, Never>)
+        case switching(id: UUID, to: String, task: Task<Void, Never>)
+
+        var id: UUID? {
+            switch self {
+            case .idle:
+                return nil
+            case .starting(let id, _), .switching(let id, _, _):
+                return id
+            }
+        }
+
+        var task: Task<Void, Never>? {
+            switch self {
+            case .idle:
+                return nil
+            case .starting(_, let task), .switching(_, _, let task):
+                return task
+            }
+        }
+
+        var logDescription: String {
+            switch self {
+            case .idle:
+                return "idle"
+            case .starting:
+                return "starting the runtime"
+            case .switching(_, let filename, _):
+                return "switching to \(filename)"
+            }
+        }
+    }
 
     /// Called immediately before the runtime begins switching models so suggestion state can reset.
     var onWillReloadModel: (() -> Void)?
@@ -59,26 +96,15 @@ final class RuntimeBootstrapModel: ObservableObject {
     /// Starts runtime preparation unless a launch or model switch is already in flight, so
     /// duplicate launch attempts from app lifecycle callbacks stay idempotent.
     func startIfNeeded() {
-        guard runtimeTask == nil, !availableModels.isEmpty else {
+        guard case .idle = activity, !availableModels.isEmpty else {
             return
         }
 
-        // A Task lets us call async startup from non-async app lifecycle methods.
-        runtimeTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            defer {
-                self.runtimeTask = nil
-            }
-
-            do {
-                try await self.runtimeManager.prepare()
-            } catch {
-                CotabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
-            }
+        let id = UUID()
+        let task = makeTask(id: id, failureLabel: "Runtime startup failed") { runtimeManager in
+            try await runtimeManager.prepare()
         }
+        activity = .starting(id: id, task: task)
     }
 
     /// Persists the user's chosen model and reloads the existing runtime manager in place.
@@ -92,7 +118,10 @@ final class RuntimeBootstrapModel: ObservableObject {
             return
         }
 
-        guard runtimeTask == nil else {
+        guard case .idle = activity else {
+            // The picker shows the previous model again after this; the log line is what explains
+            // a selection that appeared to do nothing.
+            CotabbyLogger.runtime.info("Ignored model selection \(filename) while \(self.activity.logDescription)")
             return
         }
 
@@ -100,23 +129,40 @@ final class RuntimeBootstrapModel: ObservableObject {
         persistSelectedModelFilename(filename)
         onWillReloadModel?()
 
-        runtimeTask = Task { [weak self] in
+        let id = UUID()
+        let task = makeTask(id: id, failureLabel: "Runtime model switch failed") { runtimeManager in
+            try await runtimeManager.selectModel(filename: filename)
+        }
+        activity = .switching(id: id, to: filename, task: task)
+
+        await task.value
+    }
+
+    /// Runs one runtime operation and returns the activity to idle when it ends. The identity
+    /// check matters after `stop()`: a cancelled operation finishes later than the stop that
+    /// replaced it, and must not clear an operation started in the meantime.
+    private func makeTask(
+        id: UUID,
+        failureLabel: String,
+        operation: @escaping @MainActor (LlamaRuntimeManager) async throws -> Void
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
             guard let self else {
                 return
             }
 
             defer {
-                self.runtimeTask = nil
+                if self.activity.id == id {
+                    self.activity = .idle
+                }
             }
 
             do {
-                try await self.runtimeManager.selectModel(filename: filename)
+                try await operation(self.runtimeManager)
             } catch {
-                CotabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
+                CotabbyLogger.runtime.error("\(failureLabel): \(error.localizedDescription)")
             }
         }
-
-        await runtimeTask?.value
     }
 
     /// Persists the user's chosen model without loading it. `selectModel` would load the GGUF right
@@ -142,8 +188,7 @@ final class RuntimeBootstrapModel: ObservableObject {
 
     /// Cancels pending startup work and forwards shutdown to the underlying runtime manager.
     func stop() {
-        runtimeTask?.cancel()
-        runtimeTask = nil
+        cancelActivity()
         runtimeManager.stop()
     }
 
@@ -151,9 +196,13 @@ final class RuntimeBootstrapModel: ObservableObject {
     /// Used by `applicationWillTerminate` so llama Metal resources are torn down before `exit()`
     /// runs C++ static destructors. See `LlamaRuntimeManager.shutdownSync` for rationale.
     func shutdownSync(timeoutSeconds: TimeInterval) {
-        runtimeTask?.cancel()
-        runtimeTask = nil
+        cancelActivity()
         runtimeManager.shutdownSync(timeoutSeconds: timeoutSeconds)
+    }
+
+    private func cancelActivity() {
+        activity.task?.cancel()
+        activity = .idle
     }
 
     /// Stores the last chosen runtime model so the next launch reuses the same selection.

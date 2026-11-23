@@ -61,7 +61,7 @@ struct HuggingFaceModelBrowserView: View {
                 .font(.caption)
                 .foregroundStyle(.red)
 
-        case .results(let models):
+        case .results(let models, _):
             ForEach(models) { model in
                 VStack(alignment: .leading, spacing: 0) {
                     HFSearchResultRow(
@@ -119,7 +119,7 @@ struct HuggingFaceModelBrowserView: View {
                 .padding(.leading, 16)
                 .padding(.top, 4)
 
-            case .failed(let message):
+            case .failed(_, let message):
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)

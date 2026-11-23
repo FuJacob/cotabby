@@ -2,40 +2,43 @@ import Combine
 import Foundation
 
 /// Drives the two-step HuggingFace browse flow: search for repos, then drill into
-/// a repo to list its GGUF files. Owns cancellation and debouncing so the UI layer
+/// a repo to list its GGUF files. Owns the request tasks and their cancellation so the UI layer
 /// can bind directly to published state without managing async Tasks.
 @MainActor
 final class HuggingFaceSearchService: ObservableObject {
-
-    enum SearchState: Equatable {
-        case idle
-        case searching
-        case results([HFModelSearchResult])
-        case noResults
-        case failed(String)
-    }
-
-    enum DetailState: Equatable {
-        case idle
-        case loading
-        case loaded(repoId: String, ggufFiles: [HFRepoFile])
-        case failed(String)
-    }
+    typealias SearchState = HuggingFaceBrowseState.SearchState
+    typealias DetailState = HuggingFaceBrowseState.DetailState
+    typealias SearchModels = @MainActor (_ query: String, _ limit: Int, _ offset: Int) async throws -> [HFModelSearchResult]
+    typealias FetchRepoFiles = @MainActor (_ repoId: String) async throws -> [HFRepoFile]
 
     @Published var searchQuery: String = ""
-    @Published private(set) var searchState: SearchState = .idle
-    @Published private(set) var detailState: DetailState = .idle
-    @Published private(set) var hasMoreResults: Bool = false
-    @Published private(set) var isLoadingMore: Bool = false
+    @Published private var browseState = HuggingFaceBrowseState()
 
-    @Published private(set) var selectedRepoId: String?
+    var searchState: SearchState { browseState.search }
+    var detailState: DetailState { browseState.detail }
+    var hasMoreResults: Bool { browseState.hasMoreResults }
+    var isLoadingMore: Bool { browseState.isLoadingMore }
+    var selectedRepoId: String? { browseState.selectedRepoId }
 
+    private let searchModels: SearchModels
+    private let fetchRepoFiles: FetchRepoFiles
     private var searchTask: Task<Void, Never>?
     private var detailTask: Task<Void, Never>?
     private var loadMoreTask: Task<Void, Never>?
-    private var accumulatedResults: [HFModelSearchResult] = []
 
-    private static let pageSize = 20
+    /// The two network calls are injectable so the browse transitions can be driven in tests
+    /// without reaching the public Hugging Face API.
+    init(
+        searchModels: @escaping SearchModels = { query, limit, offset in
+            try await HuggingFaceAPIClient.searchModels(query: query, limit: limit, offset: offset)
+        },
+        fetchRepoFiles: @escaping FetchRepoFiles = { repoId in
+            try await HuggingFaceAPIClient.fetchRepoFiles(repoId: repoId)
+        }
+    ) {
+        self.searchModels = searchModels
+        self.fetchRepoFiles = fetchRepoFiles
+    }
 
     func search() {
         let query = searchQuery.trimmingCharacters(in: .whitespaces)
@@ -43,96 +46,62 @@ final class HuggingFaceSearchService: ObservableObject {
 
         searchTask?.cancel()
         loadMoreTask?.cancel()
-        detailState = .idle
-        accumulatedResults = []
+        detailTask?.cancel()
+        browseState.beginSearch()
 
         searchTask = Task {
-            searchState = .searching
-
             do {
-                let results = try await HuggingFaceAPIClient.searchModels(
-                    query: query, limit: Self.pageSize, offset: 0
-                )
+                let results = try await searchModels(query, HuggingFaceBrowseState.pageSize, 0)
                 guard !Task.isCancelled else { return }
-
-                if results.isEmpty {
-                    searchState = .noResults
-                    hasMoreResults = false
-                } else {
-                    accumulatedResults = results
-                    searchState = .results(results)
-                    hasMoreResults = results.count >= Self.pageSize
-                }
+                browseState.finishSearch(results)
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                searchState = .failed(error.localizedDescription)
+                browseState.failSearch(error.localizedDescription)
             }
         }
     }
 
     func loadMore() {
         let query = searchQuery.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty, hasMoreResults, !isLoadingMore else { return }
+        guard !query.isEmpty, let offset = browseState.beginLoadMore() else { return }
 
-        loadMoreTask?.cancel()
         loadMoreTask = Task {
-            isLoadingMore = true
-            defer { isLoadingMore = false }
-
             do {
-                let nextPage = try await HuggingFaceAPIClient.searchModels(
-                    query: query, limit: Self.pageSize, offset: accumulatedResults.count
-                )
+                let nextPage = try await searchModels(query, HuggingFaceBrowseState.pageSize, offset)
                 guard !Task.isCancelled else { return }
-
-                accumulatedResults.append(contentsOf: nextPage)
-                searchState = .results(accumulatedResults)
-                hasMoreResults = nextPage.count >= Self.pageSize
+                browseState.finishLoadMore(nextPage)
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                hasMoreResults = false
-                searchState = .failed(error.localizedDescription)
+                browseState.failLoadMore(error.localizedDescription)
             }
         }
     }
 
     func fetchFiles(for repoId: String) {
         detailTask?.cancel()
-        selectedRepoId = repoId
+        browseState.beginDetail(repoId: repoId)
 
         detailTask = Task {
-            detailState = .loading
-
             do {
-                let allFiles = try await HuggingFaceAPIClient.fetchRepoFiles(repoId: repoId)
+                let allFiles = try await fetchRepoFiles(repoId)
                 guard !Task.isCancelled else { return }
-
-                let ggufFiles = allFiles
-                    .filter(\.isGGUF)
-                    .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-
-                if ggufFiles.isEmpty {
-                    detailState = .failed("No GGUF files found in this repository.")
-                } else {
-                    detailState = .loaded(repoId: repoId, ggufFiles: ggufFiles)
-                }
+                browseState.finishDetail(repoId: repoId, files: allFiles)
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                detailState = .failed(error.localizedDescription)
+                browseState.failDetail(repoId: repoId, message: error.localizedDescription)
             }
         }
     }
 
     func collapseDetail() {
         detailTask?.cancel()
-        detailState = .idle
-        selectedRepoId = nil
+        browseState.collapseDetail()
     }
 
     func reset() {
@@ -140,12 +109,7 @@ final class HuggingFaceSearchService: ObservableObject {
         detailTask?.cancel()
         loadMoreTask?.cancel()
         searchQuery = ""
-        searchState = .idle
-        detailState = .idle
-        selectedRepoId = nil
-        hasMoreResults = false
-        isLoadingMore = false
-        accumulatedResults = []
+        browseState = HuggingFaceBrowseState()
     }
 
     static func makeDownloadableModel(

@@ -2,18 +2,12 @@ import Foundation
 
 nonisolated enum Aria2DownloadError: LocalizedError, Equatable {
     case invalidFilename
-    case cancelled
-    case paused
     case processFailed(exitCode: Int32, message: String)
 
     var errorDescription: String? {
         switch self {
         case .invalidFilename:
             return "The model filename is not valid."
-        case .cancelled:
-            return "Download was cancelled by the user."
-        case .paused:
-            return "Download was paused by the user."
         case .processFailed(let code, let message):
             return "aria2c download failed (exit code \(code)): \(message)"
         }
@@ -21,7 +15,8 @@ nonisolated enum Aria2DownloadError: LocalizedError, Equatable {
 }
 
 /// Owns one aria2c subprocess and translates its output and termination into app-level progress.
-/// `ModelDownloadManager` creates a fresh instance for each active model download.
+/// `ModelDownloadManager` creates a fresh instance for each active model download. A pause or
+/// cancel the user requested surfaces as `DownloadInterruption`, never as `Aria2DownloadError`.
 nonisolated final class Aria2DownloadService: @unchecked Sendable {
     private let progressHandler: @Sendable (Aria2Progress) -> Void
     private let processState = Aria2ProcessState()
@@ -138,7 +133,7 @@ nonisolated final class Aria2DownloadService: @unchecked Sendable {
                 continuation.resume(
                     with: Self.completionResult(
                         status: terminatedProcess.terminationStatus,
-                        requestedOutcome: processState.finish(),
+                        stopIntent: processState.finish(),
                         errorMessage: errorMessage,
                         targetURL: targetURL
                     )
@@ -182,17 +177,12 @@ nonisolated final class Aria2DownloadService: @unchecked Sendable {
 
     private static func completionResult(
         status: Int32,
-        requestedOutcome: Aria2ProcessState.RequestedOutcome?,
+        stopIntent: DownloadStopIntent?,
         errorMessage: String,
         targetURL: URL
     ) -> Result<URL, Error> {
-        switch requestedOutcome {
-        case .paused:
-            return .failure(Aria2DownloadError.paused)
-        case .cancelled:
-            return .failure(Aria2DownloadError.cancelled)
-        case nil:
-            break
+        if let interruption = Aria2ProcessState.interruption(for: stopIntent) {
+            return .failure(interruption)
         }
 
         guard status == 0 else {
@@ -206,26 +196,29 @@ nonisolated final class Aria2DownloadService: @unchecked Sendable {
     }
 }
 
-/// Serializes the cancellation flag, process publication, and launch as one state transition.
+/// Serializes the stop intent, process publication, and launch as one state transition.
 nonisolated private final class Aria2ProcessState: @unchecked Sendable {
-    enum RequestedOutcome: Equatable {
-        case paused
-        case cancelled
-    }
-
     private let lock = NSLock()
     private var process: Process?
-    private var requestedOutcome: RequestedOutcome?
+    private var stopIntent: DownloadStopIntent?
+
+    /// aria2 keeps its resume state in the staging directory's control file, so a pause never
+    /// carries resume data.
+    static func interruption(for stopIntent: DownloadStopIntent?) -> DownloadInterruption? {
+        switch stopIntent {
+        case .pause:
+            return .paused(resumeData: nil)
+        case .cancel:
+            return .cancelled
+        case nil:
+            return nil
+        }
+    }
 
     func launch(_ process: Process) throws {
         try lock.withLock {
-            switch requestedOutcome {
-            case .paused:
-                throw Aria2DownloadError.paused
-            case .cancelled:
-                throw Aria2DownloadError.cancelled
-            case nil:
-                break
+            if let interruption = Self.interruption(for: stopIntent) {
+                throw interruption
             }
 
             self.process = process
@@ -238,37 +231,34 @@ nonisolated private final class Aria2ProcessState: @unchecked Sendable {
         }
     }
 
-    func finish() -> RequestedOutcome? {
+    func finish() -> DownloadStopIntent? {
         lock.withLock {
             process = nil
-            return requestedOutcome
+            return stopIntent
         }
     }
 
     func pause() {
-        request(.paused)
+        request(.pause)
     }
 
     func cancel() {
-        request(.cancelled)
+        request(.cancel)
     }
 
-    private func request(_ outcome: RequestedOutcome) {
+    private func request(_ requested: DownloadStopIntent) {
         lock.withLock {
-            if requestedOutcome == nil || outcome == .cancelled {
-                requestedOutcome = outcome
-            }
+            let intent = DownloadStopIntent.merging(stopIntent, with: requested)
+            stopIntent = intent
 
             guard let process, process.isRunning else {
                 return
             }
-            switch requestedOutcome {
-            case .paused:
+            switch intent {
+            case .pause:
                 process.interrupt()
-            case .cancelled:
+            case .cancel:
                 process.terminate()
-            case nil:
-                break
             }
         }
     }

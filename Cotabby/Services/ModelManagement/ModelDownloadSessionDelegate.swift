@@ -22,22 +22,48 @@ nonisolated final class ModelDownloadSessionDelegate:
         let expectedFileSize: Int64
     }
 
+    /// The single attempt's lifecycle. Everything that only exists while a task is live (the
+    /// task, the continuation, which callbacks are still owed) is carried by `.active`, so a
+    /// resolved or never-started attempt cannot hold a stale continuation.
+    private enum Phase {
+        case idle
+        case active(Attempt)
+        case resolved
+    }
+
+    private struct Attempt {
+        let task: URLSessionDownloadTask
+        let continuation: CheckedContinuation<DownloadResult, Error>
+        var owed: OwedCallbacks = .taskCompletion
+    }
+
+    /// The callbacks URLSession still has to deliver before the attempt may resolve.
+    /// `cancel(byProducingResumeData:)` and `didCompleteWithError` arrive in either order, and
+    /// resolving a pause after only one of them would publish `.paused` with no bytes to resume.
+    private enum OwedCallbacks {
+        case taskCompletion
+        case taskCompletionAndPauseData
+        case pauseData
+    }
+
+    /// Snapshot taken under the lock so the continuation is resumed without holding it.
+    private struct Resolution {
+        let continuation: CheckedContinuation<DownloadResult, Error>
+        let intent: DownloadStopIntent?
+        let facts: URLSessionDownloadResolution.Facts
+        let expectedFileSize: Int64
+    }
+
     private let progressHandler: @Sendable (Double?) -> Void
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<DownloadResult, Error>?
-    private var downloadedFileURL: URL?
-    private var response: URLResponse?
+    private var phase: Phase = .idle
+    /// Recorded even before the attempt starts, so a pause or cancel that beats `download` wins.
+    private var stopIntent: DownloadStopIntent?
+    private var facts = URLSessionDownloadResolution.Facts()
     private var expectedFileSize: Int64 = NSURLSessionTransferSizeUnknown
-    private var producedResumeData: Data?
-    private var hasStarted = false
-    private var hasCompleted = false
-    private var didReceiveTaskCompletion = false
-    private var activeDownloadTask: URLSessionDownloadTask?
-    private var finishError: Error?
-    private var taskCompletionError: Error?
-    private var isUserPaused = false
-    private var isUserCancelled = false
-    private var isPauseResumeDataPending = false
+    /// Kept apart from `facts.failure` until the task completes, because the task's own error
+    /// takes precedence when both exist.
+    private var rescueError: Error?
 
     init(progressHandler: @escaping @Sendable (Double?) -> Void) {
         self.progressHandler = progressHandler
@@ -51,34 +77,36 @@ nonisolated final class ModelDownloadSessionDelegate:
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 self.lock.lock()
-                if self.hasStarted {
+                guard case .idle = self.phase else {
                     self.lock.unlock()
                     session.invalidateAndCancel()
                     continuation.resume(throwing: ModelDownloadSessionError.alreadyStarted)
                     return
                 }
-                self.hasStarted = true
-                if self.isUserCancelled {
+                switch self.stopIntent {
+                case .cancel:
+                    self.phase = .resolved
                     self.lock.unlock()
                     session.invalidateAndCancel()
                     continuation.resume(throwing: CancellationError())
                     return
-                }
-                if self.isUserPaused {
+                case .pause:
+                    self.phase = .resolved
                     self.lock.unlock()
                     session.invalidateAndCancel()
-                    continuation.resume(throwing: URLSessionDownloadInterruption.paused(resumeData: nil))
+                    continuation.resume(throwing: DownloadInterruption.paused(resumeData: nil))
                     return
+                case nil:
+                    break
                 }
 
-                self.continuation = continuation
                 let task: URLSessionDownloadTask
                 if let resumeData {
                     task = session.downloadTask(withResumeData: resumeData)
                 } else {
                     task = session.downloadTask(with: url)
                 }
-                self.activeDownloadTask = task
+                self.phase = .active(Attempt(task: task, continuation: continuation))
                 self.lock.unlock()
                 task.resume()
             }
@@ -89,15 +117,16 @@ nonisolated final class ModelDownloadSessionDelegate:
 
     func pause() {
         let task = lock.withLock { () -> URLSessionDownloadTask? in
-            guard !isUserCancelled, !isUserPaused else {
+            guard stopIntent == nil else {
                 return nil
             }
-            isUserPaused = true
-            guard let activeDownloadTask else {
+            stopIntent = .pause
+            guard case .active(var attempt) = phase else {
                 return nil
             }
-            isPauseResumeDataPending = true
-            return activeDownloadTask
+            attempt.owed = .taskCompletionAndPauseData
+            phase = .active(attempt)
+            return attempt.task
         }
 
         task?.cancel(byProducingResumeData: { [weak self] resumeData in
@@ -106,17 +135,29 @@ nonisolated final class ModelDownloadSessionDelegate:
     }
 
     func cancel() {
-        let state = lock.withLock { () -> (URLSessionDownloadTask?, CompletionState?) in
-            isUserPaused = false
-            isUserCancelled = true
-            isPauseResumeDataPending = false
-            producedResumeData = nil
-            return (activeDownloadTask, takeCompletionLocked())
+        let (task, resolution) = lock.withLock { () -> (URLSessionDownloadTask?, Resolution?) in
+            stopIntent = .cancel
+            facts.resumeData = nil
+            guard case .active(var attempt) = phase else {
+                return (nil, nil)
+            }
+            switch attempt.owed {
+            case .taskCompletion:
+                return (attempt.task, nil)
+            case .taskCompletionAndPauseData:
+                // A cancel no longer needs the resume data, so only the task's own completion
+                // is worth waiting for.
+                attempt.owed = .taskCompletion
+                phase = .active(attempt)
+                return (attempt.task, nil)
+            case .pauseData:
+                return (attempt.task, resolveLocked(attempt))
+            }
         }
 
-        state.0?.cancel()
-        if let completion = state.1 {
-            resolve(completion)
+        task?.cancel()
+        if let resolution {
+            resume(resolution)
         }
     }
 
@@ -164,138 +205,112 @@ nonisolated final class ModelDownloadSessionDelegate:
         do {
             let rescued = try DownloadFileRescuer.rescue(temporaryFileAt: location)
             lock.withLock {
-                downloadedFileURL = rescued
-                response = downloadTask.response
+                facts.fileURL = rescued
+                facts.response = downloadTask.response
             }
         } catch {
             lock.withLock {
-                finishError = error
-                response = downloadTask.response
+                rescueError = error
+                facts.response = downloadTask.response
             }
         }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        let completion = lock.withLock { () -> CompletionState? in
-            didReceiveTaskCompletion = true
-            taskCompletionError = error
-            if isUserPaused, !isUserCancelled,
-               let errorResumeData = (error as? NSError)?
-               .userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-                producedResumeData = errorResumeData
-            }
-            if isUserPaused && isPauseResumeDataPending {
+        let resolution = lock.withLock { () -> Resolution? in
+            guard case .active(var attempt) = phase else {
                 return nil
             }
-            return takeCompletionLocked()
+            // The task's own error outranks a failure to rescue the temporary file.
+            facts.failure = error ?? rescueError
+            if stopIntent == .pause,
+               let errorResumeData = (error as? NSError)?
+               .userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+                facts.resumeData = errorResumeData
+            }
+            switch attempt.owed {
+            case .taskCompletion:
+                return resolveLocked(attempt)
+            case .taskCompletionAndPauseData:
+                attempt.owed = .pauseData
+                phase = .active(attempt)
+                return nil
+            case .pauseData:
+                return nil
+            }
         }
 
         defer { session.finishTasksAndInvalidate() }
-        if let completion {
-            resolve(completion)
+        if let resolution {
+            resume(resolution)
         }
     }
 
-    /// URLSession may invoke task completion before the resume-data callback. Waiting for both
-    /// prevents the manager from publishing `.paused` with no bytes available to resume.
     private func didProducePauseResumeData(_ resumeData: Data?) {
-        let completion = lock.withLock { () -> CompletionState? in
-            isPauseResumeDataPending = false
-            if !isUserCancelled, let resumeData {
-                producedResumeData = resumeData
+        let resolution = lock.withLock { () -> Resolution? in
+            if stopIntent != .cancel, let resumeData {
+                facts.resumeData = resumeData
             }
-            return takeCompletionLocked()
+            guard case .active(var attempt) = phase else {
+                return nil
+            }
+            switch attempt.owed {
+            case .taskCompletion:
+                // A cancel already stopped waiting for this callback.
+                return nil
+            case .taskCompletionAndPauseData:
+                attempt.owed = .taskCompletion
+                phase = .active(attempt)
+                return nil
+            case .pauseData:
+                return resolveLocked(attempt)
+            }
         }
-        if let completion {
-            resolve(completion)
+        if let resolution {
+            resume(resolution)
         }
     }
 
-    private func takeCompletionLocked() -> CompletionState? {
-        guard didReceiveTaskCompletion, !hasCompleted else {
-            return nil
-        }
-        hasCompleted = true
-        activeDownloadTask = nil
-        defer { continuation = nil }
-        return CompletionState(
-            continuation: continuation,
-            paused: isUserPaused,
-            cancelled: isUserCancelled,
-            fileURL: downloadedFileURL,
-            response: response,
-            expectedFileSize: expectedFileSize,
-            failure: taskCompletionError ?? finishError,
-            resumeData: producedResumeData
+    /// Must be called with `lock` held. Leaving `.active` is what guarantees the continuation is
+    /// resumed exactly once, whichever callback or request gets here first.
+    private func resolveLocked(_ attempt: Attempt) -> Resolution {
+        phase = .resolved
+        return Resolution(
+            continuation: attempt.continuation,
+            intent: stopIntent,
+            facts: facts,
+            expectedFileSize: expectedFileSize
         )
     }
 
-    private func resolve(_ completion: CompletionState) {
-        let hasCompleteFile = completion.fileURL != nil && completion.response != nil
-        if completion.paused && !hasCompleteFile {
-            if let fileURL = completion.fileURL {
-                DownloadFileRescuer.cleanup(holdingFileAt: fileURL)
-            }
-            completion.continuation?.resume(
-                throwing: URLSessionDownloadInterruption.paused(
-                    resumeData: completion.resumeData
+    private func resume(_ resolution: Resolution) {
+        let outcome = URLSessionDownloadResolution.outcome(intent: resolution.intent, facts: resolution.facts)
+        if case .file(let fileURL, let response) = outcome {
+            resolution.continuation.resume(
+                returning: DownloadResult(
+                    temporaryURL: fileURL,
+                    response: response,
+                    expectedFileSize: resolution.expectedFileSize
                 )
             )
             return
         }
 
-        // A pause can race with `didFinishDownloadingTo`. When the complete file was already
-        // rescued, return it for validation instead of discarding all bytes or publishing a pause
-        // that has no resume data.
-        if !completion.paused,
-           completion.cancelled || (completion.failure as? URLError)?.code == .cancelled {
-            cleanupAndResume(completion, error: CancellationError())
-            return
-        }
-
-        if !completion.paused, let failure = completion.failure {
-            cleanupAndResume(completion, error: failure)
-            return
-        }
-
-        guard let fileURL = completion.fileURL, let response = completion.response else {
-            if let fileURL = completion.fileURL {
-                DownloadFileRescuer.cleanup(holdingFileAt: fileURL)
-            }
-            completion.continuation?.resume(throwing: URLError(.badServerResponse))
-            return
-        }
-
-        completion.continuation?.resume(
-            returning: DownloadResult(
-                temporaryURL: fileURL,
-                response: response,
-                expectedFileSize: completion.expectedFileSize
-            )
-        )
-    }
-
-    private func cleanupAndResume(_ completion: CompletionState, error: Error) {
-        if let fileURL = completion.fileURL {
+        // Every other outcome abandons whatever was rescued out of URLSession's temporary area.
+        if let fileURL = resolution.facts.fileURL {
             DownloadFileRescuer.cleanup(holdingFileAt: fileURL)
         }
-        completion.continuation?.resume(throwing: error)
+        switch outcome {
+        case .file:
+            break
+        case .paused(let resumeData):
+            resolution.continuation.resume(throwing: DownloadInterruption.paused(resumeData: resumeData))
+        case .cancelled:
+            resolution.continuation.resume(throwing: CancellationError())
+        case .failed(let error):
+            resolution.continuation.resume(throwing: error)
+        case .badResponse:
+            resolution.continuation.resume(throwing: URLError(.badServerResponse))
+        }
     }
-}
-
-/// Carries resume data across the async boundary before the manager publishes `.paused`.
-nonisolated enum URLSessionDownloadInterruption: Error {
-    case paused(resumeData: Data?)
-}
-
-/// Immutable callback snapshot so completion logic runs without holding the delegate's lock.
-nonisolated private struct CompletionState {
-    let continuation: CheckedContinuation<ModelDownloadSessionDelegate.DownloadResult, Error>?
-    let paused: Bool
-    let cancelled: Bool
-    let fileURL: URL?
-    let response: URLResponse?
-    let expectedFileSize: Int64
-    let failure: Error?
-    let resumeData: Data?
 }

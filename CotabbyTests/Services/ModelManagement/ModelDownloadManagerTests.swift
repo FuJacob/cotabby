@@ -103,6 +103,54 @@ final class ModelDownloadManagerTests: XCTestCase {
         XCTAssertEqual(manager.state(for: model), .idle)
     }
 
+    /// A cancel deletes the partial data, so a pause pressed afterwards (both buttons stay visible
+    /// until the transfer settles) must not turn the row back into a resumable one.
+    func test_pauseAfterCancelStillCancelsTheTransfer() async throws {
+        let manager = makeManager()
+        let model = try makeModel(source: "https://example.com/cancel-then-pause/shared.gguf")
+
+        manager.download(model)
+        manager.cancel(model)
+        manager.pause(model)
+        try await waitForTransferToSettle(model, in: manager)
+
+        XCTAssertEqual(manager.state(for: model), .idle)
+    }
+
+    func test_cancelAfterPauseDuringSetupCancelsTheTransfer() async throws {
+        let manager = makeManager()
+        let model = try makeModel(source: "https://example.com/pause-then-cancel/shared.gguf")
+
+        manager.download(model)
+        manager.pause(model)
+        manager.cancel(model)
+        try await waitForTransferToSettle(model, in: manager)
+
+        XCTAssertEqual(manager.state(for: model), .idle)
+    }
+
+    /// A paused source keeps its claim on the flat destination filename until it is cancelled.
+    func test_pausedSourceBlocksAnotherSourceUntilCancelled() async throws {
+        let manager = makeManager()
+        let first = try makeModel(source: "https://example.com/first/shared.gguf")
+        let second = try makeModel(source: "https://example.com/second/shared.gguf")
+
+        manager.download(first)
+        manager.pause(first)
+        try await waitForTransferToSettle(first, in: manager)
+        manager.download(second)
+        guard case .failed = manager.state(for: second) else {
+            return XCTFail("Expected the paused source to block the second one")
+        }
+
+        manager.cancel(first)
+        manager.download(second)
+        XCTAssertTrue(manager.state(for: second).isDownloading)
+
+        manager.cancel(second)
+        try await waitForTransferToSettle(second, in: manager)
+    }
+
     func test_inactiveCancelRestoresDownloadedWhenDestinationExists() throws {
         let installedURL = tempDir.appendingPathComponent("shared.gguf")
         try "installed".write(to: installedURL, atomically: true, encoding: .utf8)

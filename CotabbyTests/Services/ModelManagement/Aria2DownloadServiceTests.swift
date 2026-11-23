@@ -32,14 +32,6 @@ final class Aria2DownloadServiceTests: XCTestCase {
             "The model filename is not valid."
         )
         XCTAssertEqual(
-            Aria2DownloadError.cancelled.errorDescription,
-            "Download was cancelled by the user."
-        )
-        XCTAssertEqual(
-            Aria2DownloadError.paused.errorDescription,
-            "Download was paused by the user."
-        )
-        XCTAssertEqual(
             Aria2DownloadError.processFailed(exitCode: 1, message: "Network error").errorDescription,
             "aria2c download failed (exit code 1): Network error"
         )
@@ -57,7 +49,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
                 executableURL: URL(fileURLWithPath: "/usr/bin/false")
             )
             XCTFail("Expected cancellation")
-        } catch let error as Aria2DownloadError {
+        } catch let error as DownloadInterruption {
             XCTAssertEqual(error, .cancelled)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -76,8 +68,8 @@ final class Aria2DownloadServiceTests: XCTestCase {
                 executableURL: URL(fileURLWithPath: "/usr/bin/false")
             )
             XCTFail("Expected pause")
-        } catch let error as Aria2DownloadError {
-            XCTAssertEqual(error, .paused)
+        } catch let error as DownloadInterruption {
+            XCTAssertEqual(error, .paused(resumeData: nil))
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -223,7 +215,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
                     executableURL: URL(fileURLWithPath: "/usr/bin/false")
                 )
                 XCTFail("Expected cancellation")
-            } catch let error as Aria2DownloadError {
+            } catch let error as DownloadInterruption {
                 XCTAssertEqual(error, .cancelled, "pauseFirst: \(pauseFirst)")
             } catch {
                 XCTFail("Unexpected error: \(error)")
@@ -282,8 +274,8 @@ final class Aria2DownloadServiceTests: XCTestCase {
         do {
             _ = try await downloadTask.value
             XCTFail("Expected pause")
-        } catch let error as Aria2DownloadError {
-            XCTAssertEqual(error, .paused)
+        } catch let error as DownloadInterruption {
+            XCTAssertEqual(error, .paused(resumeData: nil))
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -310,7 +302,7 @@ final class Aria2DownloadServiceTests: XCTestCase {
         do {
             _ = try await downloadTask.value
             XCTFail("Expected cancellation")
-        } catch let error as Aria2DownloadError {
+        } catch let error as DownloadInterruption {
             XCTAssertEqual(error, .cancelled)
         } catch {
             XCTFail("Unexpected error: \(error)")

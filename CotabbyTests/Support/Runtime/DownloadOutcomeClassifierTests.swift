@@ -6,44 +6,37 @@ import XCTest
 ///
 /// This classification matters because user cancellation surfaces as different errors at runtime
 /// (CancellationError vs URLError.cancelled depending on whether the URLSession download had started
-/// yet, or Aria2DownloadError.cancelled on the aria2 path) but all of them should restore the prior
-/// state, never surface as a user-visible failure. Conversely, a real failure misclassified as a
-/// cancellation would silently roll back to idle and the user would never see the problem.
+/// yet, or DownloadInterruption.cancelled when a backend observed the request itself) but all of
+/// them should restore the prior state, never surface as a user-visible failure. Conversely, a real
+/// failure misclassified as a cancellation would silently roll back to idle and the user would never
+/// see the problem.
 final class DownloadOutcomeClassifierTests: XCTestCase {
     func test_classification_table() {
-        let cases: [(name: String, error: Error, cancellation: Bool, pause: Bool)] = [
-            ("CancellationError", CancellationError(), true, false),
-            ("URLError.cancelled", URLError(.cancelled), true, false),
-            ("Aria2DownloadError.cancelled", Aria2DownloadError.cancelled, true, false),
-            ("Aria2DownloadError.paused", Aria2DownloadError.paused, false, true),
-            ("URLError.timedOut", URLError(.timedOut), false, false),
-            ("URLError.notConnectedToInternet", URLError(.notConnectedToInternet), false, false),
-            ("URLError.badServerResponse", URLError(.badServerResponse), false, false),
+        let resumeData = Data("resume".utf8)
+        let cases: [(name: String, error: Error, expected: DownloadOutcomeClassifier.Stop)] = [
+            ("CancellationError", CancellationError(), .cancelled),
+            ("URLError.cancelled", URLError(.cancelled), .cancelled),
+            ("DownloadInterruption.cancelled", DownloadInterruption.cancelled, .cancelled),
+            ("DownloadInterruption.paused without data", DownloadInterruption.paused(resumeData: nil), .paused(resumeData: nil)),
             (
-                "Aria2DownloadError.processFailed",
-                Aria2DownloadError.processFailed(exitCode: 7, message: "network"),
-                false,
-                false
+                "DownloadInterruption.paused with data",
+                DownloadInterruption.paused(resumeData: resumeData),
+                .paused(resumeData: resumeData)
             ),
-            ("NSError", NSError(domain: "TestDomain", code: 42, userInfo: nil), false, false),
+            ("URLError.timedOut", URLError(.timedOut), .failed),
+            ("URLError.notConnectedToInternet", URLError(.notConnectedToInternet), .failed),
+            ("URLError.badServerResponse", URLError(.badServerResponse), .failed),
+            ("Aria2DownloadError.invalidFilename", Aria2DownloadError.invalidFilename, .failed),
+            ("Aria2DownloadError.processFailed", Aria2DownloadError.processFailed(exitCode: 7, message: "network"), .failed),
+            ("NSError", NSError(domain: "TestDomain", code: 42, userInfo: nil), .failed),
             (
                 "LlamaRuntimeError.unavailable",
                 LlamaRuntimeError.unavailable("Model download failed with status code 500."),
-                false,
-                false
+                .failed
             )
         ]
         for testCase in cases {
-            XCTAssertEqual(
-                DownloadOutcomeClassifier.isUserCancellation(testCase.error),
-                testCase.cancellation,
-                "isUserCancellation(\(testCase.name))"
-            )
-            XCTAssertEqual(
-                DownloadOutcomeClassifier.isUserPause(testCase.error),
-                testCase.pause,
-                "isUserPause(\(testCase.name))"
-            )
+            XCTAssertEqual(DownloadOutcomeClassifier.classify(testCase.error), testCase.expected, testCase.name)
         }
     }
 }
