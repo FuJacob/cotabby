@@ -1,0 +1,23 @@
+Cotabby/Models/Context/LanguageCatalog.swift
+  s_b9af9eb54478c8::t_74133c536708f4 11
+Cotabby/Models/Context/VisualContextModels.swift
+  s_b9af9eb54478c8::t_dab7e12dc7abdc 4-6,51-52
+Cotabby/Models/History/TypingHistoryModels.swift
+  s_b9af9eb54478c8::t_fa134aa2f19c1d 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0765c9dcbb9f1061da1eb035a618a5fb243701ff",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
