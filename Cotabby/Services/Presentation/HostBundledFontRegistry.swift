@@ -33,8 +33,15 @@ final class HostBundledFontRegistry {
     static let maximumFiles = 40
     private static let fontExtensions: Set<String> = ["ttf", "otf", "ttc"]
 
-    private var namesByBundle: [String: [String]] = [:]
-    private var scanning: Set<String> = []
+    /// How far the one scan of a bundle has got. A bundle identifier with no entry has not been
+    /// asked about yet.
+    private enum Scan {
+        case scanning
+        /// PostScript names of the bundle's text faces, possibly none.
+        case scanned([String])
+    }
+
+    private var scans: [String: Scan] = [:]
 
     // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class whose
     // teardown double-frees when a test-scoped instance deallocates ("pointer being freed was not
@@ -45,23 +52,26 @@ final class HostBundledFontRegistry {
     /// Empty until the scan for that bundle completes (it starts on the first call).
     func candidateFontNames(forBundleIdentifier bundleIdentifier: String?) -> [String] {
         guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return [] }
-        if let known = namesByBundle[bundleIdentifier] {
-            return known
+        switch scans[bundleIdentifier] {
+        case .scanned(let names)?:
+            return names
+        case .scanning?:
+            return []
+        case nil:
+            break
         }
-        guard !scanning.contains(bundleIdentifier),
-              let bundleURL = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first?.bundleURL
-        else {
+        // A host that is not running yet is asked again on the next call rather than marked.
+        guard let bundleURL = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first?.bundleURL else {
             return []
         }
-        scanning.insert(bundleIdentifier)
+        scans[bundleIdentifier] = .scanning
         Task { @MainActor [weak self] in
             let resources = bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
             let names = await Task.detached(priority: .utility) {
                 Self.registerTextFaces(under: resources)
             }.value
             guard let self else { return }
-            self.namesByBundle[bundleIdentifier] = names
-            self.scanning.remove(bundleIdentifier)
+            self.scans[bundleIdentifier] = .scanned(names)
             CotabbyLogger.suggestion.debug(
                 "Host bundled fonts registered",
                 metadata: [

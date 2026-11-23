@@ -14,6 +14,12 @@ final class ClickAwayMonitor {
     private var globalMonitor: Any?
     private var localMonitor: Any?
 
+    // Xcode 26.0-26.3 emits an isolated deinit for a stored-property @MainActor class, and the
+    // back-deployed shim it runs through can free a pointer it never allocated on macOS 15. One of
+    // these is released every time a picker or preview closes, so the deinit must not take that
+    // path. Nothing here needs main-actor cleanup: `remove()` has already uninstalled the monitors.
+    nonisolated deinit {}
+
     /// `panel` is held weakly: the monitor must not keep an overlay's window alive.
     init(panel: NSPanel, onClickOutside: @escaping () -> Void) {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in

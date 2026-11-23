@@ -25,10 +25,22 @@ final class OverlayController: SuggestionOverlayControlling {
         CompletionRenderModePolicy(userPreference: suggestionSettings.mirrorPreference)
     }
 
-    private(set) var state: OverlayState = .hidden(reason: "Overlay idle.") {
-        didSet {
-            onStateChange?(state)
-        }
+    /// What is presented and which requested presentation is held back from it. Every change to
+    /// either goes through this value's transitions (see `OverlayPresentationLifecycle`).
+    private var lifecycle = OverlayPresentationLifecycle<InlineSession>()
+
+    var state: OverlayState { lifecycle.state }
+
+    /// The text of a presentation `showSuggestion` accepted but has not applied yet (see
+    /// `SuggestionOverlayControlling.heldPresentationText`). A hold returns before the presentation
+    /// changes, so without this the coordinator could not tell its own in-flight present from a
+    /// stale ghost, and rejected a rapid Tab that followed an accept.
+    var heldPresentationText: String? { lifecycle.heldText }
+
+    /// Tells the subscriber what is presented now. Called after every presentation transition,
+    /// including one that presents the same thing again: what counts as a change is its to decide.
+    private func publishState() {
+        onStateChange?(state)
     }
 
     /// The inline renderer, reused across presentations; only its `content` changes per show.
@@ -60,7 +72,6 @@ final class OverlayController: SuggestionOverlayControlling {
         case pixel
     }
 
-    private var inlineSession: InlineSession?
     /// What each field's width samples have said about its typeface so far (see `TypefaceEvidence`).
     /// Keyed by the field's session identity, which survives the field growing as text wraps.
     private var typefaceEvidence: [UInt64: TypefaceEvidence] = [:]
@@ -81,19 +92,6 @@ final class OverlayController: SuggestionOverlayControlling {
     /// (see `PixelCaretLocator`). Owned here because the measurement is a presentation concern:
     /// it decides where the ghost is drawn and whether it can be drawn inline at all.
     private let pixelCaretLocator = PixelCaretLocator()
-    /// Retires a held presentation: a show or hide that arrives while the pixels are still being
-    /// read bumps this, and the late measurement is dropped instead of resurrecting stale text.
-    private var pixelCaretShowToken: UInt64 = 0
-    /// True while the ghost has been taken down so a capture can read the run it covered; the
-    /// held presentation puts it back. A typed-through advance meanwhile cannot render into the
-    /// hidden panel and asks for a fresh present instead (`advanceInline`).
-    private var panelHeldForCapture = false
-    /// The text of a presentation `showSuggestion` accepted but has not applied yet (see
-    /// `SuggestionOverlayControlling.heldPresentationText`). Both holds below return before `state`
-    /// is reassigned, so without this the coordinator could not tell its own in-flight present
-    /// from a stale ghost, and rejected a rapid Tab that followed an accept. Cleared by every show
-    /// that is applied, by every newer show before it decides to hold, and by `hide`.
-    private(set) var heldPresentationText: String?
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
     /// The faces an Electron host ships in its bundle, for the pixel match (see the registry).
@@ -148,9 +146,7 @@ final class OverlayController: SuggestionOverlayControlling {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
         }
-        pixelCaretShowToken &+= 1
-        panelHeldForCapture = false
-        heldPresentationText = nil
+        lifecycle.beginShow()
         // A caret the host has not yet moved for text it has already published (see
         // `CaretLagPolicy`): the next snapshot brings the real one, and a ghost drawn from this one
         // would sit over the typed text, sized from an empty line's box.
@@ -164,14 +160,14 @@ final class OverlayController: SuggestionOverlayControlling {
                     "chars": .stringConvertible(requestedGeometry.lineTextBeforeCaret?.count ?? 0)
                 ]
             )
-            heldPresentationText = text
+            lifecycle.holdForCaretLag(text: text)
             return
         }
         // A caret inside a union-run paragraph is placed from the host's pixels (see
         // `pixelPlacedGeometry`); a presentation waiting for that capture returns here and runs again.
         guard let geometry = pixelPlacedGeometry(requestedGeometry, text: text) else { return }
 
-        // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
+        // Decide on the fade using the state *before* this presentation is applied below, so
         // the animation plays only on a genuine appearance, never on a reposition or streamed update.
         let fadesIn = SuggestionFadeInPolicy.shouldFadeIn(
             isEnabled: suggestionSettings.fadeInSuggestions,
@@ -179,7 +175,7 @@ final class OverlayController: SuggestionOverlayControlling {
             reduceMotionEnabled: reduceMotionEnabled
         )
 
-        var mode = currentRenderModePolicy.mode(for: geometry)
+        let mode = currentRenderModePolicy.mode(for: geometry)
 
         CotabbyLogger.suggestion.debug(
             "Show suggestion",
@@ -203,16 +199,18 @@ final class OverlayController: SuggestionOverlayControlling {
 
         switch mode {
         case .inline:
-            if let reason = showInline(text: text, geometry: geometry) {
-                mode = .mirror(reason: reason)
+            switch showInline(text: text, geometry: geometry) {
+            case .presented(let session):
+                lifecycle.presentInline(session, text: text, geometry: geometry)
+            case .declined(let reason):
                 showMirror(text: text, geometry: geometry, reason: reason)
+                lifecycle.presentMirror(text: text, geometry: geometry, reason: reason)
             }
         case .mirror(let reason):
-            inlineSession = nil
             showMirror(text: text, geometry: geometry, reason: reason)
+            lifecycle.presentMirror(text: text, geometry: geometry, reason: reason)
         }
-
-        state = .visible(text: text, geometry: geometry, mode: mode)
+        publishState()
 
         if fadesIn {
             fadeInPanel()
@@ -239,8 +237,8 @@ final class OverlayController: SuggestionOverlayControlling {
     private func pixelPlacedGeometry(_ requestedGeometry: SuggestionOverlayGeometry, text: String) -> SuggestionOverlayGeometry? {
         guard let request = pixelCaretRequest(for: requestedGeometry) else { return requestedGeometry }
         let covered = panelCovers(request.runFrame)
-        let measured = pixelCaretLocator.cachedMeasurement(for: request)
-            ?? (covered ? pixelCaretLocator.extrapolatedMeasurement(for: request) : nil)
+        let status = pixelCaretLocator.status(of: request)
+        let measured = status.measurement ?? (covered ? pixelCaretLocator.extrapolatedMeasurement(for: request) : nil)
         if let measured {
             return requestedGeometry.withPixelMeasuredCaret(
                 measured.caretRect,
@@ -250,9 +248,8 @@ final class OverlayController: SuggestionOverlayControlling {
                 lineInkWidth: measured.lineInkWidth
             )
         }
-        guard !pixelCaretLocator.hasFailed(request) else { return requestedGeometry }
+        if case .failed = status { return requestedGeometry }
         if covered {
-            panelHeldForCapture = true
             panel.orderOut(nil)
             CotabbyLogger.suggestion.debug(
                 "Ghost taken down for a pixel caret read",
@@ -262,12 +259,12 @@ final class OverlayController: SuggestionOverlayControlling {
                 ]
             )
         }
-        let token = pixelCaretShowToken
-        // Marked before `locate`, not after it returns: a capture that fails or answers at once
-        // calls back synchronously, and that nested `showSuggestion` must be free to clear the mark.
-        heldPresentationText = text
+        // Held before `locate`, not after it returns: a capture that fails or answers at once
+        // calls back synchronously, and that nested `showSuggestion` must be free to retire the hold.
+        let ticket = lifecycle.holdForPixelCapture(text: text, panelTakenDown: covered)
         pixelCaretLocator.locate(request) { [weak self] _ in
-            guard let self, self.pixelCaretShowToken == token else { return }
+            // A show or hide since the hold retired it: the late read must not resurrect stale text.
+            guard let self, self.lifecycle.isCurrent(ticket) else { return }
             self.showSuggestion(text, geometry: requestedGeometry)
         }
         return nil
@@ -275,13 +272,10 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
-        pixelCaretShowToken &+= 1
-        panelHeldForCapture = false
-        heldPresentationText = nil
         CotabbyLogger.suggestion.debug("Overlay hidden", metadata: ["stage": .string("overlay-hide"), "reason": .string(reason)])
         panel.orderOut(nil)
-        inlineSession = nil
-        state = .hidden(reason: reason)
+        lifecycle.hide(reason: reason)
+        publishState()
     }
 
     /// Mirrors the system Accessibility "Reduce Motion" preference, read live.
@@ -300,10 +294,16 @@ final class OverlayController: SuggestionOverlayControlling {
 
     // MARK: - Inline ghost text
 
-    /// Presents `text` anchored at the geometry's caret box as a fresh inline session. Returns the
-    /// reason the card must take over instead when no honest inline layout exists for this text and
-    /// geometry, nil when the ghost is up.
-    private func showInline(text: String, geometry: SuggestionOverlayGeometry) -> CompletionRenderMode.MirrorReason? {
+    private enum InlineOutcome {
+        /// The ghost is drawn; the session is what redraws it.
+        case presented(InlineSession)
+        /// No honest inline layout exists for this text and geometry: the card must take over.
+        case declined(CompletionRenderMode.MirrorReason)
+    }
+
+    /// Draws `text` anchored at the geometry's caret box as a fresh inline session. The caller
+    /// records the outcome in `lifecycle`: a declined draw leaves the panel as it was.
+    private func showInline(text: String, geometry: SuggestionOverlayGeometry) -> InlineOutcome {
         let renderer = geometry.hostRenderer
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
@@ -323,7 +323,7 @@ final class OverlayController: SuggestionOverlayControlling {
         // picks it under `auto`; this covers an explicit inline preference).
         guard geometry.isCaretAtEndOfLine else {
             logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .caretMidLine)
-            return .caretMidLine
+            return .declined(.caretMidLine)
         }
         guard let layout = makeLayout(
             fullText: text,
@@ -334,7 +334,7 @@ final class OverlayController: SuggestionOverlayControlling {
             baselineOffsetFromTop: baselineOffsetFromTop
         ) else {
             logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .inlineLayoutUnavailable)
-            return .inlineLayoutUnavailable
+            return .declined(.inlineLayoutUnavailable)
         }
         let session = InlineSession(
             fullText: text,
@@ -346,14 +346,14 @@ final class OverlayController: SuggestionOverlayControlling {
             baselineSource: pixelOffset != nil ? .pixel : (cachedOffset == nil ? .policy : .calibrated),
             layout: layout
         )
-        inlineSession = session
         renderInline(session)
-        // Built after the render so the request knows where the panel now covers the host.
+        // Built after the render so the request knows where the panel now covers the host. Its
+        // answer arrives asynchronously, by when the caller has recorded this session.
         if cachedOffset == nil || calibration?.matchTypeface == true,
            let calibration = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset) {
             startCalibration(calibration, for: geometry)
         }
-        return nil
+        return .presented(session)
     }
 
     /// The caret box to anchor the ghost at. Web hosts round caret boxes to whole pixels; when the
@@ -620,12 +620,12 @@ final class OverlayController: SuggestionOverlayControlling {
     /// actually resolving now, so a registration that reported success but left the name unusable
     /// cannot cause a pointless redraw loop.
     private func redrawInlineAfterFontRegistration(fontName: String) {
-        guard case .visible(let text, let geometry, let mode) = state,
-              mode == .inline,
+        guard case .inline(_, let text, let geometry) = lifecycle.presentation,
               geometry.resolvedFieldStyle?.fontName == fontName,
-              GhostFontResolver.font(named: fontName, size: 12) != nil
+              GhostFontResolver.font(named: fontName, size: 12) != nil,
+              case .presented(let session) = showInline(text: text, geometry: geometry)
         else { return }
-        _ = showInline(text: text, geometry: geometry)
+        lifecycle.replaceInlineSession(session)
     }
 
     /// A pixel-matched face in a web field that reports no size, or a single-line field's stand-in
@@ -1150,8 +1150,7 @@ final class OverlayController: SuggestionOverlayControlling {
         )
         // The capture runs while the model generates, so the first ghost for this text already
         // knows its caret and nothing is held at presentation time.
-        if let request = pixelCaretRequest(for: geometry),
-           pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request),
+        if let request = pixelCaretRequest(for: geometry), case .unknown = pixelCaretLocator.status(of: request),
            !panelCovers(request.runFrame) {
             pixelCaretLocator.locate(request) { _ in }
         }
@@ -1273,8 +1272,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// every later present on this line starts there.
     private func startCalibration(_ request: HostBaselineCalibrator.Request, for geometry: SuggestionOverlayGeometry) {
         baselineCalibrator?.calibrate(request) { [weak self] calibration in
-            guard let self, var session = self.inlineSession,
-                  case .visible(_, _, let mode) = self.state, case .inline = mode,
+            guard let self, var session = self.lifecycle.inlineSession,
                   session.geometry.focusedInputIdentityKey == geometry.focusedInputIdentityKey,
                   session.anchorCaretRect.maxY == geometry.caretRect.maxY
             else {
@@ -1299,7 +1297,7 @@ final class OverlayController: SuggestionOverlayControlling {
             }
             guard changed, let layout = self.makeLayout(for: session) else { return }
             session.layout = layout
-            self.inlineSession = session
+            self.lifecycle.replaceInlineSession(session)
             self.renderInline(session)
         }
     }
@@ -1311,8 +1309,7 @@ final class OverlayController: SuggestionOverlayControlling {
     func advanceInline(to remainingText: String, insertedText: String) -> Bool {
         // With the panel down for a capture there is nothing on screen to slide; the fresh present
         // this asks for retires the held one and reads the caret for the advanced text itself.
-        guard !panelHeldForCapture,
-              var session = inlineSession, case .visible(_, _, let mode) = state, case .inline = mode else {
+        guard !lifecycle.isPanelTakenDownForCapture, var session = lifecycle.inlineSession else {
             return false
         }
         let full = session.fullText as NSString
@@ -1329,13 +1326,13 @@ final class OverlayController: SuggestionOverlayControlling {
             return false
         }
         session.layout = layout
-        inlineSession = session
         renderInline(session)
 
         // The geometry the coordinator sees keeps its caret at the predicted insertion point so the
         // stability gate compares fresh AX carets against where the ghost actually is.
         let advancedCaret = predictedCaretRect(for: session)
-        state = .visible(text: remainingText, geometry: session.geometry.withCaretRect(advancedCaret), mode: .inline)
+        lifecycle.advanceInline(to: session, remainingText: remainingText, geometry: session.geometry.withCaretRect(advancedCaret))
+        publishState()
         return true
     }
 

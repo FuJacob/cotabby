@@ -103,10 +103,98 @@ final class HostBaselineCalibrator {
         let pointSize: CGFloat
         let score: Double
         /// Characters of line text the match was made on; a materially longer line may improve
-        /// a weak match (see `wantsTypefaceMatch`).
+        /// a weak match (see `TypefaceProgress.wantsMatch`).
         let textLength: Int
         /// Strips analyzed for this field so far, matched or not; bounded by `maximumTypefaceAttempts`.
         let attempts: Int
+
+        /// The record after one more strip of `textLength` characters, in the same face unless one
+        /// is given: the face keeps its size unless `pointSize` replaces it along with the face.
+        fileprivate nonisolated func afterAnotherStrip(
+            textLength: Int, fontName: String? = nil, pointSize: CGFloat? = nil, score: Double? = nil
+        ) -> TypefaceMatchRecord {
+            TypefaceMatchRecord(
+                fontName: fontName ?? self.fontName,
+                pointSize: pointSize ?? self.pointSize,
+                score: score ?? self.score,
+                textLength: textLength,
+                attempts: attempts + 1
+            )
+        }
+    }
+
+    /// How far a field has got towards knowing its face. A field is either still unmatched, with
+    /// a count of the strips that failed to name a face, or matched, with the record of what its
+    /// pixels said; the miss count stops mattering the moment there is a record, so the two are
+    /// one value rather than two dictionaries that must be kept in step.
+    enum TypefaceProgress: Sendable {
+        /// Strips searched without naming a face. A field whose text never matches any candidate
+        /// (an uninstalled face) stops being asked after `maximumTypefaceAttempts`, instead of
+        /// paying a capture and a search on every keystroke.
+        case unmatched(misses: Int)
+        case matched(TypefaceMatchRecord)
+
+        /// Where every field starts.
+        nonisolated static let initial = TypefaceProgress.unmatched(misses: 0)
+
+        nonisolated var record: TypefaceMatchRecord? {
+            if case .matched(let record) = self { return record }
+            return nil
+        }
+
+        /// Whether the pixels should be asked for the face again: always for a field with no
+        /// record (until its misses run out), and for a field whose record is weak (short text,
+        /// modest score) once the caret's line has grown enough to be better evidence, a bounded
+        /// number of times. A settled record is never re-measured, so the ghost's face cannot drift
+        /// with the strip a keystroke leaves on screen.
+        nonisolated func wantsMatch(lineText: String?) -> Bool {
+            switch self {
+            case .unmatched(let misses):
+                return misses < HostBaselineCalibrator.maximumTypefaceAttempts
+            case .matched(let known):
+                guard known.score < HostBaselineCalibrator.settledTypefaceScore,
+                      known.attempts < HostBaselineCalibrator.maximumTypefaceAttempts,
+                      let lineText
+                else { return false }
+                return lineText.count >= known.textLength + HostBaselineCalibrator.typefaceRetryExtraCharacters
+            }
+        }
+
+        /// The field's progress after one more strip was searched. A first match is adopted as it
+        /// is; without one, the strip counts as a miss only when `isEvidence` says it could have
+        /// named a face at all. A later ranking replaces the recorded face only when its winner
+        /// beats that face ON THE SAME STRIP by `typefaceReplacementMargin`: scores from different
+        /// strips are not comparable (measured 2026-09-10 in Obsidian: the system face scored 0.943
+        /// on one strip, then Arial scored 0.980 on the next, where the system face itself scored
+        /// 0.969, and a cross-strip comparison swapped the right answer for a wrong one). The same
+        /// face matched again keeps its recorded size, so a quarter-point wobble between strips
+        /// never resizes the ghost, and only raises its score.
+        nonisolated func advanced(
+            match: TypefaceMatcher.Match?,
+            ranking: [TypefaceMatcher.Score],
+            textLength: Int,
+            isEvidence: Bool = true
+        ) -> TypefaceProgress {
+            switch self {
+            case .unmatched(let misses):
+                guard let match else { return .unmatched(misses: isEvidence ? misses + 1 : misses) }
+                return .matched(TypefaceMatchRecord(
+                    fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: 1
+                ))
+            case .matched(let known):
+                guard let match else { return .matched(known.afterAnotherStrip(textLength: textLength)) }
+                if match.fontName == known.fontName {
+                    return .matched(known.afterAnotherStrip(textLength: textLength, score: max(known.score, match.score)))
+                }
+                let knownOnThisStrip = ranking.first { $0.fontName == known.fontName }?.score ?? -1
+                guard match.score >= knownOnThisStrip + HostBaselineCalibrator.typefaceReplacementMargin else {
+                    return .matched(known.afterAnotherStrip(textLength: textLength))
+                }
+                return .matched(known.afterAnotherStrip(
+                    textLength: textLength, fontName: match.fontName, pointSize: match.pointSize, score: match.score
+                ))
+            }
+        }
     }
 
     struct Calibration: Equatable {
@@ -132,11 +220,8 @@ final class HostBaselineCalibrator {
     private static let cacheLimit = 64
 
     private var cache = BoundedCache<Key, CGFloat>(limit: HostBaselineCalibrator.cacheLimit)
-    private var typefaces: [TypefaceKey: TypefaceMatchRecord] = [:]
-    /// Strips analyzed for a field that has no record yet without naming a face; a field whose
-    /// text never matches any candidate (an uninstalled face) stops being asked after
-    /// `maximumTypefaceAttempts`, instead of paying a capture and a search on every keystroke.
-    private var typefaceMisses: [TypefaceKey: Int] = [:]
+    /// Per field; a field with no entry is at `TypefaceProgress.initial`.
+    private var typefaceProgress: [TypefaceKey: TypefaceProgress] = [:]
     /// One typeface search at a time: a search is tens to hundreds of milliseconds of CPU beside
     /// the model, and a second strip captured meanwhile is no better evidence than the first.
     private var typefaceSearchInFlight = false
@@ -163,7 +248,7 @@ final class HostBaselineCalibrator {
 
     /// The face and size the host's pixels matched for this field, if already known.
     func cachedTypeface(for key: TypefaceKey) -> TypefaceMatchRecord? {
-        typefaces[key]
+        typefaceProgress[key]?.record
     }
 
     /// A match at or above this score stands for the field's life.
@@ -176,58 +261,6 @@ final class HostBaselineCalibrator {
     /// Strips a field is asked about at most; each costs a capture and tens of milliseconds.
     static let maximumTypefaceAttempts = 12
 
-    /// Whether the pixels should be asked for the face again: always for a field with no record,
-    /// and for a field whose record is weak (short text, modest score) once the caret's line has
-    /// grown enough to be better evidence, a bounded number of times. A settled record is never
-    /// re-measured, so the ghost's face cannot drift with the strip a keystroke leaves on screen.
-    nonisolated static func wantsTypefaceMatch(known: TypefaceMatchRecord?, misses: Int = 0, lineText: String?) -> Bool {
-        guard let known else { return misses < maximumTypefaceAttempts }
-        guard known.score < settledTypefaceScore, known.attempts < maximumTypefaceAttempts, let lineText else { return false }
-        return lineText.count >= known.textLength + typefaceRetryExtraCharacters
-    }
-
-    /// The field's record after one more strip. A first match is adopted as it is. A later ranking
-    /// replaces the recorded face only when its winner beats that face ON THE SAME STRIP by
-    /// `typefaceReplacementMargin`: scores from different strips are not comparable (measured
-    /// 2026-09-10 in Obsidian: the system face scored 0.943 on one strip, then Arial scored 0.980
-    /// on the next, where the system face itself scored 0.969, and a cross-strip comparison swapped
-    /// the right answer for a wrong one). The same face matched again keeps its recorded size, so
-    /// a quarter-point wobble between strips never resizes the ghost, and only raises its score.
-    nonisolated static func updatedTypefaceRecord(
-        known: TypefaceMatchRecord?,
-        match: TypefaceMatcher.Match?,
-        ranking: [TypefaceMatcher.Score],
-        textLength: Int
-    ) -> TypefaceMatchRecord? {
-        guard let known else {
-            guard let match else { return nil }
-            return TypefaceMatchRecord(
-                fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: 1
-            )
-        }
-        let attempts = known.attempts + 1
-        guard let match else {
-            return TypefaceMatchRecord(
-                fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts
-            )
-        }
-        if match.fontName == known.fontName {
-            return TypefaceMatchRecord(
-                fontName: known.fontName, pointSize: known.pointSize, score: max(known.score, match.score),
-                textLength: textLength, attempts: attempts
-            )
-        }
-        let knownOnThisStrip = ranking.first { $0.fontName == known.fontName }?.score ?? -1
-        if match.score >= knownOnThisStrip + typefaceReplacementMargin {
-            return TypefaceMatchRecord(
-                fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: attempts
-            )
-        }
-        return TypefaceMatchRecord(
-            fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts
-        )
-    }
-
     /// Starts a measurement for `request` unless one is cached, or joins the one already in flight
     /// for the same key. `completion` runs on the main actor only when a fresh, accepted measurement
     /// arrives.
@@ -235,7 +268,7 @@ final class HostBaselineCalibrator {
         let key = request.key
         let typefaceKey = TypefaceKey(focusedInputIdentityKey: key.focusedInputIdentityKey)
         let needsTypeface = request.matchTypeface
-            && Self.wantsTypefaceMatch(known: typefaces[typefaceKey], misses: typefaceMisses[typefaceKey] ?? 0, lineText: request.lineText)
+            && (typefaceProgress[typefaceKey] ?? .initial).wantsMatch(lineText: request.lineText)
         guard cache[key] == nil || needsTypeface, permissionCheck() else { return }
         let attemptTypeface = needsTypeface && !typefaceSearchInFlight
         if waiters[key] != nil {
@@ -254,6 +287,11 @@ final class HostBaselineCalibrator {
     /// The measurement `calibrate` started: captures `strip`, reads it off the main actor, and
     /// hands what it found to everyone waiting on the request's key (see `deliver`).
     private func measureStrip(_ strip: CGRect, for request: Request, attemptTypeface: Bool) async {
+        // Cleared however the measurement ends: a flag left set would turn away every later
+        // typeface search for the app's lifetime.
+        defer {
+            if attemptTypeface { typefaceSearchInFlight = false }
+        }
         do {
             let captured = try await pixelCapture.capture(strip)
             if HostPixelCapture.dumpsCaptures {
@@ -266,11 +304,9 @@ final class HostBaselineCalibrator {
             let analysis = await Task.detached(priority: .userInitiated) {
                 Self.analyze(captured, request: request, attemptTypeface: attemptTypeface)
             }.value
-            if attemptTypeface { typefaceSearchInFlight = false }
             deliver(analysis, for: request, started: started)
         } catch {
             waiters.removeValue(forKey: request.key)
-            if attemptTypeface { typefaceSearchInFlight = false }
             CotabbyLogger.suggestion.debug("Baseline calibration failed: \(error.localizedDescription)")
         }
     }
@@ -287,22 +323,18 @@ final class HostBaselineCalibrator {
             cache.insert(analysis.baselineOffset, for: key)
         }
         if analysis.typefaceAttempted {
-            // Only a strip the matcher actually searched, and whose letter bodies looked
-            // like a line of this font, counts as a miss; one declined for holding too
-            // little ink, or cut from somewhere that was not the caret's line, was never
-            // evidence either way.
-            if analysis.typefaceMatch == nil, typefaces[typefaceKey] == nil, !analysis.typefaceRanking.isEmpty,
-               analysis.baselineAccepted {
-                typefaceMisses[typefaceKey, default: 0] += 1
-            }
-            typefaces[typefaceKey] = Self.updatedTypefaceRecord(
-                known: typefaces[typefaceKey],
+            typefaceProgress[typefaceKey] = (typefaceProgress[typefaceKey] ?? .initial).advanced(
                 match: analysis.typefaceMatch,
                 ranking: analysis.typefaceRanking,
-                textLength: request.lineText?.count ?? 0
+                textLength: request.lineText?.count ?? 0,
+                // Only a strip the matcher actually searched, and whose letter bodies looked
+                // like a line of this font, counts as a miss; one declined for holding too
+                // little ink, or cut from somewhere that was not the caret's line, was never
+                // evidence either way.
+                isEvidence: !analysis.typefaceRanking.isEmpty && analysis.baselineAccepted
             )
         }
-        let record = request.matchTypeface ? typefaces[typefaceKey] : nil
+        let record = request.matchTypeface ? typefaceProgress[typefaceKey]?.record : nil
         Self.log(analysis, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
         guard analysis.baselineAccepted || record != nil else { return }
         let calibration = Calibration(
