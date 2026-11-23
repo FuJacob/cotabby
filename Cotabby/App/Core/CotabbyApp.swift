@@ -15,7 +15,7 @@ struct CotabbyApp: App {
     @AppStorage(SuggestionSettingsStore.menuBarIconVisibleDefaultsKey)
     private var isMenuBarIconVisible = true
 
-    /// Defines the menu bar extra that surfaces Cotabby's runtime, focus, and suggestion state.
+    /// Defines the menu bar extra that surfaces Cotabby's activation, engine, and permission state.
     var body: some Scene {
         MenuBarExtra(isInserted: menuBarIconVisibilityBinding) {
             MenuBarView(

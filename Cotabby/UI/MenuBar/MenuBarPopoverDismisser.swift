@@ -65,14 +65,6 @@ struct MenuBarPopoverDismisserBinder: NSViewRepresentable {
     let dismisser: MenuBarPopoverDismisser
     let onWindowBind: (NSWindow) -> Void
 
-    init(
-        dismisser: MenuBarPopoverDismisser,
-        onWindowBind: @escaping (NSWindow) -> Void = { _ in }
-    ) {
-        self.dismisser = dismisser
-        self.onWindowBind = onWindowBind
-    }
-
     func makeNSView(context: Context) -> WindowBindingView {
         let view = WindowBindingView()
         view.dismisser = dismisser

@@ -13,16 +13,14 @@ import Foundation
 
 /// One of the onboarding starting points. Quick, Everyday, and Powerful are the curated tiers shown
 /// as selectable cards (`curatedTiers`). Custom is the neutral "set it up yourself" option that
-/// applies lean defaults; it is no longer its own card. The template step's "Set up later" button
+/// applies lean defaults and has no card of its own. The template step's "Set up later" button
 /// applies it under the hood so a user who does not want a curated tier can still move forward and
 /// configure the rest in Settings.
-enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable {
+enum OnboardingTemplate: String, CaseIterable, Equatable, Sendable {
     case quick
     case everyday
     case powerful
     case custom
-
-    var id: String { rawValue }
 
     /// The curated tiers shown as selectable cards in onboarding, in display order. Excludes
     /// `.custom`, which is applied implicitly by the "Set up later" button rather than picked from a
@@ -57,8 +55,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     }
 
     /// Longer supporting copy describing the trade-off the user is opting into. Kept engine-neutral
-    /// because the engine (and any download size) is now chosen separately above the tier and shown
-    /// in the per-tier footer; the tier itself only tunes speed/length.
+    /// because the engine (and any download size) is chosen separately above the tier and shown in
+    /// the per-tier footer; the tier itself only tunes speed/length.
     var detail: String {
         switch self {
         case .quick:

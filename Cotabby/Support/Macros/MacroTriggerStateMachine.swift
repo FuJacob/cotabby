@@ -6,10 +6,10 @@ import Foundation
 /// locale, and rate table. Given the same inputs it always produces the same transitions, so it is
 /// fully unit testable without Accessibility, CGEvent, or UI.
 ///
-/// Trigger model: a single `/` at a word boundary opens capture immediately. Unlike the earlier `::`
-/// sigil, `/` does not overlap the emoji picker's `:`, so there is no deferred hand-off and no
-/// shared-key race: one keystroke, one open. That directness is deliberate, it is what makes the
-/// preview reliably appear instead of intermittently losing the second colon to the emoji feature.
+/// Trigger model: a single `/` at a word boundary opens capture immediately. The sigil must not
+/// overlap the emoji picker's `:`: a shared first key would need a deferred hand-off between the two
+/// features, and the preview would intermittently lose that race. With disjoint sigils it is one
+/// keystroke, one open.
 nonisolated struct MacroTriggerStateMachine {
     private(set) var state: MacroTriggerState = .idle(previousCharacter: nil)
 

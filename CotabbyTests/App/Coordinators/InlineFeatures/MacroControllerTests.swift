@@ -102,7 +102,7 @@ final class MacroControllerTests: XCTestCase {
 
     func test_rebindingAcceptKeyIsHonoredForCommit() {
         let harness = makeHarness()
-        harness.wordAcceptKeyCode = 50
+        harness.monitor.wordAcceptKeyCode = 50   // user rebinds accept-word to backtick
         harness.type("/2+2")
 
         harness.controller.observe(InlineFeatureKeys.key(InlineFeatureKeys.tab))
@@ -238,21 +238,17 @@ final class MacroControllerTests: XCTestCase {
         static let caretRect = CGRect(x: 10, y: 20, width: 2, height: 18)
 
         let focus: InlineFeatureFocusStub
+        let monitor: InlineFeatureInputMonitorStub
         let inserter: InlineFeatureRecordingInserter
         let panel: InlineFeaturePreviewPanelStub
         let controller: MacroController
         private let flags: MacroHarnessFlags
         private(set) var captureStateChanges = 0
 
-        /// Both are read live by the controller's closures, so a test can flip them mid-capture.
+        /// Read live by the controller's `isEnabled` closure, so a test can flip it mid-capture.
         var enabled: Bool {
             get { flags.enabled }
             set { flags.enabled = newValue }
-        }
-
-        var wordAcceptKeyCode: CGKeyCode {
-            get { flags.wordAcceptKeyCode }
-            set { flags.wordAcceptKeyCode = newValue }
         }
 
         init(isSecure: Bool, acceptKeyLabel: String?) {
@@ -264,10 +260,12 @@ final class MacroControllerTests: XCTestCase {
                 ])
             ])
             let focus = InlineFeatureFocusStub(isSecure: isSecure, caretRect: Self.caretRect)
+            let monitor = InlineFeatureInputMonitorStub()
             let inserter = InlineFeatureRecordingInserter()
             let panel = InlineFeaturePreviewPanelStub()
             let flags = MacroHarnessFlags()
             self.focus = focus
+            self.monitor = monitor
             self.inserter = inserter
             self.panel = panel
             self.flags = flags
@@ -275,11 +273,10 @@ final class MacroControllerTests: XCTestCase {
                 engine: engine,
                 panel: panel,
                 focusModel: focus,
+                inputMonitor: monitor,
                 inserter: inserter,
                 isEnabled: { flags.enabled },
-                acceptKeyLabel: { acceptKeyLabel },
-                // Production wires this to the input monitor's binding check (Tab by default).
-                isWordAcceptKey: { $0.keyCode == flags.wordAcceptKeyCode }
+                acceptKeyLabel: { acceptKeyLabel }
             )
             controller.onCaptureStateChanged = { [weak self] in self?.captureStateChanges += 1 }
             controller.start()
@@ -293,9 +290,8 @@ final class MacroControllerTests: XCTestCase {
     }
 }
 
-/// Mutable state read by the controller's plain (non-actor) `isEnabled` and `isWordAcceptKey`
-/// closures, kept nonisolated to match those closure types.
+/// Mutable flag the controller's `isEnabled` closure reads, kept nonisolated because that parameter
+/// is a plain (non-actor) closure type.
 private final class MacroHarnessFlags {
     var enabled = true
-    var wordAcceptKeyCode: CGKeyCode = InlineFeatureKeys.tab
 }

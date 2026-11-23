@@ -120,10 +120,10 @@ final class InlineCommandCoordinatorTests: XCTestCase {
                 ]),
                 panel: InlineFeaturePreviewPanelStub(),
                 focusModel: focus,
+                inputMonitor: monitor,
                 inserter: inserter,
                 isEnabled: { true },
-                acceptKeyLabel: { nil },
-                isWordAcceptKey: { $0.keyCode == InlineFeatureKeys.tab }
+                acceptKeyLabel: { nil }
             )
             coordinator = InlineCommandCoordinator(emoji: emoji, macro: macro, inputMonitor: monitor)
         }

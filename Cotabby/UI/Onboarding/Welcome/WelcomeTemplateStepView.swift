@@ -16,7 +16,7 @@ struct WelcomeTemplateStepView: View {
 
     let hardware: HardwareCapability
     let selectedEngine: SuggestionEngineKind
-    @Binding var selectedTemplate: OnboardingTemplate?
+    let selectedTemplate: OnboardingTemplate?
     let onSelectEngine: (SuggestionEngineKind) -> Void
     let onSelect: (OnboardingTemplate) -> Void
 

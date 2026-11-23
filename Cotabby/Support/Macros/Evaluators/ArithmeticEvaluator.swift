@@ -41,46 +41,46 @@ struct ArithmeticEvaluator: MacroEvaluating {
         return String(format: "%.10g", value)
     }
 
+    /// Thrown by `Parser` at the first point the text stops being a well-formed expression. Nothing
+    /// is recovered from a bad parse, so one case is enough.
+    private nonisolated struct Malformed: Error {}
+
     /// Recursive-descent parser over the operator grammar. `usedOperator` gates "is this actually an
     /// expression" so a lone number or a unary-signed number is not treated as a macro.
     private struct Parser {
         private let characters: [Character]
         private var index = 0
         private(set) var usedOperator = false
-        private var valid = true
 
         init(_ string: String) {
             characters = Array(string.filter { !$0.isWhitespace })
         }
 
+        /// The value of the whole text, or `nil` when it is malformed or has input left over.
         mutating func parse() -> Double? {
-            let value = parseExpression()
-            guard valid, index == characters.count else { return nil }
+            guard let value = try? parseExpression(), index == characters.count else { return nil }
             return value
         }
 
-        private mutating func parseExpression() -> Double {
-            var value = parseTerm()
+        private mutating func parseExpression() throws -> Double {
+            var value = try parseTerm()
             while let op = peek(), op == "+" || op == "-" {
                 advance()
                 usedOperator = true
-                let rhs = parseTerm()
+                let rhs = try parseTerm()
                 value = op == "+" ? value + rhs : value - rhs
             }
             return value
         }
 
-        private mutating func parseTerm() -> Double {
-            var value = parsePower()
+        private mutating func parseTerm() throws -> Double {
+            var value = try parsePower()
             while let op = peek(), op == "*" || op == "/" {
                 advance()
                 usedOperator = true
-                let rhs = parsePower()
+                let rhs = try parsePower()
                 if op == "/" {
-                    if rhs == 0 {
-                        valid = false
-                        return 0
-                    }
+                    guard rhs != 0 else { throw Malformed() }
                     value /= rhs
                 } else {
                     value *= rhs
@@ -89,31 +89,31 @@ struct ArithmeticEvaluator: MacroEvaluating {
             return value
         }
 
-        private mutating func parsePower() -> Double {
-            let base = parseUnary()
+        private mutating func parsePower() throws -> Double {
+            let base = try parseUnary()
             if peek() == "^" {
                 advance()
                 usedOperator = true
-                let exponent = parsePower()   // right associative
+                let exponent = try parsePower()   // right associative
                 return pow(base, exponent)
             }
             return base
         }
 
-        private mutating func parseUnary() -> Double {
+        private mutating func parseUnary() throws -> Double {
             if peek() == "-" {
                 advance()
-                return -parsePostfix()
+                return try -parsePostfix()
             }
             if peek() == "+" {
                 advance()
-                return parsePostfix()
+                return try parsePostfix()
             }
-            return parsePostfix()
+            return try parsePostfix()
         }
 
-        private mutating func parsePostfix() -> Double {
-            var value = parsePrimary()
+        private mutating func parsePostfix() throws -> Double {
+            var value = try parsePrimary()
             while peek() == "%" {
                 advance()
                 usedOperator = true
@@ -122,30 +122,24 @@ struct ArithmeticEvaluator: MacroEvaluating {
             return value
         }
 
-        private mutating func parsePrimary() -> Double {
+        private mutating func parsePrimary() throws -> Double {
             if peek() == "(" {
                 advance()
-                let value = parseExpression()
-                if peek() == ")" {
-                    advance()
-                } else {
-                    valid = false
-                }
+                let value = try parseExpression()
+                guard peek() == ")" else { throw Malformed() }
+                advance()
                 return value
             }
-            return parseNumber()
+            return try parseNumber()
         }
 
-        private mutating func parseNumber() -> Double {
+        private mutating func parseNumber() throws -> Double {
             var digits = ""
             while let character = peek(), character.isNumber || character == "." {
                 digits.append(character)
                 advance()
             }
-            guard let value = Double(digits) else {
-                valid = false
-                return 0
-            }
+            guard let value = Double(digits) else { throw Malformed() }
             return value
         }
 

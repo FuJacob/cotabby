@@ -24,7 +24,7 @@ struct MenuBarPresentationObserver: NSViewRepresentable {
 ///
 /// The view deliberately reports only visibility/key-window transitions. The permission manager
 /// already owns periodic polling; this bridge only covers the UI lifecycle edge where reopening
-/// the menu should force one immediate permission read.
+/// the menu should force one immediate refresh of state that changed while it was closed.
 final class MenuBarPresentationTrackingView: NSView {
     var onPresent: (() -> Void)?
 

@@ -8,8 +8,8 @@ import SwiftUI
 /// Like `OnboardingFeatureShowcase`, the demo is inert content: hardcoded strings and local
 /// `@State`, no Accessibility, no event tap, nothing from the real suggestion pipeline. It plays the
 /// same `DemoTypingTimeline` loop as the showcase cards from a `.task`, which SwiftUI cancels when
-/// the view leaves the hierarchy, and Reduce Motion rests on a completed frame instead of looping. The card keeps a fixed height so the
-/// welcome window never resizes mid-animation.
+/// the view leaves the hierarchy, and Reduce Motion rests on a completed frame instead of looping.
+/// The card keeps a fixed height so the welcome window never resizes mid-animation.
 struct WelcomeHeroDemo: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
