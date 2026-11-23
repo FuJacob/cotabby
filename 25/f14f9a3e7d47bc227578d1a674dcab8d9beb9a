@@ -1,0 +1,30 @@
+Cotabby/Services/Focus/FocusTracker.swift
+  s_9990f9098df800::t_dd3ed8046e83a9 436-440,442-445,447-450,459-468
+  s_9990f9098df800::t_04303b76b37e8b 411-412
+  s_9990f9098df800::t_d5524417c7e7d4 318-320
+  s_9990f9098df800::t_35018dea9591b9 469-470
+CotabbyTests/Support/Focus/Applications/HitTestOwnershipPolicyTests.swift
+  s_9990f9098df800::t_8ad587245c1cdd 1-56
+Cotabby/Support/Focus/Applications/HitTestOwnershipPolicy.swift
+  s_9990f9098df800::t_680046cd5655b0 1-44
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_9990f9098df800::t_c9ce54cf888b68 838-846,851
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_b56d527d304d77 558,755,760,1471,1832,3337,3823,4628,5028,5400
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25f14f9a3e7d47bc227578d1a674dcab8d9beb9a",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
