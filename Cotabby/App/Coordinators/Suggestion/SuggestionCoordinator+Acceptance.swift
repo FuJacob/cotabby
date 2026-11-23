@@ -466,6 +466,9 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // Read the clock the moment the corrected word lands, before the continuation and teardown
+        // work below, so that work crossing midnight cannot move the words to the next day.
+        let acceptedAt = now()
         lastAcceptanceAt = ProcessInfo.processInfo.systemUptime
         focusModel.invalidateTransientCaretCaches()
         if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
@@ -477,7 +480,6 @@ extension SuggestionCoordinator {
             preservingContinuation: hasPreparedContinuation
         )
         let workID = currentWorkID
-        let acceptedAt = now()  // Captured before deferring, as in `commitPreparedAcceptance`.
         deferAcceptanceBookkeeping { [weak self] in
             self?.recordAcceptedWords(from: replacement.replacementText, acceptedAt: acceptedAt)
             self?.logStage(
@@ -765,9 +767,14 @@ extension SuggestionCoordinator {
 
         totalTabAcceptedWordCount += acceptedWordCount
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
-        // `adding` rolls to today first, so an accept just after midnight starts the new day's
-        // count even if the day-changed notification has not been delivered yet.
-        storeDailyAcceptedWordCount(dailyAcceptedWordCount.adding(acceptedWordCount, at: acceptedAt))
+        // Add to the accept's own day, then roll forward to the current day. `adding` starts a new
+        // day's count for an accept just after midnight even before the day-changed notification
+        // arrives. The roll forward covers the opposite race: words accepted just before midnight
+        // whose deferred update runs after it (possibly after the day-change roll already zeroed
+        // the count) belong to a day that is over, and must not come back as today's.
+        storeDailyAcceptedWordCount(
+            dailyAcceptedWordCount.adding(acceptedWordCount, at: acceptedAt).rolled(to: now())
+        )
     }
 
     /// Zeroes the per-day counter once the local day has moved on; a no-op within the same day.
