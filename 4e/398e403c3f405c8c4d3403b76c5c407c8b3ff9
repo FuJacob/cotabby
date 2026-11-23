@@ -1,0 +1,19 @@
+Cotabby/Services/History/TypingHistoryStore.swift
+  s_b9af9eb54478c8::t_8cb2a934a5d939 110-113,128-132,304,307,587,602,663
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e398e403c3f405c8c4d3403b76c5c407c8b3ff9",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

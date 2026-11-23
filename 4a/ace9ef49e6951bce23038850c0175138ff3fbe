@@ -1,0 +1,25 @@
+CotabbyTests/Support/Updates/AppUpdateStartPolicyTests.swift
+  s_b9af9eb54478c8::t_9b8afb9800a421 1-43
+Cotabby/Support/Updates/AppUpdateStartPolicy.swift
+  s_b9af9eb54478c8::t_b59ed98f26cf97 1-36
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_3f810a28f72b7c 380,412,1114,1952,1986,2323-2330,3265,3441-3448,4129,4465,4863,5254
+Cotabby/Services/Updates/AppUpdateManager.swift
+  s_b9af9eb54478c8::t_367188f0dda564 50-54,60-62,64,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4aace9ef49e6951bce23038850c0175138ff3fbe",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

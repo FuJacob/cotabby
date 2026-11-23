@@ -1,0 +1,20 @@
+Cotabby/Support/Context/ClipboardRelevanceFilter.swift
+  s_b9af9eb54478c8::t_e647d39b3135a0 25-35,50-54,56-59,62
+  s_b9af9eb54478c8::t_51bd992ba47c41 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4b695f7f4df39af5c5a364aa329fa5be99c5304e",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}

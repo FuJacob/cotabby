@@ -1,0 +1,19 @@
+Cotabby/Services/Visual/VisualContextCoordinator.swift
+  s_b9af9eb54478c8::t_d9714f795467fc 19,62,147,151,184-186,190,232,240-255,336,385,393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6d55a4da4ae37e1765f0364969d28e77d3e72da",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
