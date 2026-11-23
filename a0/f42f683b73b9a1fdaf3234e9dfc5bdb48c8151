@@ -1,0 +1,33 @@
+Cotabby/Support/Prompting/PromptDataFence.swift
+  s_9990f9098df800::t_a462c9b157749b 1-56
+Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift
+  s_9990f9098df800::t_45b1916b17dfe7 78-81
+CotabbyTests/Support/Prompting/PromptDataFenceTests.swift
+  s_9990f9098df800::t_7e02cd05b3df32 1-59
+Cotabby.xcodeproj/project.pbxproj
+  s_9990f9098df800::t_3f893fca6d5d16 657,678,962,1286,1587,2448,3071,4310,4663,4972
+Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift
+  s_9990f9098df800::t_8df34160829462 40-46,126-131,134,142,149,162-163,168,181-184,190
+CotabbyTests/Evals/FoundationModelDriftEvalTests.swift
+  s_9990f9098df800::t_b83632071f035e 170-171,173-174
+CotabbyTests/Support/Prompting/PromptPolicyTests.swift
+  s_9990f9098df800::t_5ce9268ae87499 22-24,126-128,152,154,156,158,161,163,169,171,197,215,219-248
+CotabbyTests/Support/Suggestion/Output/SuggestionTextNormalizerTests.swift
+  s_9990f9098df800::t_05a66ef850ce3d 82-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a0f42f683b73b9a1fdaf3234e9dfc5bdb48c8151",
+  "prompts": {},
+  "sessions": {
+    "s_9990f9098df800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ed9189-6429-4b6f-8e5e-f630cb169800",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
