@@ -1,0 +1,48 @@
+Cotabby/Support/Accessibility/WebContentFieldDetector.swift
+  s_b9af9eb54478c8::t_194f0526d6b455 49-50
+Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift
+  s_b9af9eb54478c8::t_35e303fd561de8 70-71,77-78
+  s_b9af9eb54478c8::t_58800bee6ba8c4 394
+  s_b9af9eb54478c8::t_b452a1ed6475a0 291
+  s_b9af9eb54478c8::t_39f42cb8d0cd38 39,41,45
+  s_b9af9eb54478c8::t_d0718312950b9b 253
+CotabbyTests/Support/Accessibility/AXHelperTests.swift
+  s_b9af9eb54478c8::t_4ff42c5fe1926c 347-382
+Cotabby/Services/Focus/Resolution/FocusSnapshotResolver.swift
+  s_b9af9eb54478c8::t_e55a76ed9cc4de 976
+  s_b9af9eb54478c8::t_70a189b16b5f39 597,599-601,607-608
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_b9af9eb54478c8::t_556aa9ef2c06d6 783
+  s_b9af9eb54478c8::t_9bc2ec7ce697b1 1220,1230
+  s_b9af9eb54478c8::t_5c31ac12c77869 264,268
+  s_b9af9eb54478c8::t_6069fbb79cc971 78-79,81-82
+  s_b9af9eb54478c8::t_e8ac21590507b2 197-202,209
+  s_b9af9eb54478c8::t_38732917a14d52 577-578
+  s_b9af9eb54478c8::t_0bfb8f6c613fa4 249,253
+  s_b9af9eb54478c8::t_2391dbfa327b8f 1106-1109,1111,1117
+  s_b9af9eb54478c8::t_9939af9e920100 1171-1188,1192-1193
+  s_b9af9eb54478c8::t_8350b7533c9338 1218-1219
+Cotabby/Models/Focus/FocusModels.swift
+  s_b9af9eb54478c8::t_1a79a07462f934 494-496
+Cotabby/Services/Focus/Resolution/AXTextGeometryResolver.swift
+  s_b9af9eb54478c8::t_14d63ffb82cffe 104-105
+  s_b9af9eb54478c8::t_d36737bd0d0ba6 10-13
+  s_b9af9eb54478c8::t_d13f4e5bea4813 1012-1015
+  s_b9af9eb54478c8::t_a33d1b1de845d6 119,143,169,594,778
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "afb1ec1d47a642c4821744f0994247cfaafd6fda",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
