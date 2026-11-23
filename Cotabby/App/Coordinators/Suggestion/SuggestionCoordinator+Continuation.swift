@@ -4,26 +4,6 @@ import Foundation
 /// The coordinator owns this short-lived work because it must coordinate the engine, permission
 /// gates, and editor publication. The pure plan owns the hypothetical text; no AX object is kept.
 extension SuggestionCoordinator {
-    /// One coordinator-owned lookahead, retained only until its source word is consumed or invalidated.
-    /// Keeping its plan separate from the live session prevents hypothetical text from entering AX
-    /// reconciliation before the editor has actually published the accepted edit.
-    struct PreparedContinuation {
-        let plan: SuggestionContinuationPlan
-        let sourceSession: ActiveSuggestionSession
-        var text: String?
-        var latency: TimeInterval = 0
-        var awaitingCommit = false
-        /// Set once the exact target published while this request was still running. The
-        /// publication poll stands down at that point, so nothing else will request a prediction
-        /// for later edits: this request must fall back to one if it cannot show its own text.
-        var ownsNextPrediction = false
-
-        func belongs(to session: ActiveSuggestionSession) -> Bool {
-            sourceSession.baseContext == session.baseContext
-                && sourceSession.fullText == session.fullText && sourceSession.kind == session.kind
-        }
-    }
-
     func cancelPreparedContinuation() {
         continuationWorkController.cancelAll()
         preparedContinuation = nil
@@ -73,8 +53,9 @@ extension SuggestionCoordinator {
                     self.finishUnavailableContinuation()
                     return
                 }
-                self.preparedContinuation?.text = plan.continuation(from: result.text)
-                self.preparedContinuation?.latency = result.latency
+                self.preparedContinuation?.receive(
+                    text: plan.continuation(from: result.text), latency: result.latency
+                )
                 self.attachPreparedContinuationOrAwaitPublication()
             } catch {
                 guard self.continuationWorkController.isCurrent(workID) else { return }
@@ -88,12 +69,12 @@ extension SuggestionCoordinator {
     @discardableResult
     func markPreparedContinuationCommitted(after session: ActiveSuggestionSession) -> Bool {
         guard preparedContinuation?.belongs(to: session) == true else { return false }
-        preparedContinuation?.awaitingCommit = true
+        preparedContinuation?.markCommitted()
         return true
     }
 
     private func attachPreparedContinuationOrAwaitPublication() {
-        guard let prepared = preparedContinuation, let text = prepared.text, !text.isEmpty else {
+        guard let prepared = preparedContinuation, let text = prepared.readyText, !text.isEmpty else {
             finishUnavailableContinuation()
             return
         }
@@ -128,13 +109,13 @@ extension SuggestionCoordinator {
     /// Exact field and content checks keep hypothetical work out of a different editor or caret.
     @discardableResult
     func usePreparedContinuationIfPossible() -> Bool {
-        guard let prepared = preparedContinuation, prepared.awaitingCommit,
+        guard let prepared = preparedContinuation, prepared.isCommitted,
               let raw = focusModel.snapshot.context,
               currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil,
               preparedTextAdjustment(prepared, for: raw) != nil else { return false }
-        guard let text = prepared.text else {
+        guard case let .ready(text, latency) = prepared.answer else {
             // The caller (usually the publication poll) stands down for the running request.
-            preparedContinuation?.ownsNextPrediction = true
+            preparedContinuation?.markTargetPublished()
             return true
         }
         // Exact publication has arrived. Retire the acceptance poll before consuming its plan;
@@ -154,7 +135,7 @@ extension SuggestionCoordinator {
             let adjustedText = trimsSpace ? String(text.drop(while: { $0 == " " })) : text
             let context = self.interactionState.materializeContext(from: live)
             await self.apply(result: SuggestionResult(generation: context.generation, rawText: adjustedText,
-                text: adjustedText, latency: prepared.latency), workID: workID)
+                text: adjustedText, latency: latency), workID: workID)
         }
         return true
     }
@@ -168,7 +149,7 @@ extension SuggestionCoordinator {
     }
 
     private func finishUnavailableContinuation() {
-        let shouldRefresh = preparedContinuation?.awaitingCommit == true
+        let shouldRefresh = preparedContinuation?.isCommitted == true
         // An owned request saw its target publish, so a different edit now is published text too;
         // waiting for yet another change would end at the correction timeout with no prediction.
         let targetPublished = preparedContinuation.map { prepared in

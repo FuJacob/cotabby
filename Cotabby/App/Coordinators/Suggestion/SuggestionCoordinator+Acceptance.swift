@@ -599,7 +599,7 @@ extension SuggestionCoordinator {
     /// backstop release; the common, prompt release is `onStateChange(.hidden)` ending the window as
     /// soon as any teardown hides the overlay.
     func releasePostExhaustionAcceptanceWindow() {
-        guard postExhaustionAcceptanceState.needsRelease else { return }
+        guard postExhaustionAcceptanceState.isArmed else { return }
         if !overlayState.isVisible {
             inputMonitor.setAcceptInterceptionActive(false)
         }
@@ -728,7 +728,7 @@ extension SuggestionCoordinator {
         message: String
     ) {
         let generation = latestGenerationNumber
-        retireSuggestion(reason: reason, preservingContinuation: preparedContinuation?.awaitingCommit == true)
+        retireSuggestion(reason: reason, preservingContinuation: preparedContinuation?.isCommitted == true)
         // Same as invalidation: the tail is consumed and the prediction below must not be cancelled.
         settleDeferredScreenContextChange()
         logStage(stage, workID: currentWorkID, generation: generation, message: message)

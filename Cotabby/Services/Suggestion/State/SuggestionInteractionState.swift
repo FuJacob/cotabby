@@ -3,7 +3,7 @@ import Foundation
 /// File overview:
 /// Owns the mutable interaction state that sits between Accessibility snapshots and a live
 /// suggestion session. This includes the buffered focused-input context, the active suggestion
-/// session, and the AX-lag sentinels used after partial acceptance or matching typed input.
+/// session, and how far the host's published text trails that session.
 ///
 /// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
 /// not store every mutable implementation detail itself. This type becomes the home for that
@@ -13,10 +13,9 @@ final class SuggestionInteractionState {
     private let contextBuffer: ContextBuffer
 
     private(set) var activeSession: ActiveSuggestionSession?
-    private(set) var pendingInsertionConsumedCount: Int?
-    /// Typed input only tolerates an older matching prefix. It must not inherit the broader
-    /// synthetic-insertion tolerance for temporarily inconsistent AX prefix/suffix slices.
-    private var pendingTypedConsumedRange: Range<Int>?
+    /// Meaningful only while a session is active; every path that drops or replaces the session
+    /// settles it.
+    private(set) var publicationLag: HostPublicationLag = .settled
 
     init(contextBuffer: ContextBuffer? = nil) {
         // Default argument evaluation happens before entering the actor-isolated initializer body,
@@ -28,11 +27,10 @@ final class SuggestionInteractionState {
         contextBuffer.currentContext
     }
 
-    /// Exposes the higher-level meaning of `pendingInsertionConsumedCount` without leaking the
-    /// sentinel's storage detail to the coordinator. When this is true, accepted or directly typed
-    /// suggestion text has advanced the ghost and Accessibility has not published it yet.
+    /// True while accepted or directly typed suggestion text has advanced the ghost and
+    /// Accessibility has not published it yet.
     var isAwaitingPostInsertionSync: Bool {
-        pendingInsertionConsumedCount != nil || pendingTypedConsumedRange != nil
+        publicationLag != .settled
     }
 
     func materializeContext(from snapshot: FocusedInputSnapshot) -> FocusedInputContext {
@@ -41,8 +39,7 @@ final class SuggestionInteractionState {
 
     func clearSuggestion() {
         activeSession = nil
-        pendingInsertionConsumedCount = nil
-        pendingTypedConsumedRange = nil
+        publicationLag = .settled
     }
 
     func resetAll() {
@@ -67,14 +64,13 @@ final class SuggestionInteractionState {
             kind: kind
         )
         activeSession = session
-        pendingInsertionConsumedCount = nil
-        pendingTypedConsumedRange = nil
+        publicationLag = .settled
         return session
     }
 
     /// Adds a monotonic prediction extension without restarting an interaction already in flight.
     /// The coordinator captures the expected session before async lookahead; equality rejects an
-    /// answer for an old anchor or consumed position. The existing AX-publication sentinels remain
+    /// answer for an old anchor or consumed position. The existing publication lag remains
     /// valid because no characters before the extended suffix change.
     func extendPrediction(
         fullText: String,
@@ -100,7 +96,7 @@ final class SuggestionInteractionState {
     }
 
     /// Reconciles the currently active session against the latest AX snapshot and stores the
-    /// updated session/sentinel when reconciliation succeeds.
+    /// updated session and publication lag when reconciliation succeeds.
     func reconcileActiveSession(
         with snapshot: FocusedInputSnapshot
     ) -> SuggestionStoredSessionReconciliation? {
@@ -109,16 +105,10 @@ final class SuggestionInteractionState {
         }
 
         let liveContext = contextBuffer.materialize(from: snapshot)
-        switch SuggestionSessionReconciler.reconcile(
-            session: activeSession,
-            with: liveContext,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
-            pendingTypedConsumedRange: pendingTypedConsumedRange
-        ) {
-        case let .valid(reconciledSession, advancement, nextPendingInsertionConsumedCount):
+        switch SuggestionSessionReconciler.reconcile(session: activeSession, with: liveContext, lag: publicationLag) {
+        case let .valid(reconciledSession, advancement, nextLag):
             self.activeSession = reconciledSession
-            pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
-            clearPublishedTypedInput(in: liveContext, session: reconciledSession)
+            publicationLag = nextLag
             return .valid(
                 liveContext: liveContext,
                 session: reconciledSession,
@@ -148,31 +138,25 @@ final class SuggestionInteractionState {
         granularity: AcceptanceGranularity,
         autoAcceptTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
-        let validated = validateSessionForAcceptance(
-            from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
-        )
-        guard let (liveContext, session) = validated.session else {
-            return .invalid(validated.failureReason ?? "Key passed through.")
+        prepare(
+            from: snapshot,
+            overlayState: overlayState,
+            heldPresentationText: heldPresentationText,
+            emptyChunkReason: "Key passed through because no remaining suggestion chunk was available."
+        ) { session in
+            switch granularity {
+            case .word:
+                return SuggestionSessionReconciler.nextAcceptanceChunk(
+                    from: session.remainingText,
+                    autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+                )
+            case .phrase:
+                return SuggestionSessionReconciler.nextAcceptancePhrase(
+                    from: session.remainingText,
+                    autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+                )
+            }
         }
-
-        let chunk: String
-        switch granularity {
-        case .word:
-            chunk = SuggestionSessionReconciler.nextAcceptanceChunk(
-                from: session.remainingText,
-                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
-            )
-        case .phrase:
-            chunk = SuggestionSessionReconciler.nextAcceptancePhrase(
-                from: session.remainingText,
-                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
-            )
-        }
-
-        guard !chunk.isEmpty else {
-            return .invalid("Key passed through because no remaining suggestion chunk was available.")
-        }
-        return .ready(liveContext: liveContext, session: session, acceptedChunk: chunk)
     }
 
     func prepareFullAcceptance(
@@ -180,24 +164,43 @@ final class SuggestionInteractionState {
         overlayState: OverlayState,
         heldPresentationText: String? = nil
     ) -> SuggestionAcceptancePreparation {
-        let validated = validateSessionForAcceptance(
-            from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
+        prepare(
+            from: snapshot,
+            overlayState: overlayState,
+            heldPresentationText: heldPresentationText,
+            emptyChunkReason: "Key passed through because no remaining suggestion text was available.",
+            chunk: \.remainingText
         )
-        guard let (liveContext, session) = validated.session else {
-            return .invalid(validated.failureReason ?? "Key passed through.")
-        }
-
-        let chunk = session.remainingText
-        guard !chunk.isEmpty else {
-            return .invalid("Key passed through because no remaining suggestion text was available.")
-        }
-        return .ready(liveContext: liveContext, session: session, acceptedChunk: chunk)
     }
 
-    /// Shared validation for both word-by-word and full acceptance.
-    private struct SessionValidation {
-        let session: (FocusedInputContext, ActiveSuggestionSession)?
-        let failureReason: String?
+    /// Validates the session once, then lets the caller choose how much of its visible tail this
+    /// key takes. Both acceptance keys share the validation so neither can commit text the other
+    /// would have refused.
+    private func prepare(
+        from snapshot: FocusedInputSnapshot,
+        overlayState: OverlayState,
+        heldPresentationText: String?,
+        emptyChunkReason: String,
+        chunk: (ActiveSuggestionSession) -> String
+    ) -> SuggestionAcceptancePreparation {
+        switch validateSessionForAcceptance(
+            from: snapshot, overlayState: overlayState, heldPresentationText: heldPresentationText
+        ) {
+        case let .rejected(reason):
+            return .invalid(reason)
+        case let .accepted(liveContext, session):
+            let acceptedChunk = chunk(session)
+            guard !acceptedChunk.isEmpty else {
+                return .invalid(emptyChunkReason)
+            }
+            return .ready(liveContext: liveContext, session: session, acceptedChunk: acceptedChunk)
+        }
+    }
+
+    /// Outcome of the validation shared by word-by-word and full acceptance.
+    private enum SessionValidation {
+        case accepted(liveContext: FocusedInputContext, session: ActiveSuggestionSession)
+        case rejected(String)
     }
 
     private func validateSessionForAcceptance(
@@ -206,11 +209,11 @@ final class SuggestionInteractionState {
         heldPresentationText: String?
     ) -> SessionValidation {
         guard let activeSession else {
-            return SessionValidation(session: nil, failureReason: "Key passed through because no valid suggestion was ready.")
+            return .rejected("Key passed through because no valid suggestion was ready.")
         }
 
         guard snapshot.selection.length == 0 else {
-            return SessionValidation(session: nil, failureReason: "Key passed through because text is currently selected.")
+            return .rejected("Key passed through because text is currently selected.")
         }
 
         guard SuggestionSessionReconciler.overlayAllowsAcceptance(
@@ -218,9 +221,8 @@ final class SuggestionInteractionState {
             overlayState: overlayState,
             heldPresentationText: heldPresentationText
         ) else {
-            return SessionValidation(
-                session: nil,
-                failureReason: "Key passed through because no visible ghost text matched the ready suggestion."
+            return .rejected(
+                "Key passed through because no visible ghost text matched the ready suggestion."
             )
         }
 
@@ -228,33 +230,26 @@ final class SuggestionInteractionState {
         let sessionForAcceptance: ActiveSuggestionSession
 
         if overlayState.isVisible {
-            switch SuggestionSessionReconciler.reconcile(
-                session: activeSession,
-                with: liveContext,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount,
-                pendingTypedConsumedRange: pendingTypedConsumedRange
-            ) {
+            switch SuggestionSessionReconciler.reconcile(session: activeSession, with: liveContext, lag: publicationLag) {
             case .invalid(let reason):
-                return SessionValidation(session: nil, failureReason: reason)
+                return .rejected(reason)
 
-            case let .valid(reconciledSession, _, nextPendingInsertionConsumedCount):
+            case let .valid(reconciledSession, _, nextLag):
                 self.activeSession = reconciledSession
-                pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
-                clearPublishedTypedInput(in: liveContext, session: reconciledSession)
+                publicationLag = nextLag
                 sessionForAcceptance = reconciledSession
             }
         } else {
             guard liveContext.sessionIdentity.continues(activeSession.baseContext.sessionIdentity) else {
-                return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
+                return .rejected("Key passed through because the focused field changed.")
             }
 
             sessionForAcceptance = activeSession
         }
 
         guard !sessionForAcceptance.isExhausted else {
-            return SessionValidation(
-                session: nil,
-                failureReason: "Key passed through because no remaining suggestion text was available."
+            return .rejected(
+                "Key passed through because no remaining suggestion text was available."
             )
         }
 
@@ -266,33 +261,32 @@ final class SuggestionInteractionState {
         let reconciledAdvance = sessionForAcceptance.consumedCharacterCount - activeSession.consumedCharacterCount
         let previouslyOfferedTail = String(activeSession.remainingText.dropFirst(max(reconciledAdvance, 0)))
         guard sessionForAcceptance.remainingText == previouslyOfferedTail else {
-            return SessionValidation(
-                session: nil,
-                failureReason: "Key passed through because the next buffered word has not been shown yet."
+            return .rejected(
+                "Key passed through because the next buffered word has not been shown yet."
             )
         }
 
-        return SessionValidation(session: (liveContext, sessionForAcceptance), failureReason: nil)
+        return .accepted(liveContext: liveContext, session: sessionForAcceptance)
     }
 
-    /// Advances the active session after a successful insertion and updates the AX-lag sentinel.
+    /// Advances the active session after a successful insertion and opens the publication window
+    /// for it.
     func commitAcceptedChunk(
         _ acceptedChunk: String,
         liveContext: FocusedInputContext,
         session: ActiveSuggestionSession
     ) -> SuggestionAcceptedChunkProgress {
         let advancedSession = session.advancing(by: acceptedChunk.count)
-        pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
-        // The new synthetic insert now owns publication of the entire consumed prefix, including
-        // any matching characters typed immediately before this accept.
-        pendingTypedConsumedRange = nil
 
         if advancedSession.isExhausted {
-            pendingInsertionConsumedCount = nil
+            publicationLag = .settled
             activeSession = nil
             return .exhausted(generation: liveContext.generation)
         }
 
+        // The new synthetic insert now owns publication of the entire consumed prefix, including
+        // any matching characters typed immediately before this accept.
+        publicationLag = .awaitingSyntheticInsert(consumedCount: advancedSession.consumedCharacterCount)
         activeSession = advancedSession
         return .advanced(session: advancedSession, generation: liveContext.generation)
     }
@@ -304,8 +298,8 @@ final class SuggestionInteractionState {
     /// character the session already counts as consumed, and the reconciler would read that as
     /// the user undoing part of the suggestion (measured in the Claude composer, 2026-09-10: the
     /// ghost vanished right after "the" was typed through and came back on the next keystroke).
-    /// The same sentinel a Tab insert arms covers this lag: the reconciler tolerates a shorter
-    /// live text until it catches up, then clears it.
+    /// The publication lag covers this the way it covers a Tab insert: the reconciler tolerates a
+    /// shorter live text until it catches up, then settles.
     func advanceIfTypedCharactersMatch(
         _ typedCharacters: String,
         expectedSession: ActiveSuggestionSession
@@ -321,28 +315,8 @@ final class SuggestionInteractionState {
         }
 
         self.activeSession = advancedSession
-        if pendingInsertionConsumedCount != nil {
-            // A matching key can arrive before a preceding Tab insert publishes. Keep that existing
-            // insertion window aimed at the latest consumed prefix instead of disabling it merely
-            // because the user typed one more expected character.
-            pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
-        } else if !advancedSession.isExhausted {
-            // An exhausted session is retired on the next reconcile; arming a lag window for it
-            // would only outlive the session it protects.
-            let firstUnpublishedCount = pendingTypedConsumedRange?.lowerBound ?? activeSession.consumedCharacterCount
-            pendingTypedConsumedRange = firstUnpublishedCount..<advancedSession.consumedCharacterCount
-        }
+        publicationLag = publicationLag.afterTypedAdvance(from: activeSession, to: advancedSession)
         return advancedSession
-    }
-
-    /// Retires typed-input tolerance as soon as AX contains the expected prefix. Later deletion of
-    /// those letters is then a real edit again, not an indefinitely tolerated publication delay.
-    private func clearPublishedTypedInput(in context: FocusedInputContext, session: ActiveSuggestionSession) {
-        guard let count = pendingTypedConsumedRange?.upperBound else { return }
-        let expectedPrefix = session.baseContext.precedingText + String(session.fullText.prefix(count))
-        if context.precedingText.hasPrefix(expectedPrefix) {
-            pendingTypedConsumedRange = nil
-        }
     }
 }
 

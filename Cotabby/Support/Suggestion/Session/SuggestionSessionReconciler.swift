@@ -15,12 +15,12 @@ struct SuggestionSessionAdvancement: Equatable, Sendable {
 }
 
 enum SuggestionSessionReconciliation: Equatable, Sendable {
-    /// `nextPendingInsertionConsumedCount` carries the updated AX-lag sentinel back to the
-    /// coordinator. The reconciler derives it, but the coordinator remains the owner of storage.
+    /// `nextLag` carries the updated publication lag back to its owner. The reconciler derives
+    /// it; `SuggestionInteractionState` stores it.
     case valid(
         session: ActiveSuggestionSession,
         advancement: SuggestionSessionAdvancement?,
-        nextPendingInsertionConsumedCount: Int?
+        nextLag: HostPublicationLag
     )
     case invalid(String)
 }
@@ -49,15 +49,33 @@ enum SuggestionSessionReconciler {
         return session.advancing(by: typedCharacters.count)
     }
 
-    /// Reconciles the active suggestion session with live AX editor state while preserving the
-    /// current lag-tolerance sentinel for recently injected text.
+    /// Reconciles the active suggestion session with live AX editor state, tolerating the text
+    /// the host is still known to owe (`lag`) and reporting what it owes afterwards.
     static func reconcile(
         session: ActiveSuggestionSession,
         with liveContext: FocusedInputContext,
-        pendingInsertionConsumedCount: Int?,
-        pendingTypedConsumedRange: Range<Int>? = nil
+        lag: HostPublicationLag
     ) -> SuggestionSessionReconciliation {
-        let isAwaitingInsertedTextSync = pendingInsertionConsumedCount == session.consumedCharacterCount
+        switch reconcileText(session: session, with: liveContext, lag: lag) {
+        case let .valid(reconciledSession, advancement, nextLag):
+            return .valid(
+                session: reconciledSession,
+                advancement: advancement,
+                nextLag: nextLag.retiringPublishedTypedInput(in: liveContext, session: reconciledSession)
+            )
+        case let .invalid(reason):
+            return .invalid(reason)
+        }
+    }
+
+    private static func reconcileText(
+        session: ActiveSuggestionSession,
+        with liveContext: FocusedInputContext,
+        lag: HostPublicationLag
+    ) -> SuggestionSessionReconciliation {
+        // The synthetic-insert window only covers the insert it was armed for: once the session
+        // has moved past that consumed count, a stale snapshot is no longer explained by it.
+        let isAwaitingInsertedTextSync = lag == .awaitingSyntheticInsert(consumedCount: session.consumedCharacterCount)
 
         // Text may be identical in two conversations. Validate the writing session before even
         // the post-insertion AX-lag tolerance, which must never authorize a different target.
@@ -76,7 +94,7 @@ enum SuggestionSessionReconciler {
         if let trailingTextReconciliation = reconcileTrailingText(
             text: text,
             session: session,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+            lag: lag,
             isAwaitingInsertedTextSync: isAwaitingInsertedTextSync
         ) {
             return trailingTextReconciliation
@@ -85,29 +103,28 @@ enum SuggestionSessionReconciler {
         if let prefixReconciliation = reconcilePrefixAnchor(
             text: text,
             session: session,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+            lag: lag,
             isAwaitingInsertedTextSync: isAwaitingInsertedTextSync
         ) {
             return prefixReconciliation
         }
 
-        var nextPendingInsertionConsumedCount = pendingInsertionConsumedCount
+        var nextLag = lag
         let consumedSuffix = String(
             Self.spaceNormalized(text.livePreceding).dropFirst(text.basePreceding.count)
         )
         if let consumedTextReconciliation = reconcileConsumedSuggestionText(
             session: session,
             consumedSuffix: consumedSuffix,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+            lag: lag,
             isAwaitingInsertedTextSync: isAwaitingInsertedTextSync
         ) {
             return consumedTextReconciliation
         }
 
-        // AX caught up (or never lagged) — clear the sentinel.
-        if nextPendingInsertionConsumedCount != nil,
-           consumedSuffix.count >= session.consumedCharacterCount {
-            nextPendingInsertionConsumedCount = nil
+        // AX caught up with the synthetic insert.
+        if case .awaitingSyntheticInsert = lag, consumedSuffix.count >= session.consumedCharacterCount {
+            nextLag = .settled
         }
 
         guard consumedSuffix.count >= session.consumedCharacterCount else {
@@ -115,20 +132,15 @@ enum SuggestionSessionReconciler {
             // is therefore expected until that character publishes. Unlike synthetic insertion,
             // ordinary typing never excuses a changed prefix, suffix, selection, or focus event:
             // all those guards have already passed before this narrowly scoped tolerance applies.
-            if pendingTypedConsumedRange?.upperBound == session.consumedCharacterCount,
-               pendingTypedConsumedRange?.contains(consumedSuffix.count) == true,
+            if case let .awaitingTypedInput(unpublished) = lag,
+               unpublished.upperBound == session.consumedCharacterCount,
+               unpublished.contains(consumedSuffix.count),
                liveContext.focusChangeSequence == session.baseContext.focusChangeSequence {
-                return tolerateTransientPostInsertionLag(
-                    session: session,
-                    pendingInsertionConsumedCount: pendingInsertionConsumedCount
-                )
+                return tolerateTransientPostInsertionLag(session: session, lag: lag)
             }
             // Same AX lag protection: if we just Tab-inserted, the preceding text hasn't updated yet.
             if isAwaitingInsertedTextSync {
-                return tolerateTransientPostInsertionLag(
-                    session: session,
-                    pendingInsertionConsumedCount: pendingInsertionConsumedCount
-                )
+                return tolerateTransientPostInsertionLag(session: session, lag: lag)
             }
 
             return .invalid("Overlay hidden because the active suggestion was partially undone.")
@@ -139,7 +151,7 @@ enum SuggestionSessionReconciler {
             return .valid(
                 session: reconciledSession,
                 advancement: nil,
-                nextPendingInsertionConsumedCount: nextPendingInsertionConsumedCount
+                nextLag: nextLag
             )
         }
 
@@ -148,7 +160,7 @@ enum SuggestionSessionReconciler {
             advancement: SuggestionSessionAdvancement(
                 advancedBy: consumedSuffix.count - session.consumedCharacterCount
             ),
-            nextPendingInsertionConsumedCount: nextPendingInsertionConsumedCount
+            nextLag: nextLag
         )
     }
 
@@ -209,15 +221,13 @@ enum SuggestionSessionReconciler {
         }
     }
 
+    /// Keeps the session and the lag exactly as they were: the snapshot is older than the text
+    /// the session already counts, so it proves nothing about either.
     private static func tolerateTransientPostInsertionLag(
         session: ActiveSuggestionSession,
-        pendingInsertionConsumedCount: Int?
+        lag: HostPublicationLag
     ) -> SuggestionSessionReconciliation {
-        .valid(
-            session: session,
-            advancement: nil,
-            nextPendingInsertionConsumedCount: pendingInsertionConsumedCount
-        )
+        .valid(session: session, advancement: nil, nextLag: lag)
     }
 
     /// Text with every non-breaking space read as a plain space. Chromium's contenteditable stores
@@ -233,7 +243,7 @@ enum SuggestionSessionReconciler {
     private static func reconcileTrailingText(
         text: ComparedText,
         session: ActiveSuggestionSession,
-        pendingInsertionConsumedCount: Int?,
+        lag: HostPublicationLag,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
         guard spaceNormalized(text.liveTrailing) != spaceNormalized(text.baseTrailing) else {
@@ -245,10 +255,7 @@ enum SuggestionSessionReconciler {
         // look changed even though the active suggestion tail is still valid.
         if isAwaitingInsertedTextSync,
            spaceNormalized(text.livePreceding).hasPrefix(spaceNormalized(text.basePreceding)) {
-            return tolerateTransientPostInsertionLag(
-                session: session,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount
-            )
+            return tolerateTransientPostInsertionLag(session: session, lag: lag)
         }
 
         let before = (text.baseTrailing as NSString).length
@@ -259,7 +266,7 @@ enum SuggestionSessionReconciler {
     private static func reconcilePrefixAnchor(
         text: ComparedText,
         session: ActiveSuggestionSession,
-        pendingInsertionConsumedCount: Int?,
+        lag: HostPublicationLag,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
         guard !spaceNormalized(text.livePreceding).hasPrefix(spaceNormalized(text.basePreceding)) else {
@@ -270,10 +277,7 @@ enum SuggestionSessionReconciler {
         // prefix before the caret still reflects the pre-insertion snapshot. In that case we wait
         // for AX to settle instead of eagerly killing the session.
         if isAwaitingInsertedTextSync {
-            return tolerateTransientPostInsertionLag(
-                session: session,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount
-            )
+            return tolerateTransientPostInsertionLag(session: session, lag: lag)
         }
 
         return .invalid("Overlay hidden because text before the caret no longer matches the suggestion anchor.")
@@ -282,7 +286,7 @@ enum SuggestionSessionReconciler {
     private static func reconcileConsumedSuggestionText(
         session: ActiveSuggestionSession,
         consumedSuffix: String,
-        pendingInsertionConsumedCount: Int?,
+        lag: HostPublicationLag,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
         guard !spaceNormalized(session.fullText).hasPrefix(consumedSuffix) else {
@@ -292,10 +296,7 @@ enum SuggestionSessionReconciler {
         // If we just inserted via Tab, AX may still show stale text. Trust the sentinel for one
         // reconciliation cycle instead of invalidating the whole session.
         if isAwaitingInsertedTextSync {
-            return tolerateTransientPostInsertionLag(
-                session: session,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount
-            )
+            return tolerateTransientPostInsertionLag(session: session, lag: lag)
         }
 
         return .invalid("Overlay hidden because typed text diverged from the active suggestion.")

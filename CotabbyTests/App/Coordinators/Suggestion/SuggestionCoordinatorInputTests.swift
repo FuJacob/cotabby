@@ -328,7 +328,7 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             CapturedInputEvent(kind: .textMutation, keyCode: 37, characters: "l", flags: [])
         )
 
-        XCTAssertEqual(rig.coordinator.pendingSpeculativeContext?.precedingText, "Thanks for the quick repl")
+        XCTAssertEqual(rig.coordinator.speculativeBet.expected?.precedingText, "Thanks for the quick repl")
         XCTAssertEqual(rig.coordinator.state, .generating)
         await waitUntil("The speculative request never reached the engine") {
             !rig.engine.requests.isEmpty
@@ -359,11 +359,11 @@ final class SuggestionCoordinatorInputTests: SuggestionCoordinatorRigTestCase {
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Thanks for the quick rep")
         ))
         _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: []))
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "Backspace has no character to speculate with")
+        XCTAssertNil(rig.coordinator.speculativeBet.expected, "Backspace has no character to speculate with")
 
         rig.coordinator.userDefaults.set(true, forKey: SuggestionCoordinator.speculativePrefetchDisabledDefaultsKey)
         _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 37, characters: "l", flags: []))
-        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "The kill switch must skip typing speculation")
+        XCTAssertNil(rig.coordinator.speculativeBet.expected, "The kill switch must skip typing speculation")
     }
 
     func test_handleSupportedSnapshot_withoutContextDisablesOutright() {

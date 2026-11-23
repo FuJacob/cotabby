@@ -132,7 +132,7 @@ final class SuggestionSessionTypingTests: XCTestCase {
             )
             let live = CotabbyTestFixtures.focusedInputContext(precedingText: capture.text)
             let result = SuggestionSessionReconciler.reconcile(
-                session: advanced, with: live, pendingInsertionConsumedCount: nil
+                session: advanced, with: live, lag: .settled
             )
             guard case let .valid(reconciled, _, _) = result else {
                 return XCTFail("Mail's space representation invalidated the suggestion: \(result)")

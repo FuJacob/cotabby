@@ -101,7 +101,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             )
 
             XCTAssertEqual(state.activeSession, session)
-            XCTAssertNil(state.pendingInsertionConsumedCount)
+            XCTAssertEqual(state.publicationLag, .settled)
             XCTAssertFalse(state.isAwaitingPostInsertionSync)
         }
     }
@@ -235,7 +235,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             XCTAssertEqual(advancedSession.acceptedText, " world")
             XCTAssertEqual(advancedSession.remainingText, " again")
             XCTAssertEqual(state.activeSession, advancedSession)
-            XCTAssertEqual(state.pendingInsertionConsumedCount, 6)
+            XCTAssertEqual(state.publicationLag, .awaitingSyntheticInsert(consumedCount: 6))
             XCTAssertTrue(state.isAwaitingPostInsertionSync)
         }
     }
@@ -258,7 +258,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             }
             XCTAssertEqual(generation, 4)
             XCTAssertNil(state.activeSession)
-            XCTAssertNil(state.pendingInsertionConsumedCount)
+            XCTAssertEqual(state.publicationLag, .settled)
         }
     }
 

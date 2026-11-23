@@ -14,15 +14,34 @@ nonisolated struct TypingPredictionCandidate {
 
     let context: FocusedInputContext
     private let requiresInitialPrediction: Bool
+    /// What the request has produced so far. Nothing is accepted after the final answer, so
+    /// a complete answer cannot exist without a result.
+    private nonisolated enum Answer {
+        case pending
+        case partial(SuggestionResult)
+        case complete(SuggestionResult)
+    }
+
     private(set) var typedText = ""
-    private(set) var latestResult: SuggestionResult?
-    private(set) var isFinal = false
+    private var answer: Answer = .pending
     private(set) var lastInputAt: TimeInterval?
     private var behindSince: TimeInterval?
 
     init(context: FocusedInputContext, requiresInitialPrediction: Bool = false) {
         self.context = context
         self.requiresInitialPrediction = requiresInitialPrediction
+    }
+
+    var latestResult: SuggestionResult? {
+        switch answer {
+        case .pending: return nil
+        case let .partial(result), let .complete(result): return result
+        }
+    }
+
+    var isFinal: Bool {
+        if case .complete = answer { return true }
+        return false
     }
 
     /// Accepts a host observation along the exact append path, including an older published
@@ -72,8 +91,7 @@ nonisolated struct TypingPredictionCandidate {
         guard result.generation == context.generation, !isFinal else { return false }
         if !final, let latestResult, !result.text.hasPrefix(latestResult.text) { return true }
         guard result.text.hasPrefix(typedText) || (!final && typedText.hasPrefix(result.text)) else { return false }
-        latestResult = result
-        isFinal = final
+        answer = final ? .complete(result) : .partial(result)
         if result.text.hasPrefix(typedText) { behindSince = nil }
         return true
     }
