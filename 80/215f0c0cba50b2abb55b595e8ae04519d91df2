@@ -1,0 +1,23 @@
+Cotabby/Support/Prompting/PromptSectionBudget.swift
+  s_b9af9eb54478c8::t_47cab145182a6f 46-48,50
+Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift
+  s_b9af9eb54478c8::t_4ec11a6a4e8842 61
+Cotabby/Support/Prompting/ControlTokenMarkers.swift
+  s_b9af9eb54478c8::t_4171c82e54a9b0 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80215f0c0cba50b2abb55b595e8ae04519d91df2",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
