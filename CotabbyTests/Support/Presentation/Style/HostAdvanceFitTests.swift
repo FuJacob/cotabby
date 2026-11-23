@@ -107,4 +107,44 @@ final class HostAdvanceFitTests: XCTestCase {
         let fit = try XCTUnwrap(HostAdvanceFit.fit(captures, face: face, minimumSpan: HostAdvanceFit.singleLineMinimumSpan))
         XCTAssertEqual(fit.pointSize, 14.51, accuracy: 0.15)
     }
+
+    /// Discord's composer (2026-11-22): the stand-in was sized 20.5 from a 24pt line box, the host
+    /// painted about 17.2 at its 1.375 line height. A size guessed from the caret's box takes that
+    /// fit; a size the host or an earlier fit gave keeps the tight bound and refuses it.
+    func testACaretBoxGuessTakesAFitWellBelowIt() throws {
+        let guessed = try XCTUnwrap(NSFont(name: "Helvetica", size: 20.5))
+        var fit = HostAdvanceFit()
+        var measured = HostAdvanceFit()
+        for capture in captures(hostSize: 17.22, from: 4) {
+            _ = fit.record(
+                text: capture.text, caretX: capture.caretX, lineKey: "line", face: guessed,
+                maximumShrink: HostAdvanceFit.caretBoxGuessMaximumShrink
+            )
+            _ = measured.record(text: capture.text, caretX: capture.caretX, lineKey: "line", face: guessed)
+        }
+        XCTAssertEqual(try XCTUnwrap(fit.adopted).pointSize, 17.22, accuracy: 0.04)
+        XCTAssertNil(measured.adopted, "16% below a measured size is another line or face")
+    }
+
+    /// A line box bounds its text from above, so a fit above the guess is a wider family measured
+    /// in the stand-in (a monospace host), and is refused however far down the guess may move.
+    func testACaretBoxGuessIsNeverFittedUpward() throws {
+        let guessed = try XCTUnwrap(NSFont(name: "Helvetica", size: 15))
+        var fit = HostAdvanceFit()
+        for capture in captures(hostSize: 17, from: 4) {
+            _ = fit.record(
+                text: capture.text, caretX: capture.caretX, lineKey: "line", face: guessed,
+                maximumShrink: HostAdvanceFit.caretBoxGuessMaximumShrink
+            )
+        }
+        XCTAssertNil(fit.adopted)
+    }
+
+    func testTheShrinkBoundStopsAtItsLimit() {
+        let bound = HostAdvanceFit.caretBoxGuessMaximumShrink
+        XCTAssertTrue(HostAdvanceFit.accepts(fittedSize: 14.5, assumedSize: 20, maximumShrink: bound))
+        XCTAssertFalse(HostAdvanceFit.accepts(fittedSize: 13.5, assumedSize: 20, maximumShrink: bound))
+        XCTAssertTrue(HostAdvanceFit.accepts(fittedSize: 21, assumedSize: 20, maximumShrink: bound))
+        XCTAssertFalse(HostAdvanceFit.accepts(fittedSize: 21.5, assumedSize: 20, maximumShrink: bound))
+    }
 }

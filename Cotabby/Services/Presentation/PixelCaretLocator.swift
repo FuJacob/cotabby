@@ -64,7 +64,7 @@ final class PixelCaretLocator {
         var font: NSFont?
         /// Whether a fresh capture for this request feeds its field's advance fit (see
         /// `HostAdvanceFit`): set by the caller for a web field that reports no size, in a face its
-        /// pixels named or, in a single-line field, its stand-in (`HostTypefaceResolver.takesHostAdvance`).
+        /// pixels named or in its stand-in (`HostTypefaceResolver.takesHostAdvance`).
         var recordsAdvance = false
         /// True when text follows the caret on its line, so the caret is not where the line's ink
         /// ends: it is found among the painted lines from the text before it (see
@@ -76,6 +76,9 @@ final class PixelCaretLocator {
         /// Host advance the field's fit must span before it is adopted: `HostAdvanceFit.minimumSpan`
         /// for a paragraph's line, `singleLineMinimumSpan` for a single-line field's shorter text.
         var advanceFitMinimumSpan: CGFloat = HostAdvanceFit.minimumSpan
+        /// How far below `font`'s size the field's fit may land: `HostAdvanceFit.maximumDeviation`,
+        /// or `caretBoxGuessMaximumShrink` while that size is only a guess from the caret's box.
+        var advanceFitMaximumShrink: CGFloat = HostAdvanceFit.maximumDeviation
 
         /// Identifies the run (field, left edge, top and height) independently of its text and
         /// width: a one-line run's frame widens as the host catches up with the typing, while a
