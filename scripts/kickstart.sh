@@ -42,7 +42,9 @@ APPS=("com.jacobfu.tabby|Cotabby" "com.jacobfu.tabby.dev|Cotabby Dev")
 MODEL_DIRS=("LlamaRuntime" "MlxRuntime")
 OUT_DIR="$REPO_ROOT/build/kickstart"
 DMG_PATH="$OUT_DIR/Cotabby.dmg"
-VENV_DIR="/tmp/Cotabby-dmg-venv"
+# Inside the checkout, not a fixed /tmp path: /tmp is shared by every account on the Mac, and a venv
+# planted there would run as you right before Developer ID signing.
+VENV_DIR="$REPO_ROOT/build/dmg-venv"
 # Local builds are stamped far above any CI run number so Sparkle never offers to "update" the
 # test build back to the latest public release mid-walkthrough.
 BUILD_NUMBER=999999

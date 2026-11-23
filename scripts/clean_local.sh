@@ -11,7 +11,16 @@ echo "=== Cotabby Local Cleanup ==="
 # --- 1. Kill any running Cotabby processes ---
 echo ""
 echo "Killing running Cotabby processes..."
-pkill -f "Cotabby" 2>/dev/null && echo "  Killed running processes." || echo "  No running processes found."
+# Match process names exactly (as kickstart.sh does). `pkill -f Cotabby` matched any command line
+# containing the word, so it also killed Xcode builds, test runners, and editors with the repo open.
+killed=false
+for name in "Cotabby" "Cotabby Dev"; do
+    pkill -x "$name" 2>/dev/null && killed=true
+done
+# Sparkle's helpers run under their own names but carry the bundle id in their arguments.
+pkill -f "com.jacobfu.tabby/org.sparkle-project" 2>/dev/null && killed=true
+pkill -f "Autoupdate com.jacobfu.tabby" 2>/dev/null && killed=true
+$killed && echo "  Killed running processes." || echo "  No running processes found."
 
 # --- 2. Reset TCC permissions ---
 echo ""

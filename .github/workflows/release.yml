@@ -73,10 +73,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Pinned to the newest Xcode on the macos-26 image (also what latest-stable
+      # resolved to), so a runner image update can't silently change the
+      # toolchain that builds what users install. '26.6' matches any 26.6.x.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.6'
 
       - name: Select Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -91,14 +94,18 @@ jobs:
           xcodebuild -version
           swift --version
 
-      # Package.resolved is gitignored, so SwiftPM must materialize it before
-      # the next step can read the Sparkle pin out of it (mirrors build.yml).
+      # prepare_cotabby_workspace.sh copies Config/Package.resolved into the
+      # workspace. -onlyUsePackageVersionsFromResolvedFile makes SwiftPM fail
+      # instead of quietly re-resolving if that file no longer satisfies the
+      # project, so a release can never pick up a package version nobody pinned
+      # (mirrors build.yml and scripts/build_and_run.sh).
       - name: Resolve Swift package dependencies
         run: |
           xcodebuild \
             -workspace "${WORKSPACE_PATH}" \
             -scheme "${SCHEME}" \
             -derivedDataPath build/DerivedData \
+            -onlyUsePackageVersionsFromResolvedFile \
             -resolvePackageDependencies
 
       - name: Install DMG packaging dependencies
@@ -314,6 +321,7 @@ jobs:
           # string including the channel tag.
           xcodebuild archive \
             -workspace "${WORKSPACE_PATH}" \
+            -onlyUsePackageVersionsFromResolvedFile \
             -scheme "${SCHEME}" \
             -configuration "${CONFIGURATION}" \
             -archivePath "build/${APP_NAME}.xcarchive" \
