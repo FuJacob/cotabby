@@ -5,17 +5,28 @@ import Foundation
 /// suggestion session. This includes the buffered focused-input context, the active suggestion
 /// session, and how far the host's published text trails that session.
 ///
-/// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
-/// not store every mutable implementation detail itself. This type becomes the home for that
-/// lower-level session/context state.
+/// `SuggestionCoordinator` decides when a session starts, advances, or ends; this type owns how,
+/// so a session and its publication lag always change together.
 @MainActor
 final class SuggestionInteractionState {
     private let contextBuffer: ContextBuffer
 
-    private(set) var activeSession: ActiveSuggestionSession?
-    /// Meaningful only while a session is active; every path that drops or replaces the session
-    /// settles it.
-    private(set) var publicationLag: HostPublicationLag = .settled
+    /// The session and how far the host's published text trails it, held as one value: a lag is
+    /// only meaningful against the session it was measured for, so it cannot outlive that session.
+    private struct TrackedSession {
+        var session: ActiveSuggestionSession
+        var lag: HostPublicationLag
+    }
+
+    private var tracked: TrackedSession?
+
+    var activeSession: ActiveSuggestionSession? {
+        tracked?.session
+    }
+
+    var publicationLag: HostPublicationLag {
+        tracked?.lag ?? .settled
+    }
 
     init(contextBuffer: ContextBuffer? = nil) {
         // Default argument evaluation happens before entering the actor-isolated initializer body,
@@ -38,8 +49,7 @@ final class SuggestionInteractionState {
     }
 
     func clearSuggestion() {
-        activeSession = nil
-        publicationLag = .settled
+        tracked = nil
     }
 
     func resetAll() {
@@ -63,8 +73,7 @@ final class SuggestionInteractionState {
             latency: latency,
             kind: kind
         )
-        activeSession = session
-        publicationLag = .settled
+        tracked = TrackedSession(session: session, lag: .settled)
         return session
     }
 
@@ -81,7 +90,7 @@ final class SuggestionInteractionState {
               let extendedSession = activeSession.extendingPrediction(to: fullText) else {
             return nil
         }
-        self.activeSession = extendedSession
+        tracked?.session = extendedSession
         return extendedSession
     }
 
@@ -107,8 +116,7 @@ final class SuggestionInteractionState {
         let liveContext = contextBuffer.materialize(from: snapshot)
         switch SuggestionSessionReconciler.reconcile(session: activeSession, with: liveContext, lag: publicationLag) {
         case let .valid(reconciledSession, advancement, nextLag):
-            self.activeSession = reconciledSession
-            publicationLag = nextLag
+            tracked = TrackedSession(session: reconciledSession, lag: nextLag)
             return .valid(
                 liveContext: liveContext,
                 session: reconciledSession,
@@ -235,8 +243,7 @@ final class SuggestionInteractionState {
                 return .rejected(reason)
 
             case let .valid(reconciledSession, _, nextLag):
-                self.activeSession = reconciledSession
-                publicationLag = nextLag
+                tracked = TrackedSession(session: reconciledSession, lag: nextLag)
                 sessionForAcceptance = reconciledSession
             }
         } else {
@@ -278,15 +285,16 @@ final class SuggestionInteractionState {
         let advancedSession = session.advancing(by: acceptedChunk.count)
 
         if advancedSession.isExhausted {
-            publicationLag = .settled
-            activeSession = nil
+            tracked = nil
             return .exhausted
         }
 
         // The new synthetic insert now owns publication of the entire consumed prefix, including
         // any matching characters typed immediately before this accept.
-        publicationLag = .awaitingSyntheticInsert(consumedCount: advancedSession.consumedCharacterCount)
-        activeSession = advancedSession
+        tracked = TrackedSession(
+            session: advancedSession,
+            lag: .awaitingSyntheticInsert(consumedCount: advancedSession.consumedCharacterCount)
+        )
         return .advanced(session: advancedSession)
     }
 
@@ -313,8 +321,10 @@ final class SuggestionInteractionState {
             return nil
         }
 
-        self.activeSession = advancedSession
-        publicationLag = publicationLag.afterTypedAdvance(from: activeSession, to: advancedSession)
+        tracked = TrackedSession(
+            session: advancedSession,
+            lag: publicationLag.afterTypedAdvance(from: activeSession, to: advancedSession)
+        )
         return advancedSession
     }
 }

@@ -3,8 +3,8 @@ import Foundation
 
 /// File overview:
 /// Declares the shared state and dependency graph for Cotabby's inline-completion orchestrator.
-/// The behavior now lives in `SuggestionCoordinator+*.swift` files so maintainers can read the
-/// state machine by concern instead of scrolling through one monolithic source file.
+/// The behavior lives in `SuggestionCoordinator+*.swift` files so maintainers can read the state
+/// machine by concern instead of scrolling through one monolithic source file.
 ///
 /// Swift does not offer a "type-private across multiple files" access level. Because this
 /// coordinator is split across extension files, coordinator-owned mutable state uses module
