@@ -1,0 +1,112 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_e4dcd82be45504 79,164,526,595,728,943,1257,1294,1316,1319,1843,2072,2204,3850,4227,4426,4589,4788,4924,5043
+  s_b9af9eb54478c8::t_71ea3c6a8270c6 78,303,826,872,948,976,1005,1061,1160,1461,1498,1609,1705,2073,2205,2404,2407,3698,4135,4291,4353,4497,4653,4715,4856,4975
+Cotabby/Models/Settings/SuggestionSettingsData.swift
+  s_b9af9eb54478c8::t_f2645fc058c836 140-142,155-303
+Cotabby/Models/Settings/SuggestionSettingsModel.swift
+  s_b9af9eb54478c8::t_44cfbf0a2d57a5 111-113,320-322,585-598,1226,1417-1420,1598,1709-1712,1755
+  s_b9af9eb54478c8::t_54eedff9b2e4bb 154-160,163,293-298,380-385,493-495,497,661,663-677,681-686,688-689,693-698,702-707,711-716,720-728,730-732,737-738,744-745,747,749,971-1010,1018,1024,1030,1038,1048,1053,1457-1458,1462,1466-1467,1471,1475-1476,1480-1481,1506-1508,1515,1524-1545,1551,1555-1556,1561,1658,1689,1695,1698,1700,1702,1765
+Cotabby/Support/Settings/FadeSpeedAxis.swift
+  s_b9af9eb54478c8::t_e700f6ff6467c5 1-15
+Cotabby/Support/Settings/SettingsAttentionEvaluator.swift
+  s_b9af9eb54478c8::t_ae1a10e31299fd 4-5,8-10,14
+Cotabby/Support/Settings/SuggestionSettingsStore.swift
+  s_b9af9eb54478c8::t_b028f63f73ad48 210-215,305,315,317,323,325,328,332-341,344,351-352,364,371,375,378,382-383,392,395,397,400,403,407,441-448,450,453,455-460,463,465,467,471,526,528,530-532,536,734-773,1150,1186,1191-1194,1203-1208,1268-1277,1338-1348
+Cotabby/UI/Settings/Components/Controls/AcceptanceModePickerView.swift
+  s_b9af9eb54478c8::t_2939a9e5748bc5 9
+Cotabby/UI/Settings/Components/Controls/GhostTextPreview.swift
+  s_b9af9eb54478c8::t_12ebf0321cdcb3 32-34
+Cotabby/UI/Settings/Components/Structure/SettingsPaneScaffold.swift
+  s_b9af9eb54478c8::t_eaf21585078654 9,94
+Cotabby/UI/Settings/Components/Structure/SuggestionSettingsModel+Binding.swift
+  s_b9af9eb54478c8::t_6494b60ebc259c 1-17
+Cotabby/UI/Settings/ModelManagement/DownloadableModelCatalogView.swift
+  s_b9af9eb54478c8::t_b85262f04ace4d 90-95
+Cotabby/UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift
+  s_b9af9eb54478c8::t_271ac9467bd297 3-5,239-245
+Cotabby/UI/Settings/ModelManagement/ModelDownloadTransferControls.swift
+  s_b9af9eb54478c8::t_c548357f08288a 3-54
+Cotabby/UI/Settings/Panes/AppearancePaneView.swift
+  s_b9af9eb54478c8::t_dff9f0550a60e0 6-7,16,31-35,45,84,93,103,112,170-171,184-190,200,211-217,229-235,247-253,267-286,289,295,298-299
+Cotabby/UI/Settings/Panes/AppsPaneView.swift
+  s_b9af9eb54478c8::t_73cbeea8f1a955 62,369-384,391-392,394-395,398-399,410,441,443-447
+  s_b9af9eb54478c8::t_70398bb38b72ab 232
+Cotabby/UI/Settings/Panes/ContextPaneView.swift
+  s_b9af9eb54478c8::t_3fa092eedd9005 69,73,119,177
+Cotabby/UI/Settings/Panes/EmojiPaneView.swift
+  s_b9af9eb54478c8::t_7bf4fba11a2954 14,78-82,88-92,94-105,107,133-134
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Actions.swift
+  s_b9af9eb54478c8::t_9cfdbb1e2ee0c9 24-25
+Cotabby/UI/Settings/Panes/GeneralPaneView.swift
+  s_b9af9eb54478c8::t_2e08973d7dc173 21,58,67,79,89,99,109,118
+Cotabby/UI/Settings/Panes/HomePaneView.swift
+  s_b9af9eb54478c8::t_853d89ba270b51 23,45,112,146,152,162,189,200,236,256
+Cotabby/UI/Settings/Panes/PerformancePaneView.swift
+  s_b9af9eb54478c8::t_a630fa9189346d 5,24
+Cotabby/UI/Settings/Panes/PermissionsPaneView.swift
+  s_b9af9eb54478c8::t_5f275f94df56b2 4
+Cotabby/UI/Settings/Panes/ShortcutsPaneView.swift
+  s_b9af9eb54478c8::t_32bf1cc3f1d214 4-6,115
+  s_b9af9eb54478c8::t_2663238043dcbd 10-13,26-27,71-72,128-129,180-194,198
+Cotabby/UI/Settings/Panes/WritingPaneView.swift
+  s_b9af9eb54478c8::t_d38d077695624e 4,52,62,83,96,105
+Cotabby/UI/Settings/SettingsCategory.swift
+  s_b9af9eb54478c8::t_1514136da4e06f 114-133
+Cotabby/UI/Settings/SettingsContainerView.swift
+  s_b9af9eb54478c8::t_9d5a5fa569a852 4,78,101
+Cotabby/UI/Settings/SettingsIndex.swift
+  s_b9af9eb54478c8::t_298efdf087953d 701-724
+Cotabby/UI/Settings/SettingsSidebarView.swift
+  s_b9af9eb54478c8::t_f14b71e3ef729c 4,11-13,24,31,49-50,57,61,63,80,85,132,135,154,160
+CotabbyTests/Models/Settings/SuggestionSettingsDomainTests.swift
+  s_b9af9eb54478c8::t_6122bde0cb87da 4-6
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_068581ba461c66 580-599,636,639,642
+  s_b9af9eb54478c8::t_15c79a29e71550 126-131,244-249,334-336,338-339,345,351-352,365-366,378-413,418,446-447,499-559
+CotabbyTests/Support/Settings/FadeSpeedAxisTests.swift
+  s_b9af9eb54478c8::t_2440ecd282649f 1-33
+CotabbyTests/Support/Settings/SuggestionSettingsStoreTests.swift
+  s_b9af9eb54478c8::t_360e3819c7aae5 712-713,722-740
+CotabbyTests/UI/Settings/SettingsCategoryRestorationTests.swift
+  s_b9af9eb54478c8::t_c5cdab47a619ac 1-27
+CotabbyTests/UI/Settings/SettingsIndexTests.swift
+  s_b9af9eb54478c8::t_6f56a8066fca22 93-111
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_b9af9eb54478c8::t_c6e30beebf508e 416-417,478
+Cotabby/Models/Settings/AcceptanceShortcuts.swift
+  s_b9af9eb54478c8::t_7bb350abb77d02 1-160
+Cotabby/Models/Settings/PowerSource.swift
+  s_b9af9eb54478c8::t_ee3719b078489d 1-37
+Cotabby/Support/Settings/KeyRecorderState.swift
+  s_b9af9eb54478c8::t_15148984057bac 1-154
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_b9af9eb54478c8::t_e78f7eec2f0977 478
+Cotabby/UI/Settings/Components/Controls/KeyRecorderView.swift
+  s_b9af9eb54478c8::t_ccad06399cd872 24,27-28,33-35,40,46-47,49-61,66-73,75-94,97-100
+Cotabby/UI/Settings/Components/KeybindRow.swift
+  s_b9af9eb54478c8::t_4f20dc292c88a6 6-8,55
+Cotabby/UI/Settings/Panes/Engine/EngineAndModelPaneView+Power.swift
+  s_b9af9eb54478c8::t_6a583e0fb855a6 49,56,93,95-96
+CotabbyTests/Models/Settings/AcceptanceShortcutsTests.swift
+  s_b9af9eb54478c8::t_1b275eb8002b07 1-151
+CotabbyTests/Models/Settings/SuggestionSettingsModelDoubleTapTests.swift
+  s_b9af9eb54478c8::t_e8e24519aab0d7 57-110
+CotabbyTests/Support/Settings/KeyRecorderStateTests.swift
+  s_b9af9eb54478c8::t_315905ce24de59 1-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e7266156c819f4fd5ae962daececd8b34127735",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
