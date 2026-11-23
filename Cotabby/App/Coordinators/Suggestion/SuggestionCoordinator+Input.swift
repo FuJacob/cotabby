@@ -59,10 +59,18 @@ extension SuggestionCoordinator {
             "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) detail=\(changedDetail)"
         )
         // Start capturing visual context for a newly focused input even when predictions are
-        // temporarily disabled by transient field states (e.g., "text is selected"). The visual
-        // service rejects secure fields. Skip capture when the subsystem is hard-disabled (globally off,
-        // per-app disabled, terminal apps, or missing permissions) to avoid wasted compute.
-        if let context = snapshot.context {
+        // temporarily disabled by transient field states (e.g., "text is selected"). Skip capture when
+        // the subsystem is hard-disabled (globally off, per-app disabled, terminal apps, or missing
+        // permissions) to avoid wasted compute, and in fields that are never captured (secure,
+        // sign-in, Mail header, search; see `excludesFieldFromVisualContext`).
+        if SuggestionAvailabilityEvaluator.excludesFieldFromVisualContext(snapshot) {
+            // Drop the previous field's excerpt and any capture still pending or in flight now. The
+            // disable below preserves visual context, and leaving it to the next refresh tick would
+            // let a screenshot already scheduled for the old field be taken while the user types a
+            // code or card number here. Repeating this on each snapshot change in the field is
+            // cheap: the session is already gone, so it only republishes the idle state.
+            visualContextCoordinator.cancel()
+        } else if let context = snapshot.context {
             startVisualContextIfAllowed(for: context, focusSnapshot: snapshot)
         }
 

@@ -273,6 +273,50 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
     }
 
+    /// A field whose block describes what it is (sign-in or verification, Mail header, search box,
+    /// secure) is never captured: suggestions never run there, and a sign-in field's screenshot
+    /// would hold the code or card number being typed.
+    func test_shouldCaptureVisualContext_falseInFieldsThatAreNeverCaptured() {
+        let field = CotabbyTestFixtures.focusedInputSnapshot()
+        let cases: [(label: String, snapshot: FocusSnapshot)] = [
+            ("credential", makeSnapshot(capability: .blocked(CredentialFieldDetector.blockedReason), context: field)),
+            ("mail header", makeSnapshot(capability: .blocked(MailHeaderFieldDetector.blockedReason), context: field)),
+            ("search", makeSnapshot(capability: .blocked(SearchFieldDetector.blockedReason), context: field)),
+            ("secure", makeSnapshot(
+                capability: .blocked("Secure text input is active."),
+                context: CotabbyTestFixtures.focusedInputSnapshot(isSecure: true)
+            ))
+        ]
+        for (label, snapshot) in cases {
+            XCTAssertTrue(SuggestionAvailabilityEvaluator.excludesFieldFromVisualContext(snapshot), label)
+            XCTAssertFalse(
+                SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                    inputMonitoringGranted: true,
+                    screenRecordingGranted: true,
+                    focusSnapshot: snapshot
+                ),
+                label
+            )
+        }
+    }
+
+    /// Passing states of a field the user stays in keep capturing, so context is warm when typing
+    /// resumes; only the field-describing blocks above stop it.
+    func test_excludesFieldFromVisualContext_leavesTransientStatesCapturable() {
+        let field = CotabbyTestFixtures.focusedInputSnapshot()
+        for snapshot in [
+            makeSnapshot(context: field),
+            makeSnapshot(capability: .blocked(Self.textSelected), context: field),
+            makeSnapshot(capability: .unsupported("Missing caret bounds."), context: field),
+            makeSnapshot(capability: .unsupported("No focused text input"))
+        ] {
+            XCTAssertFalse(
+                SuggestionAvailabilityEvaluator.excludesFieldFromVisualContext(snapshot),
+                snapshot.capability.summary
+            )
+        }
+    }
+
     /// Fast mode and a missing Screen Recording permission suppress only the screenshot/OCR
     /// pipeline; predictions keep running text-only.
     func test_fastModeAndMissingScreenRecording_suppressCaptureButNotPredictions() {
@@ -384,6 +428,10 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
                 capability: .blocked(Self.textSelected),
                 context: CotabbyTestFixtures.focusedInputSnapshot(isSecure: true)
             ))),
+            ("credential field", keepsVisualContext(
+                reason: CredentialFieldDetector.blockedReason,
+                focusSnapshot: makeSnapshot(capability: .blocked(CredentialFieldDetector.blockedReason), context: field)
+            )),
             ("turned off", keepsVisualContext(globallyEnabled: false, focusSnapshot: selected)),
             ("disabled app", keepsVisualContext(disabledAppBundleIdentifiers: ["app.test"], focusSnapshot: selected)),
             ("no screen recording", keepsVisualContext(screenRecordingGranted: false, focusSnapshot: selected)),
