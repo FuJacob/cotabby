@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// One model's current install/download lifecycle state in local storage.
 enum ModelDownloadState: Equatable {
     case idle
-    case downloading(progress: Double?, speedFormatted: String? = nil, etaFormatted: String? = nil)
+    case downloading(progress: Double?)
     case paused(progress: Double?)
     case downloaded
     case failed(String)
@@ -16,15 +16,9 @@ enum ModelDownloadState: Equatable {
         switch self {
         case .idle:
             return "Not installed"
-        case .downloading(let progress, let speed, let eta):
+        case .downloading(let progress):
             if let progress {
-                let percent = Int((progress * 100).rounded())
-                if let speed, let eta {
-                    return "Downloading \(percent)% (\(speed) · ETA \(eta))"
-                } else if let speed {
-                    return "Downloading \(percent)% (\(speed))"
-                }
-                return "Downloading \(percent)%"
+                return "Downloading \(Int((progress * 100).rounded()))%"
             }
             return "Downloading"
         case .paused(let progress):
@@ -41,7 +35,7 @@ enum ModelDownloadState: Equatable {
 
     var progressFraction: Double? {
         switch self {
-        case .downloading(let progress, _, _):
+        case .downloading(let progress):
             guard let progress else {
                 return nil
             }
@@ -71,19 +65,20 @@ enum ModelDownloadState: Equatable {
     }
 }
 
-/// What is doing the work for a running transfer. One case at a time, so a transfer can never be
-/// signalled through both backends.
+/// What is doing the work for a running transfer.
 private enum LiveTransferBackend {
-    /// Still choosing between aria2 and URLSession (aria2 may be provisioning).
-    case resolving
-    case aria2(Aria2DownloadService)
+    /// The task is scheduled but has not opened its URLSession yet, so a stop request can only
+    /// cancel the task.
+    case starting
     case urlSession(ModelDownloadSessionDelegate)
 }
 
 /// Downloads model files on demand into a user-writable runtime directory.
 /// This decouples app shipping from model shipping so model updates do not require app updates.
 ///
-/// Uses `aria2c` for segmented, resumable transfers when available and falls back to URLSession.
+/// Transfers run in-process through URLSession, which also owns pause/resume through resume data.
+/// Cotabby deliberately launches no external downloader: a helper process found on a user-writable
+/// path would run as Cotabby's child and could act with its privacy grants.
 @MainActor
 final class ModelDownloadManager: ObservableObject {
     /// Every transfer's lifecycle, read by views through `state(for:)`. Transfer state is keyed by
@@ -105,7 +100,7 @@ final class ModelDownloadManager: ObservableObject {
 
     private struct LiveTransfer {
         let task: Task<Void, Never>
-        var backend: LiveTransferBackend = .resolving
+        var backend: LiveTransferBackend = .starting
     }
 
     init(runtimeDirectoryURL: URL? = nil) {
@@ -115,6 +110,42 @@ final class ModelDownloadManager: ObservableObject {
         runtimeSearchDirectories = Self.resolveSearchDirectories(primary: primaryDirectoryURL)
 
         refreshModelStates()
+
+        // Off the main actor: removing a leftover multi-GB partial is filesystem work, and nothing
+        // here depends on it finishing (discovery already skips hidden entries).
+        Task.detached(priority: .utility) {
+            ModelDownloadManager.removeLegacyAria2StagingDirectories(in: primaryDirectoryURL)
+        }
+    }
+
+    /// Builds before aria2 was removed staged transfers in hidden `.aria2-staging-*` directories
+    /// inside the model folder. Nothing resumes from them now, and a paused transfer could leave
+    /// gigabytes there that Finder hides. The sweep is idempotent and costs one shallow listing, so it
+    /// runs on every launch instead of tracking a one-time flag; a directory that could not be removed
+    /// (for example, while the user has it open) is simply retried next launch. Only hidden top-level
+    /// directories with that exact prefix are touched, never installed models.
+    nonisolated static func removeLegacyAria2StagingDirectories(in runtimeDirectory: URL) {
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: runtimeDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        ) else {
+            return
+        }
+
+        for entry in entries where entry.lastPathComponent.hasPrefix(".aria2-staging-") {
+            guard (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+                continue
+            }
+            do {
+                try fileManager.removeItem(at: entry)
+            } catch {
+                CotabbyLogger.models.debug(
+                    "Could not remove a legacy aria2 staging directory: \(error.localizedDescription)"
+                )
+            }
+        }
     }
 
     /// Cotabby's own directory first (authoritative + download target), then any additive sources
@@ -230,13 +261,11 @@ final class ModelDownloadManager: ObservableObject {
             return
         }
         switch live.backend {
-        case .aria2(let service):
-            service.pause()
         case .urlSession(let delegate):
             delegate.pause()
-        case .resolving:
-            // No backend exists to signal yet. Cancelling the task ends the wait for aria2, and
-            // `performDownload` then publishes the recorded intent instead of starting a backend.
+        case .starting:
+            // No session exists to signal yet. `performDownload` checks the recorded intent before
+            // opening one and publishes the pause instead of starting a transfer just to stop it.
             live.task.cancel()
         }
     }
@@ -245,22 +274,18 @@ final class ModelDownloadManager: ObservableObject {
     func cancel(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
         guard transferTable.requestCancel(downloadID), let live = liveTransfers[downloadID] else {
-            removeStagingDirectory(for: model)
             transferTable.cancelInactive(model, isInstalled: isModelInstalled(model))
             return
         }
 
         switch live.backend {
-        case .aria2(let service):
-            service.cancel()
         case .urlSession(let delegate):
             delegate.cancel()
-        case .resolving:
+        case .starting:
             break
         }
-        // Let the backend stop before deleting its files. Removing a staging directory while
-        // aria2c is still flushing its control file can recreate debris or corrupt the pause.
-        // `performDownload` removes them once the transfer has actually ended.
+        // The running task settles the row once URLSession has actually stopped, so a late
+        // completion cannot race the cancelled state.
         live.task.cancel()
     }
 
@@ -377,10 +402,8 @@ final class ModelDownloadManager: ObservableObject {
         let outcome: ModelTransferTable.Outcome
 
         do {
-            let aria2ExecutableURL = await resolveAria2Executable()
-
-            // A pause or cancel that arrived while no backend existed could only cancel the task.
-            // Publish the user's recorded intent rather than starting a backend just to stop it.
+            // A pause or cancel that arrived before the session opened could only cancel the task.
+            // Publish the user's recorded intent rather than starting a transfer just to stop it.
             switch transferTable.stopIntent(for: downloadID) {
             case .pause:
                 throw DownloadInterruption.paused(resumeData: nil)
@@ -390,11 +413,7 @@ final class ModelDownloadManager: ObservableObject {
                 try Task.checkCancellation()
             }
 
-            if let aria2ExecutableURL {
-                try await performAria2Download(model, executableURL: aria2ExecutableURL)
-            } else {
-                try await performURLSessionDownload(model)
-            }
+            try await performURLSessionDownload(model)
 
             CotabbyLogger.models.info("Download complete for \(model.filename)")
             // Keep the discovered-filename cache in step with the new file on disk so an immediate
@@ -408,7 +427,6 @@ final class ModelDownloadManager: ObservableObject {
                 outcome = .paused(resumeData: resumeData)
             case .cancelled:
                 CotabbyLogger.models.info("Download cancelled by user for \(model.filename)")
-                removeStagingDirectory(for: model)
                 outcome = .cancelled
             case .failed:
                 CotabbyLogger.models.error("Download failed for \(model.filename): \(error.localizedDescription)")
@@ -420,71 +438,6 @@ final class ModelDownloadManager: ObservableObject {
         transferTable.finish(downloadID, outcome, isInstalled: isModelInstalled(model))
         if outcome == .completed {
             onModelDirectoryChanged?()
-        }
-    }
-
-    /// Provisioning is an optimization, so a genuine setup failure selects URLSession. Task
-    /// cancellation is also absorbed here long enough for `performDownload` to publish pause or
-    /// cancel according to the manager's recorded user intent.
-    private func resolveAria2Executable() async -> URL? {
-        if let executableURL = Aria2Locator.executableURL() {
-            return executableURL
-        }
-
-        do {
-            return try await Aria2Provisioner.shared.provisionIfNeeded()
-        } catch {
-            if !Task.isCancelled {
-                CotabbyLogger.models.debug(
-                    "aria2 is unavailable; using URLSession: \(error.localizedDescription)"
-                )
-            }
-            return nil
-        }
-    }
-
-    private func performAria2Download(
-        _ model: DownloadableRuntimeModel,
-        executableURL: URL
-    ) async throws {
-        let downloadID = model.id
-        try ensureRuntimeDirectoryExists()
-        let destinationURL = modelFileURL(filename: model.filename)
-        let stagingDir = aria2StagingDirectoryURL(for: model)
-
-        let service = Aria2DownloadService { [weak self] progress in
-            Task { @MainActor [weak self] in
-                self?.transferTable.updateProgress(
-                    downloadID,
-                    progress: progress.progressFraction,
-                    speedFormatted: progress.speedFormatted,
-                    etaFormatted: progress.etaFormatted
-                )
-            }
-        }
-        liveTransfers[downloadID]?.backend = .aria2(service)
-
-        let downloadedFile = try await service.download(
-            from: model.downloadURL,
-            filename: model.filename,
-            stagingDirectory: stagingDir,
-            executableURL: executableURL
-        )
-
-        let fileManager = FileManager.default
-        do {
-            try await Self.validateAndPromoteStagedFile(
-                downloadedFile,
-                to: destinationURL,
-                // aria2 does not expose an independent response length; validate the catalog size once.
-                declaredContentLength: nil,
-                expectedSize: model.expectedSizeBytes,
-                expectedSHA256: model.sha256
-            )
-            try? fileManager.removeItem(at: stagingDir)
-        } catch {
-            try? fileManager.removeItem(at: stagingDir)
-            throw error
         }
     }
 
@@ -550,17 +503,15 @@ final class ModelDownloadManager: ObservableObject {
     private nonisolated static func validateAndPromoteStagedFile(
         _ stagingURL: URL,
         to destinationURL: URL,
-        declaredContentLength: Int64?,
+        declaredContentLength: Int64,
         expectedSize: Int64?,
         expectedSHA256: String?
     ) async throws {
         let validationTask = Task.detached(priority: .utility) {
-            if let declaredContentLength {
-                try ModelFileValidator.validateCompleteness(
-                    of: stagingURL,
-                    declaredContentLength: declaredContentLength
-                )
-            }
+            try ModelFileValidator.validateCompleteness(
+                of: stagingURL,
+                declaredContentLength: declaredContentLength
+            )
             try ModelFileValidator.validateSize(of: stagingURL, expectedBytes: expectedSize)
             try ModelFileValidator.validateSHA256(of: stagingURL, expectedSHA256: expectedSHA256)
             try Self.promoteStagedFile(at: stagingURL, to: destinationURL)
@@ -606,22 +557,6 @@ final class ModelDownloadManager: ObservableObject {
 
     private func modelFileURL(filename: String) -> URL {
         runtimeDirectoryURL.appendingPathComponent(filename, isDirectory: false)
-    }
-
-    /// Resolves an isolated, URL-unique staging directory for a model download to prevent cross-repo collisions.
-    private func aria2StagingDirectoryURL(for model: DownloadableRuntimeModel) -> URL {
-        Aria2StagingDirectoryResolver.directory(
-            in: runtimeDirectoryURL,
-            downloadURL: model.downloadURL,
-            filename: model.filename
-        )
-    }
-
-    /// Removes only this source's aria2 resume state, after its backend has stopped.
-    /// Filename-only directories from development builds are intentionally left untouched because
-    /// they contain no source identity and therefore cannot be deleted safely on this model's behalf.
-    private func removeStagingDirectory(for model: DownloadableRuntimeModel) {
-        try? FileManager.default.removeItem(at: aria2StagingDirectoryURL(for: model))
     }
 
     /// Rebuilds the discovered-filename cache by recursively scanning every search directory.

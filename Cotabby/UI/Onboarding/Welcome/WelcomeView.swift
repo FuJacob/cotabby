@@ -472,7 +472,7 @@ extension WelcomeView {
     @ViewBuilder
     private var doneStepModelStatus: some View {
         switch selectedModelDownloadState {
-        case .downloading(let progress, _, _):
+        case .downloading(let progress):
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)

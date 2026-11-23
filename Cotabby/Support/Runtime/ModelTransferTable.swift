@@ -7,7 +7,7 @@ import Foundation
 /// something, so combinations such as "resume data for an idle model" or "a pause request with
 /// nothing running" cannot be represented. Every transition is a pure function of the table and
 /// the installed-file facts the caller passes in, which keeps the rules testable without a
-/// network, a subprocess, or a task.
+/// network or a task.
 struct ModelTransferTable: Equatable {
     struct Transfer: Equatable {
         /// Source metadata for the row. Nil for rows that only mirror what is on disk, which is
@@ -26,8 +26,6 @@ struct ModelTransferTable: Equatable {
 
     struct Running: Equatable {
         var progress: Double?
-        var speedFormatted: String?
-        var etaFormatted: String?
         /// What the user asked this transfer to do while it was running.
         var stopIntent: DownloadStopIntent?
         /// URLSession resume data carried over from the pause this run resumed from.
@@ -143,13 +141,11 @@ struct ModelTransferTable: Equatable {
 
     /// Progress reports that arrive after the transfer left `.running` are dropped, so a late
     /// callback can never repaint a finished row as downloading.
-    mutating func updateProgress(_ id: String, progress: Double?, speedFormatted: String? = nil, etaFormatted: String? = nil) {
+    mutating func updateProgress(_ id: String, progress: Double?) {
         guard var running = running(id) else {
             return
         }
         running.progress = progress
-        running.speedFormatted = speedFormatted
-        running.etaFormatted = etaFormatted
         setRunning(running, for: id)
     }
 
@@ -238,11 +234,7 @@ struct ModelTransferTable: Equatable {
     private static func displayState(for phase: Phase) -> ModelDownloadState {
         switch phase {
         case .running(let running):
-            return .downloading(
-                progress: running.progress,
-                speedFormatted: running.speedFormatted,
-                etaFormatted: running.etaFormatted
-            )
+            return .downloading(progress: running.progress)
         case .paused(let progress, _):
             return .paused(progress: progress)
         case .failed(let message):
