@@ -1,0 +1,79 @@
+Cotabby/App/Core/CotabbyAppEnvironment.swift
+  s_b9af9eb54478c8::t_d8415071142ea2 53-60
+  s_b9af9eb54478c8::t_f633cc1e5e8a11 334,341
+  s_b9af9eb54478c8::t_9185bbdc1676c1 238
+Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift
+  s_b9af9eb54478c8::t_4f384f31fd5fb6 315,317,319
+Cotabby/Models/Emoji/EmojiUsageStore.swift
+  s_b9af9eb54478c8::t_05a37876cd4425 38
+Cotabby/UI/MenuBar/MenuBarView.swift
+  s_b9af9eb54478c8::t_be24fa68b26f08 558
+Cotabby/UI/Onboarding/OnboardingFeatureShowcase.swift
+  s_b9af9eb54478c8::t_aeeda68486ce45 19-22
+Cotabby/App/Core/AppDelegate.swift
+  s_b9af9eb54478c8::t_b737ceb8069c4d 8-9
+  s_b9af9eb54478c8::t_975752b8125e2e 34-37
+  s_b9af9eb54478c8::t_a4958b8541d03a 154
+Cotabby/UI/Onboarding/Welcome/WelcomeView.swift
+  s_b9af9eb54478c8::t_015b8a294e789a 70-72
+  s_b9af9eb54478c8::t_6384a1fd7473f5 217
+Cotabby/UI/Onboarding/Welcome/WelcomeTemplateStepView.swift
+  s_b9af9eb54478c8::t_c10974ed105ad2 19
+Cotabby/UI/Components/PopupChrome.swift
+  s_b9af9eb54478c8::t_e4362634cb3ea0 5-7,13
+Cotabby/Support/Macros/MacroTriggerStateMachine.swift
+  s_b9af9eb54478c8::t_3ec02e9ea313c1 9-12
+CotabbyTests/Support/Onboarding/OnboardingFlowStepTests.swift
+  s_b9af9eb54478c8::t_99e42240cc07da 4-8,21-43
+  s_b9af9eb54478c8::t_8e3df291e8a0e8 44
+CotabbyTests/App/Coordinators/InlineFeatures/MacroControllerTests.swift
+  s_b9af9eb54478c8::t_e0e77ca998b057 241,248
+  s_b9af9eb54478c8::t_53cd0587d7cfb5 105
+  s_b9af9eb54478c8::t_718fa746025c59 263,268,276,279
+  s_b9af9eb54478c8::t_c4426e178ef4de 293-294
+CotabbyTests/App/Coordinators/InlineFeatures/InlineCommandCoordinatorTests.swift
+  s_b9af9eb54478c8::t_15a4eb32b32ed7 123,126
+CotabbyTests/App/Coordinators/InlineFeatures/EmojiPickerControllerTests.swift
+  s_b9af9eb54478c8::t_13642f7ae012e9 116-129
+Cotabby/Models/Onboarding/OnboardingTemplate.swift
+  s_b9af9eb54478c8::t_5e18f4964af732 19
+  s_b9af9eb54478c8::t_ce826ff097f985 58-59
+  s_b9af9eb54478c8::t_7ddbc2525ec50a 16
+Cotabby/UI/Onboarding/Welcome/WelcomePersonalizeStepView.swift
+  s_b9af9eb54478c8::t_ac1fd30f9a51c2 4-6
+Cotabby/UI/Onboarding/Welcome/WelcomeHeroDemo.swift
+  s_b9af9eb54478c8::t_421c346779f6a7 11-12
+Cotabby/App/Coordinators/InlineFeatures/MacroController.swift
+  s_b9af9eb54478c8::t_59a4a24f7cca08 46,49,54
+  s_b9af9eb54478c8::t_095ab111b9bc5a 103
+  s_b9af9eb54478c8::t_1dc728e4f429d4 21
+Cotabby/App/Core/CotabbyApp.swift
+  s_b9af9eb54478c8::t_6e5918c5398edb 18
+Cotabby/UI/MenuBar/MenuBarPresentationObserver.swift
+  s_b9af9eb54478c8::t_695cfb6b129b4e 27
+Cotabby/Support/Macros/Evaluators/ArithmeticEvaluator.swift
+  s_b9af9eb54478c8::t_5d465f6680f2ce 106
+  s_b9af9eb54478c8::t_7fe9c5d0b1eea9 46
+  s_b9af9eb54478c8::t_ed98e18a4fd3fe 59,61,65-66,70,76-77,81,83,92-93,97,103,110,112,115-116,125,128-130,133,136,142
+  s_b9af9eb54478c8::t_6e252cbad60f93 44-45,47
+Cotabby/Support/Onboarding/SystemInlinePredictionMonitor.swift
+  s_b9af9eb54478c8::t_e3b83fa4a912dd 18-20
+Cotabby/Support/Onboarding/OnboardingTemplateRecommender.swift
+  s_b9af9eb54478c8::t_8560792784dec1 24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd2845f9a0d5f7c9921b6c5839ae40461e9cf869",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
