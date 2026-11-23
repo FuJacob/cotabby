@@ -1,0 +1,58 @@
+Cotabby/Support/Runtime/DownloadOutcomeClassifier.swift
+  s_b9af9eb54478c8::t_4b0bc75158143f 4-7,10,12-15,17-19,21-35,37,40,42
+CotabbyTests/Support/Runtime/DownloadStopIntentTests.swift
+  s_b9af9eb54478c8::t_400e39d88c6a2e 1-24
+CotabbyTests/Services/ModelManagement/HuggingFaceSearchServiceTests.swift
+  s_b9af9eb54478c8::t_c7f3b542eff0f6 171-172
+  s_b9af9eb54478c8::t_82bf048c94172b 4-6,43-170,173-180,184-237
+Cotabby/UI/Settings/ModelManagement/HuggingFaceModelBrowserView.swift
+  s_b9af9eb54478c8::t_1b2ca5a49fa285 64,122
+CotabbyTests/Services/ModelManagement/ModelDownloadManagerTests.swift
+  s_b9af9eb54478c8::t_e3a83c782e6f58 109-156
+Cotabby/Support/Runtime/DownloadStopIntent.swift
+  s_b9af9eb54478c8::t_3e05a224037bc4 1-23
+CotabbyTests/Support/Runtime/ModelTransferTableTests.swift
+  s_b9af9eb54478c8::t_c1dd884d3fc4a4 1-368
+CotabbyTests/Services/ModelManagement/Aria2DownloadServiceTests.swift
+  s_b9af9eb54478c8::t_f55660adeb4809 52,71-72,218,277-278,305
+Cotabby/Services/ModelManagement/Aria2DownloadService.swift
+  s_b9af9eb54478c8::t_9fe69aae6e3c91 18-19,136,180,184-185,199,203-216,220-221,234,237,242,246,249,251-252,257-258,260
+CotabbyTests/Support/Runtime/DownloadOutcomeClassifierTests.swift
+  s_b9af9eb54478c8::t_6b2b7d96609ad7 9-12,15-20,22-24,26-31,35,39
+CotabbyTests/Services/ModelManagement/ModelDownloadSessionDelegateTests.swift
+  s_b9af9eb54478c8::t_032d03cc15f7fc 28-29,57-99
+CotabbyTests/Support/Runtime/URLSessionDownloadResolutionTests.swift
+  s_b9af9eb54478c8::t_7dd9216d79167a 1-98
+Cotabby/Services/ModelManagement/ModelDownloadSessionDelegate.swift
+  s_b9af9eb54478c8::t_ac5d1aea4c9632 25-56,59-62,64-66,80,86-88,93-94,97,99-100,109,120,123-124,127-129,138-155,158-160,208-209,213-214,220-226,229,231-238,244-245,250-266,269-270,274-282,286-293,299-300,303-314
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_7ced1df26fa3dd 42,58,94,140,242,332,464,532,595,798,876,1067,1170,1190,1257,1339,1368,1467,1587,1738,3102-3103,3105,3109,3853-3854,3856,3860,4233,4306,4355,4500,4600,4673,4722,4867,4949,5002,5042,5175
+Cotabby/Support/Runtime/URLSessionDownloadResolution.swift
+  s_b9af9eb54478c8::t_d63d9c4d445e72 1-57
+Cotabby/Support/Runtime/ModelTransferTable.swift
+  s_b9af9eb54478c8::t_ee2e25d819df46 1-281
+Cotabby/Services/ModelManagement/ModelDownloadManager.swift
+  s_b9af9eb54478c8::t_16a581294fddef 74-82,89-96,103,106-108,110-112,149,156,200,203-204,206,208,216-221,223,225,232,235-238,240-243,250-253,256-262,264-267,380,385-393,406,408-409,411-412,414-416,418,421-426,460-461,468,500,503,505-508,623,626
+Cotabby/Support/Runtime/HuggingFaceBrowseState.swift
+  s_b9af9eb54478c8::t_f49d7e7241f06c 1-147
+CotabbyTests/Support/Runtime/HuggingFaceBrowseStateTests.swift
+  s_b9af9eb54478c8::t_683c6e3e16e456 1-220
+Cotabby/Services/ModelManagement/HuggingFaceSearchService.swift
+  s_b9af9eb54478c8::t_6a51f242600c73 5,9-12,15,17-21,23-24,29-41,49-50,54,56,61,68,72,74,79,86,90,92,97,104,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8785c2e3a7371d9eb654dc3aa9aeab4cce545a3c",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
