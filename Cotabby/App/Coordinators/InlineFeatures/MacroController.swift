@@ -174,18 +174,22 @@ final class MacroController {
     /// exact tracked run (the `/` sigil plus the observed query), so trailing field text is never
     /// touched. Posted on the next runloop tick so the synthetic burst is never re-entrant from
     /// inside the key's own tap callback.
+    ///
+    /// The insertion target is taken before the hop, from the field the capture ran in, for the same
+    /// reason as the emoji picker: read afterwards, it would follow focus to wherever it went.
     private func commitIfPossible() {
-        guard let session = capture, let result = session.result else {
+        guard let session = capture, let result = session.result, let context = focusModel.snapshot.context else {
             teardownCapture()
             return
         }
         let deleteCount = session.typedRunUTF16Count
         let insertion = result.insertionText
+        let target = InsertionTarget(snapshot: context)
         CotabbyLogger.suggestion.debug("macro commit deleteUTF16=\(deleteCount) query=\"\(session.query)\"")
         teardownCapture()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            _ = self.inserter.replace(deletingUTF16Count: deleteCount, with: insertion)
+            _ = self.inserter.replace(deletingUTF16Count: deleteCount, with: insertion, in: target)
             self.focusModel.refreshNow()
         }
     }

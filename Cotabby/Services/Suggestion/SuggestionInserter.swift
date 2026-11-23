@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 import Logging
 
@@ -7,9 +8,13 @@ import Logging
 /// Commits accepted suggestions back into the host app by synthesizing Unicode keyboard events.
 /// This keeps acceptance simple and app-agnostic, while pairing with suppression to avoid loops.
 ///
-/// `insert(_:)` types a continuation. `replace(deletingUTF16Count:with:)` first deletes a run of
-/// already-typed characters and then types the replacement: the emoji picker swaps `:smile` for its
-/// glyph this way, and the coordinator swaps a misspelled word for its correction.
+/// `insert(_:into:)` types a continuation. `replace(deletingUTF16Count:with:in:)` first deletes a run
+/// of already-typed characters and then types the replacement: the emoji picker swaps `:smile` for
+/// its glyph this way, and the coordinator swaps a misspelled word for its correction.
+///
+/// Both take the `InsertionTarget` the caller validated and re-check it immediately before posting
+/// (see `InsertionTargetRevalidation`): the events go to whatever app has keyboard focus when they
+/// are delivered, so a focus change after validation would otherwise send them somewhere else.
 @MainActor
 final class SuggestionInserter {
     private let suppressionController: InputSuppressionController
@@ -17,11 +22,18 @@ final class SuggestionInserter {
     private(set) var lastErrorMessage: String?
 
     /// Reads whether a composing IME (Japanese kana, Chinese pinyin, Korean hangul, ...) is currently
-    /// active. Wired to `KeyboardInputSourceMonitor` in `CotabbyAppEnvironment`. When true, `insert(_:)`
-    /// commits through an IME-safe channel (Accessibility write, then clipboard paste) instead of a
-    /// synthetic keystroke, which an active input method would otherwise re-absorb into composition so
-    /// the accept silently fails. Defaults to "no IME" so tests and previews need no wiring.
+    /// active. Wired to `KeyboardInputSourceMonitor` in `CotabbyAppEnvironment`. When true,
+    /// `insert(_:into:)` commits through an IME-safe channel (Accessibility write, then clipboard
+    /// paste) instead of a synthetic keystroke, which an active input method would otherwise re-absorb
+    /// into composition so the accept silently fails. Defaults to "no IME" so tests and previews need
+    /// no wiring.
     var isComposingIMEActiveProvider: @MainActor () -> Bool = { false }
+
+    /// Reads the live focus facts `InsertionTargetRevalidation` judges, immediately before any event
+    /// is posted. Injectable so tests and previews never touch Accessibility.
+    var insertionTargetObservationProvider: @MainActor () -> InsertionTargetObservation = {
+        SuggestionInserter.observeLiveInsertionTarget()
+    }
 
     /// In-flight state for the opt-in paste path. The user's real clipboard is snapshotted once and
     /// restored after the paste lands. While a restore is pending, a second paste must NOT re-snapshot
@@ -66,11 +78,18 @@ final class SuggestionInserter {
     }
 
     /// Posts a Unicode keydown/keyup pair for the accepted suggestion and reports any insertion failure.
-    func insert(_ suggestion: String) -> Bool {
+    /// Posts nothing, and returns false, when keyboard focus no longer belongs to `target`'s app.
+    func insert(_ suggestion: String, into target: InsertionTarget) -> Bool {
         let normalized = suggestion.replacingOccurrences(of: "\r", with: "")
         guard !normalized.isEmpty else {
             lastErrorMessage = "Suggestion was empty."
             CotabbyLogger.suggestion.warning("Insertion skipped: suggestion was empty after normalization")
+            return false
+        }
+
+        // Last check before anything leaves the process. Every path below (paste, menu press,
+        // keystroke) delivers to the current keyboard focus, so this one gate covers all of them.
+        guard isStillFocused(target, operation: "insert") else {
             return false
         }
 
@@ -140,11 +159,19 @@ final class SuggestionInserter {
     /// suppression token that would swallow the user's next real keystroke. Registering the whole
     /// burst once means every backspace and the insertion keydown fall inside one suppression window,
     /// so none of our own deletes are re-observed as user typing.
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool {
+    ///
+    /// Posts nothing, and returns false, when keyboard focus no longer belongs to `target`'s app. The
+    /// emoji picker and macros call this a run-loop turn after the commit key, and a backspace burst
+    /// sent to the wrong field deletes the user's text there.
+    func replace(deletingUTF16Count: Int, with text: String, in target: InsertionTarget) -> Bool {
         let plan = SyntheticReplacePlanner.plan(deletingUTF16Count: deletingUTF16Count, text: text)
         guard !plan.isNoop else {
             lastErrorMessage = nil
             return true
+        }
+
+        guard isStillFocused(target, operation: "replace") else {
+            return false
         }
 
         var events: [CGEvent] = []
@@ -175,7 +202,7 @@ final class SuggestionInserter {
         }
 
         // Tag every synthetic event so the consuming accept tap ignores them by identity, the same way
-        // `insert(_:)` does. The insertion event uses the placeholder `virtualKey: 0`, which would
+        // `insert(_:into:)` does. The insertion event uses the placeholder `virtualKey: 0`, which would
         // otherwise match an accept key bound to keyCode 0 and make the tap swallow our own glyph.
         for event in events {
             suppressionController.markSynthetic(event)
@@ -192,10 +219,57 @@ final class SuggestionInserter {
         return true
     }
 
+    /// Runs `InsertionTargetRevalidation` against a fresh observation, recording why when it refuses.
+    /// The observation costs one system-wide focused-element read (bounded by AXHelper's poll
+    /// messaging timeout), which is small next to the full capture `refreshIfStale` already runs on
+    /// accept, and it is the only read that can see a focus change the snapshot predates.
+    private func isStillFocused(_ target: InsertionTarget, operation: String) -> Bool {
+        let observation = insertionTargetObservationProvider()
+        switch InsertionTargetRevalidation.verdict(target: target, observation: observation) {
+        case .proceed:
+            return true
+        case let .abort(reason):
+            lastErrorMessage = reason
+            CotabbyLogger.suggestion.info(
+                "Synthetic \(operation) aborted before posting",
+                metadata: [
+                    "reason": .string(reason),
+                    "target_bundle_id": .string(target.bundleIdentifier),
+                    "focused_bundle_id": .string(observation.focusedBundleIdentifier ?? "unknown"),
+                    "secure_input": .stringConvertible(observation.isSecureEventInputEnabled)
+                ]
+            )
+            return false
+        }
+    }
+
+    /// Live inputs for `InsertionTargetRevalidation`. The focused element comes from the same
+    /// system-wide query `FocusTracker` starts from, and its owner pid is read the same way
+    /// (`AXUIElementGetPid`), so a field the tracker validated compares equal to itself here.
+    static func observeLiveInsertionTarget() -> InsertionTargetObservation {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        var focusedProcessIdentifier: pid_t?
+        if let element = AXHelper.focusedElement() {
+            var pid: pid_t = 0
+            if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
+                focusedProcessIdentifier = pid
+            }
+        }
+        return InsertionTargetObservation(
+            isSecureEventInputEnabled: IsSecureEventInputEnabled(),
+            focusedProcessIdentifier: focusedProcessIdentifier,
+            focusedBundleIdentifier: focusedProcessIdentifier.flatMap {
+                NSRunningApplication(processIdentifier: $0)?.bundleIdentifier
+            },
+            frontmostProcessIdentifier: frontmost?.processIdentifier,
+            frontmostBundleIdentifier: frontmost?.bundleIdentifier
+        )
+    }
+
     /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
     /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
     /// synthetic event could not be created, so the caller falls back to keystroke insertion. The
-    /// Cmd-V is tagged synthetic the same way `insert(_:)` tags its keydown so the consuming tap
+    /// Cmd-V is tagged synthetic the same way `insert(_:into:)` tags its keydown so the consuming tap
     /// ignores it.
     private func insertViaPaste(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general

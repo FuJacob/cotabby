@@ -190,7 +190,7 @@ extension SuggestionCoordinator {
 
         // An empty chunk means the accepted span was entirely a boundary space the field already
         // supplies: advance the session without synthesizing a keystroke.
-        if !insertionText.isEmpty, !suggestionInserter.insert(insertionText) {
+        if !insertionText.isEmpty, !suggestionInserter.insert(insertionText, into: InsertionTarget(snapshot: rawContext)) {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
             retireSuggestion(reason: "Overlay hidden because suggestion insertion failed.", clearDiagnostics: true)
@@ -448,7 +448,8 @@ extension SuggestionCoordinator {
 
         guard suggestionInserter.replace(
             deletingUTF16Count: replacement.deletingUTF16Count,
-            with: replacement.replacementText
+            with: replacement.replacementText,
+            in: InsertionTarget(snapshot: rawContext)
         ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
             cancelPredictionWork()

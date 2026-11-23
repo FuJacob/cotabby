@@ -150,15 +150,19 @@ final class RigInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
     var replacements: [(deleteCount: Int, text: String)] = []
+    /// The validated target handed over with each insert or replace, in call order.
+    var targets: [InsertionTarget] = []
     var shouldInsert = true
 
-    func insert(_ suggestion: String) -> Bool {
+    func insert(_ suggestion: String, into target: InsertionTarget) -> Bool {
         insertedChunks.append(suggestion)
+        targets.append(target)
         return shouldInsert
     }
 
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool {
+    func replace(deletingUTF16Count: Int, with text: String, in target: InsertionTarget) -> Bool {
         replacements.append((deletingUTF16Count, text))
+        targets.append(target)
         return shouldInsert
     }
 }
