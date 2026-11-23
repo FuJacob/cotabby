@@ -1,0 +1,29 @@
+Cotabby.xcodeproj/project.pbxproj
+  s_b9af9eb54478c8::t_73dbce61882eae 505,1029,1333,1396,2134,3178,5253,5332
+CotabbyTests/Models/Settings/SuggestionSettingsModelTests.swift
+  s_b9af9eb54478c8::t_3935e139d07fae 1204
+CotabbyTests/Support/Accessibility/AXHelperTests.swift
+  s_b9af9eb54478c8::t_3ec68df0f34f23 341-342,344,346-347
+CotabbyTests/Support/Logging/LLMIOFileHandlerTests.swift
+  s_b9af9eb54478c8::t_aa70a48b30e7b9 8-9,29-30
+CotabbyTests/Support/Presentation/Geometry/CaretLineRectTests.swift
+  s_b9af9eb54478c8::t_24bf589270376c 9
+CotabbyTests/Support/Presentation/Style/GhostFontSizeLimitsTests.swift
+  s_b9af9eb54478c8::t_3b1214ac4a0f7d 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd9b50479a4d103daa20fa7c58609c108fb55a7b",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
