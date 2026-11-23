@@ -13,7 +13,7 @@ enum AXHelper {
     private static let knownEditableRoles: Set<String> = [
         kAXTextFieldRole as String,
         kAXTextAreaRole as String,
-        "AXSearchField",
+        SearchFieldDetector.searchFieldRole,
         kAXComboBoxRole as String
     ]
 
@@ -120,11 +120,9 @@ enum AXHelper {
         return number.intValue
     }
 
-    /// Converts loosely typed Accessibility values into `AXValue` only after verifying the Core
-    /// Foundation type id. This keeps the unsafe CF boundary in one place and avoids force casts in
-    /// the higher-level helpers below.
     /// The `AXUIElement` a Core Foundation value holds, or nil when it holds anything else. The type
-    /// check makes the bit cast safe: `AXUIElement` is a Core Foundation type.
+    /// check makes the bit cast safe: `AXUIElement` is a Core Foundation type, not a Swift class, so
+    /// a conditional `as?` cast cannot express it.
     private static func axElement(from value: AnyObject?) -> AXUIElement? {
         guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return nil
@@ -132,6 +130,9 @@ enum AXHelper {
         return unsafeBitCast(value, to: AXUIElement.self)
     }
 
+    /// Converts loosely typed Accessibility values into `AXValue` only after verifying the Core
+    /// Foundation type id. Together with `axElement(from:)` this keeps the unsafe CF boundary in one
+    /// place and avoids force casts in the higher-level helpers below.
     private static func axValue(from value: AnyObject?) -> AXValue? {
         guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
@@ -140,10 +141,10 @@ enum AXHelper {
         return unsafeBitCast(value, to: AXValue.self)
     }
 
-    /// Reads an `AXValue`-backed range attribute such as the current selection.
-    static func rangeValue(for attribute: CFString, on element: AXUIElement) -> NSRange? {
-        guard let axValue = axValue(from: copyAttributeValue(attribute, on: element)) else { return nil }
-        guard AXValueGetType(axValue) == .cfRange else {
+    /// The range an `AXValue` carries, or nil when the value is anything else. Hosts answer some
+    /// attributes with the wrong payload type, so the type is checked before the payload is read.
+    private static func cfRange(from value: AnyObject?) -> NSRange? {
+        guard let axValue = axValue(from: value), AXValueGetType(axValue) == .cfRange else {
             return nil
         }
 
@@ -155,10 +156,9 @@ enum AXHelper {
         return NSRange(location: range.location, length: range.length)
     }
 
-    /// Reads an `AXValue`-backed rectangle attribute such as `AXFrame`.
-    static func rectValue(for attribute: CFString, on element: AXUIElement) -> CGRect? {
-        guard let axValue = axValue(from: copyAttributeValue(attribute, on: element)) else { return nil }
-        guard AXValueGetType(axValue) == .cgRect else {
+    /// The rectangle an `AXValue` carries, under the same type check as `cfRange(from:)`.
+    private static func cgRect(from value: AnyObject?) -> CGRect? {
+        guard let axValue = axValue(from: value), AXValueGetType(axValue) == .cgRect else {
             return nil
         }
 
@@ -170,47 +170,27 @@ enum AXHelper {
         return rect
     }
 
-    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is an
-    /// integer — `AXLineForIndex` (character offset -> visual line number) is the only current use.
-    ///
-    /// Kept separate from the range-parameterized readers because the parameter is a `CFNumber`
-    /// rather than an `AXValue`, which is a different bridging shape at this unsafe boundary.
-    static func parameterizedIntValue(
-        for attribute: CFString,
-        index: Int,
-        on element: AXUIElement
-    ) -> Int? {
-        let parameter = index as CFNumber
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
-        guard result == .success, let number = value as? NSNumber else {
-            return nil
-        }
-
-        return number.intValue
+    /// Reads an attribute whose value is another element (parent, window, menu bar, focus).
+    private static func elementValue(for attribute: CFString, on element: AXUIElement) -> AXUIElement? {
+        axElement(from: copyAttributeValue(attribute, on: element))
     }
 
-    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is a
-    /// range — `AXRangeForLine` (visual line number -> character range) is the current use.
-    static func parameterizedRangeValue(
-        for attribute: CFString,
-        index: Int,
-        on element: AXUIElement
-    ) -> NSRange? {
-        let parameter = index as CFNumber
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
-        guard result == .success, let axValue = axValue(from: value) else { return nil }
-        guard AXValueGetType(axValue) == .cfRange else {
-            return nil
-        }
+    /// An application's process element with the poll messaging timeout applied, so a stalled host
+    /// costs one short miss instead of the multi-second AX default.
+    private static func applicationElement(forPID pid: pid_t) -> AXUIElement {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        return appElement
+    }
 
-        var range = CFRange()
-        guard AXValueGetValue(axValue, .cfRange, &range) else {
-            return nil
-        }
+    /// Reads an `AXValue`-backed range attribute such as the current selection.
+    static func rangeValue(for attribute: CFString, on element: AXUIElement) -> NSRange? {
+        cfRange(from: copyAttributeValue(attribute, on: element))
+    }
 
-        return NSRange(location: range.location, length: range.length)
+    /// Reads an `AXValue`-backed rectangle attribute such as `AXFrame`.
+    static func rectValue(for attribute: CFString, on element: AXUIElement) -> CGRect? {
+        cgRect(from: copyAttributeValue(attribute, on: element))
     }
 
     /// Reads a parameterized rectangle attribute such as `AXBoundsForRange`.
@@ -224,19 +204,7 @@ enum AXHelper {
             return nil
         }
 
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
-        guard result == .success, let axValue = axValue(from: value) else { return nil }
-        guard AXValueGetType(axValue) == .cgRect else {
-            return nil
-        }
-
-        var rect = CGRect.zero
-        guard AXValueGetValue(axValue, .cgRect, &rect) else {
-            return nil
-        }
-
-        return rect
+        return cgRect(from: copyOpaqueParameterized(attribute, parameter: parameter, on: element))
     }
 
     /// Reads a parameterized attribute that takes an integer (a line index or character offset) and
@@ -247,10 +215,7 @@ enum AXHelper {
         parameter: Int,
         on element: AXUIElement
     ) -> Int? {
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
-        guard result == .success, let number = value as? NSNumber else { return nil }
-        return number.intValue
+        (copyOpaqueParameterized(attribute, parameter: NSNumber(value: parameter), on: element) as? NSNumber)?.intValue
     }
 
     /// Reads a parameterized attribute that takes an integer and returns a range, such as
@@ -260,14 +225,7 @@ enum AXHelper {
         parameter: Int,
         on element: AXUIElement
     ) -> NSRange? {
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
-        guard result == .success, let axValue = axValue(from: value), AXValueGetType(axValue) == .cfRange else {
-            return nil
-        }
-        var range = CFRange()
-        guard AXValueGetValue(axValue, .cfRange, &range) else { return nil }
-        return NSRange(location: range.location, length: range.length)
+        cfRange(from: copyOpaqueParameterized(attribute, parameter: NSNumber(value: parameter), on: element))
     }
 
     /// Reads a parameterized string range without asking the host app to serialize the whole field.
@@ -465,36 +423,17 @@ enum AXHelper {
     /// This bypasses the need to translate `NSRange` manually and forces the browser to resolve
     /// the physical layout of its own internal selection object.
     static func textMarkerCaretRect(on element: AXUIElement) -> CGRect? {
-        // 1. Get the opaque AXTextMarkerRange that represents the current selection/caret.
-        let selectedMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
-        var markerRangeValue: CFTypeRef?
-
-        var result = AXUIElementCopyAttributeValue(element, selectedMarkerRangeAttribute, &markerRangeValue)
-        guard result == .success, let markerRange = markerRangeValue else {
+        guard let markerRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element) else {
             return nil
         }
-
-        // 2. Ask the element to compute the bounding box for that exact text marker range.
-        let boundsForMarkerRangeAttribute = "AXBoundsForTextMarkerRange" as CFString
-        var boundsValue: CFTypeRef?
-
-        result = AXUIElementCopyParameterizedAttributeValue(element, boundsForMarkerRangeAttribute, markerRange, &boundsValue)
-        guard result == .success, let axBounds = axValue(from: boundsValue) else { return nil }
-        guard AXValueGetType(axBounds) == .cgRect else {
-            return nil
-        }
-
-        var rect = CGRect.zero
-        guard AXValueGetValue(axBounds, .cgRect, &rect) else {
-            return nil
-        }
-
-        return rect
+        return cgRect(from: copyOpaqueParameterized(boundsForMarkerRangeAttribute, parameter: markerRange, on: element))
     }
 
     // MARK: - Text Markers (Chromium / WebKit contenteditable selection)
 
-    private static let selectedTextMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
+    /// Internal so callers that feature-detect a contenteditable from an attribute list they already
+    /// hold name the same attribute these readers query.
+    static let selectedTextMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
     private static let startTextMarkerAttribute = "AXStartTextMarker" as CFString
     private static let endTextMarkerAttribute = "AXEndTextMarker" as CFString
     /// Chromium answers this range-splitting query; WebKit does not advertise it, so
@@ -502,7 +441,7 @@ enum AXHelper {
     private static let startMarkerForRangeAttribute = "AXStartTextMarkerForTextMarkerRange" as CFString
     private static let markerRangeForMarkersAttribute = "AXTextMarkerRangeForUnorderedTextMarkers" as CFString
     private static let stringForMarkerRangeAttribute = "AXStringForTextMarkerRange" as CFString
-    private static let lineRangeForMarkerAttribute = "AXLineTextMarkerRangeForTextMarker" as CFString
+    static let lineRangeForMarkerAttribute = "AXLineTextMarkerRangeForTextMarker" as CFString
     private static let previousMarkerAttribute = "AXPreviousTextMarkerForTextMarker" as CFString
     private static let nextMarkerAttribute = "AXNextTextMarkerForTextMarker" as CFString
     private static let elementForMarkerAttribute = "AXUIElementForTextMarker" as CFString
@@ -634,9 +573,7 @@ enum AXHelper {
         var paragraph: CGRect?
         if !lineText.isEmpty, parameterizedAttributes.contains(elementForMarkerAttribute as String),
            let textElement = axElement(from: copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element)) {
-            var parentRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(textElement, kAXParentAttribute as CFString, &parentRef) == .success,
-               let parent = axElement(from: parentRef), !CFEqual(parent, element) {
+            if let parent = parentElement(of: textElement), !CFEqual(parent, element) {
                 paragraph = accessibilityFrame(of: parent)
             }
         }
@@ -684,13 +621,9 @@ enum AXHelper {
 
     /// The box `AXBoundsForTextMarkerRange` gives for an opaque marker range, when it is a real one.
     private static func markerRangeRect(_ range: CFTypeRef, on element: AXUIElement, requiresWidth: Bool) -> CGRect? {
-        guard let value = copyOpaqueParameterized(boundsForMarkerRangeAttribute, parameter: range, on: element),
-              let bounds = axValue(from: value), AXValueGetType(bounds) == .cgRect
+        guard let rect = cgRect(from: copyOpaqueParameterized(boundsForMarkerRangeAttribute, parameter: range, on: element)),
+              rectHasFiniteComponents(rect), rect.height > 0
         else {
-            return nil
-        }
-        var rect = CGRect.zero
-        guard AXValueGetValue(bounds, .cgRect, &rect), rectHasFiniteComponents(rect), rect.height > 0 else {
             return nil
         }
         return requiresWidth && rect.width <= 0 ? nil : rect
@@ -850,7 +783,7 @@ enum AXHelper {
     }
 
     /// Reads an attribute whose value is an opaque marker / marker-range object. Unlike the typed
-    /// readers above, the value is returned without inspection because text markers are an opaque
+    /// readers, the value is returned without inspection because text markers are an opaque
     /// serialization that must only be passed back to other marker APIs.
     private static func copyOpaqueAttribute(_ attribute: CFString, on element: AXUIElement) -> CFTypeRef? {
         var value: CFTypeRef?
@@ -860,7 +793,9 @@ enum AXHelper {
         return value
     }
 
-    /// Parameterized counterpart of `copyOpaqueAttribute` for marker queries.
+    /// Parameterized counterpart of `copyOpaqueAttribute`: the raw answer to any parameterized query,
+    /// uninspected. Marker queries hand it straight back to the host; the typed parameterized readers
+    /// decode it through the checked `cfRange(from:)` / `cgRect(from:)` converters.
     private static func copyOpaqueParameterized(
         _ attribute: CFString, parameter: CFTypeRef, on element: AXUIElement
     ) -> CFTypeRef? {
@@ -887,20 +822,7 @@ enum AXHelper {
 
     /// Returns the currently focused UI element from the system-wide AX object.
     static func focusedElement() -> AXUIElement? {
-        let systemWideElement = systemWideElement()
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &value)
-        guard result == .success, let element = value else {
-            return nil
-        }
-
-        guard CFGetTypeID(element) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        // `AXUIElement` is a Core Foundation type, not a normal Swift class.
-        // `unsafeBitCast` is appropriate here because we already verified the runtime type id.
-        return unsafeBitCast(element, to: AXUIElement.self)
+        elementValue(for: kAXFocusedUIElementAttribute as CFString, on: systemWideElement())
     }
 
     /// Returns the running application that owns the given AX element.
@@ -922,17 +844,14 @@ enum AXHelper {
     /// this is the intermediate link before falling back to cursor hit-testing.
     static func focusedElement(forApplicationPID pid: pid_t) -> AXUIElement? {
         guard pid > 0 else { return nil }
-        let appElement = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            appElement, kAXFocusedUIElementAttribute as CFString, &value)
-        guard result == .success, let element = value,
-            CFGetTypeID(element) == AXUIElementGetTypeID()
-        else {
-            return nil
-        }
-        return unsafeBitCast(element, to: AXUIElement.self)
+        return elementValue(for: kAXFocusedUIElementAttribute as CFString, on: applicationElement(forPID: pid))
+    }
+
+    /// Returns an application's focused window. Shells that hide their focused field from the
+    /// focused-element queries (see `FocusTracker`'s Codex search) are searched from here.
+    static func focusedWindow(forApplicationPID pid: pid_t) -> AXUIElement? {
+        guard pid > 0 else { return nil }
+        return elementValue(for: kAXFocusedWindowAttribute as CFString, on: applicationElement(forPID: pid))
     }
 
     /// Sets `AXManualAccessibility` on an application's process element to wake a dormant web
@@ -947,10 +866,8 @@ enum AXHelper {
     @discardableResult
     static func setManualAccessibility(_ enabled: Bool, forApplicationPID pid: pid_t) -> AXError {
         guard pid > 0 else { return .failure }
-        let appElement = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
         let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
-        return AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, value)
+        return AXUIElementSetAttributeValue(applicationElement(forPID: pid), "AXManualAccessibility" as CFString, value)
     }
 
     /// Sets `AXEnhancedUserInterface` on an application's process element: the flag VoiceOver sets,
@@ -959,8 +876,7 @@ enum AXHelper {
     /// because Chrome reports an error code for the write even as it honors it.
     static func setEnhancedUserInterface(_ enabled: Bool, forApplicationPID pid: pid_t) -> Bool {
         guard pid > 0 else { return false }
-        let appElement = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        let appElement = applicationElement(forPID: pid)
         let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
         let attribute = "AXEnhancedUserInterface" as CFString
         let result = AXUIElementSetAttributeValue(appElement, attribute, value)
@@ -1018,9 +934,7 @@ enum AXHelper {
         for _ in 0...maxClimb {
             let role = stringValue(for: kAXRoleAttribute as CFString, on: current) ?? ""
             let attributes = Set(attributeNames(on: current))
-            let explicitEditable =
-                attributes.contains("AXEditable")
-                ? boolValue(for: "AXEditable" as CFString, on: current) : nil
+            let explicitEditable = explicitEditableFlag(on: current, attributes: attributes)
             if isKnownEditableRole(role)
                 || hasStrongEditabilitySignal(role: role, explicitEditableFlag: explicitEditable)
                 || attributes.contains(selectedTextMarkerRangeAttribute as String) {
@@ -1034,16 +948,7 @@ enum AXHelper {
 
     /// Returns the parent AX node when the current element exposes one.
     static func parentElement(of element: AXUIElement) -> AXUIElement? {
-        guard let value = copyAttributeValue(kAXParentAttribute as CFString, on: element) else {
-            return nil
-        }
-
-        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        // Same Core Foundation bridging rule as `focusedElement()`.
-        return unsafeBitCast(value, to: AXUIElement.self)
+        elementValue(for: kAXParentAttribute as CFString, on: element)
     }
 
     /// Best-effort, fail-safe read of the title of the window containing `element`. Most apps vend
@@ -1052,14 +957,9 @@ enum AXHelper {
     /// path. Used for surface conditioning (the title carries the email subject, document name,
     /// channel, or page title) and to detect navigation before reusing context.
     static func windowTitle(near element: AXUIElement) -> String? {
-        guard let value = copyAttributeValue(kAXWindowAttribute as CFString, on: element) else {
+        guard let window = elementValue(for: kAXWindowAttribute as CFString, on: element) else {
             return nil
         }
-        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        // Same Core Foundation bridging rule as `parentElement(of:)`.
-        let window = unsafeBitCast(value, to: AXUIElement.self)
         return stringValue(for: kAXTitleAttribute as CFString, on: window)
     }
 
@@ -1125,14 +1025,7 @@ enum AXHelper {
             return []
         }
 
-        return values.compactMap { value in
-            guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
-                return nil
-            }
-
-            // Same Core Foundation bridging rule as `focusedElement()`.
-            return unsafeBitCast(value, to: AXUIElement.self)
-        }
+        return values.compactMap { axElement(from: $0) }
     }
 
     /// Locates the app's "Paste" menu item by its Cmd-V key equivalent rather than by title, so the
@@ -1141,15 +1034,11 @@ enum AXHelper {
     /// host runs its paste command without any key event existing, so an active input method can
     /// neither swallow nor re-interpret the commit the way it does a synthetic keystroke.
     static func pasteMenuItem(forApplicationPID pid: pid_t) -> AXUIElement? {
-        guard pid > 0 else { return nil }
-        let appElement = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
-        guard let menuBarValue = copyAttributeValue(kAXMenuBarAttribute as CFString, on: appElement),
-              CFGetTypeID(menuBarValue) == AXUIElementGetTypeID() else {
+        guard pid > 0,
+              let menuBar = elementValue(for: kAXMenuBarAttribute as CFString, on: applicationElement(forPID: pid))
+        else {
             return nil
         }
-        // Same Core Foundation bridging rule as `focusedElement()`.
-        let menuBar = unsafeBitCast(menuBarValue, to: AXUIElement.self)
 
         // Menu bar -> top-level items (Apple, app, File, Edit, ...) -> one AXMenu each -> menu items.
         // Depth-1 only: Paste always lives directly in a top-level menu, and skipping submenu
@@ -1200,6 +1089,15 @@ enum AXHelper {
     }
 
     // MARK: - Editability Heuristics
+
+    private static let editableAttribute = "AXEditable"
+
+    /// The element's explicit `AXEditable` flag, or nil when it does not vend one. `attributes` is
+    /// the attribute list the caller already fetched: asking a host for an attribute it does not
+    /// advertise is a wasted synchronous round trip on the focus path.
+    static func explicitEditableFlag(on element: AXUIElement, attributes: Set<String>) -> Bool? {
+        attributes.contains(editableAttribute) ? boolValue(for: editableAttribute as CFString, on: element) : nil
+    }
 
     static func editabilityHintScore(role: String, explicitEditableFlag: Bool?) -> Int {
         var score = 0
@@ -1275,6 +1173,12 @@ enum AXHelper {
             && rect.size.width.isFinite && rect.size.height.isFinite
     }
 
+    /// How far outside a field's frame a text rect's midpoint may sit and still count as belonging to
+    /// that field. Generous so padding, scrolling, and multi-line fields don't cause false negatives.
+    /// One constant because choosing a coordinate system here and accepting the result in
+    /// `AXTextGeometryResolver.rectIsNearAnchor` must agree on what "near" means.
+    static let anchorHaloTolerance: CGFloat = 80
+
     /// Converts a text-range AX rect to Cocoa coordinates, using the element's AXFrame (already
     /// in Cocoa coordinates) as a ground-truth anchor to detect whether pixel-to-point scaling
     /// is needed. This replaces the old bundle-ID heuristic with empirical geometric validation:
@@ -1308,9 +1212,7 @@ enum AXHelper {
             return flipped
         }
 
-        // Generous tolerance so padding, scrolling, and multi-line fields don't cause false negatives.
-        let tolerance: CGFloat = 80
-        let expandedAnchor = anchor.insetBy(dx: -tolerance, dy: -tolerance)
+        let expandedAnchor = anchor.insetBy(dx: -anchorHaloTolerance, dy: -anchorHaloTolerance)
 
         if expandedAnchor.contains(CGPoint(x: flipped.midX, y: flipped.midY)) {
             return flipped

@@ -137,7 +137,7 @@ nonisolated enum CaretGeometryQuality: Equatable, Sendable {
         }
     }
 }
-///
+
 /// These are the concrete Accessibility capabilities Cotabby needs before it can safely assist a field.
 /// The key lesson is that "editable role" is not enough; we care about operational capability.
 enum FocusCapabilityRequirement: String, CaseIterable, Equatable {
@@ -449,15 +449,13 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// Windsurf terminal, or a browser-hosted web terminal). Set by `FocusSnapshotResolver` from the
     /// focused element's `AXDOMClassList`. Lets the availability gate suppress ghost text in the
     /// terminal without disabling the editor or Copilot chat, which share the same bundle id and so
-    /// can't be separated by the app-level terminal blocklist. The initializer default keeps existing
-    /// call sites compiling unchanged.
+    /// can't be separated by the app-level terminal blocklist.
     let isIntegratedTerminal: Bool
 
     /// True when the resolved field's text is rendered by a web engine rather than a native text
     /// view (see `WebContentFieldDetector`). The caret layout repair keys its trust policy on
     /// this: web-engine caret bounds have known wrong-line pathologies the hidden-layout estimate
     /// may repair, while native AX bounds are ground truth the estimate must never override.
-    /// The initializer default keeps existing call sites compiling unchanged.
     let isWebContentField: Bool
 
     /// Monotonic counter that increments every time polling observes a focused-input identity
@@ -469,7 +467,6 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     ///
     /// This counter gives downstream consumers (especially `VisualContextCoordinator`) a
     /// guaranteed-unique signal that focus actually changed, independent of hash collisions.
-    /// The initializer default of 0 keeps test and legacy call sites compiling without changes.
     let focusChangeSequence: UInt64
 
     /// The page URL, when exposed by a browser/web field or requested by per-site rules. The full
@@ -477,25 +474,21 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let focusedURLString: String?
 
     /// The host field's own text font/color, resolved once per focused element so ghost text can
-    /// match it. Nil when the host exposes no usable style. The initializer default keeps existing
-    /// call sites compiling unchanged.
+    /// match it. Nil when the host exposes no usable style.
     let resolvedFieldStyle: ResolvedFieldStyle?
 
     /// The focused window's title, refreshed with the snapshot to detect navigation even when
     /// prompt surface conditioning is disabled. It can identify a subject, document or channel.
-    /// Nil when unavailable or the field is secure. The initializer default keeps
-    /// existing call sites compiling unchanged.
+    /// Nil when unavailable or the field is secure.
     let windowTitle: String?
 
     /// The focused field's placeholder text (`AXPlaceholderValue`), read with the window title and
-    /// under the same gating. Nil when absent. The initializer default keeps existing call sites
-    /// compiling unchanged.
+    /// under the same gating. Nil when absent.
     let fieldPlaceholder: String?
 
     /// How the host renders text near the caret (measured widths, line box, line pitch), resolved
     /// once per field so the ghost can match the host's typeface and wrap geometry. Nil when the
-    /// host exposes no measurable text geometry. The initializer default keeps existing call sites
-    /// compiling unchanged.
+    /// host exposes no measurable text geometry.
     let hostTextMetrics: HostTextMetrics?
 
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
@@ -584,6 +577,11 @@ nonisolated struct FocusedInputSnapshot: Equatable {
 
     /// Focus capture keeps at most this many UTF-16 units on each side of the caret. Longer text
     /// before the caret arrives as a window whose front slides with every edit.
+    ///
+    /// The prompt builder uses a much smaller suffix of `precedingText`, and autocomplete only needs
+    /// a short trailing window for normalization. Keeping the snapshot bounded prevents a large
+    /// editor buffer from flowing through equality checks, Combine publishes, and stale-result
+    /// signatures on every AX refresh.
     nonisolated static let textWindowUTF16 = 4096
 
     /// True when capture may have cut the start of `precedingText` to fit that window.
@@ -597,9 +595,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         trailingTextUnavailable || trailingText.utf16.count >= Self.textWindowUTF16
     }
 
-    /// The signature lets later pipeline stages detect whether a completion result is stale.
-    /// This is the same idea you would use in a React app with a derived cache key.
-    /// Content-only fingerprint for staleness detection. Deliberately excludes `elementIdentifier`
+    /// Content-only fingerprint that lets later pipeline stages detect a stale completion. Deliberately excludes `elementIdentifier`
     /// because Chrome recycles AX node tokens between observations, making `CFHash`-based identity unstable.
     /// Session identity is checked separately; text and selection detect edits within that session.
     var contentSignature: String {

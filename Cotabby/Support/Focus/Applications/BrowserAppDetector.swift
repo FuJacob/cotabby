@@ -72,13 +72,15 @@ nonisolated enum BrowserAppDetector {
         "com.clickup.desktop-app",
         // The Chromium-based ChatGPT/Codex desktop build identifies as com.openai.codex.
         // Match its bundle identity, not its display name, so focus recovery can reach its composer.
-        "com.openai.codex",
+        codexDesktopBundleIdentifier,
         "com.microsoft.vscode",          // Visual Studio Code
         "com.microsoft.vscodeinsiders",  // VS Code - Insiders
         "com.vscodium",                  // VSCodium (FOSS VS Code build)
         "md.obsidian",                   // Obsidian (Electron, CodeMirror 6 editor) — #791
         "org.whispersystems.signal-desktop"  // Signal Desktop (Electron chat composer)
     ]
+
+    private static let codexDesktopBundleIdentifier = "com.openai.codex"
 
     /// Broad check: is the user typing inside any web browser? Used for prompt tone hints.
     static func isBrowser(bundleIdentifier: String?) -> Bool {
@@ -96,6 +98,14 @@ nonisolated enum BrowserAppDetector {
     static func isElectronEditor(bundleIdentifier: String?) -> Bool {
         guard let lowered = bundleIdentifier?.lowercased() else { return false }
         return electronEditorBundleIdentifiers.contains(lowered)
+    }
+
+    /// Is this the Chromium-based ChatGPT/Codex desktop build? It needs its own focus search and
+    /// priming fallback because its native shell hides the web composer from the standard queries
+    /// (see `FocusTracker` and `ChromiumAccessibilityEnabler`). Case-insensitive for the same reason
+    /// as `isElectronEditor`.
+    static func isCodexDesktop(bundleIdentifier: String?) -> Bool {
+        bundleIdentifier?.lowercased() == codexDesktopBundleIdentifier
     }
 
     /// Gate for the Chromium/Electron-specific AX recovery paths (renderer priming, cursor

@@ -278,12 +278,12 @@ final class CaretRunPlacementTests: XCTestCase {
 
     func test_lineGeometryFromSingleLineRunsGivesThePitchAndBox() {
         // Spacer and text runs at three line tops 24pt apart, 20pt tall (AX coordinates, y down).
-        func run(_ text: String, x: CGFloat, y: CGFloat, w: CGFloat) -> StaticTextRunWalkThrottle.TextRun {
-            StaticTextRunWalkThrottle.TextRun(
+        func run(_ text: String, x: CGFloat, y: CGFloat, w: CGFloat) -> StaticTextRun {
+            StaticTextRun(
                 text: text, frame: CGRect(x: x, y: y, width: w, height: 20), allowsProportionalCaretPlacement: true
             )
         }
-        let union = StaticTextRunWalkThrottle.TextRun(
+        let union = StaticTextRun(
             text: "a long wrapped paragraph", frame: CGRect(x: 612, y: 267, width: 628, height: 116),
             allowsProportionalCaretPlacement: false
         )
@@ -298,8 +298,8 @@ final class CaretRunPlacementTests: XCTestCase {
     /// fourth, a wrapped paragraph between them, and their 72pt distance became the pitch of 24pt
     /// lines. Runs three lines apart are not a pitch; there is none until two adjacent lines show.
     func test_lineGeometryTakesNoPitchFromRunsLinesApart() {
-        func run(_ text: String, y: CGFloat) -> StaticTextRunWalkThrottle.TextRun {
-            StaticTextRunWalkThrottle.TextRun(
+        func run(_ text: String, y: CGFloat) -> StaticTextRun {
+            StaticTextRun(
                 text: text, frame: CGRect(x: 608, y: y, width: 300, height: 20), allowsProportionalCaretPlacement: true
             )
         }

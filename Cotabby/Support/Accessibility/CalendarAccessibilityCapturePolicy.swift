@@ -20,13 +20,6 @@ enum CalendarAccessibilityCapturePolicy {
         "end-timepicker"
     ]
 
-    private static let editableTextRoles: Set<String> = [
-        kAXTextFieldRole as String,
-        kAXTextAreaRole as String,
-        "AXSearchField",
-        kAXComboBoxRole as String
-    ]
-
     /// Computes the guard's next state for one physical pointer-down target.
     ///
     /// While suppression is active, unknown Calendar controls keep it active. Date picker popups
@@ -53,7 +46,7 @@ enum CalendarAccessibilityCapturePolicy {
             return true
         }
 
-        if targetRole.map(editableTextRoles.contains) == true {
+        if targetRole.map(AXHelper.isKnownEditableRole) == true {
             return false
         }
 

@@ -20,7 +20,7 @@ final class FocusTracker {
         }
     }
 
-    private var pollInterval: TimeInterval
+    private var pollInterval: TimeInterval = 0.08
     private let permissionProvider: @MainActor () -> Bool
     private let ignoredBundleIdentifier: String?
     /// AX identifier of the one element inside Cotabby's own UI that is allowed to be captured: the
@@ -35,7 +35,7 @@ final class FocusTracker {
     /// disabling Cotabby globally or for a specific app must actually stop the walk, not just
     /// stop generating suggestions on top of it (#476).
     private let isCaptureSuppressedForBundle: @MainActor (String?) -> Bool
-    private let snapshotResolver: FocusSnapshotResolver
+    private let snapshotResolver = FocusSnapshotResolver()
 
     private var timer: Timer?
     /// The interval the running `timer` was created with, so idle-backoff transitions can re-arm it
@@ -79,21 +79,15 @@ final class FocusTracker {
     private let chromiumAccessibilityEnabler = ChromiumAccessibilityEnabler()
 
     init(
-        pollInterval: TimeInterval = 0.08,
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
         selfCaptureAllowedElementIdentifier: String? = nil,
-        isCaptureSuppressedForBundle: @escaping @MainActor (String?) -> Bool = { _ in false },
-        snapshotResolver: FocusSnapshotResolver? = nil
+        isCaptureSuppressedForBundle: @escaping @MainActor (String?) -> Bool = { _ in false }
     ) {
-        self.pollInterval = pollInterval
         self.permissionProvider = permissionProvider
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
         self.selfCaptureAllowedElementIdentifier = selfCaptureAllowedElementIdentifier
         self.isCaptureSuppressedForBundle = isCaptureSuppressedForBundle
-        // Default resolver construction must happen inside the actor-isolated initializer body.
-        // Swift evaluates default parameter expressions before entering the `@MainActor` context.
-        self.snapshotResolver = snapshotResolver ?? FocusSnapshotResolver()
     }
 
     /// Starts periodic AX polling and immediately captures an initial snapshot.
@@ -450,7 +444,7 @@ final class FocusTracker {
     private func resolveCodexFocusedField(systemFocused: AXUIElement?)
         -> (element: AXUIElement, application: NSRunningApplication)? {
         guard let app = NSWorkspace.shared.frontmostApplication,
-              app.bundleIdentifier?.lowercased() == "com.openai.codex",
+              BrowserAppDetector.isCodexDesktop(bundleIdentifier: app.bundleIdentifier),
               !isCaptureSuppressedForBundle(app.bundleIdentifier),
               systemFocused == nil || AXHelper.owningApplication(of: systemFocused!)?.processIdentifier == app.processIdentifier
         else {
@@ -460,12 +454,7 @@ final class FocusTracker {
             codexSearchRetryAt = .distantPast
             return nil
         }
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        var rawWindow: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &rawWindow) == .success,
-              let rawWindow, CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { return nil }
-        // Type checked above; AX copy ownership is managed by Swift's CF bridging.
-        let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
+        guard let window = AXHelper.focusedWindow(forApplicationPID: app.processIdentifier) else { return nil }
         if codexSearchWindow == nil || !CFEqual(codexSearchWindow!, window) {
             codexSearchWindow = window
             codexFocusedField = nil
@@ -523,8 +512,8 @@ final class FocusTracker {
             "CHROME-FOCUS-PROBE resolved via \(source) for \(application.localizedName ?? "?")")
     }
 
-    /// Logs how long a single `resolveSnapshot` took on the main thread, with the caret source and
-    /// cache hit/miss tally. Gated behind `-cotabby-debug`. This is the signal that distinguishes
+    /// Logs how long a single `resolveSnapshot` took on the main thread, with the caret source.
+    /// Gated behind `-cotabby-debug`. This is the signal that distinguishes
     /// "keystrokes lag because the synchronous AX resolve is expensive" from other causes — a dump
     /// with consistently high `resolveMs` in a browser confirms the main-thread walk is the stall.
     private func logResolveTiming(
@@ -537,9 +526,8 @@ final class FocusTracker {
         }
         let millis = Double((ContinuousClock.now - start).components.attoseconds) / 1e15
         let source = snapshot.context?.caretSource ?? snapshot.capability.shortLabel
-        let stats = "no-cache"
         let line = "Resolve timing: app=\(application.localizedName ?? "?") "
-            + "resolveMs=\(String(format: "%.1f", millis)) caret=\(source) cache=[\(stats)]"
+            + "resolveMs=\(String(format: "%.1f", millis)) caret=\(source)"
         CotabbyLogger.focus.debug("\(line)")
     }
 

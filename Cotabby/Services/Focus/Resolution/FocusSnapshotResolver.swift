@@ -9,35 +9,17 @@ import Logging
 /// polling shell in `FocusTracker`.
 @MainActor
 struct FocusSnapshotResolver {
-    private let geometryResolver: AXTextGeometryResolver
+    private let geometryResolver = AXTextGeometryResolver()
 
-    /// Throttle window for the deep caret BFS. ~100ms keeps the walk off the per-keystroke hot path
-    /// in Chromium editors while staying short enough that caret lag during fast typing stays minor.
-    private static let deepWalkThrottleInterval: TimeInterval = 0.1
-    /// Maximum UTF-16 units kept on each side of the caret in focus snapshots.
-    ///
-    /// The prompt builder uses a much smaller suffix of `precedingText`, and autocomplete only needs
-    /// a short trailing window for normalization. Keeping the focus snapshot bounded prevents a
-    /// large editor buffer from flowing through equality checks, Combine publishes, and stale-result
-    /// signatures on every AX refresh.
-    ///
-    /// Internal (not private) so the caret layout repair can detect "the captured prefix filled the
-    /// window and may not start at the document start" — laying out a mid-document prefix would
-    /// produce meaningless wrap/Y geometry, so that case must be rejected.
-    ///
-    /// `nonisolated` because it is an immutable `Int`, safe from any context, and the pure
-    /// `nonisolated` line-margin key helpers below read it; inheriting the resolver's main-actor
-    /// isolation made that read an error in the Swift 6 language mode.
-    nonisolated static let focusedTextContextWindowUTF16 = FocusedInputSnapshot.textWindowUTF16
     /// The longest value `restoringBlockBreaks` reads to put a web field's paragraph breaks back.
     static let blockBreakAlignmentMaximumUTF16 = 16_384
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
-    private let deepWalkThrottle = DeepGeometryWalkThrottle()
+    private let deepWalkThrottle = FocusSessionWalkThrottle<CaretGeometryResult?>()
 
     /// Same lifetime trick for the Branch 2.5 static-text-run walk: collected run frames are
     /// reused across polls of one field instead of re-walking up to ~300 nodes per tick.
-    private let staticRunWalkThrottle = StaticTextRunWalkThrottle()
+    private let staticRunWalkThrottle = FocusSessionWalkThrottle<[StaticTextRun]>()
 
     /// Session-scoped caches for AX reads that are invariant while focus stays in one field.
     /// Secure-field verdicts gate whether Cotabby operates at all, so they are scoped to the
@@ -73,8 +55,8 @@ struct FocusSnapshotResolver {
     /// Every parameterized attribute `resolveLineContentEdges` needs. All three must be
     /// advertised before it runs; see that method for why an ungated call is a stall risk.
     private static let lineGeometryAttributes = [
-        "AXLineForIndex",
-        "AXRangeForLine",
+        kAXLineForIndexParameterizedAttribute as String,
+        kAXRangeForLineParameterizedAttribute as String,
         kAXBoundsForRangeParameterizedAttribute as String
     ]
 
@@ -93,11 +75,7 @@ struct FocusSnapshotResolver {
     /// Seconds since boot, for the credential label refresh. Injected so tests can step time.
     private let uptime: () -> TimeInterval
 
-    init(
-        geometryResolver: AXTextGeometryResolver? = nil,
-        uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
-    ) {
-        self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+    init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.uptime = uptime
     }
 
@@ -221,7 +199,7 @@ struct FocusSnapshotResolver {
         //   3. deep (any)          (only reached when primary is `.estimated`/unknown)
         //   4. primary (any, fallback)
         // The walk is skipped whenever primary geometry is already trustworthy (`.exact`/`.derived`),
-        // and otherwise throttled to one BFS per `deepWalkThrottleInterval` while focus stays in the
+        // and otherwise throttled to one BFS per `walkThrottleInterval` while focus stays in the
         // same field, so the ~200-node walk does not run on every keystroke and pin a CPU core.
         // Within the window we reuse the previous deep result, which can trail the live caret by up
         // to one throttle interval of fast typing.
@@ -233,9 +211,9 @@ struct FocusSnapshotResolver {
         ) {
             deepResult = nil
         } else {
-            deepResult = deepWalkThrottle.result(
+            deepResult = deepWalkThrottle.value(
                 focusChangeSequence: focusChangeSequence,
-                interval: Self.deepWalkThrottleInterval
+                interval: AXTextGeometryResolver.walkThrottleInterval
             ) {
                 resolveDeepGeometrySource(
                     focusedElement: focusedElement,
@@ -686,9 +664,6 @@ struct FocusSnapshotResolver {
         if deepDescendants {
             var deepCandidates: [AXUIElement] = []
             appendEditableDescendants(of: [focusedReading.element] + shallow.ancestors) { element in
-                guard let element else {
-                    return
-                }
                 guard seen.insert(AXHelper.elementIdentity(for: element)).inserted else {
                     return
                 }
@@ -715,13 +690,9 @@ struct FocusSnapshotResolver {
             return (text, NSRange(location: 0, length: 0))
         }
 
-        let safeLocation = min(max(selection.location, 0), nsText.length)
-        let requestedEnd = selection.location > Int.max - selection.length
-            ? Int.max
-            : selection.location + selection.length
-        let safeEnd = min(max(requestedEnd, safeLocation), nsText.length)
-        let beforeStart = max(0, safeLocation - Self.focusedTextContextWindowUTF16)
-        let afterEnd = min(nsText.length, safeEnd + Self.focusedTextContextWindowUTF16)
+        let (safeLocation, safeEnd) = Self.clampedSelectionBounds(selection, length: nsText.length)
+        let beforeStart = max(0, safeLocation - FocusedInputSnapshot.textWindowUTF16)
+        let afterEnd = min(nsText.length, safeEnd + FocusedInputSnapshot.textWindowUTF16)
         let rawWindow = NSRange(location: beforeStart, length: afterEnd - beforeStart)
         let composedWindow = nsText.rangeOfComposedCharacterSequences(for: rawWindow)
         let windowText = nsText.substring(with: composedWindow)
@@ -736,6 +707,17 @@ struct FocusSnapshotResolver {
             windowText,
             NSRange(location: adjustedLocation, length: adjustedLength)
         )
+    }
+
+    /// A selection's start and end clamped into a text of `length` UTF-16 units. Hosts answer
+    /// selections that run past the text they vend, and a location plus length near `Int.max` would
+    /// trap on overflow, so the end saturates before it is clamped.
+    nonisolated static func clampedSelectionBounds(_ selection: NSRange, length: Int) -> (location: Int, end: Int) {
+        let location = min(max(selection.location, 0), length)
+        let requestedEnd = selection.location > Int.max - selection.length
+            ? Int.max
+            : selection.location + selection.length
+        return (location, min(max(requestedEnd, location), length))
     }
 
     /// Enumerates the cheap nearby candidates: the focused node, up to two ancestors, and their
@@ -795,7 +777,7 @@ struct FocusSnapshotResolver {
     /// to `maxVisits` nodes / `maxDepth` deep but appends at most `maxAppended` likely-editable
     /// nodes, keeping the downstream snapshotting cost roughly constant.
     private func appendEditableDescendants(
-        of roots: [AXUIElement], append: (AXUIElement?) -> Void
+        of roots: [AXUIElement], append: (AXUIElement) -> Void
     ) {
         let maxDepth = 6
         let maxVisits = 200
@@ -837,15 +819,11 @@ struct FocusSnapshotResolver {
             return false
         }
         let attributes = Set(AXHelper.attributeNames(on: element))
-        if attributes.contains("AXSelectedTextMarkerRange")
+        if attributes.contains(AXHelper.selectedTextMarkerRangeAttribute as String)
             || attributes.contains(kAXSelectedTextRangeAttribute as String) {
             return true
         }
-        if attributes.contains("AXEditable"),
-            AXHelper.boolValue(for: "AXEditable" as CFString, on: element) == true {
-            return true
-        }
-        return false
+        return AXHelper.explicitEditableFlag(on: element, attributes: attributes) == true
     }
 
     /// Runs deep geometry search from the resolved editable candidate first, then falls back to
@@ -995,10 +973,7 @@ struct FocusSnapshotResolver {
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
         let supportedParameterizedAttributes = Set(
             AXHelper.parameterizedAttributeNames(on: element))
-        let explicitEditableFlag =
-            supportedAttributes.contains("AXEditable")
-            ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
-            : nil
+        let explicitEditableFlag = AXHelper.explicitEditableFlag(on: element, attributes: supportedAttributes)
         let editableHintScore = AXHelper.editabilityHintScore(
             role: role,
             explicitEditableFlag: explicitEditableFlag
@@ -1034,7 +1009,7 @@ struct FocusSnapshotResolver {
                 parameterizedAttributes: supportedParameterizedAttributes,
                 // Mail rewrites trailing spaces as NBSP in its WebKit AX text. Give every
                 // downstream session comparison the same representation as keyboard events.
-                normalizeNonBreakingSpaces: bundleIdentifier == "com.apple.mail"
+                normalizeNonBreakingSpaces: bundleIdentifier == MailHeaderFieldDetector.mailBundleIdentifier
             )
             : nil
 
@@ -1104,9 +1079,7 @@ struct FocusSnapshotResolver {
             }
 
             // Enforce a minimum width to ensure we get a decent horizontal slice.
-            if finalWidth < 500 {
-                finalWidth = max(finalWidth, 500)
-            }
+            finalWidth = max(finalWidth, 500)
 
             inputFrameRect = CGRect(
                 x: finalX,
@@ -1357,7 +1330,7 @@ struct FocusSnapshotResolver {
     ///
     /// The hard case is a paragraph that starts before the window. Its real start is unknowable here,
     /// and the window's own origin is not a usable stand-in: `nativeTextWindow` keeps
-    /// `focusedTextContextWindowUTF16` units before the caret, so the origin advances with every
+    /// `FocusedInputSnapshot.textWindowUTF16` units before the caret, so the origin advances with every
     /// character typed, and a key built from it would miss the cache on every keystroke — putting
     /// three blocking AX calls back on the typing path. Instead the origin is bucketed by that same
     /// window size, so the key changes at most once per window's worth of typing. Buckets cannot merge
@@ -1397,7 +1370,7 @@ struct FocusSnapshotResolver {
             startOffset = 0
         } else {
             return LineEdgeParagraph(
-                key: "u\(windowDocumentOrigin / focusedTextContextWindowUTF16)",
+                key: "u\(windowDocumentOrigin / FocusedInputSnapshot.textWindowUTF16)",
                 startOffset: nil
             )
         }
@@ -1445,7 +1418,7 @@ struct FocusSnapshotResolver {
     /// Reads the smallest native text window the host can provide around the current selection.
     ///
     /// `AXStringForRange` is the important fast path for large Chrome and WebKit fields: instead of
-    /// pulling the whole `AXValue`, we ask for at most `focusedTextContextWindowUTF16` units before
+    /// pulling the whole `AXValue`, we ask for at most `FocusedInputSnapshot.textWindowUTF16` units before
     /// and after the caret. Apps that do not expose the parameterized string API still fall back to
     /// `AXValue`, preserving compatibility.
     private func nativeTextWindow(
@@ -1478,7 +1451,7 @@ struct FocusSnapshotResolver {
         return Self.windowedTextSelection(
             selection: selection,
             documentLength: rawDocumentLength,
-            contextWindow: Self.focusedTextContextWindowUTF16,
+            contextWindow: FocusedInputSnapshot.textWindowUTF16,
             readRange: { range in
                 AXHelper.parameterizedStringValue(
                     for: kAXStringForRangeParameterizedAttribute as CFString,
@@ -1507,11 +1480,7 @@ struct FocusSnapshotResolver {
             range.length == 0 ? "" : readRange(range)
         }
 
-        let safeLocation = min(max(selection.location, 0), documentLength)
-        let requestedEnd = selection.location > Int.max - selection.length
-            ? Int.max
-            : selection.location + selection.length
-        let safeEnd = min(max(requestedEnd, safeLocation), documentLength)
+        let (safeLocation, safeEnd) = clampedSelectionBounds(selection, length: documentLength)
 
         let beforeLength = min(safeLocation, contextWindow)
         let beforeStart = safeLocation - beforeLength
@@ -1559,7 +1528,7 @@ struct FocusSnapshotResolver {
         let text = selection.text as NSString
         guard role != kAXTextFieldRole as String,
               AXHelper.readsTextMarkers(parameterizedAttributes: supportedParameterizedAttributes),
-              selection.selection.location < min(Self.focusedTextContextWindowUTF16, MarkerSelectionSynthesizer.defaultWindow),
+              selection.selection.location < min(FocusedInputSnapshot.textWindowUTF16, MarkerSelectionSynthesizer.defaultWindow),
               NSMaxRange(selection.selection) <= text.length
         else {
             return selection

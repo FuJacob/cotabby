@@ -56,7 +56,7 @@ enum HostTextMetricsProbe {
             kAXBoundsForRangeParameterizedAttribute as String
         )
         let usesTextMarkers = input.allowsTextMarkerLine
-            && input.supportedParameterizedAttributes.contains("AXLineTextMarkerRangeForTextMarker")
+            && input.supportedParameterizedAttributes.contains(AXHelper.lineRangeForMarkerAttribute as String)
         guard answersIndexBounds || usesTextMarkers else {
             return nil
         }
@@ -278,38 +278,24 @@ enum HostTextMetricsProbe {
     /// The caret line's range, its rendered box, and the pitch to the line above (TextKit hosts).
     private static func lineGeometry(_ input: Input) -> LineGeometry? {
         let params = input.supportedParameterizedAttributes
+        let queries = AXTextGeometryResolver.LineGeometryQueries.accessibility(input.element)
         guard params.contains(kAXLineForIndexParameterizedAttribute as String),
               params.contains(kAXRangeForLineParameterizedAttribute as String),
-              let lineIndex = AXHelper.parameterizedIntValue(
-                  for: kAXLineForIndexParameterizedAttribute as CFString,
-                  parameter: input.caretLocation,
-                  on: input.element
-              ),
-              lineIndex >= 0, lineIndex < 100_000,
-              let lineRange = AXHelper.parameterizedRangeValue(
-                  for: kAXRangeForLineParameterizedAttribute as CFString,
-                  parameter: lineIndex,
-                  on: input.element
-              ),
-              lineRange.length > 0,
-              let lineRect = cocoaBounds(for: lineRange, input)
+              let line = queries.nonEmptyLine(containing: input.caretLocation),
+              let lineRect = cocoaBounds(for: line.range, input)
         else {
             return nil
         }
         var pitch: CGFloat?
-        if lineIndex > 0,
-           let previousRange = AXHelper.parameterizedRangeValue(
-               for: kAXRangeForLineParameterizedAttribute as CFString,
-               parameter: lineIndex - 1,
-               on: input.element
-           ),
+        if line.index > 0,
+           let previousRange = queries.rangeForLine(line.index - 1),
            let previousRect = cocoaBounds(for: previousRange, input) {
             let delta = previousRect.minY - lineRect.minY
             if delta > 2, delta < 200 {
                 pitch = delta
             }
         }
-        return LineGeometry(range: lineRange, rect: lineRect, pitch: pitch)
+        return LineGeometry(range: line.range, rect: lineRect, pitch: pitch)
     }
 
     /// The pitch found by asking the bounds of single characters at word starts before, then after,
