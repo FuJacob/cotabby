@@ -1,0 +1,37 @@
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift
+  s_b9af9eb54478c8::t_cf851b618a6121 602
+Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift
+  s_b9af9eb54478c8::t_ee40a20f58dc8c 6,16-18,30-31,33,42,67,73,99,108-109,111,141-158,167-172,174,176-196,200-203,212,216,224-225,233,235,237,239,244,251-252,264-265,269,272-273,282,287-289,301-302,318
+Cotabby/Support/Suggestion/Session/PostExhaustionAcceptanceState.swift
+  s_b9af9eb54478c8::t_2e195cae3af115 8-14,16-21,23-24,30,37-38,45,56,62
+Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift
+  s_b9af9eb54478c8::t_b1ff02ddc4659f 18-19,23,52-53,57,59-78,97,106,112,119,125-127,135-137,139,143,154,163,224-225,228,230,246,258,269,280,289,299
+Cotabby/Support/Suggestion/Streaming/TypingPredictionCandidate.swift
+  s_b9af9eb54478c8::t_a54fc5fd984fe4 17-24,26,35-46,94
+CotabbyTests/App/Coordinators/Suggestion/SuggestionStateHelperTests.swift
+  s_b9af9eb54478c8::t_693e0381464674 112,246,269
+CotabbyTests/Services/Suggestion/State/SuggestionInteractionStateTests.swift
+  s_b9af9eb54478c8::t_0c7dba4f678d6d 139,202,246,291,342
+CotabbyTests/Support/Suggestion/Session/PostExhaustionAcceptanceStateTests.swift
+  s_b9af9eb54478c8::t_b9f68ea5c745a0 49,54,75
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionReconciliationTests.swift
+  s_b9af9eb54478c8::t_771e6cd67112a5 27,41,65,71,79,97,107,117,135,155,179,189,202,221,240,250,266,289,299,315,324,340,349,363,370,388,403,415,431,437,450,465,480,482,488,521,549,584,593,609,614,637,661,683,691
+CotabbyTests/Support/Suggestion/Session/SuggestionSessionTypingTests.swift
+  s_b9af9eb54478c8::t_a3384dfd7da244 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "444dc37d17d594596d362e70337b556a3c5bfa13",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
