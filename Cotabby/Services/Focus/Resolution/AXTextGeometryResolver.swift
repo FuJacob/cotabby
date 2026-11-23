@@ -24,9 +24,9 @@ struct CaretGeometryResult {
     /// Content edges measured from the same child text-run frames (see `ObservedContentEdges`).
     /// Nil when no child frame data was available.
     let observedContentEdges: ObservedContentEdges?
-    /// Extra source granularity for diagnostics (e.g. which caret-to-run mapping mode ran).
+    /// Which answer or mapping placed the rect (e.g. which caret-to-run mapping mode ran).
     /// Surfaces in the debug caret badge and the structured logs via the caret source label.
-    let sourceDetail: String?
+    let sourceDetail: CaretSourceDetail?
     /// Whether a weak primary result should trigger the expensive descendant geometry search.
     /// False when this resolver already inspected the relevant descendants and intentionally
     /// demoted an ambiguous frame so presentation-time text layout can repair it.
@@ -37,7 +37,7 @@ struct CaretGeometryResult {
         quality: CaretGeometryQuality,
         observedCharWidth: CGFloat? = nil,
         observedContentEdges: ObservedContentEdges? = nil,
-        sourceDetail: String? = nil,
+        sourceDetail: CaretSourceDetail? = nil,
         allowsDeepSearch: Bool = true
     ) {
         self.rect = rect
@@ -120,7 +120,7 @@ struct AXTextGeometryResolver {
                 return CaretGeometryResult(
                     rect: Self.caretRect(afterCharacterFrame: cocoaRect, rightToLeft: isRightToLeft),
                     quality: .exact,
-                    sourceDetail: "previous-character"
+                    sourceDetail: .previousCharacter
                 )
             }
         }
@@ -169,7 +169,7 @@ struct AXTextGeometryResolver {
                 return CaretGeometryResult(
                     rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
                     quality: .exact,
-                    sourceDetail: "text-marker"
+                    sourceDetail: .textMarker
                 )
             }
         }
@@ -564,7 +564,7 @@ struct AXTextGeometryResolver {
             quality: .derived,
             observedCharWidth: charWidth,
             observedContentEdges: contentEdges,
-            sourceDetail: placement.mode.rawValue
+            sourceDetail: placement.mode.sourceDetail
         )
     }
 
@@ -600,7 +600,7 @@ struct AXTextGeometryResolver {
                         topY: unionFrame.maxY,
                         isRunMeasured: true
                     ),
-                    sourceDetail: "wrapped-run-character-bounds"
+                    sourceDetail: .wrappedRunCharacterBounds
                 )
             }
         }
@@ -634,7 +634,7 @@ struct AXTextGeometryResolver {
                 lineBoxHeight: siblingLines.boxHeight,
                 wrappedRun: wrappedRun
             ),
-            sourceDetail: "wrapped-run",
+            sourceDetail: .wrappedRun,
             // The child walk already found the best descendant and proved its frame ambiguous.
             // Repeating a deep BFS would rediscover the same union rect on every poll.
             allowsDeepSearch: false
@@ -659,13 +659,25 @@ struct AXTextGeometryResolver {
     ///   - Gap fill: runs rejected by the boundary rule (their real occurrence IS fused) are
     ///     re-searched in pass two, constrained between their already-anchored neighbors, where a
     ///     non-boundary match cannot land in the wrong region.
-    enum CaretRunMappingMode: String, Equatable {
+    enum CaretRunMappingMode: Equatable {
         /// Every run anchored inside the parent value.
-        case aligned = "runs-aligned"
+        case aligned
         /// Some runs could not be anchored and were skipped; the caret mapped against the rest.
-        case partiallyAligned = "runs-partial"
+        case partiallyAligned
         /// No run could be anchored; fell back to the legacy cumulative-length walk.
-        case legacyCumulative = "runs-legacy"
+        case legacyCumulative
+
+        /// The provenance a caret placed under this mode carries.
+        var sourceDetail: CaretSourceDetail {
+            switch self {
+            case .aligned:
+                return .runsAligned
+            case .partiallyAligned:
+                return .runsPartiallyAligned
+            case .legacyCumulative:
+                return .runsLegacyCumulative
+            }
+        }
     }
 
     /// Whether an AXStaticText frame can safely support proportional caret placement.
@@ -740,13 +752,13 @@ struct AXTextGeometryResolver {
             return CaretGeometryResult(
                 rect: CGRect(x: rect.minX, y: lineBox.minY, width: rect.width, height: lineBox.height),
                 quality: .exact,
-                sourceDetail: "zero-length+line"
+                sourceDetail: .zeroLengthWithLine
             )
         }
         if context.isAtTextEndAfterNewline {
-            return CaretGeometryResult(rect: rect, quality: .estimated, sourceDetail: "zero-length-after-break")
+            return CaretGeometryResult(rect: rect, quality: .estimated, sourceDetail: .zeroLengthAfterBreak)
         }
-        return CaretGeometryResult(rect: rect, quality: .exact, sourceDetail: "zero-length")
+        return CaretGeometryResult(rect: rect, quality: .exact, sourceDetail: .zeroLength)
     }
 
     /// The Cocoa box of the visual line the caret is on, from the host's own line queries. When the

@@ -31,14 +31,25 @@ final class HostTextMetricsCache {
     /// Shortest prefix the probe can measure a width from (see `HostTextMetricsProbe.widthSample`).
     static let minimumSampleCaret = 2
 
-    private var key: String?
-    private var metrics: HostTextMetrics?
-    private var attempts = 0
-    private var sampleAttempts = 0
-    private var pitchAttempts = 0
-    private var lastSampleCaret: Int?
-    private var lastPitchCaret: Int?
-    private var lastAttemptAt: Date?
+    /// Everything known about one field. Replaced whole when the key changes, so a new field never
+    /// inherits another's metrics or spent retries.
+    private struct Entry {
+        /// Nil only before the first field.
+        var key: String?
+        var metrics: HostTextMetrics?
+        /// Asks made while the host has answered nothing at all.
+        var measureBudget = RetryBudget(maximumAttempts: HostTextMetricsCache.maximumAttempts)
+        /// Re-measures for a missing width sample and for a missing line pitch.
+        var sampleBudget = RetryBudget(maximumAttempts: HostTextMetricsCache.maximumSampleAttempts)
+        var pitchBudget = RetryBudget(maximumAttempts: HostTextMetricsCache.maximumPitchAttempts)
+        /// One pacing for all three: every one of them is the same probe of the same host.
+        var pacing = RetryPacing(interval: HostTextMetricsCache.retryInterval)
+        /// Where the caret was at the last attempt that could have produced each value.
+        var lastSampleCaret: Int?
+        var lastPitchCaret: Int?
+    }
+
+    private var entry = Entry()
 
     func metrics(
         forKey key: String,
@@ -46,17 +57,10 @@ final class HostTextMetricsCache {
         now: Date = Date(),
         measure: () -> HostTextMetrics?
     ) -> HostTextMetrics? {
-        if key != self.key {
-            self.key = key
-            metrics = nil
-            attempts = 0
-            sampleAttempts = 0
-            pitchAttempts = 0
-            lastSampleCaret = nil
-            lastPitchCaret = nil
-            lastAttemptAt = nil
+        if key != entry.key {
+            entry = Entry(key: key)
         }
-        if let metrics {
+        if let metrics = entry.metrics {
             let retrySample = metrics.sampleText == nil && shouldRetrySample(caretLocation: caretLocation, now: now)
             // A paragraph's box stands in for a pitch until two lines give one (see
             // `HostTextMetrics.linePitchIsFromParagraphBox`), so it does not end the search.
@@ -66,14 +70,14 @@ final class HostTextMetricsCache {
                 return metrics
             }
             if retrySample {
-                sampleAttempts += 1
-                lastSampleCaret = caretLocation
+                entry.sampleBudget.spend()
+                entry.lastSampleCaret = caretLocation
             }
             if retryPitch {
-                pitchAttempts += 1
-                lastPitchCaret = caretLocation
+                entry.pitchBudget.spend()
+                entry.lastPitchCaret = caretLocation
             }
-            lastAttemptAt = now
+            entry.pacing.recordAttempt(at: now)
             guard let remeasured = measure() else {
                 return metrics
             }
@@ -95,47 +99,32 @@ final class HostTextMetricsCache {
                     ? remeasured.lineRectIsFromTextMarkers : metrics.lineRectIsFromTextMarkers,
                 linePitchIsFromParagraphBox: keptPitchMetrics.linePitchIsFromParagraphBox
             )
-            self.metrics = merged
+            entry.metrics = merged
             return merged
         }
-        guard attempts < Self.maximumAttempts else {
+        guard entry.measureBudget.hasAttemptsLeft, entry.pacing.allowsAttempt(at: now) else {
             return nil
         }
-        if let lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < Self.retryInterval {
-            return nil
-        }
-        attempts += 1
-        lastAttemptAt = now
-        lastSampleCaret = caretLocation
-        lastPitchCaret = caretLocation
+        entry.measureBudget.spend()
+        entry.pacing.recordAttempt(at: now)
+        entry.lastSampleCaret = caretLocation
+        entry.lastPitchCaret = caretLocation
         let measured = measure()
-        metrics = measured
+        entry.metrics = measured
         return measured
     }
 
     private func shouldRetryPitch(caretLocation: Int, now: Date) -> Bool {
-        guard pitchAttempts < Self.maximumPitchAttempts,
-              abs(caretLocation - (lastPitchCaret ?? caretLocation)) >= Self.pitchRetryCaretDistance
-        else {
-            return false
-        }
-        if let lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < Self.retryInterval {
-            return false
-        }
-        return true
+        entry.pitchBudget.hasAttemptsLeft
+            && abs(caretLocation - (entry.lastPitchCaret ?? caretLocation)) >= Self.pitchRetryCaretDistance
+            && entry.pacing.allowsAttempt(at: now)
     }
 
     private func shouldRetrySample(caretLocation: Int, now: Date) -> Bool {
-        guard sampleAttempts < Self.maximumSampleAttempts,
-              caretLocation >= Self.minimumSampleCaret,
-              caretLocation != lastSampleCaret
-        else {
-            return false
-        }
-        if let lastAttemptAt, now.timeIntervalSince(lastAttemptAt) < Self.retryInterval {
-            return false
-        }
-        return true
+        entry.sampleBudget.hasAttemptsLeft
+            && caretLocation >= Self.minimumSampleCaret
+            && caretLocation != entry.lastSampleCaret
+            && entry.pacing.allowsAttempt(at: now)
     }
 
     // Value-typed storage only; see `FieldStyleCache` for why the deinit is nonisolated.

@@ -44,17 +44,17 @@ final class CaretGeometrySelectorTests: XCTestCase {
                 quality: .derived,
                 observedCharWidth: 6,
                 observedContentEdges: deepEdges,
-                sourceDetail: "runs"
+                sourceDetail: .runsAligned
             )
         ))
 
         XCTAssertEqual(selected, CaretGeometrySelector.Selected(
             rect: deepRect,
-            source: "derived deep (runs)",
+            source: "derived deep (runs-aligned)",
             quality: .derived,
             observedCharWidth: 6,
             observedContentEdges: deepEdges,
-            sourceDetail: "runs"
+            sourceDetail: .runsAligned
         ))
     }
 
@@ -89,35 +89,36 @@ final class CaretGeometrySelectorTests: XCTestCase {
             primaryQuality: .layoutEstimated,
             primaryObservedCharWidth: 5,
             primaryObservedContentEdges: primaryEdges,
-            primarySourceDetail: "layout",
+            primarySourceDetail: .wrappedRun,
             deepResult: nil
         ))
         XCTAssertEqual(fallback, CaretGeometrySelector.Selected(
             rect: primaryRect,
-            source: "layout-estimated primary-fallback (layout)",
+            source: "layout-estimated primary-fallback (wrapped-run)",
             quality: .layoutEstimated,
             observedCharWidth: 5,
             observedContentEdges: primaryEdges,
-            sourceDetail: "layout"
+            sourceDetail: .wrappedRun
         ))
     }
 
-    func test_select_emptySourceDetailIsNotAppended() throws {
+    func test_select_aSourceWithoutDetailKeepsItsBareLabel() throws {
         let primary = try XCTUnwrap(CaretGeometrySelector.select(
             primaryRect: primaryRect,
             primaryQuality: .derived,
             primaryObservedCharWidth: nil,
-            primarySourceDetail: "",
             deepResult: nil
         ))
         XCTAssertEqual(primary.source, "derived primary")
+        XCTAssertNil(primary.sourceDetail)
 
         let deep = try XCTUnwrap(CaretGeometrySelector.select(
             primaryRect: nil,
             primaryQuality: nil,
             primaryObservedCharWidth: nil,
-            deepResult: CaretGeometryResult(rect: deepRect, quality: .exact, sourceDetail: "")
+            deepResult: CaretGeometryResult(rect: deepRect, quality: .exact)
         ))
         XCTAssertEqual(deep.source, "exact deep")
+        XCTAssertNil(deep.sourceDetail)
     }
 }

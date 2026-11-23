@@ -234,28 +234,20 @@ enum CotabbyTestFixtures {
     }
 
     static func focusCapabilityCandidate(
-        elementIdentifier: String = "candidate",
-        role: String = "AXTextField",
-        subrole: String? = nil,
         editableHintScore: Int = 0,
         hasStrongEditabilitySignal: Bool = true,
         isKnownReadOnlyRole: Bool = false,
         hasTextValue: Bool = true,
         hasSelectionRange: Bool = true,
-        hasCaretBounds: Bool = true,
-        isSecure: Bool = false
+        hasCaretBounds: Bool = true
     ) -> FocusCapabilityCandidate {
         FocusCapabilityCandidate(
-            elementIdentifier: elementIdentifier,
-            role: role,
-            subrole: subrole,
             editableHintScore: editableHintScore,
             hasStrongEditabilitySignal: hasStrongEditabilitySignal,
             isKnownReadOnlyRole: isKnownReadOnlyRole,
             hasTextValue: hasTextValue,
             hasSelectionRange: hasSelectionRange,
-            hasCaretBounds: hasCaretBounds,
-            isSecure: isSecure
+            hasCaretBounds: hasCaretBounds
         )
     }
 

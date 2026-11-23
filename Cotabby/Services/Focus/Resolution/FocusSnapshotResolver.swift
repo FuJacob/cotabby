@@ -130,14 +130,18 @@ struct FocusSnapshotResolver {
             deepDescendants: deepDescendants,
             focusChangeSequence: focusChangeSequence
         )
-        let resolution = candidateResolution.resolution
 
-        guard let resolvedCandidate = candidateResolution.resolvedCandidate else {
-            CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
+        let resolvedCandidate: AXFocusCandidate
+        switch candidateResolution {
+        case .resolved(let candidate):
+            resolvedCandidate = candidate
+        case .unresolved(let bestPartial):
+            let reason = FocusCapabilityResolver.unsupportedReason(bestPartial: bestPartial)
+            CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(reason)")
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
-                capability: .unsupported(resolution.unsupportedReason),
+                capability: .unsupported(reason),
                 context: nil
             )
         }
@@ -527,7 +531,7 @@ struct FocusSnapshotResolver {
                     caretHeight: caretHeight,
                     supportedParameterizedAttributes: candidate.supportedParameterizedAttributes,
                     anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect,
-                    allowsTextMarkerLine: caret.quality == .exact && caret.sourceDetail == "text-marker",
+                    allowsTextMarkerLine: caret.quality == .exact && caret.sourceDetail == .textMarker,
                     caretRect: caretRect,
                     isBrowser: isBrowser
                 )
@@ -542,12 +546,12 @@ struct FocusSnapshotResolver {
     /// spread evenly over the characters, and Obsidian's run frames are wider than their ink.
     /// Measured 2026-09-10: once such samples were kept, one of "ely long enough that" read 1% wide
     /// and sized the ghost's face at 16.13 for the host's 16, three device pixels long by a line's end.
-    static func caretMeasuresGlyphs(quality: CaretGeometryQuality, sourceDetail: String?) -> Bool {
+    static func caretMeasuresGlyphs(quality: CaretGeometryQuality, sourceDetail: CaretSourceDetail?) -> Bool {
         switch quality {
         case .exact:
             return true
         case .derived:
-            return AXTextGeometryResolver.CaretRunMappingMode(rawValue: sourceDetail ?? "") == nil
+            return sourceDetail?.isRunProportional != true
         default:
             return false
         }
@@ -623,12 +627,7 @@ struct FocusSnapshotResolver {
                 let evaluation = FocusCapabilityResolver.evaluate(candidate.resolverCandidate)
 
                 if evaluation.hasFullCapabilities {
-                    return FocusCandidateResolution(
-                        resolvedCandidate: candidate,
-                        resolution: FocusCapabilityResolution(
-                            selectedEvaluation: evaluation
-                        )
-                    )
+                    return .resolved(candidate)
                 }
 
                 // The focused element itself falling short is the one verdict worth a line: it is
@@ -674,12 +673,7 @@ struct FocusSnapshotResolver {
             }
         }
 
-        return FocusCandidateResolution(
-            resolvedCandidate: nil,
-            resolution: FocusCapabilityResolution(
-                selectedEvaluation: bestPartial
-            )
-        )
+        return .unresolved(bestPartial: bestPartial)
     }
 
     /// Returns a caret-adjacent text window and rewrites `selection` into that window's coordinate
@@ -1158,16 +1152,12 @@ struct FocusSnapshotResolver {
             isSecureElement(element: element, role: role, subrole: subrole)
         }
         let resolverCandidate = FocusCapabilityCandidate(
-            elementIdentifier: elementIdentifier,
-            role: role,
-            subrole: subrole,
             editableHintScore: editableHintScore,
             hasStrongEditabilitySignal: hasStrongEditabilitySignal,
             isKnownReadOnlyRole: isKnownReadOnlyRole,
             hasTextValue: textValue != nil,
             hasSelectionRange: selection != nil,
-            hasCaretBounds: caretRect != nil,
-            isSecure: isSecure
+            hasCaretBounds: caretRect != nil
         )
 
         return AXFocusCandidate(
@@ -1668,9 +1658,12 @@ private struct FieldLabelReading {
     }
 }
 
-private struct FocusCandidateResolution {
-    let resolvedCandidate: AXFocusCandidate?
-    let resolution: FocusCapabilityResolution
+/// The outcome of the candidate search around the focused element.
+private enum FocusCandidateResolution {
+    /// The first candidate exposing every required capability.
+    case resolved(AXFocusCandidate)
+    /// No candidate qualified. The closest one's gaps explain why; nil when nothing was evaluated.
+    case unresolved(bestPartial: FocusCapabilityCandidateEvaluation?)
 }
 
 /// The focused element together with its already-read role pair, so candidate snapshotting can
@@ -1704,7 +1697,7 @@ private struct AXFocusCandidate {
     let caretQuality: CaretGeometryQuality?
     let observedCharWidth: CGFloat?
     let observedContentEdges: ObservedContentEdges?
-    let caretSourceDetail: String?
+    let caretSourceDetail: CaretSourceDetail?
     let caretAllowsDeepSearch: Bool
     let inputFrameRect: CGRect?
     /// The element's own `AXFrame` before any widening (see `FocusedInputSnapshot.elementFrameRect`).

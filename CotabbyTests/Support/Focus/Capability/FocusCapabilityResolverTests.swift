@@ -58,28 +58,24 @@ final class FocusCapabilityResolverTests: XCTestCase {
         XCTAssertEqual(evaluation.score, 307)
     }
 
-    func test_resolution_usesTheFirstMissingCapabilityAsItsUnsupportedReason() {
+    func test_unsupportedReason_usesTheFirstMissingCapabilityOfTheBestPartial() {
         let candidate = CotabbyTestFixtures.focusCapabilityCandidate(
             hasStrongEditabilitySignal: false
         )
         let evaluation = FocusCapabilityResolver.evaluate(candidate)
-        let resolution = FocusCapabilityResolution(selectedEvaluation: evaluation)
 
-        XCTAssertEqual(resolution.unsupportedReason, "Missing editable target.")
+        XCTAssertEqual(FocusCapabilityResolver.unsupportedReason(bestPartial: evaluation), "Missing editable target.")
     }
 
-    func test_resolution_withoutACandidateReportsGenericUnsupportedReason() {
-        let resolution = FocusCapabilityResolution(selectedEvaluation: nil)
-
+    func test_unsupportedReason_withoutACandidateIsGeneric() {
         XCTAssertEqual(
-            resolution.unsupportedReason,
+            FocusCapabilityResolver.unsupportedReason(bestPartial: nil),
             "No nearby text target exposed the required Accessibility capabilities."
         )
     }
 
     func test_evaluate_readOnlyRoleCannotBecomeEditableTarget() {
         let candidate = CotabbyTestFixtures.focusCapabilityCandidate(
-            role: "AXStaticText",
             hasStrongEditabilitySignal: true,
             isKnownReadOnlyRole: true,
             hasTextValue: true,

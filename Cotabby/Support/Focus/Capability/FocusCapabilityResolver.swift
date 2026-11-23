@@ -6,36 +6,21 @@ import Foundation
 ///
 /// One nearby AX node scored by whether it exposes the capabilities Cotabby needs.
 struct FocusCapabilityCandidate: Equatable {
-    let elementIdentifier: String
-    let role: String
-    let subrole: String?
     let editableHintScore: Int
     let hasStrongEditabilitySignal: Bool
     let isKnownReadOnlyRole: Bool
     let hasTextValue: Bool
     let hasSelectionRange: Bool
     let hasCaretBounds: Bool
-    let isSecure: Bool
 }
 
 /// The derived score and missing-capability breakdown for one candidate element.
 struct FocusCapabilityCandidateEvaluation: Equatable {
-    let candidate: FocusCapabilityCandidate
     let missingCapabilities: [FocusCapabilityRequirement]
     let score: Int
 
     var hasFullCapabilities: Bool {
         missingCapabilities.isEmpty
-    }
-}
-
-/// The resolver's final explanation when no nearby candidate exposes every required capability.
-struct FocusCapabilityResolution: Equatable {
-    let selectedEvaluation: FocusCapabilityCandidateEvaluation?
-
-    var unsupportedReason: String {
-        selectedEvaluation?.missingCapabilities.first?.unsupportedReason
-            ?? "No nearby text target exposed the required Accessibility capabilities."
     }
 }
 
@@ -61,9 +46,15 @@ enum FocusCapabilityResolver {
         let score = (availableCapabilityCount * 100) + candidate.editableHintScore
 
         return FocusCapabilityCandidateEvaluation(
-            candidate: candidate,
             missingCapabilities: missingCapabilities,
             score: score
         )
+    }
+
+    /// The explanation shown when no nearby candidate exposes every required capability:
+    /// the first gap of the closest candidate, or a generic reason when nothing was a candidate.
+    static func unsupportedReason(bestPartial: FocusCapabilityCandidateEvaluation?) -> String {
+        bestPartial?.missingCapabilities.first?.unsupportedReason
+            ?? "No nearby text target exposed the required Accessibility capabilities."
     }
 }

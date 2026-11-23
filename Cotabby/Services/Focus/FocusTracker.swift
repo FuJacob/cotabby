@@ -37,10 +37,10 @@ final class FocusTracker {
     private let isCaptureSuppressedForBundle: @MainActor (String?) -> Bool
     private let snapshotResolver = FocusSnapshotResolver()
 
-    private var timer: Timer?
-    /// The interval the running `timer` was created with, so idle-backoff transitions can re-arm it
-    /// only when the effective interval actually changes (no per-keystroke timer churn while active).
-    private var scheduledInterval: TimeInterval?
+    /// The running poll timer and the interval it was created with; nil while polling is stopped.
+    /// The interval is kept so idle-backoff transitions can re-arm the timer only when the effective
+    /// interval actually changes (no per-keystroke timer churn while active).
+    private var polling: (timer: Timer, interval: TimeInterval)?
     private var pollSequence = 0
     private var focusChangeSequence: UInt64 = 0
     private var lastFocusedInputSignature: FocusedInputPollingSignature?
@@ -63,11 +63,18 @@ final class FocusTracker {
     /// Codex's native shell can hide its focused web composer from AXFocusedUIElement.
     /// The tracker owns this incremental search; small slices avoid blocking typing, and a
     /// cached field is reused only while AX still marks it focused in the current window.
-    private var codexSearchWindow: AXUIElement?
-    private var codexSearchStack: [(AXUIElement, Int)] = []
-    private var codexSearchVisits = 0
-    private var codexSearchRetryAt = Date.distantPast
-    private var codexFocusedField: AXUIElement?
+    private var codexSearch = CodexFocusSearch<AXUIElement>()
+    /// The Accessibility reads behind that search. The role is read before focus so a non-editable
+    /// node costs one round trip, not two.
+    private static let codexSearchHost = CodexFocusSearch<AXUIElement>.Host(
+        isSameNode: { CFEqual($0, $1) },
+        isFocused: { AXHelper.isFocused($0) },
+        isFocusedEditableField: { node in
+            let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: node) ?? ""
+            return AXHelper.isKnownEditableRole(role) && AXHelper.isFocused(node)
+        },
+        children: { AXHelper.childElements(of: $0) }
+    )
 
     // Last bundle identifier we logged as suppressed. Used to emit one log line per
     // suppression transition instead of one per 50-80ms poll tick.
@@ -92,7 +99,7 @@ final class FocusTracker {
 
     /// Starts periodic AX polling and immediately captures an initial snapshot.
     func start() {
-        guard timer == nil else {
+        guard polling == nil else {
             refreshNow()
             return
         }
@@ -107,9 +114,8 @@ final class FocusTracker {
     /// Stops polling while leaving the most recent snapshot available to callers.
     func stop() {
         CotabbyLogger.focus.info("Focus polling stopped")
-        timer?.invalidate()
-        timer = nil
-        scheduledInterval = nil
+        polling?.timer.invalidate()
+        polling = nil
     }
 
     /// The interval the poll timer should currently run at: the base interval stretched by idle
@@ -123,22 +129,21 @@ final class FocusTracker {
     /// every base tick. The capture cadence is identical to the previous tick-skipping design; only
     /// the no-op wakeups are removed.
     private func scheduleTimer() {
-        timer?.invalidate()
+        polling?.timer.invalidate()
         let interval = effectiveInterval()
-        scheduledInterval = interval
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.handleTimerTick()
             }
         }
-        self.timer = timer
+        polling = (timer, interval)
         RunLoop.main.add(timer, forMode: .common)
     }
 
     /// Re-arms the timer only when idle backoff has moved it to a new effective interval. During
     /// active use the stride stays at 1, so this is a no-op and avoids per-keystroke timer churn.
     private func rescheduleTimerIfIntervalChanged() {
-        guard timer != nil, effectiveInterval() != scheduledInterval else {
+        guard let polling, effectiveInterval() != polling.interval else {
             return
         }
         scheduleTimer()
@@ -154,7 +159,7 @@ final class FocusTracker {
         pollInterval = interval
 
         // Only restart if a timer is already running.
-        guard timer != nil else {
+        guard polling != nil else {
             return
         }
 
@@ -448,57 +453,21 @@ final class FocusTracker {
               !isCaptureSuppressedForBundle(app.bundleIdentifier),
               systemFocused == nil || AXHelper.owningApplication(of: systemFocused!)?.processIdentifier == app.processIdentifier
         else {
-            codexSearchWindow = nil
-            codexSearchStack = []
-            codexFocusedField = nil
-            codexSearchRetryAt = .distantPast
+            codexSearch.deactivate()
             return nil
         }
+        // A failed window read says nothing about the search, so its progress is kept for the
+        // next poll rather than restarted.
         guard let window = AXHelper.focusedWindow(forApplicationPID: app.processIdentifier) else { return nil }
-        if codexSearchWindow == nil || !CFEqual(codexSearchWindow!, window) {
-            codexSearchWindow = window
-            codexFocusedField = nil
-            codexSearchStack = []
-            codexSearchRetryAt = .distantPast
+        switch codexSearch.focusedField(in: window, host: Self.codexSearchHost) {
+        case .reused(let field):
+            return (field, app)
+        case .found(let field):
+            logChromeFocusProbe(source: "codex-focused-descendant", application: app)
+            return (field, app)
+        case nil:
+            return nil
         }
-        if let field = codexFocusedField, AXHelper.isFocused(field) { return (field, app) }
-        if codexFocusedField != nil {
-            codexSearchRetryAt = .distantPast
-            codexSearchStack = []
-        }
-        codexFocusedField = nil
-        if codexSearchStack.isEmpty {
-            guard Date() >= codexSearchRetryAt else { return nil }
-            codexSearchStack = [(window, 0)]
-            codexSearchVisits = 0
-        }
-        return searchCodexFocusedDescendants(application: app)
-    }
-
-    /// Advances the bounded AX walk, retaining its stack for the next poll when time runs out.
-    /// Window/session invalidation remains the caller's responsibility.
-    private func searchCodexFocusedDescendants(application app: NSRunningApplication)
-        -> (element: AXUIElement, application: NSRunningApplication)? {
-        let deadline = Date().addingTimeInterval(0.015)
-        while !codexSearchStack.isEmpty, codexSearchVisits < 2000, Date() < deadline {
-            let (node, depth) = codexSearchStack.removeLast()
-            codexSearchVisits += 1
-            let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: node) ?? ""
-            if AXHelper.isKnownEditableRole(role), AXHelper.isFocused(node) {
-                codexFocusedField = node
-                codexSearchStack = []
-                logChromeFocusProbe(source: "codex-focused-descendant", application: app)
-                return (node, app)
-            }
-            if depth < 40 {
-                codexSearchStack.append(contentsOf: AXHelper.childElements(of: node).map { ($0, depth + 1) })
-            }
-        }
-        if codexSearchStack.isEmpty || codexSearchVisits >= 2000 {
-            codexSearchStack = []
-            codexSearchRetryAt = Date().addingTimeInterval(1)
-        }
-        return nil
     }
 
     /// Emits one `[Focus] CHROME-FOCUS-PROBE` line per focus-resolution change (deduplicated by

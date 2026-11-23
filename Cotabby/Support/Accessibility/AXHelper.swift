@@ -872,15 +872,19 @@ enum AXHelper {
 
     /// Sets `AXEnhancedUserInterface` on an application's process element: the flag VoiceOver sets,
     /// which Chromium treats as "a screen reader is present" and answers by building its complete
-    /// accessibility tree, inline text boxes included. Returns true when the flag reads back as set,
-    /// because Chrome reports an error code for the write even as it honors it.
-    static func setEnhancedUserInterface(_ enabled: Bool, forApplicationPID pid: pid_t) -> Bool {
+    /// accessibility tree, inline text boxes included. Returns true when the write succeeds or the
+    /// flag reads back as set, because Chrome reports an error code for the write even as it honors
+    /// it. With `trustingWriteResult` false only the read-back counts, for a host whose write result
+    /// says nothing either way.
+    static func setEnhancedUserInterface(
+        _ enabled: Bool, forApplicationPID pid: pid_t, trustingWriteResult: Bool = true
+    ) -> Bool {
         guard pid > 0 else { return false }
         let appElement = applicationElement(forPID: pid)
         let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
         let attribute = "AXEnhancedUserInterface" as CFString
         let result = AXUIElementSetAttributeValue(appElement, attribute, value)
-        if result == .success {
+        if trustingWriteResult, result == .success {
             return true
         }
         return boolValue(for: attribute, on: appElement) == enabled
