@@ -139,14 +139,19 @@ final class SuggestionInteractionState {
     /// `heldPresentationText` is the overlay controller's not-yet-painted presentation, if any
     /// (see `SuggestionSessionReconciler.overlayAllowsAcceptance`). Defaulted so callers that have
     /// no deferred presenter keep the strict "visible text must equal the tail" rule.
+    ///
+    /// `truncatedDisplayText` is the painted head of the overlay's text when the ghost could not
+    /// show all of it (see `SuggestionOverlayControlling.truncatedDisplayText`). The chunk is cut
+    /// back to that head, so one press never inserts text the user has not been shown.
     func prepareAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
         heldPresentationText: String? = nil,
+        truncatedDisplayText: String? = nil,
         granularity: AcceptanceGranularity,
         autoAcceptTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
-        prepare(
+        let preparation = prepare(
             from: snapshot,
             overlayState: overlayState,
             heldPresentationText: heldPresentationText,
@@ -165,20 +170,26 @@ final class SuggestionInteractionState {
                 )
             }
         }
+        return Self.limitingToShownHead(preparation, overlayState: overlayState, truncatedDisplayText: truncatedDisplayText)
     }
 
+    /// Accepts the whole offered tail, or as much of it as the overlay painted: on a host that
+    /// offers one row the ghost shows only the head that fits, and the rest stays in the session as
+    /// the next offer instead of being typed unseen.
     func prepareFullAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
-        heldPresentationText: String? = nil
+        heldPresentationText: String? = nil,
+        truncatedDisplayText: String? = nil
     ) -> SuggestionAcceptancePreparation {
-        prepare(
+        let preparation = prepare(
             from: snapshot,
             overlayState: overlayState,
             heldPresentationText: heldPresentationText,
             emptyChunkReason: "Key passed through because no remaining suggestion text was available.",
             chunk: \.remainingText
         )
+        return Self.limitingToShownHead(preparation, overlayState: overlayState, truncatedDisplayText: truncatedDisplayText)
     }
 
     /// Validates the session once, then lets the caller choose how much of its visible tail this
@@ -203,6 +214,27 @@ final class SuggestionInteractionState {
             }
             return .ready(liveContext: liveContext, session: session, acceptedChunk: acceptedChunk)
         }
+    }
+
+    /// The step both acceptance keys share after validation: cut a ready chunk to the painted head
+    /// of the validated tail. A chunk the head leaves empty means none of the tail is on screen
+    /// yet, which is not the same as an invalid session (see `SuggestionAcceptancePreparation.unshown`).
+    private static func limitingToShownHead(
+        _ preparation: SuggestionAcceptancePreparation,
+        overlayState: OverlayState,
+        truncatedDisplayText: String?
+    ) -> SuggestionAcceptancePreparation {
+        guard case let .ready(liveContext, session, acceptedChunk) = preparation else {
+            return preparation
+        }
+        let shownHead = SuggestionSessionReconciler.shownHead(
+            of: session.remainingText, overlayState: overlayState, truncatedDisplayText: truncatedDisplayText
+        )
+        let shownChunk = SuggestionSessionReconciler.acceptanceChunk(acceptedChunk, limitedTo: shownHead)
+        guard !shownChunk.isEmpty else {
+            return .unshown("Key held because none of the remaining suggestion has been shown yet.")
+        }
+        return .ready(liveContext: liveContext, session: session, acceptedChunk: shownChunk)
     }
 
     /// Outcome of the validation shared by word-by-word and full acceptance.
@@ -347,6 +379,13 @@ enum SuggestionAcceptancePreparation {
         acceptedChunk: String
     )
     case invalid(String)
+    /// The session is valid, but none of the text this press would insert has been painted: an
+    /// accept took the ghost's whole painted head and its next present is still held, or the user
+    /// typed through the painted head before the ghost slid. The coordinator owns the key without
+    /// inserting and keeps the session. Inserting would type text the user has not seen; passing
+    /// the key through would tear down a live suggestion and hand the host a Tab, which moves
+    /// focus out of the field.
+    case unshown(String)
 }
 
 /// Describes how the stored session changed after the accepted text was successfully inserted.

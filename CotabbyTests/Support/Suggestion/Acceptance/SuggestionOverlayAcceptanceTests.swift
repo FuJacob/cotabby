@@ -104,4 +104,94 @@ final class SuggestionOverlayAcceptanceTests: XCTestCase {
             "Overlay hidden because typing invalidated the current suggestion."
         )
     }
+
+    // MARK: - Painted head of a truncated ghost
+
+    private func visible(_ text: String) -> OverlayState {
+        .visible(text: text, geometry: CotabbyTestFixtures.overlayGeometry(), mode: .inline)
+    }
+
+    func test_shownHead_isNilWhenTheWholeGhostIsPaintedOrNothingIsVisible() {
+        XCTAssertNil(SuggestionSessionReconciler.shownHead(
+            of: " world again", overlayState: visible(" world again"), truncatedDisplayText: nil
+        ))
+        XCTAssertNil(SuggestionSessionReconciler.shownHead(
+            of: " world again", overlayState: .hidden(reason: "held"), truncatedDisplayText: " world"
+        ))
+    }
+
+    func test_shownHead_isThePaintedHeadWhenTheTailIsTheVisibleText() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.shownHead(
+                of: " world again and more", overlayState: visible(" world again and more"),
+                truncatedDisplayText: " world again"
+            ),
+            " world again"
+        )
+    }
+
+    func test_shownHead_isRebasedOntoATailThatHasConsumedPartOfTheVisibleText() {
+        // An accept advanced the session while the overlay still holds its next present, or the
+        // user typed through letters before the ghost slid.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.shownHead(
+                of: " again and more", overlayState: visible(" world again and more"),
+                truncatedDisplayText: " world again"
+            ),
+            " again"
+        )
+    }
+
+    func test_shownHead_isEmptyOnceTheWholePaintedHeadIsConsumed() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.shownHead(
+                of: " and more", overlayState: visible(" world again and more"),
+                truncatedDisplayText: " world again"
+            ),
+            ""
+        )
+    }
+
+    func test_shownHead_keepsThePaintedHeadForAHeldPresentThatExtendsTheVisibleText() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.shownHead(
+                of: " world again and more", overlayState: visible(" world again and"),
+                truncatedDisplayText: " world"
+            ),
+            " world"
+        )
+    }
+
+    func test_shownHead_isEmptyForATailThatIsNotPartOfTheVisibleGhost() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.shownHead(
+                of: " something new", overlayState: visible(" world again"), truncatedDisplayText: " world"
+            ),
+            ""
+        )
+    }
+
+    func test_shownHead_imposesNoLimitWhenTheHeadDoesNotDescribeTheVisibleText() {
+        XCTAssertNil(SuggestionSessionReconciler.shownHead(
+            of: " world again", overlayState: visible(" world again"), truncatedDisplayText: " there"
+        ))
+    }
+
+    func test_acceptanceChunk_isCutBackToTheShownHead() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunk(" world again and more", limitedTo: " world again"),
+            " world again"
+        )
+    }
+
+    func test_acceptanceChunk_insideTheShownHeadIsUnchanged() {
+        XCTAssertEqual(SuggestionSessionReconciler.acceptanceChunk(" world", limitedTo: " world again"), " world")
+        XCTAssertEqual(SuggestionSessionReconciler.acceptanceChunk(" world again", limitedTo: " world again"), " world again")
+        XCTAssertEqual(SuggestionSessionReconciler.acceptanceChunk(" world again", limitedTo: nil), " world again")
+    }
+
+    func test_acceptanceChunk_isEmptyWhenNothingWasShownOrTheHeadDisagrees() {
+        XCTAssertEqual(SuggestionSessionReconciler.acceptanceChunk(" and", limitedTo: ""), "")
+        XCTAssertEqual(SuggestionSessionReconciler.acceptanceChunk(" world again", limitedTo: " there"), "")
+    }
 }

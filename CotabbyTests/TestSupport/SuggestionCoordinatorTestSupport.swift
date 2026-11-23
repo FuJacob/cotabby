@@ -109,6 +109,11 @@ final class RigOverlayController: SuggestionOverlayControlling {
 
     var heldPresentationText: String? { heldPresentation?.text }
 
+    /// Set by a test to simulate a one-row host that painted only this head of the visible text.
+    /// Every applied present and every hide clears it, as the real controller recomputes it from
+    /// each new layout; a held present leaves it describing the previous one, as the real one does.
+    var truncatedDisplayText: String?
+
     init(state: OverlayState = .hidden(reason: "initial")) {
         self.state = state
     }
@@ -125,6 +130,7 @@ final class RigOverlayController: SuggestionOverlayControlling {
             return
         }
         heldPresentation = nil
+        truncatedDisplayText = nil
         state = .visible(text: text, geometry: geometry, mode: .inline)
         onStateChange?(state)
     }
@@ -133,6 +139,7 @@ final class RigOverlayController: SuggestionOverlayControlling {
     func landHeldPresentation() {
         guard let held = heldPresentation else { return }
         heldPresentation = nil
+        truncatedDisplayText = nil
         state = .visible(text: held.text, geometry: held.geometry, mode: .inline)
         onStateChange?(state)
     }
@@ -140,6 +147,7 @@ final class RigOverlayController: SuggestionOverlayControlling {
     func hide(reason: String) {
         hideReasons.append(reason)
         heldPresentation = nil
+        truncatedDisplayText = nil
         state = .hidden(reason: reason)
         onStateChange?(state)
     }

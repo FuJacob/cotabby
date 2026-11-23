@@ -1064,11 +1064,10 @@ extension SuggestionCoordinator {
             normalizedOutput: visibleText
         )
 
-        // If the user pressed Tab while this continuation was still regenerating, accept its first
-        // word now so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
-        // stalling once the previous suggestion ran out. No-op when nothing was queued.
+        // A fresh suggestion ends any post-exhaustion Tab window. A Tab swallowed during that window
+        // is dropped rather than accepting this continuation, which did not exist when it was pressed.
         prepareContinuation(after: session, rawContext: rawContext)
-        flushQueuedPostExhaustionAcceptIfNeeded()
+        endPostExhaustionWindowForFreshSuggestion()
     }
 
     /// Shows a fresh session's ghost. A host prediction that appeared while the model was thinking

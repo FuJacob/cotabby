@@ -157,6 +157,26 @@ final class GhostTextLayoutTests: XCTestCase {
         XCTAssertNil(GhostTextLayout.make(input(text: "\ntwo", pitch: nil)))
     }
 
+    /// Acceptance stops one press at a truncated layout's `remainingText` (the overlay reports it as
+    /// `truncatedDisplayText`), so that head must be a strict prefix of the unconsumed text, after
+    /// an advance as well as on the first present, or the cap would describe text never offered.
+    func testTruncatedHeadIsAStrictPrefixOfTheUnconsumedText() throws {
+        let text = " alpha bravo charlie delta echo foxtrot golf hotel"
+        for consumed in [0, 6] {
+            let layout = try XCTUnwrap(GhostTextLayout.make(
+                input(text: text, consumed: consumed, anchor: CGPoint(x: 290, y: 200), pitch: nil)
+            ))
+            let unconsumed = (text as NSString).substring(from: consumed)
+            XCTAssertTrue(layout.isTruncated)
+            XCTAssertFalse(layout.remainingText.isEmpty)
+            XCTAssertTrue(unconsumed.hasPrefix(layout.remainingText))
+            XCTAssertLessThan(layout.remainingText.count, unconsumed.count)
+        }
+
+        let newlineCut = try XCTUnwrap(GhostTextLayout.make(input(text: " one\ntwo", pitch: nil)))
+        XCTAssertEqual(newlineCut.remainingText, " one", "Nothing after a hard newline is painted on one row")
+    }
+
     // MARK: - Wrapping at the caret
 
     func testACaretRowNothingFitsOnKeepsItsPlace() throws {

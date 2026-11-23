@@ -241,6 +241,14 @@ protocol SuggestionOverlayControlling: AnyObject {
     /// genuinely stale ghost. Nil whenever nothing is held.
     var heldPresentationText: String? { get }
 
+    /// The head of `state`'s text that is actually painted, when the inline ghost stopped short of
+    /// all of it: a host that offers one row shows only what fits and stops at a newline, and the
+    /// rest is revealed as the user accepts. Nil when every character is on screen, when nothing
+    /// is visible, and in card mode (the card shows its own ellipsis, and SwiftUI places it, so its
+    /// painted extent is not known exactly). Acceptance never inserts past this head in one press,
+    /// so the accept key only types text the user has been shown.
+    var truncatedDisplayText: String? { get }
+
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 
@@ -260,6 +268,9 @@ protocol SuggestionOverlayControlling: AnyObject {
 extension SuggestionOverlayControlling {
     /// Default: presentations are applied synchronously, so nothing is ever held.
     var heldPresentationText: String? { nil }
+
+    /// Default: conformers that paint no inline layout never cut the text short.
+    var truncatedDisplayText: String? { nil }
 
     /// Default: not supported, so conformers that do not render an inline panel (e.g. test doubles)
     /// transparently fall back to the caret-anchored present path.

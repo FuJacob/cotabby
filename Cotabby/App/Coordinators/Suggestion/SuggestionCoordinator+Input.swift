@@ -433,7 +433,7 @@ extension SuggestionCoordinator {
             )
 
         case .abandonAtCeiling:
-            // Release any queued Tab now instead of accepting a second copy of the correction.
+            // Release the Tab window now so a later press reaches the host instead of being swallowed.
             releasePostExhaustionAcceptanceWindow()
             cancelPreparedContinuation()
 

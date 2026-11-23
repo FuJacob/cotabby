@@ -109,7 +109,7 @@ absorb every rule or state transition. Prefer:
 - `SuggestionWorkController` for generation task identity/cancellation
 - `SuggestionInteractionState` for active suggestion session storage
 - `SuggestionStreamingState` for latest-wins partial coalescing and monotonic rendering state
-- `PostExhaustionAcceptanceState` for the bounded rapid-accept window after a tail is exhausted
+- `PostExhaustionAcceptanceState` for the bounded Tab-ownership window after a tail is exhausted
 
 This split matters because autocomplete is a state machine. Pure rules are easier to test and reason
 about than coordinator mutations.

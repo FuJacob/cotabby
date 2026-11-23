@@ -728,6 +728,54 @@ enum SuggestionSessionReconciler {
 
         return visibleText == text || heldPresentationText == text
     }
+
+    /// The leading part of `remainingText` the user has actually been shown, when that is less than
+    /// all of it; nil when nothing limits what one press may accept.
+    ///
+    /// An inline ghost on a host that offers one row paints only the head that fits and stops at a
+    /// newline, while the session keeps the whole suggestion so each accept can reveal more
+    /// (`GhostTextLayout.isTruncated`). `truncatedDisplayText` is that painted head of the
+    /// overlay's current text. The live tail is not always that same text: reconciliation may have
+    /// counted letters the user typed through before the ghost slid, an accept may have advanced
+    /// the session while the overlay still holds its next present, or a held present may extend
+    /// the painted one. The head is re-based onto the tail for each of those. Anything else means
+    /// none of the tail is on screen, and the result is empty.
+    ///
+    /// A head that does not describe the visible text is a controller inconsistency, not a reason
+    /// to swallow every press, so it imposes no limit (the behavior before the limit existed).
+    static func shownHead(
+        of remainingText: String,
+        overlayState: OverlayState,
+        truncatedDisplayText: String?
+    ) -> String? {
+        guard let truncatedDisplayText,
+              case let .visible(visibleText, _, _) = overlayState,
+              visibleText.hasPrefix(truncatedDisplayText) else {
+            return nil
+        }
+        if remainingText.hasPrefix(visibleText) {
+            return truncatedDisplayText
+        }
+        guard visibleText.hasSuffix(remainingText) else {
+            return ""
+        }
+        let consumedSincePainted = visibleText.count - remainingText.count
+        let head = String(truncatedDisplayText.dropFirst(consumedSincePainted))
+        // Character counts can disagree with the suffix match when a combining mark straddles the
+        // consumed boundary; a head that is not a prefix of the tail was not shown as that tail.
+        return remainingText.hasPrefix(head) ? head : ""
+    }
+
+    /// `chunk` cut back to `shownHead` when it would run past it, so a phrase or whole-suggestion
+    /// accept inserts only what was painted and leaves the rest as the session's next offer. Both
+    /// are prefixes of the same live tail, so one always contains the other; anything else fails
+    /// closed to the empty chunk, which inserts nothing.
+    static func acceptanceChunk(_ chunk: String, limitedTo shownHead: String?) -> String {
+        guard let shownHead, !shownHead.hasPrefix(chunk) else {
+            return chunk
+        }
+        return chunk.hasPrefix(shownHead) ? shownHead : ""
+    }
 }
 
 private extension String {

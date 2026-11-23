@@ -37,6 +37,17 @@ final class OverlayController: SuggestionOverlayControlling {
     /// stale ghost, and rejected a rapid Tab that followed an accept.
     var heldPresentationText: String? { lifecycle.heldText }
 
+    /// See `SuggestionOverlayControlling.truncatedDisplayText`. Read from the session the presented
+    /// inline ghost was drawn from, so it changes exactly when the painted rows do (a present, an
+    /// advance, a calibration re-layout). The lifecycle keeps a session only while an inline ghost
+    /// is what is presented, so the card and a hidden overlay report nothing.
+    var truncatedDisplayText: String? {
+        guard let layout = lifecycle.inlineSession?.layout, layout.isTruncated else {
+            return nil
+        }
+        return layout.remainingText
+    }
+
     /// Tells the subscriber what is presented now. Called after every presentation transition,
     /// including one that presents the same thing again: what counts as a change is its to decide.
     private func publishState() {
