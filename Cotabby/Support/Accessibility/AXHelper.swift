@@ -75,10 +75,11 @@ enum AXHelper {
 
     /// Reads a string AX attribute when the underlying value is present and type-compatible.
     static func stringValue(for attribute: CFString, on element: AXUIElement) -> String? {
-        guard let value = copyAttributeValue(attribute, on: element) else {
-            return nil
-        }
+        string(from: copyAttributeValue(attribute, on: element))
+    }
 
+    /// The plain text of a value that hosts vend either as a string or as an attributed string.
+    private static func string(from value: AnyObject?) -> String? {
         if let string = value as? String {
             return string
         }
@@ -193,14 +194,19 @@ enum AXHelper {
         cgRect(from: copyAttributeValue(attribute, on: element))
     }
 
+    /// A text range packed as the `AXValue` that range-taking parameterized attributes expect.
+    private static func rangeParameter(_ range: NSRange) -> AXValue? {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        return AXValueCreate(.cfRange, &cfRange)
+    }
+
     /// Reads a parameterized rectangle attribute such as `AXBoundsForRange`.
     static func parameterizedRectValue(
         for attribute: CFString,
         range: NSRange,
         on element: AXUIElement
     ) -> CGRect? {
-        var cfRange = CFRange(location: range.location, length: range.length)
-        guard let parameter = AXValueCreate(.cfRange, &cfRange) else {
+        guard let parameter = rangeParameter(range) else {
             return nil
         }
 
@@ -240,24 +246,11 @@ enum AXHelper {
         range: NSRange,
         on element: AXUIElement
     ) -> String? {
-        var cfRange = CFRange(location: range.location, length: range.length)
-        guard let parameter = AXValueCreate(.cfRange, &cfRange) else {
+        guard let parameter = rangeParameter(range) else {
             return nil
         }
 
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
-        guard result == .success, let value else { return nil }
-
-        if let string = value as? String {
-            return string
-        }
-
-        if let attributedString = value as? NSAttributedString {
-            return attributedString.string
-        }
-
-        return nil
+        return string(from: copyOpaqueParameterized(attribute, parameter: parameter, on: element))
     }
 
     /// Reads a parameterized attributed-string range (e.g. `AXAttributedStringForRange`) so callers
@@ -268,16 +261,11 @@ enum AXHelper {
         range: NSRange,
         on element: AXUIElement
     ) -> NSAttributedString? {
-        var cfRange = CFRange(location: range.location, length: range.length)
-        guard let parameter = AXValueCreate(.cfRange, &cfRange) else {
+        guard let parameter = rangeParameter(range) else {
             return nil
         }
 
-        var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
-        guard result == .success, let value else { return nil }
-
-        return value as? NSAttributedString
+        return copyOpaqueParameterized(attribute, parameter: parameter, on: element) as? NSAttributedString
     }
 
     /// Resolves the focused field's own text font and color from Accessibility so ghost text can
@@ -586,11 +574,8 @@ enum AXHelper {
     /// An element's frame from its position and size, in Accessibility (top-left origin) coordinates;
     /// nil when either is missing or the size is empty.
     private static func accessibilityFrame(of element: AXUIElement) -> CGRect? {
-        var positionRef: CFTypeRef?
-        var sizeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
-              let positionValue = axValue(from: positionRef), let sizeValue = axValue(from: sizeRef)
+        guard let positionValue = axValue(from: copyAttributeValue(kAXPositionAttribute as CFString, on: element)),
+              let sizeValue = axValue(from: copyAttributeValue(kAXSizeAttribute as CFString, on: element))
         else {
             return nil
         }
@@ -795,7 +780,7 @@ enum AXHelper {
 
     /// Parameterized counterpart of `copyOpaqueAttribute`: the raw answer to any parameterized query,
     /// uninspected. Marker queries hand it straight back to the host; the typed parameterized readers
-    /// decode it through the checked `cfRange(from:)` / `cgRect(from:)` converters.
+    /// decode it through the checked converters (`cfRange(from:)`, `cgRect(from:)`, `string(from:)`).
     private static func copyOpaqueParameterized(
         _ attribute: CFString, parameter: CFTypeRef, on element: AXUIElement
     ) -> CFTypeRef? {
@@ -1118,14 +1103,18 @@ enum AXHelper {
     }
 
     /// A strong editability signal is what separates a real input target from display text that merely exposes AX metadata.
+    ///
+    /// `isValueSettable` is an autoclosure because it is a cross-process query
+    /// (`isValueSettable(on:)`): it is asked only of a web area that vends no `AXEditable`, so
+    /// ordinary fields keep their cheap path.
     static func hasStrongEditabilitySignal(
-        role: String, explicitEditableFlag: Bool?, isValueSettable: Bool = false
+        role: String, explicitEditableFlag: Bool?, isValueSettable: @autoclosure () -> Bool = false
     ) -> Bool {
         // Mail's WebKit composer can expose a writable AXWebArea without AXEditable.
         // A web area alone is not evidence: received messages and browser documents use the
         // same role. Require a writable value, and never override an explicit read-only flag.
         explicitEditableFlag == true || isKnownEditableRole(role)
-            || (role == "AXWebArea" && explicitEditableFlag == nil && isValueSettable)
+            || (role == "AXWebArea" && explicitEditableFlag == nil && isValueSettable())
     }
 
     /// Queries capability only; this never writes the host's text. AX errors fail closed so an
@@ -1179,14 +1168,29 @@ enum AXHelper {
 
     /// How far outside a field's frame a text rect's midpoint may sit and still count as belonging to
     /// that field. Generous so padding, scrolling, and multi-line fields don't cause false negatives.
-    /// One constant because choosing a coordinate system here and accepting the result in
-    /// `AXTextGeometryResolver.rectIsNearAnchor` must agree on what "near" means.
-    static let anchorHaloTolerance: CGFloat = 80
+    private static let anchorHaloTolerance: CGFloat = 80
+
+    /// Whether a Cocoa text rect belongs to the field framed by `anchor`: its midpoint lies inside
+    /// the anchor grown by `anchorHaloTolerance`. True when there is no anchor to check against.
+    ///
+    /// `validatedCocoaTextRect` falls back to a best-effort flipped rect when neither coordinate
+    /// candidate lands near the anchor, and hosts answer bounds queries with rects of unrelated
+    /// ranges, so callers that accept a text rect use this as a hard accept/reject boundary and fall
+    /// through to their next source rather than anchor a ghost nowhere near where the user types.
+    /// One rule for both, because choosing a coordinate system and accepting the result must agree
+    /// on what "near" means.
+    static func isRect(_ cocoaRect: CGRect, nearAnchor anchor: CGRect?) -> Bool {
+        guard let anchor, !anchor.isEmpty else {
+            return true
+        }
+        let halo = anchor.insetBy(dx: -anchorHaloTolerance, dy: -anchorHaloTolerance)
+        return halo.contains(CGPoint(x: cocoaRect.midX, y: cocoaRect.midY))
+    }
 
     /// Converts a text-range AX rect to Cocoa coordinates, using the element's AXFrame (already
     /// in Cocoa coordinates) as a ground-truth anchor to detect whether pixel-to-point scaling
-    /// is needed. This replaces the old bundle-ID heuristic with empirical geometric validation:
-    ///   1. Y-flip the raw rect (no scaling) and check if it lands inside the anchor.
+    /// is needed:
+    ///   1. Y-flip the raw rect (no scaling) and check if it lands near the anchor.
     ///   2. If not, divide by the Retina backing scale factor, Y-flip, and recheck.
     ///   3. Whichever version falls near the anchor wins. Falls back to unscaled if neither fits.
     static func validatedCocoaTextRect(
@@ -1211,14 +1215,9 @@ enum AXHelper {
             displays: displays
         ) ?? legacyDesktopUnionFlip(textRect)
 
-        guard let anchor = cocoaAnchorFrame, !anchor.isEmpty else {
-            // No anchor available — plain Y-flip is the safest default.
-            return flipped
-        }
-
-        let expandedAnchor = anchor.insetBy(dx: -anchorHaloTolerance, dy: -anchorHaloTolerance)
-
-        if expandedAnchor.contains(CGPoint(x: flipped.midX, y: flipped.midY)) {
+        // Candidate A also wins when there is no anchor to check against: the plain Y-flip is the
+        // safest default.
+        if isRect(flipped, nearAnchor: cocoaAnchorFrame) {
             return flipped
         }
 
@@ -1228,7 +1227,7 @@ enum AXHelper {
         for scaledFlipped in DisplayCoordinateConverter.appKitRectsFromPixelRect(
             textRect,
             displays: displays
-        ) where expandedAnchor.contains(CGPoint(x: scaledFlipped.midX, y: scaledFlipped.midY)) {
+        ) where isRect(scaledFlipped, nearAnchor: cocoaAnchorFrame) {
             return scaledFlipped
         }
 

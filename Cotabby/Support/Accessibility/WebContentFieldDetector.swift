@@ -46,8 +46,8 @@ enum WebContentFieldDetector {
     /// Attributes WebKit puts on an editable document's web area and on nothing read-only: the
     /// selection as a marker range, and the IME composition range that only an editing context has.
     private static let editableWebAreaAttributes: Set<String> = [
-        "AXSelectedTextMarkerRange",
-        "AXTextInputMarkedRange"
+        AXHelper.selectedTextMarkerRangeAttribute as String,
+        HostMarkedTextPolicy.markedRangeAttribute
     ]
 
     /// Whether a focused `AXWebArea` is an editable document, the shape Mail's compose body takes

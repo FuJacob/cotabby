@@ -7,9 +7,10 @@ import Foundation
 /// Resolves caret and input-frame geometry from AX elements. This file centralizes the fragile
 /// browser/native heuristics used to place overlays, caret badges, and screenshot crops correctly.
 ///
-/// Separating geometry heuristics from `FocusTracker` makes compatibility bugs easier to reason
-/// about: if the wrong element is selected, the resolver layer is at fault; if the right element
-/// is selected but the caret anchor is wrong, this geometry layer is the place to debug.
+/// Separating geometry heuristics from candidate selection in `FocusSnapshotResolver` makes
+/// compatibility bugs easier to reason about: if the wrong element is selected, the snapshot
+/// resolver is at fault; if the right element is selected but the caret anchor is wrong, this
+/// geometry layer is the place to debug.
 
 /// Pairs a caret rect with the method that produced it, so callers can decide
 /// whether to trust the position or search for a better geometry source.
@@ -100,8 +101,8 @@ struct AXTextGeometryResolver {
         // character that is itself a line break describes the previous line, so that case defers to
         // the zero-length query below.
         // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process call into
-        // the focused app's AX implementation; the `rectIsNearAnchor` validator stays as a
-        // correctness guard for supporters that return rects belonging to an unrelated range.
+        // the focused app's AX implementation; the `AXHelper.isRect(_:nearAnchor:)` validator stays as
+        // a correctness guard for supporters that return rects belonging to an unrelated range.
         let previousCharacter = Self.character(before: selectionInTextValue.location, in: textValue)
         if supportsBoundsForRange,
             selection.location > 0,
@@ -115,7 +116,7 @@ struct AXTextGeometryResolver {
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
-            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+            if AXHelper.isRect(cocoaRect, nearAnchor: cocoaAnchorFrame) {
                 let isRightToLeft = textValue.map(TextDirectionDetector.isRightToLeft) ?? false
                 return CaretGeometryResult(
                     rect: Self.caretRect(afterCharacterFrame: cocoaRect, rightToLeft: isRightToLeft),
@@ -139,7 +140,7 @@ struct AXTextGeometryResolver {
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
-            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+            if AXHelper.isRect(cocoaRect, nearAnchor: cocoaAnchorFrame) {
                 let normalized = normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect)
                 return zeroLengthCaretResult(
                     normalized,
@@ -165,7 +166,7 @@ struct AXTextGeometryResolver {
                 fromAccessibilityRect: markerRect,
                 anchorFrame: cocoaAnchorFrame
             )
-            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+            if AXHelper.isRect(cocoaRect, nearAnchor: cocoaAnchorFrame) {
                 return CaretGeometryResult(
                     rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
                     quality: .exact,
@@ -590,7 +591,7 @@ struct AXTextGeometryResolver {
                 anchorFrame: fallbackFrame
             )
             if !cocoaCharacterFrame.isEmpty,
-                rectIsNearAnchor(cocoaCharacterFrame, anchor: fallbackFrame) {
+                AXHelper.isRect(cocoaCharacterFrame, nearAnchor: fallbackFrame) {
                 let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
                 return CaretGeometryResult(
                     rect: Self.caretRect(afterCharacterFrame: cocoaCharacterFrame),
@@ -774,7 +775,7 @@ struct AXTextGeometryResolver {
             return nil
         }
         let lineBox = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: cocoaAnchorFrame)
-        guard rectIsNearAnchor(lineBox, anchor: cocoaAnchorFrame) else { return nil }
+        guard AXHelper.isRect(lineBox, nearAnchor: cocoaAnchorFrame) else { return nil }
         let lineText = AXHelper.parameterizedStringValue(
             for: kAXStringForRangeParameterizedAttribute as CFString,
             range: lineRange,
@@ -960,10 +961,6 @@ struct AXTextGeometryResolver {
         return (placement, last.range.location)
     }
 
-    /// The number of characters between a run's trailing edge and the caret when extending the
-    /// caret estimate by that many measured character widths is credible: a short, same-line gap.
-    /// A gap containing a line break renders on another line entirely (the snap is closer to the
-    /// truth there), and a huge gap means a reflow-everything edit no linear extension can model.
     private static func isWhitespaceOnly(_ text: String) -> Bool {
         text.allSatisfy(\.isWhitespace)
     }
@@ -1012,6 +1009,10 @@ struct AXTextGeometryResolver {
         return String(before[index...])
     }
 
+    /// The number of characters between a run's trailing edge and the caret when extending the
+    /// caret estimate by that many measured character widths is credible: a short, same-line gap.
+    /// A gap containing a line break renders on another line entirely (the snap is closer to the
+    /// truth there), and a huge gap means a reflow-everything edit no linear extension can model.
     private static func extrapolableGapCharacters(from runEnd: Int, to caret: Int, in parent: NSString) -> Int {
         let gap = caret - runEnd
         guard gap > 0, gap <= maximumExtrapolatedGapCharacters else {
@@ -1172,29 +1173,6 @@ struct AXTextGeometryResolver {
         }
 
         return runs
-    }
-
-    /// Confirms a BoundsForRange result actually belongs to the focused field's neighborhood.
-    ///
-    /// `AXHelper.validatedCocoaTextRect` falls back to a best-effort flipped rect when neither
-    /// coordinate-system candidate lands inside the anchor — fine when only known-good elements
-    /// could even reach that helper (the old `supportsBoundsForRange` gate), but unsafe now that
-    /// any AX node may respond non-nil. We treat the same anchor halo as a hard accept/reject
-    /// boundary so the resolver falls through to the next branch instead of trusting a rect
-    /// whose midpoint lies nowhere near where the user is typing.
-    ///
-    /// Returns `true` when no anchor is supplied (cannot validate, preserve legacy behavior) or
-    /// when the rect's midpoint sits inside the anchor expanded by `AXHelper.anchorHaloTolerance` —
-    /// the same tolerance `AXHelper.validatedCocoaTextRect` uses to decide between coordinate systems.
-    ///
-    /// Internal (not private) so tests can exercise the accept/reject boundary directly, without
-    /// needing a live AX element that returns a controllable rect.
-    func rectIsNearAnchor(_ cocoaRect: CGRect, anchor: CGRect?) -> Bool {
-        guard let anchor, !anchor.isEmpty else {
-            return true
-        }
-        let expanded = anchor.insetBy(dx: -AXHelper.anchorHaloTolerance, dy: -AXHelper.anchorHaloTolerance)
-        return expanded.contains(CGPoint(x: cocoaRect.midX, y: cocoaRect.midY))
     }
 
     /// Some browser-based editors return a full line fragment for a zero-length range instead of

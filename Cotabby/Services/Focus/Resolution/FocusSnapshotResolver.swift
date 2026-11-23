@@ -594,20 +594,18 @@ struct FocusSnapshotResolver {
     }
 
     /// Resolves candidate elements lazily and stops as soon as the first fully capable editable
-    /// target is found.
+    /// target is found ("first full capability wins").
     ///
-    /// The old eager map built an `AXFocusCandidate` for every nearby Chromium node before asking
-    /// `FocusCapabilityResolver` to pick the first supported one. In large web editors that meant
-    /// reading text/selection/caret data from many wrapper and static-text nodes even after the real
-    /// input target had already been discovered. This preserves the resolver's "first full
-    /// capability wins" policy while avoiding unnecessary synchronous AX IPC.
+    /// Snapshotting a candidate reads its text, selection and caret over synchronous AX IPC, and in
+    /// large web editors most nearby nodes are wrappers and static text, so no candidate is
+    /// snapshotted after the real input target has been found.
     ///
     /// Candidate enumeration is staged the same way: the bounded descendant BFS used for Chromium
     /// wrappers costs hundreds of additional AX round trips per pass, and a shallow candidate
     /// (focused node, ancestors, their children) wins in the common case — including Chromium
     /// hosts that focus the editable directly — so the BFS runs only when no shallow candidate
-    /// resolves with full capabilities. Evaluation order is unchanged: shallow candidates always
-    /// preceded BFS appends, so any shallow winner made the BFS results unreachable anyway.
+    /// resolves with full capabilities. Staging cannot change the winner: every shallow candidate
+    /// is evaluated before any descendant one.
     private func resolveCandidate(
         around focusedReading: FocusedElementReading,
         bundleIdentifier: String,
@@ -975,10 +973,7 @@ struct FocusSnapshotResolver {
         let hasStrongEditabilitySignal = AXHelper.hasStrongEditabilitySignal(
             role: role,
             explicitEditableFlag: explicitEditableFlag,
-            // Probe only web areas missing AXEditable; ordinary fields keep their cheap path.
-            // This admits Mail's writable composer without treating every HTML page as editable.
-            isValueSettable: role == "AXWebArea" && explicitEditableFlag == nil
-                && AXHelper.isValueSettable(on: element)
+            isValueSettable: AXHelper.isValueSettable(on: element)
         ) || WebContentFieldDetector.isEditableWebArea(
             role: role,
             isFocusedElement: CFEqual(element, focusedReading.element),
