@@ -1,0 +1,23 @@
+Cotabby/Services/Focus/Chromium/ChromiumAccessibilityEnabler.swift
+  s_b9af9eb54478c8::t_0f22d50c30ff3f 22-24,31-32,44-51,57,61-83,87
+Cotabby/Services/Focus/FocusTracker.swift
+  s_b9af9eb54478c8::t_47ea3dd6b40925 66-77,457,460-461,463-470
+Cotabby/Support/Accessibility/AXHelper.swift
+  s_b9af9eb54478c8::t_161caf84648c18 875-881,887
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2e5633ec1247472cf518de540a69b8f03fc36ce",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
