@@ -29,12 +29,12 @@ final class TypingHistoryIndexTests: XCTestCase {
 
     func test_returnsThePassageThatSharesTheMostInformativeWords() {
         let index = TypingHistoryIndex(records: [
-            record("The Imperum POC for the SOC team starts Monday. We will connect Microsoft Sentinel first."),
+            record("The Contoso POC for the SOC team starts Monday. We will connect Microsoft Sentinel first."),
             record("Dinner tonight at eight? I can book the Italian place near the station if you like."),
             record("Our quarterly report covers revenue, hiring and the office move planned for spring.")
         ])
 
-        let examples = rankedExamples(in: index, for: query("schedule the Imperum POC with Sentinel for the SOC"))
+        let examples = rankedExamples(in: index, for: query("schedule the Contoso POC with Sentinel for the SOC"))
 
         XCTAssertEqual(examples.first?.contains("Sentinel"), true)
         XCTAssertFalse(examples.contains { $0.contains("Dinner") })
@@ -42,24 +42,24 @@ final class TypingHistoryIndexTests: XCTestCase {
 
     func test_weakOverlapReturnsNothing() {
         let index = TypingHistoryIndex(records: [
-            record("The Imperum POC for the SOC team starts Monday. We will connect Microsoft Sentinel first.")
+            record("The Contoso POC for the SOC team starts Monday. We will connect Microsoft Sentinel first.")
         ])
 
         XCTAssertEqual(rankedExamples(in: index, for: query("the team")), [])
     }
 
     func test_anOlderSnapshotOfTheSameFieldIsSkipped() {
-        let draft = "Hi Arnaud, the Imperum POC with Sentinel is ready for the SOC team to review this week."
+        let draft = "Hi Marcel, the Contoso POC with Sentinel is ready for the SOC team to review this week."
         let index = TypingHistoryIndex(records: [record(draft)])
 
-        XCTAssertEqual(rankedExamples(in: index, for: query("Imperum POC Sentinel SOC review", field: draft + " Let me")), [])
+        XCTAssertEqual(rankedExamples(in: index, for: query("Contoso POC Sentinel SOC review", field: draft + " Let me")), [])
     }
 
     func test_versionsOfTheDraftNeverCrowdOutAUsableExample() {
         // Seven earlier versions of the field's own text outrank the one usable example; they
         // must not fill every candidate slot and leave nothing to show.
-        let draft = "Status: the Imperum POC with Sentinel connectors is ready for SOC review this week and "
-        let usable = "Separately, the Imperum connectors for Sentinel passed review yesterday."
+        let draft = "Status: the Contoso POC with Sentinel connectors is ready for SOC review this week and "
+        let usable = "Separately, the Contoso connectors for Sentinel passed review yesterday."
         let index = TypingHistoryIndex(
             records: (0..<7).map { record(draft + "version \($0) ends here.") } + [record(usable, domain: "github.com")]
         )
@@ -70,25 +70,25 @@ final class TypingHistoryIndexTests: XCTestCase {
 
     func test_passageIsBoundedAndKeepsWholeSentences() {
         let long = "Short opener here. " + String(repeating: "Filler words about nothing in particular. ", count: 20)
-            + "The Imperum POC uses Sentinel connectors for SOC alerts. " + String(repeating: "More filler text follows. ", count: 20)
+            + "The Contoso POC uses Sentinel connectors for SOC alerts. " + String(repeating: "More filler text follows. ", count: 20)
         let index = TypingHistoryIndex(records: [record(long)])
 
-        let passage = rankedExamples(in: index, for: query("Imperum POC Sentinel connectors SOC alerts"), maxCharacters: 120).first
+        let passage = rankedExamples(in: index, for: query("Contoso POC Sentinel connectors SOC alerts"), maxCharacters: 120).first
 
         XCTAssertNotNil(passage)
         XCTAssertLessThanOrEqual(passage?.count ?? .max, 120)
-        XCTAssertEqual(passage?.contains("The Imperum POC uses Sentinel connectors for SOC alerts."), true)
+        XCTAssertEqual(passage?.contains("The Contoso POC uses Sentinel connectors for SOC alerts."), true)
     }
 
     func test_sameSiteWinsATie() {
         let index = TypingHistoryIndex(records: [
-            record("Pipeline status for the Imperum connector build is green again today.", app: "com.google.Chrome", domain: "github.com"),
-            record("Pipeline status for the Imperum connector build is green again today!", app: "com.google.Chrome", domain: "claude.ai")
+            record("Pipeline status for the Contoso connector build is green again today.", app: "com.google.Chrome", domain: "github.com"),
+            record("Pipeline status for the Contoso connector build is green again today!", app: "com.google.Chrome", domain: "claude.ai")
         ])
 
-        let examples = rankedExamples(in: index, for: query("Imperum connector pipeline build status", app: "com.google.Chrome", domain: "claude.ai"), limit: 1)
+        let examples = rankedExamples(in: index, for: query("Contoso connector pipeline build status", app: "com.google.Chrome", domain: "claude.ai"), limit: 1)
 
-        XCTAssertEqual(examples, ["Pipeline status for the Imperum connector build is green again today!"])
+        XCTAssertEqual(examples, ["Pipeline status for the Contoso connector build is green again today!"])
     }
 
     /// After the first short block the query moves in larger steps, so long texts refresh their

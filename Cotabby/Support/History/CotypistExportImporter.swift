@@ -90,7 +90,7 @@ nonisolated enum CotypistExportImporter {
         return kept.map(\.record)
     }
 
-    /// A field's early snapshots can be shorter than the grouping prefix ("Hi Arnaud, the POC is
+    /// A field's early snapshots can be shorter than the grouping prefix ("Hi Marcel, the POC is
     /// read"), so they land in their own group. Within each app, drop any text that is the start of
     /// a longer kept text: it is the same writing, caught before it was finished.
     private static func droppingEarlierSnapshots(_ records: [TypingHistoryRecord]) -> [TypingHistoryRecord] {

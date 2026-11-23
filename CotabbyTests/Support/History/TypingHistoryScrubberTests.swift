@@ -8,7 +8,7 @@ final class TypingHistoryScrubberTests: XCTestCase {
     }
 
     func test_proseAndShortNumbersPassThrough() {
-        let text = "Hi Arnaud, the POC starts on 12 October at 10:30. Kind regards, Senad"
+        let text = "Hi Marcel, the POC starts on 12 October at 10:30. Kind regards, Robin"
         XCTAssertEqual(scrub(text), text)
     }
 

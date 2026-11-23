@@ -9,10 +9,10 @@ final class CotypistExportImporterTests: XCTestCase {
     func test_keepsOnlyTheMostCompleteSnapshotOfEachField() throws {
         let data = try export([
             ["createdAt": "2026-06-05 16:23:53.028", "updatedAt": "2026-06-05 16:23:53.028",
-             "appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": "Hi Arnaud, the POC is read", "domain": "-"],
+             "appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": "Hi Marcel, the POC is read", "domain": "-"],
             ["createdAt": "2026-06-05 16:24:10.000", "updatedAt": "2026-06-05 16:24:10.000",
-             "appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": "Hi Arnaud, the POC is ready for review.",
-             "textAfterCursor": " Kind regards, Senad", "domain": "-"],
+             "appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": "Hi Marcel, the POC is ready for review.",
+             "textAfterCursor": " Kind regards, Robin", "domain": "-"],
             ["createdAt": "2026-06-06 09:00:00.000", "appBundleIdentifier": "com.google.Chrome",
              "textUpToCursor": "Can you summarize this incident report for me please?", "domain": "claude.ai"]
         ])
@@ -20,7 +20,7 @@ final class CotypistExportImporterTests: XCTestCase {
         let records = try CotypistExportImporter.records(fromExport: data)
 
         XCTAssertEqual(records.count, 2)
-        XCTAssertEqual(records[0].text, "Hi Arnaud, the POC is ready for review. Kind regards, Senad")
+        XCTAssertEqual(records[0].text, "Hi Marcel, the POC is ready for review. Kind regards, Robin")
         XCTAssertNil(records[0].domain, "Cotypist's \"-\" means no site")
         XCTAssertEqual(records[1].domain, "claude.ai")
         XCTAssertTrue(records.allSatisfy { $0.source == .imported })
@@ -38,10 +38,10 @@ final class CotypistExportImporterTests: XCTestCase {
     }
 
     func test_anEditedEarlierSnapshotStillCollapsesIntoTheFinalText() throws {
-        let final = "Hi Arnaud, the POC is ready for review. I tested it on the staging server and everything works. Let me know."
+        let final = "Hi Marcel, the POC is ready for review. I tested it on the staging server and everything works. Let me know."
         let data = try export([
             ["appBundleIdentifier": "com.microsoft.Outlook",
-             "textUpToCursor": "Hi Arnaud, the POC is ready for review. I tested it on the stagng server and it works."],
+             "textUpToCursor": "Hi Marcel, the POC is ready for review. I tested it on the stagng server and it works."],
             ["appBundleIdentifier": "com.microsoft.Outlook", "textUpToCursor": final]
         ])
 
