@@ -1,0 +1,35 @@
+Cotabby/Support/Suggestion/Request/HostPublishPoll.swift
+  s_b9af9eb54478c8::t_096abcbed22fe2 71-106
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift
+  s_b9af9eb54478c8::t_1f3fba6074602f 118-119
+Cotabby/Support/Suggestion/Session/PreparedContinuation.swift
+  s_b9af9eb54478c8::t_2ceb400e3fc179 49-56
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Continuation.swift
+  s_b9af9eb54478c8::t_519fff508668a6 124
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift
+  s_b9af9eb54478c8::t_b2b287cc3de475 345-346,348,420-430,435-447,450,452-467,469-477,479-488
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift
+  s_b9af9eb54478c8::t_7497a97b45ea2b 1436
+Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+TypingPrediction.swift
+  s_b9af9eb54478c8::t_7ad0e39c41ba2f 135
+CotabbyTests/Support/Suggestion/Request/HostPublishPollTests.swift
+  s_b9af9eb54478c8::t_54328c40fd4789 4-6,90-145
+CotabbyTests/Support/Suggestion/Session/PreparedContinuationTests.swift
+  s_b9af9eb54478c8::t_5fd2be05fa0736 66-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "470763dff60dcbe771e7cd1234e0e7d5f4a8a3fc",
+  "prompts": {},
+  "sessions": {
+    "s_b9af9eb54478c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77f015f-c592-48cb-9cb8-e1977792acbe",
+        "model": "unknown"
+      },
+      "human_author": "Jacob Fu <141651335+FuJacob@users.noreply.github.com>"
+    }
+  }
+}
