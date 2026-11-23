@@ -32,7 +32,7 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     ) async throws -> SuggestionResult {
         let metadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
-            "engine": .string("openai_compatible")
+            "engine": .string(SuggestionEngineKind.openAICompatible.logLabel)
         ]
         let startTime = Date()
         do {

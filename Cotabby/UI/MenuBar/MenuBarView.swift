@@ -484,7 +484,7 @@ struct MenuBarView: View {
 
     private var runtimePickerDisabled: Bool {
         switch runtimeModel.state {
-        case .starting, .loading:
+        case .loading:
             return true
         case .idle, .ready, .failed:
             return false

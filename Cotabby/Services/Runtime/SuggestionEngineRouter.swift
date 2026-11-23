@@ -13,7 +13,7 @@ final class SuggestionEngineRouter {
     private let openAICompatibleEngine: any SuggestionGenerating
     private let performanceMetricsStore: PerformanceMetricsStore
     private let qualityMetricsStore: SuggestionQualityMetricsStore
-    /// Closure that returns the currently selected llama model filename (e.g. `Qwen3-0.6B-Q8_0.gguf`).
+    /// Closure that returns the currently selected llama model filename (e.g. `gemma-4-E2B.i1-Q6_K.gguf`).
     /// A closure instead of a direct `LlamaRuntimeManager` reference keeps the router from depending
     /// on the concrete runtime type — useful for tests that want to fake the model label.
     private let llamaModelNameProvider: @MainActor () -> String?
@@ -51,16 +51,14 @@ final class SuggestionEngineRouter {
     ) async throws -> SuggestionResult {
         let metadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
-            "engine": .string(engineMetadataLabel(for: suggestionSettings.selectedEngine))
+            "engine": .string(suggestionSettings.selectedEngine.logLabel)
         ]
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             CotabbyLogger.suggestion.debug("Routing to Apple Intelligence engine", metadata: metadata)
             do {
                 let result = try await foundationModelEngine.generateSuggestion(for: request, onPartial: onPartial)
-                recordPerformanceMetric(modelName: "Apple Intelligence", latency: result.latency)
-                recordQualityOutcome(result)
-                return result
+                return finish(result, modelName: "Apple Intelligence")
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
                 // The user can turn the fallback off (Engine & Model → Apple Intelligence). Then an
                 // unsupported language simply gets no suggestion, and the local model never loads.
@@ -81,7 +79,7 @@ final class SuggestionEngineRouter {
                 CotabbyLogger.suggestion.info(
                     "Apple Intelligence unsupported for locale, falling back to open-source: \(message)",
                     metadata: metadata.merging([
-                        "fallback_engine": .string("llama"),
+                        "fallback_engine": .string(SuggestionEngineKind.llamaOpenSource.logLabel),
                         "reason": .string(message)
                     ]) { _, new in new }
                 )
@@ -93,10 +91,7 @@ final class SuggestionEngineRouter {
             }
         case .llamaOpenSource:
             CotabbyLogger.suggestion.debug("Routing to open-source llama engine", metadata: metadata)
-            let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
-            recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
-            recordQualityOutcome(result)
-            return result
+            return try await generateWithLlama(for: request, onPartial: onPartial)
         case .openAICompatible:
             // The request was built from a settings snapshot; power-source switching can move the
             // live engine to the endpoint in between. Typing history must never leave this Mac, so
@@ -110,10 +105,26 @@ final class SuggestionEngineRouter {
             }
             CotabbyLogger.suggestion.debug("Routing to OpenAI-compatible endpoint", metadata: metadata)
             let result = try await openAICompatibleEngine.generateSuggestion(for: request, onPartial: onPartial)
-            recordPerformanceMetric(modelName: endpointModelNameProvider() ?? "Local Endpoint", latency: result.latency)
-            recordQualityOutcome(result)
-            return result
+            return finish(result, modelName: endpointModelNameProvider() ?? "Local Endpoint")
         }
+    }
+
+    /// The llama path shared by the Open Source engine and the Apple Intelligence language
+    /// fallback, so both label their metrics with the same loaded model.
+    private func generateWithLlama(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult {
+        let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
+        return finish(result, modelName: llamaModelNameProvider() ?? "Llama")
+    }
+
+    /// Every result an engine actually produced leaves through here, which is what keeps the
+    /// performance and quality counters complete regardless of engine or fallback.
+    private func finish(_ result: SuggestionResult, modelName: String) -> SuggestionResult {
+        recordPerformanceMetric(modelName: modelName, latency: result.latency)
+        recordQualityOutcome(result)
+        return result
     }
 
     /// Counts every finished generation plus the engine-attributed suppression reason when the
@@ -136,17 +147,6 @@ final class SuggestionEngineRouter {
         guard suggestionSettings.isPerformanceTrackingEnabled else { return }
         let latencyMs = Int((latency * 1000).rounded())
         performanceMetricsStore.record(modelName: modelName, latencyMs: latencyMs)
-    }
-
-    private func engineMetadataLabel(for kind: SuggestionEngineKind) -> String {
-        switch kind {
-        case .appleIntelligence:
-            return "apple_intelligence"
-        case .llamaOpenSource:
-            return "llama"
-        case .openAICompatible:
-            return "openai_compatible"
-        }
     }
 
     /// Clears backend-local continuation state when the coordinator knows the editing context is
@@ -181,10 +181,7 @@ final class SuggestionEngineRouter {
         onPartial: (@MainActor (SuggestionResult) -> Void)? = nil
     ) async throws -> SuggestionResult {
         do {
-            let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
-            recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
-            recordQualityOutcome(result)
-            return result
+            return try await generateWithLlama(for: request, onPartial: onPartial)
         } catch SuggestionClientError.cancelled {
             throw SuggestionClientError.cancelled
         } catch {
@@ -196,6 +193,21 @@ final class SuggestionEngineRouter {
 }
 
 extension SuggestionEngineRouter: SuggestionGenerating {}
+
+extension SuggestionEngineKind {
+    /// The `engine` value stamped on log lines. Log filters and the documented `jq` recipes match
+    /// on these strings, so they are a contract independent of the persisted `rawValue`.
+    var logLabel: String {
+        switch self {
+        case .appleIntelligence:
+            return "apple_intelligence"
+        case .llamaOpenSource:
+            return "llama"
+        case .openAICompatible:
+            return "openai_compatible"
+        }
+    }
+}
 
 /// A tiny runtime boundary used when an engine is a product option but not available in the
 /// current process. Keeping this as a `SuggestionGenerating` implementation lets app composition

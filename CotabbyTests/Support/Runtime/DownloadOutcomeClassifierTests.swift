@@ -19,7 +19,6 @@ final class DownloadOutcomeClassifierTests: XCTestCase {
             ("URLError.timedOut", URLError(.timedOut), false, false),
             ("URLError.notConnectedToInternet", URLError(.notConnectedToInternet), false, false),
             ("URLError.badServerResponse", URLError(.badServerResponse), false, false),
-            ("Aria2DownloadError.executableNotFound", Aria2DownloadError.executableNotFound, false, false),
             (
                 "Aria2DownloadError.processFailed",
                 Aria2DownloadError.processFailed(exitCode: 7, message: "network"),

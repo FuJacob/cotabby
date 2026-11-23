@@ -3,13 +3,12 @@ import Foundation
 
 /// Stand-in for `LlamaRuntimeManager` so `LlamaSuggestionEngine` can be driven without loading a
 /// model. It returns a staged result and records every call, because the engine's contracts are
-/// about what it asks of the runtime (sampling options, reuse hints, prefills, cache resets) as
-/// much as what it returns.
+/// about what it asks of the runtime (sampling options, prefills, cache resets) as much as what it
+/// returns.
 @MainActor
 final class FakeLlamaRuntime: LlamaRuntimeGenerating {
     struct Call: Equatable {
         let prompt: String
-        let cachedPrefixBytes: Int?
         let options: LlamaGenerationOptions
     }
 
@@ -27,16 +26,14 @@ final class FakeLlamaRuntime: LlamaRuntimeGenerating {
 
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
     ) async throws -> LlamaGenerationOutput {
-        generateCalls.append(Call(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options))
+        generateCalls.append(Call(prompt: prompt, options: options))
         return try generateResult.get()
     }
 
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput {
@@ -44,17 +41,17 @@ final class FakeLlamaRuntime: LlamaRuntimeGenerating {
         for partial in partialRawTexts {
             onPartialRawText?(partial)
         }
-        return try await generate(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options)
+        return try await generate(prompt: prompt, options: options)
     }
 
     func resetPromptCache() {
         resetCount += 1
     }
 
-    func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws {
+    func prefill(prompt: String, options: LlamaGenerationOptions) async throws {
         if let prefillError {
             throw prefillError
         }
-        prefillCalls.append(Call(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options))
+        prefillCalls.append(Call(prompt: prompt, options: options))
     }
 }

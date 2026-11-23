@@ -71,7 +71,6 @@ final class PromptPrefaceEchoFilterTests: XCTestCase {
     private static func fullPrompt(surfaceClass: AppSurfaceClass) -> String {
         BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            applicationName: "Mail",
             userName: "Senad",
             trailingText: "rest of the passage",
             customRules: ["concise"],

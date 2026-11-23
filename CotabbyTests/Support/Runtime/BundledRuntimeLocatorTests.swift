@@ -161,7 +161,6 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let locator = BundledRuntimeLocator()
 
         let resolved = try locator.resolve(configuration: config, selectedModelFilename: nil)
-        XCTAssertEqual(resolved.runtimeDirectoryURL.path, dir.path)
         XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "gemma-4-E2B.i1-Q6_K.gguf")
         // Known catalog files resolve to their product name rather than the raw filename.
         XCTAssertEqual(resolved.modelDisplayName, "tabby-2-base")

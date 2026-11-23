@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import Logging
 
@@ -11,7 +10,6 @@ import Logging
 @MainActor
 final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeGenerating
-    private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
     /// The focus-time warmup in flight, if any. A real generation cancels it on entry so it never
     /// queues behind a warmup for a prompt the user has already typed past.
     private var inflightPrewarmTask: Task<Void, Never>?
@@ -52,35 +50,37 @@ final class LlamaSuggestionEngine {
     /// Prefills the prompt KV for the field the user just focused, so the first real suggestion
     /// there only decodes the typed delta instead of the whole cold prompt.
     ///
-    /// The protocol default used to be a no-op here on the assumption that llama "keeps its KV
-    /// cache hot", but a focus change resets the cached generation context and destroys the native
-    /// sequence, so the first request in every field paid a full prefill. Best-effort by design:
-    /// failures are swallowed (a missed warmup costs nothing the cold path would not have paid)
-    /// and the tracker only records the prompt after the native decode actually succeeded.
+    /// The llama KV cache does not stay hot across fields: a focus change resets the cached
+    /// generation context and destroys the native sequence, so without this the first request in
+    /// every field pays a full prefill. Best-effort by design: failures are swallowed, because a
+    /// missed warmup costs nothing the cold path would not have paid.
     func prewarm(for request: SuggestionRequest) async {
-        inflightPrewarmTask?.cancel()
-        let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+        cancelInflightPrewarm()
         let options = Self.makeGenerationOptions(for: request)
-        let task = Task { [weak self, runtimeManager] in
+        let task = Task { [runtimeManager] in
             do {
-                try await runtimeManager.prefill(
-                    prompt: request.prompt,
-                    cachedPrefixBytes: cachedPrefixBytes,
-                    options: options
-                )
-                guard !Task.isCancelled else {
-                    return
-                }
-                self?.promptCacheHintTracker.recordSuccessfulRequest(request)
+                try await runtimeManager.prefill(prompt: request.prompt, options: options)
             } catch {
                 CotabbyLogger.suggestion.debug(
                     "Llama prewarm skipped: \(error.localizedDescription)",
-                    metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
+                    metadata: [
+                        "request_id": .string(request.requestID),
+                        "engine": .string(SuggestionEngineKind.llamaOpenSource.logLabel)
+                    ]
                 )
             }
         }
         inflightPrewarmTask = task
         await task.value
+        // A newer prewarm may have replaced the handle while this one was suspended.
+        if inflightPrewarmTask == task {
+            inflightPrewarmTask = nil
+        }
+    }
+
+    private func cancelInflightPrewarm() {
+        inflightPrewarmTask?.cancel()
+        inflightPrewarmTask = nil
     }
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
@@ -98,22 +98,18 @@ final class LlamaSuggestionEngine {
     ) async throws -> SuggestionResult {
         let baseMetadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
-            "engine": .string("llama")
+            "engine": .string(SuggestionEngineKind.llamaOpenSource.logLabel)
         ]
         do {
             // A still-running focus warmup must not make this request wait behind it on the
             // runtime's autocomplete lock; cancelling it aborts its native decode mid-chunk.
-            inflightPrewarmTask?.cancel()
-            inflightPrewarmTask = nil
+            cancelInflightPrewarm()
 
             let startTime = Date()
-            let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
-            let hintDesc = cachedPrefixBytes.map(String.init) ?? "none"
             CotabbyLogger.suggestion.debug(
                 "Llama generating",
                 metadata: baseMetadata.merging([
                     "prompt_bytes": .stringConvertible(request.prompt.count),
-                    "cache_hint_bytes": .string(hintDesc),
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)
                 ]) { _, new in new }
             )
@@ -122,7 +118,6 @@ final class LlamaSuggestionEngine {
             if let onPartial {
                 output = try await runtimeManager.generate(
                     prompt: request.prompt,
-                    cachedPrefixBytes: cachedPrefixBytes,
                     options: options,
                     onPartialRawText: { raw in
                         // Decode-thread callback; normalization and delivery hop to the main
@@ -145,15 +140,10 @@ final class LlamaSuggestionEngine {
                     }
                 )
             } else {
-                output = try await runtimeManager.generate(
-                    prompt: request.prompt,
-                    cachedPrefixBytes: cachedPrefixBytes,
-                    options: options
-                )
+                output = try await runtimeManager.generate(prompt: request.prompt, options: options)
             }
             try Task.checkCancellation()
 
-            promptCacheHintTracker.recordSuccessfulRequest(request)
             let rawSuggestion = output.text
             // A confidence-suppressed completion never reaches the normalizer (the runtime already
             // withheld the text); attribute the real reason instead of "the model produced nothing".
@@ -194,7 +184,6 @@ final class LlamaSuggestionEngine {
                     "suppression_reason": .string(suppressionReason),
                     "avg_logprob": .string(averageLogprobDescription),
                     "latency_ms": .stringConvertible(latencyMs),
-                    "cache_hint_bytes": .string(hintDesc),
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)
                 ]) { _, new in new }
             )
@@ -252,15 +241,11 @@ final class LlamaSuggestionEngine {
         }
     }
 
-    /// Clears both the Swift-side hint tracker and the native llama KV cache.
-    /// The tracker reset is synchronous because it protects the next request from advertising
-    /// stale reuse; awaiting the runtime reset keeps native KV invalidation ordered before the next
-    /// generation request that crosses this engine boundary.
+    /// Drops the native llama KV cache. The reset is synchronous on the main actor, so it is
+    /// ordered before the next generation request that crosses this engine boundary.
     func resetCachedGenerationContext() async {
         // The editing context moved on, so a warmup for the previous field's prompt is stale.
-        inflightPrewarmTask?.cancel()
-        inflightPrewarmTask = nil
-        promptCacheHintTracker.reset()
+        cancelInflightPrewarm()
         runtimeManager.resetPromptCache()
     }
 
@@ -288,124 +273,3 @@ final class LlamaSuggestionEngine {
 }
 
 extension LlamaSuggestionEngine: SuggestionGenerating {}
-
-/// Tracks the last successful llama prompt so the engine can pass a byte-prefix hint into
-/// `LlamaRuntimeManager.generate` for diagnostics (`cache_hint_bytes` in the logs). This type
-/// deliberately does not own correctness or gate reuse: `LlamaRuntimeCore` keeps whatever token
-/// prefix the new prompt shares with native KV, whether or not a hint was offered.
-struct LlamaPromptCacheHintTracker: Equatable {
-    private var lastRequest: CachedRequest?
-
-    mutating func cachedPrefixBytes(for request: SuggestionRequest) -> Int? {
-        let nextRequest = CachedRequest(request: request)
-        guard let lastRequest else {
-            return nil
-        }
-
-        guard lastRequest.focusKey == nextRequest.focusKey,
-              lastRequest.samplingFingerprint == nextRequest.samplingFingerprint
-        else {
-            self.lastRequest = nil
-            return nil
-        }
-
-        return Self.commonPrefixByteCount(lastRequest.promptBytes, nextRequest.promptBytes)
-    }
-
-    mutating func recordSuccessfulRequest(_ request: SuggestionRequest) {
-        lastRequest = CachedRequest(request: request)
-    }
-
-    mutating func reset() {
-        lastRequest = nil
-    }
-
-    private static func commonPrefixByteCount(_ lhs: [UInt8], _ rhs: [UInt8]) -> Int {
-        var index = 0
-        let limit = min(lhs.count, rhs.count)
-
-        while index < limit, lhs[index] == rhs[index] {
-            index += 1
-        }
-
-        return index
-    }
-}
-
-private extension LlamaPromptCacheHintTracker {
-    struct CachedRequest: Equatable {
-        let focusKey: FocusKey
-        let samplingFingerprint: SamplingFingerprint
-        let promptBytes: [UInt8]
-
-        init(request: SuggestionRequest) {
-            focusKey = FocusKey(context: request.context)
-            samplingFingerprint = SamplingFingerprint(request: request)
-            promptBytes = Array(request.prompt.utf8)
-        }
-    }
-
-    struct FocusKey: Equatable {
-        let bundleIdentifier: String
-        let processIdentifier: Int32
-        let role: String
-        let subrole: String?
-        let fieldAnchor: FieldAnchor
-
-        init(context: FocusedInputContext) {
-            bundleIdentifier = context.bundleIdentifier
-            processIdentifier = context.processIdentifier
-            role = context.role
-            subrole = context.subrole
-            fieldAnchor = FieldAnchor(
-                inputFrame: context.inputFrameRect,
-                fallbackElementIdentifier: context.elementIdentifier
-            )
-        }
-    }
-
-    struct FieldAnchor: Equatable {
-        let roundedInputFrame: RoundedRect?
-        let fallbackElementIdentifier: String?
-
-        nonisolated init(inputFrame: CGRect?, fallbackElementIdentifier: String) {
-            roundedInputFrame = inputFrame.map(RoundedRect.init(rect:))
-            self.fallbackElementIdentifier = roundedInputFrame == nil ? fallbackElementIdentifier : nil
-        }
-    }
-
-    struct RoundedRect: Equatable {
-        let minX: Int
-        let minY: Int
-        let width: Int
-        let height: Int
-
-        nonisolated init(rect: CGRect) {
-            minX = Int(rect.minX.rounded())
-            minY = Int(rect.minY.rounded())
-            width = Int(rect.width.rounded())
-            height = Int(rect.height.rounded())
-        }
-    }
-
-    /// Mirrors the native sampler settings. The output-token budget is excluded for the same reason
-    /// as in `LlamaRuntimeCore`: performance tuning moves it between requests without changing
-    /// anything a cached prompt depends on.
-    struct SamplingFingerprint: Equatable {
-        let temperature: Double
-        let topK: Int
-        let topP: Double
-        let minP: Double
-        let repetitionPenalty: Double
-        let randomSeed: UInt32?
-
-        init(request: SuggestionRequest) {
-            temperature = request.temperature
-            topK = request.topK
-            topP = request.topP
-            minP = request.minP
-            repetitionPenalty = request.repetitionPenalty
-            randomSeed = request.randomSeed
-        }
-    }
-}

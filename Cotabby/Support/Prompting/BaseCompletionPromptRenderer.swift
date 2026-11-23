@@ -20,7 +20,6 @@ enum BaseCompletionPromptRenderer {
 
     static func prompt(
         prefixText: String,
-        applicationName: String,
         userName: String?,
         trailingText: String = "",
         maxSuffixCharacters: Int = 192,
@@ -100,8 +99,8 @@ enum BaseCompletionPromptRenderer {
         }
         // The caret prefix: top priority so it is never starved, kept by its END (the text nearest
         // the caret), and rendered last with no label so the model continues from where the user
-        // stopped. `applicationName` is intentionally not stated; app/window metadata biases a base
-        // model toward code/numbers over prose.
+        // stopped. The application name is intentionally not stated here; app/window metadata biases
+        // a base model toward code/numbers over prose.
         sections.append(
             PromptSection(
                 name: "prefix",

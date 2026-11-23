@@ -28,10 +28,9 @@ import FoundationModels
 /// stream yields cumulative partials, so the loop captures the latest snapshot and exits with it
 /// as the final raw text. The win is responsiveness to cancellation: `Task.checkCancellation()`
 /// inside the loop lets the coordinator interrupt mid-decode when the user types past the
-/// in-flight suggestion, where `respond` would otherwise have to run to completion. The external
-/// `SuggestionResult` shape is unchanged, so the rest of the pipeline (overlay, presenter,
-/// active-session reconciliation) stays as-is — pushing partials all the way to the overlay is a
-/// separate, larger change scoped to a follow-up.
+/// in-flight suggestion, where `respond` would otherwise have to run to completion. Each snapshot
+/// is also forwarded through `onPartial` so ghost text can render before the stream finishes; the
+/// returned `SuggestionResult` stays the authoritative final answer.
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
 @MainActor
@@ -48,8 +47,7 @@ final class FoundationModelSuggestionEngine {
     }
 
     /// Streaming variant: Apple's response stream already yields cumulative snapshots; each one is
-    /// normalized and forwarded so ghost text can render before the stream finishes. The previous
-    /// implementation deliberately discarded the partials pending coordinator support.
+    /// normalized and forwarded so ghost text can render before the stream finishes.
     func generateSuggestion(
         for request: SuggestionRequest,
         onPartial: (@MainActor (SuggestionResult) -> Void)?
@@ -58,7 +56,7 @@ final class FoundationModelSuggestionEngine {
 
         let baseMetadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
-            "engine": .string("apple_intelligence")
+            "engine": .string(SuggestionEngineKind.appleIntelligence.logLabel)
         ]
 
         guard availabilityService.isAvailable else {
@@ -246,7 +244,7 @@ final class FoundationModelSuggestionEngine {
     ///   shared context, which Apple eventually surfaces as `.exceededContextWindowSize`. Bounded
     ///   reuse keeps the prewarm benefit on the first keystroke after focus — the session is
     ///   built and prewarmed on focus change, then consumed once — and any further keystroke in
-    ///   the same field starts from a fresh session, matching the pre-PR single-turn behavior.
+    ///   the same field starts from a fresh session, so every request stays single-turn.
     ///
     /// The cache key intentionally omits `model` identity. `availabilityService` owns the singleton
     /// `SystemLanguageModel` and only swaps it on app restart, never mid-session — so a cached

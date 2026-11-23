@@ -299,7 +299,6 @@ final class RuntimeModelValueTests: XCTestCase {
 
     func test_runtimeBootstrapState_summaryShowsDetailForEveryNonIdleState() {
         XCTAssertEqual(RuntimeBootstrapState.idle.summary, "Idle")
-        XCTAssertEqual(RuntimeBootstrapState.starting("Locating runtime").summary, "Locating runtime")
         XCTAssertEqual(RuntimeBootstrapState.loading("Loading model").summary, "Loading model")
         XCTAssertEqual(RuntimeBootstrapState.ready("tabby-2-base ready").summary, "tabby-2-base ready")
         XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").summary, "Missing model file")
@@ -308,7 +307,6 @@ final class RuntimeModelValueTests: XCTestCase {
     func test_runtimeBootstrapState_failureDetailIsNonNilOnlyWhenFailed() {
         XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").failureDetail, "Missing model file")
         XCTAssertNil(RuntimeBootstrapState.idle.failureDetail)
-        XCTAssertNil(RuntimeBootstrapState.starting("Locating runtime").failureDetail)
         XCTAssertNil(RuntimeBootstrapState.loading("Loading model").failureDetail)
         XCTAssertNil(RuntimeBootstrapState.ready("tabby-2-base ready").failureDetail)
     }
@@ -337,20 +335,7 @@ final class RuntimeModelValueTests: XCTestCase {
         XCTAssertEqual(model.actualModelName, "custom.gguf")
         XCTAssertNil(model.expectedSizeBytes)
         XCTAssertNil(model.sha256)
-        XCTAssertEqual(model.allKnownFilenames, ["custom.gguf"])
         XCTAssertEqual(model.approximateSizeLabel, "~1.4 GB")
-    }
-
-    func test_downloadableRuntimeModel_allKnownFilenamesListsPrimaryBeforeAlternates() throws {
-        let model = DownloadableRuntimeModel(
-            filename: "current.gguf",
-            displayName: "Current",
-            downloadURL: try XCTUnwrap(URL(string: "https://example.com/current.gguf")),
-            approximateSizeInGigabytes: 0.5,
-            alternateFilenames: ["legacy-a.gguf", "legacy-b.gguf"]
-        )
-
-        XCTAssertEqual(model.allKnownFilenames, ["current.gguf", "legacy-a.gguf", "legacy-b.gguf"])
     }
 
     func test_downloadableModelCatalog_entriesAreUniqueHuggingFaceGGUFDownloads() {

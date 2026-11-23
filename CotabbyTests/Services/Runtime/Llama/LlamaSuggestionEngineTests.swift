@@ -3,9 +3,9 @@ import XCTest
 @testable import Cotabby
 
 /// Locks how `LlamaSuggestionEngine` translates a `SuggestionRequest` into runtime calls: the
-/// sampling options it hands the runtime, and when it advertises a KV reuse hint. The options
-/// matter because the runtime validates cache reuse against their fingerprint; the hint matters
-/// because advertising reuse the native cache cannot back would decode against stale state.
+/// sampling options it hands the runtime, and when it drops the native prompt cache. The options
+/// matter because the runtime validates cache reuse against their fingerprint; the resets matter
+/// because dropping the cache on every superseded keystroke makes each one decode the whole prompt.
 @MainActor
 final class LlamaSuggestionEngineTests: XCTestCase {
     func test_generationOptions_mapRequestKnobsAndFieldShape() async throws {
@@ -56,7 +56,7 @@ final class LlamaSuggestionEngineTests: XCTestCase {
         XCTAssertEqual(runtime.prefillCalls.count, 1)
     }
 
-    func test_successfulGeneration_primesHintAndGenuineFailureClearsIt() async throws {
+    func test_genuineRuntimeFailure_resetsThePromptCacheOnce() async throws {
         let runtime = FakeLlamaRuntime()
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
         let first = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "Hello")
@@ -70,16 +70,13 @@ final class LlamaSuggestionEngineTests: XCTestCase {
         runtime.generateResult = .success(.text(" ok"))
         _ = try await engine.generateSuggestion(for: extended)
 
-        XCTAssertEqual(
-            runtime.generateCalls.map(\.cachedPrefixBytes),
-            [nil, "Hello".utf8.count, "Hello wo".utf8.count, nil]
-        )
+        XCTAssertEqual(runtime.generateCalls.map(\.prompt), ["Hello", "Hello wo", "Hello wo", "Hello wo"])
         XCTAssertEqual(runtime.resetCount, 1)
     }
 
-    /// A cancelled generation neither records its prompt nor resets the cache, so the hint still
-    /// reflects the last prompt that actually completed.
-    func test_cancelledGeneration_keepsThePreviousHint() async throws {
+    /// A cancelled generation is not a runtime failure: the native prompt cache must survive it so
+    /// the next keystroke reuses the shared prefix instead of decoding the whole prompt again.
+    func test_cancelledGeneration_keepsThePromptCache() async throws {
         let runtime = FakeLlamaRuntime()
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
         let first = CotabbyTestFixtures.suggestionRequest(prefixText: "Hello", prompt: "Hello")
@@ -91,7 +88,7 @@ final class LlamaSuggestionEngineTests: XCTestCase {
         runtime.generateResult = .success(.text(" ok"))
         _ = try await engine.generateSuggestion(for: cancelled)
 
-        XCTAssertEqual(runtime.generateCalls.map(\.cachedPrefixBytes), [nil, "Hello".utf8.count, "Hello".utf8.count])
+        XCTAssertEqual(runtime.generateCalls.count, 3)
         XCTAssertEqual(runtime.resetCount, 0)
     }
 }

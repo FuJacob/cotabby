@@ -17,7 +17,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_noContext_returnsExactPrefixVerbatim() {
         for prefix in ["I am writing to ", "doing my aft", "see you   \n", "Hi team,\n\n\t- "] {
             XCTAssertEqual(
-                BaseCompletionPromptRenderer.prompt(prefixText: prefix, applicationName: "Mail", userName: nil),
+                BaseCompletionPromptRenderer.prompt(prefixText: prefix, userName: nil),
                 prefix,
                 "prefix \(prefix.debugDescription)"
             )
@@ -29,7 +29,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_whitespaceOnlyOptionalInputsAddNoPreface() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "A new thought ",
-            applicationName: "Notes",
             userName: "  \n",
             trailingText: "  \n\t",
             customRules: ["", "   "],
@@ -45,7 +44,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_zeroSuffixAllowanceOmitsFollowingText() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "We are meeting ",
-            applicationName: "Mail",
             userName: nil,
             trailingText: " on Friday.",
             maxSuffixCharacters: 0
@@ -63,7 +61,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_allContext_rendersEverySectionInOrderWithPrefixLast() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "the meeting is at ",
-            applicationName: "Mail",
             userName: " Jacob ",
             trailingText: " on Friday.",
             customRules: ["  terse ", "", "warm"],
@@ -96,7 +93,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_historyExamplesFollowClipboardAndScreenText() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "the meeting is at ",
-            applicationName: "Mail",
             userName: nil,
             trailingText: " on Friday.",
             clipboardContext: "zoom link",
@@ -119,7 +115,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let prefix = "We are meeting "
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            applicationName: "Mail",
             userName: nil,
             trailingText: " on Friday.\n\nAlready written.",
             maxSuffixCharacters: 11
@@ -148,7 +143,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         for testCase in cases {
             let prompt = BaseCompletionPromptRenderer.prompt(
                 prefixText: "Thanks",
-                applicationName: testCase.surface.applicationName,
                 userName: nil,
                 surfaceContext: testCase.surface,
                 usesCompactSurfaceContext: testCase.compact
@@ -164,7 +158,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_characterBudget_dropsLowerPrioritySectionsWhenExhausted() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
-            applicationName: "Notes",
             userName: nil,
             languageInstruction: "Write in English.",
             clipboardContext: "zoom link",
@@ -178,7 +171,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_screenPriorityCanOutrankLanguageUnderATightBudget() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
-            applicationName: "Notes",
             userName: nil,
             languageInstruction: "Write in English.",
             visualContextSummary: "green",
@@ -192,7 +184,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_maxScreenCharactersCapsTheLabelledSection() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "xyz",
-            applicationName: "Notes",
             userName: nil,
             visualContextSummary: "abcdefghij",
             maxScreenCharacters: 25
@@ -204,7 +195,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_prefixLongerThanBudgetKeepsCaretSideAndDropsContext() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "hello world",
-            applicationName: "Notes",
             userName: "Jacob",
             contextBudget: 5
         )
@@ -217,7 +207,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let prefix = "We are meeting "
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            applicationName: "Mail",
             userName: nil,
             trailingText: " on Friday.",
             contextBudget: prefix.count + 10
@@ -229,7 +218,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertEqual(
             BaseCompletionPromptRenderer.prompt(
                 prefixText: "This must not escape the budget.",
-                applicationName: "Notes",
                 userName: nil,
                 contextBudget: 0
             ),
@@ -244,7 +232,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let notes = String(repeating: "n", count: SuggestionSettingsModel.maximumExtendedContextCharacters)
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "abc",
-            applicationName: "Notes",
             userName: nil,
             extendedContext: notes
         )
@@ -264,7 +251,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         )
         for availableSurfaceCharacters in [24, 240] {
             let prompt = BaseCompletionPromptRenderer.prompt(
-                prefixText: prefix, applicationName: "Google Chrome", userName: nil,
+                prefixText: prefix, userName: nil,
                 surfaceContext: surface, contextBudget: prefix.count + availableSurfaceCharacters
             )
             XCTAssertTrue(prompt.hasSuffix("\n\n" + prefix), "metadata must not displace or normalize the caret prefix")
@@ -285,7 +272,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         for testCase in cases {
             let prompt = BaseCompletionPromptRenderer.prompt(
                 prefixText: "abcd",
-                applicationName: "Notes",
                 userName: nil,
                 languageInstruction: "Write in English.",
                 clipboardContext: "zoom link",
@@ -299,7 +285,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         let prefix = "Hi team,\n\nAgenda:\n\t- "
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            applicationName: "Notes",
             userName: nil,
             languageInstruction: "Write in English.",
             tokenBudget: 100
@@ -314,7 +299,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertGreaterThan(prefix.count, 2400)
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefix,
-            applicationName: "Pages",
             userName: nil,
             languageInstruction: "Write in English.",
             tokenBudget: SuggestionConfiguration.standard.llamaPromptTokenBudget
@@ -325,7 +309,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_styleAndLanguageConditionWithoutNamingTheWriterAtAnOpening() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "Hi team,",
-            applicationName: "Mail",
             userName: "Jacob",
             customRules: ["friendly", "professional"],
             languageInstruction: "Write in English."
@@ -340,7 +323,6 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     func test_writerIsNamedOnlyWhereTheCaretFollowsAValediction() {
         let signing = BaseCompletionPromptRenderer.prompt(
             prefixText: "Could you add the budget numbers before Friday?\n\nThanks again,\n",
-            applicationName: "Mail",
             userName: "Jacob"
         )
         XCTAssertTrue(signing.contains("Written by Jacob."))
@@ -348,7 +330,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(signing.hasSuffix("Thanks again,\n"))
 
         for prefix in ["", "Hi", "Thanks for", "I will forward the draft to", "the rest of the"] {
-            let prompt = BaseCompletionPromptRenderer.prompt(prefixText: prefix, applicationName: "Mail", userName: "Jacob")
+            let prompt = BaseCompletionPromptRenderer.prompt(prefixText: prefix, userName: "Jacob")
             XCTAssertFalse(prompt.contains("Jacob"), "the name must not condition \(prefix.debugDescription)")
         }
     }

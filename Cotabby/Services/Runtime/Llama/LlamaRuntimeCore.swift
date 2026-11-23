@@ -136,7 +136,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// calling (detached) thread, so the UI can render ghost text before the decode finishes.
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
         operationID: UUID = UUID(),
         onPartialRawText: ((String) -> Void)? = nil
@@ -163,7 +162,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer { currentOperationID = nil }
         // Tokenization reads native vocabulary; lifecycle ownership must begin before that read
         // so shutdown cannot free the model while this request waits for the cache lock.
-        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "generate")
+        let preparation = try preparedPrompt(prompt: prompt, options: options, kind: "generate")
         // Registered before `obtainAutocompleteSequence` because that call publishes the abort
         // target ahead of its prompt decode; every exit (including a cancelled prefill throwing)
         // must clear it so a late abort can never flag a recycled sequence slot.
@@ -195,7 +194,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// prefill the first suggestion in every field pays the full cold prompt decode.
     func prefill(
         prompt: String,
-        cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
         operationID: UUID = UUID()
     ) throws {
@@ -219,7 +217,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         try Task.checkCancellation()
         currentOperationID = operationID
         defer { currentOperationID = nil }
-        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "prefill")
+        let preparation = try preparedPrompt(prompt: prompt, options: options, kind: "prefill")
         // Same exit guarantee as `generate`: see the comment there.
         defer { clearAbortTarget() }
 
@@ -281,7 +279,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// Shared tokenize/truncate/log front half of `generate` and `prefill`.
     private func preparedPrompt(
         prompt: String,
-        cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         kind: String
     ) throws -> PreparedPrompt {
@@ -303,8 +300,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             metadata: [
                 "kind": .string(kind),
                 "prompt_tokens": .stringConvertible(allPromptTokens.count),
-                "max_tokens": .stringConvertible(options.maxPredictionTokens),
-                "cached_prefix_bytes": .string(cachedPrefixBytes.map(String.init) ?? "none")
+                "max_tokens": .stringConvertible(options.maxPredictionTokens)
             ]
         )
 
@@ -567,9 +563,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     ///
     /// Reuse is decided here from the token prefix alone. KV contents are a pure function of the
     /// token sequence and its positions, so a shared token prefix is always safe to keep no matter
-    /// which field, frame, or request produced it; the caller's byte hint is diagnostic only.
-    /// Requiring the hint used to discard the cache whenever the hint tracker had no record
-    /// (every cancelled request) or saw the field's frame grow while the user typed.
+    /// which field, frame, or request produced it. Callers therefore pass no reuse hint: any
+    /// caller-side notion of "same field" would only discard prefixes that are still valid, such
+    /// as after a cancelled request or when the field's frame grows while the user types.
     private func obtainAutocompleteSequence(
         preparation: PreparedPrompt,
         options: LlamaGenerationOptions

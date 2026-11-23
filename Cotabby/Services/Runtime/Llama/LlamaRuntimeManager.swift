@@ -3,16 +3,18 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Publishes runtime bootstrap state and user-facing diagnostics for the menu bar and startup UI.
-/// The manager does not talk to native llama.cpp APIs directly anymore; it delegates that work to
-/// `LlamaRuntimeCore`, which keeps pointer ownership and generation serialization in a separate file.
+/// Publishes runtime bootstrap state and the discovered model list for the menu bar and settings.
+/// The manager never touches native llama.cpp APIs; `LlamaRuntimeCore` owns the pointers and
+/// serializes generation, so this type can stay a plain main-actor observable.
 ///
 /// `@MainActor` keeps the published state SwiftUI-friendly while the heavy inference work runs
 /// inside `LlamaRuntimeCore`, a thread-safe class backed by the C++ `CotabbyInferenceEngine`.
 @MainActor
 final class LlamaRuntimeManager: ObservableObject {
     @Published private(set) var state: RuntimeBootstrapState = .idle
-    @Published private(set) var diagnostics = LlamaRuntimeDiagnostics()
+    /// Deliberately not `@Published`: no view renders it, and every generation error writes it,
+    /// which would otherwise invalidate each view observing the runtime for nothing.
+    private(set) var diagnostics = LlamaRuntimeDiagnostics()
     @Published private(set) var availableModels: [RuntimeModelOption] = []
 
     private let configuration: LlamaRuntimeConfiguration
@@ -25,7 +27,7 @@ final class LlamaRuntimeManager: ObservableObject {
 
     /// Read-only view of the model currently selected for autocomplete generation. Used by
     /// downstream observers (the performance metrics recorder) that want to label a recorded
-    /// request with the actual GGUF filename, e.g. `Qwen3-0.6B-Q8_0.gguf`. Returns nil when no
+    /// request with the actual GGUF filename, e.g. `gemma-4-E2B.i1-Q6_K.gguf`. Returns nil when no
     /// model has been configured yet.
     var currentModelFilename: String? {
         selectedModelFilename
@@ -52,14 +54,17 @@ final class LlamaRuntimeManager: ObservableObject {
     /// This is called after model downloads so selection UI updates without app restart.
     func refreshAvailableModels() {
         availableModels = runtimeLocator.availableModels(configuration: configuration)
-        selectedModelFilename = normalizedModelFilename(selectedModelFilename)
+        selectedModelFilename = RuntimeModelSelection.resolve(
+            candidates: [selectedModelFilename],
+            available: availableModels
+        )
         CotabbyLogger.runtime.info("Discovered \(self.availableModels.count) model(s)")
     }
 
     /// Records which discovered model should be loaded when preparation starts.
     /// This keeps persisted UI state separate from the runtime loading lifecycle.
     func configureSelectedModel(filename: String?) {
-        selectedModelFilename = normalizedModelFilename(filename)
+        selectedModelFilename = RuntimeModelSelection.resolve(candidates: [filename], available: availableModels)
         CotabbyLogger.runtime.info("Configured selected model: \(self.selectedModelFilename ?? "none")")
     }
 
@@ -72,7 +77,7 @@ final class LlamaRuntimeManager: ObservableObject {
     /// The manager instance stays alive; only the loaded model changes.
     func selectModel(filename: String) async throws {
         CotabbyLogger.runtime.info("Selecting model: \(filename)")
-        guard let normalizedFilename = normalizedModelFilename(filename) else {
+        guard let normalizedFilename = RuntimeModelSelection.resolve(candidates: [filename], available: availableModels) else {
             let error = LlamaRuntimeError.unavailable(
                 "The selected model \(filename) is unavailable.")
             diagnostics.lastError = error.localizedDescription
@@ -94,26 +99,17 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     /// Forwards one generation request to the runtime core after ensuring preparation.
-    /// `cachedPrefixBytes` is a caller-provided reuse hint, not a correctness guarantee; the core
-    /// still validates the token prefix before trusting any native KV state.
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
     ) async throws -> LlamaGenerationOutput {
-        try await generate(
-            prompt: prompt,
-            cachedPrefixBytes: cachedPrefixBytes,
-            options: options,
-            onPartialRawText: nil
-        )
+        try await generate(prompt: prompt, options: options, onPartialRawText: nil)
     }
 
     /// Streaming variant: `onPartialRawText` is invoked from the decode thread with the cumulative
     /// raw completion after each sampled token; see `LlamaRuntimeGenerating`.
     func generate(
         prompt: String,
-        cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput {
@@ -129,7 +125,6 @@ final class LlamaRuntimeManager: ObservableObject {
             let task = Task.detached {
                 try core.generate(
                     prompt: prompt,
-                    cachedPrefixBytes: cachedPrefixBytes,
                     options: options,
                     operationID: operationID,
                     onPartialRawText: onPartialRawText
@@ -179,22 +174,13 @@ final class LlamaRuntimeManager: ObservableObject {
     /// prewarm-on-focus). Best-effort by contract: cancellation is silent and failures only log,
     /// because a missed warmup just means the next generate pays the cold prefill it would have
     /// paid anyway. Errors are deliberately kept out of `diagnostics.lastError`.
-    func prefill(
-        prompt: String,
-        cachedPrefixBytes: Int? = nil,
-        options: LlamaGenerationOptions
-    ) async throws {
+    func prefill(prompt: String, options: LlamaGenerationOptions) async throws {
         _ = try await preparedRuntime()
 
         let core = self.core
         let operationID = UUID()
         let task = Task.detached {
-            try core.prefill(
-                prompt: prompt,
-                cachedPrefixBytes: cachedPrefixBytes,
-                options: options,
-                operationID: operationID
-            )
+            try core.prefill(prompt: prompt, options: options, operationID: operationID)
         }
         try await withTaskCancellationHandler {
             try await task.value
@@ -220,9 +206,9 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Synchronously releases the llama runtime on the current thread, bounded by `timeoutSeconds`.
     /// This is the termination-time path: C++ static destructors during `exit()` tear down the Metal
     /// device, so llama contexts must be released first to avoid `ggml_metal_rsets_free`. Returning
-    /// quickly also keeps macOS's "Quit & Reopen" TCC handshake working after a permission grant —
-    /// the previous `.terminateLater` approach delayed exit long enough that the relaunched process
-    /// never picked up the new permission.
+    /// quickly also keeps macOS's "Quit & Reopen" TCC handshake working after a permission grant:
+    /// replying `.terminateLater` delays exit long enough that the relaunched process never picks
+    /// up the new permission.
     func shutdownSync(timeoutSeconds: TimeInterval) {
         prepareForStop()
         core.shutdown(timeoutSeconds: timeoutSeconds)
@@ -265,7 +251,6 @@ final class LlamaRuntimeManager: ObservableObject {
 
         cachedRuntime = nil
 
-        state = .starting("Initializing the in-process llama runtime.")
         diagnostics.lastError = nil
         diagnostics.lastLoadStatus = "Starting"
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
@@ -299,25 +284,7 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Validates the chosen filename against discovered local models and falls back to the first
-    /// available option when the caller passes `nil` or a missing filename.
-    private func normalizedModelFilename(_ filename: String?) -> String? {
-        guard !availableModels.isEmpty else {
-            return nil
-        }
-
-        guard let filename else {
-            return availableModels.first?.filename
-        }
-
-        if availableModels.contains(where: { $0.filename == filename }) {
-            return filename
-        }
-
-        return availableModels.first?.filename
-    }
-
-    /// Awaits the prepared runtime task and applies the published diagnostics on success.
+    /// Awaits the prepared runtime task and publishes the resulting bootstrap state.
     private func awaitPreparedRuntime(
         _ startupTask: Task<PreparedLlamaRuntime, Error>
     ) async throws -> PreparedLlamaRuntime {
@@ -352,20 +319,14 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Copies prepared runtime metadata into published diagnostics for the menu and startup UI.
+    /// Publishes the ready state for a freshly loaded model.
     private func apply(_ preparedRuntime: PreparedLlamaRuntime) {
         let model = preparedRuntime.resolvedRuntime.modelDisplayName
         let ctx = preparedRuntime.contextWindowTokens
         CotabbyLogger.runtime.info(
             "Runtime ready: model=\(model) ctx=\(ctx) threads=\(preparedRuntime.threadCount) gpu=\(preparedRuntime.gpuLayerCount)"
         )
-        diagnostics.runtimeDirectoryPath = preparedRuntime.resolvedRuntime.runtimeDirectoryURL.path
         diagnostics.modelFilePath = preparedRuntime.resolvedRuntime.modelFileURL.path
-        diagnostics.backendName = preparedRuntime.backendName
-        diagnostics.contextWindowTokens = preparedRuntime.contextWindowTokens
-        diagnostics.batchSize = preparedRuntime.batchSize
-        diagnostics.threadCount = preparedRuntime.threadCount
-        diagnostics.gpuLayerCount = preparedRuntime.gpuLayerCount
         diagnostics.lastLoadStatus = "Loaded"
         diagnostics.lastError = nil
 

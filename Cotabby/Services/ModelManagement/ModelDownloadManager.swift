@@ -192,7 +192,7 @@ final class ModelDownloadManager: ObservableObject {
         }
     }
 
-    /// True when any configured directory holds a file matching `filename` or any known alias.
+    /// True when any configured directory holds a file named `filename`.
     func isModelInstalled(filename: String) -> Bool {
         isInstalled(filename: filename)
     }
@@ -231,11 +231,6 @@ final class ModelDownloadManager: ObservableObject {
         } catch {
             CotabbyLogger.models.error("Failed to delete model \(filename): \(error.localizedDescription)")
         }
-    }
-
-    /// Deletes a downloaded model file from the primary runtime directory.
-    func deleteModel(_ model: RuntimeModelOption) throws {
-        deleteModel(filename: model.filename)
     }
 
     func download(_ model: DownloadableRuntimeModel) {
@@ -281,7 +276,7 @@ final class ModelDownloadManager: ObservableObject {
         downloadTasks[downloadID] = task
     }
 
-    /// Pauses an in-flight download, saving partial metadata so it can be resumed later.
+    /// Pauses an in-flight download, keeping its partial data so a later `download(_:)` resumes it.
     func pause(_ model: DownloadableRuntimeModel) {
         let downloadID = model.id
         guard downloadTasks[downloadID] != nil else {
@@ -295,11 +290,6 @@ final class ModelDownloadManager: ObservableObject {
         } else if let task = downloadTasks[downloadID] {
             task.cancel()
         }
-    }
-
-    /// Resumes a previously paused download.
-    func resume(_ model: DownloadableRuntimeModel) {
-        download(model)
     }
 
     /// User-initiated cancel of an in-flight or paused model download.
@@ -711,7 +701,7 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     private func isInstalled(model: DownloadableRuntimeModel) -> Bool {
-        model.allKnownFilenames.contains(where: isInstalled(filename:))
+        isInstalled(filename: model.filename)
     }
 
     /// The runtime directory is a flat namespace. A second source may not claim a destination

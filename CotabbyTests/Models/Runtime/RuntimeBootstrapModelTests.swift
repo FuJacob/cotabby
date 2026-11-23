@@ -18,6 +18,10 @@ final class RuntimeBootstrapModelTests: XCTestCase {
     /// contract across launches, so a silent rename should fail a test.
     private static let selectionKey = "cotabbySelectedModelFilename"
 
+    /// The manager behind each model, kept so tests can read load diagnostics the bootstrap model
+    /// deliberately does not republish.
+    @MainActor private static var managersByModel: [ObjectIdentifier: LlamaRuntimeManager] = [:]
+
     // MARK: - Harness
 
     private func makeModelDirectory(filenames: [String]) throws -> URL {
@@ -47,7 +51,14 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             configuration: configuration,
             runtimeLocator: BundledRuntimeLocator()
         )
-        return TestLifetime.retain(RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults))
+        let model = TestLifetime.retain(RuntimeBootstrapModel(runtimeManager: manager, userDefaults: userDefaults))
+        Self.managersByModel[ObjectIdentifier(model)] = manager
+        return model
+    }
+
+    @MainActor
+    private func diagnostics(of model: RuntimeBootstrapModel) -> LlamaRuntimeDiagnostics {
+        Self.managersByModel[ObjectIdentifier(model)]?.diagnostics ?? LlamaRuntimeDiagnostics()
     }
 
     /// Subscribes to the model's state and fulfills once it first reports failure. Used to wait
@@ -145,7 +156,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
         runOnMainActor {
             XCTAssertNotNil(model.state.failureDetail)
-            XCTAssertNotNil(model.diagnostics.lastError, "Diagnostics must surface the resolution failure")
+            XCTAssertNotNil(diagnostics(of: model).lastError, "Diagnostics must surface the resolution failure")
         }
     }
 
@@ -253,8 +264,8 @@ final class RuntimeBootstrapModelTests: XCTestCase {
 
         runOnMainActor {
             XCTAssertTrue(
-                model.diagnostics.lastError?.contains("beta.gguf") == true,
-                "Expected a beta.gguf load failure, got \(model.diagnostics.lastError ?? "nil")"
+                diagnostics(of: model).lastError?.contains("beta.gguf") == true,
+                "Expected a beta.gguf load failure, got \(diagnostics(of: model).lastError ?? "nil")"
             )
         }
     }
@@ -344,7 +355,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             model.stop()
 
             XCTAssertEqual(model.state, .idle)
-            XCTAssertEqual(model.diagnostics.lastLoadStatus, "Stopped")
+            XCTAssertEqual(diagnostics(of: model).lastLoadStatus, "Stopped")
         }
     }
 
@@ -357,7 +368,7 @@ final class RuntimeBootstrapModelTests: XCTestCase {
             model.shutdownSync(timeoutSeconds: 2.0)
 
             XCTAssertEqual(model.state, .idle)
-            XCTAssertEqual(model.diagnostics.lastLoadStatus, "Stopped")
+            XCTAssertEqual(diagnostics(of: model).lastLoadStatus, "Stopped")
         }
     }
 }

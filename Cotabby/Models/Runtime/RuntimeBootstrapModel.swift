@@ -3,15 +3,12 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Owns app-facing runtime lifecycle state and republishes diagnostics from the in-process
-/// llama runtime. SwiftUI views depend on this type instead of performing bootstrap directly.
-///
-/// Keeps process lifecycle separate from SwiftUI view lifecycle.
+/// Owns app-facing runtime lifecycle state and the persisted model selection for the in-process
+/// llama runtime. SwiftUI views depend on this type instead of performing bootstrap directly,
+/// which keeps the runtime's process lifetime independent of any view's lifetime.
 @MainActor
 final class RuntimeBootstrapModel: ObservableObject {
-    /// `@Published` automatically notifies SwiftUI views when these values change.
     @Published private(set) var state: RuntimeBootstrapState
-    @Published private(set) var diagnostics: LlamaRuntimeDiagnostics
     @Published private(set) var availableModels: [RuntimeModelOption]
     @Published private(set) var selectedModelFilename: String?
 
@@ -32,27 +29,18 @@ final class RuntimeBootstrapModel: ObservableObject {
         self.runtimeManager = runtimeManager
         self.userDefaults = userDefaults
         state = runtimeManager.state
-        diagnostics = runtimeManager.diagnostics
         availableModels = runtimeManager.availableModels
-        let persistedFilename = userDefaults.string(forKey: Self.selectedModelDefaultsKey)
-        let initialSelection = RuntimeBootstrapModel.initialSelectedModelFilename(
-            persistedFilename,
-            availableModels: runtimeManager.availableModels
+        let initialSelection = RuntimeModelSelection.resolve(
+            candidates: [userDefaults.string(forKey: Self.selectedModelDefaultsKey)],
+            available: runtimeManager.availableModels
         )
         selectedModelFilename = initialSelection
         persistSelectedModelFilename(initialSelection)
         runtimeManager.configureSelectedModel(filename: initialSelection)
 
-        // `sink` subscribes to publisher updates; storing cancellables keeps subscriptions alive.
         runtimeManager.$state
             .sink { [weak self] state in
                 self?.state = state
-            }
-            .store(in: &cancellables)
-
-        runtimeManager.$diagnostics
-            .sink { [weak self] diagnostics in
-                self?.diagnostics = diagnostics
             }
             .store(in: &cancellables)
 
@@ -68,8 +56,8 @@ final class RuntimeBootstrapModel: ObservableObject {
         runtimeManager.refreshAvailableModels()
     }
 
-    /// Starts runtime preparation exactly once and keeps duplicate launch attempts idempotent.
-    /// Idempotent bootstrap ensures only one launch flow is active.
+    /// Starts runtime preparation unless a launch or model switch is already in flight, so
+    /// duplicate launch attempts from app lifecycle callbacks stay idempotent.
     func startIfNeeded() {
         guard runtimeTask == nil, !availableModels.isEmpty else {
             return
@@ -168,23 +156,6 @@ final class RuntimeBootstrapModel: ObservableObject {
         runtimeManager.shutdownSync(timeoutSeconds: timeoutSeconds)
     }
 
-    /// Returns the selected model when present, otherwise falls back to the first discovered option.
-    private static func initialSelectedModelFilename(
-        _ persistedFilename: String?,
-        availableModels: [RuntimeModelOption]
-    ) -> String? {
-        guard !availableModels.isEmpty else {
-            return nil
-        }
-
-        if let persistedFilename,
-           availableModels.contains(where: { $0.filename == persistedFilename }) {
-            return persistedFilename
-        }
-
-        return availableModels.first?.filename
-    }
-
     /// Stores the last chosen runtime model so the next launch reuses the same selection.
     private func persistSelectedModelFilename(_ filename: String?) {
         userDefaults.set(filename, forKey: Self.selectedModelDefaultsKey)
@@ -194,37 +165,15 @@ final class RuntimeBootstrapModel: ObservableObject {
     private func applyAvailableModels(_ availableModels: [RuntimeModelOption]) {
         self.availableModels = availableModels
 
-        let persistedFilename = userDefaults.string(forKey: Self.selectedModelDefaultsKey)
-        let resolvedSelection = RuntimeBootstrapModel.resolvedSelectedModelFilename(
-            currentSelection: selectedModelFilename,
-            persistedSelection: persistedFilename,
-            availableModels: availableModels
+        // The live selection outranks the stored one so a rescan can never revert the user's
+        // current pick to a stale persisted value.
+        let resolvedSelection = RuntimeModelSelection.resolve(
+            candidates: [selectedModelFilename, userDefaults.string(forKey: Self.selectedModelDefaultsKey)],
+            available: availableModels
         )
 
         selectedModelFilename = resolvedSelection
         persistSelectedModelFilename(resolvedSelection)
         runtimeManager.configureSelectedModel(filename: resolvedSelection)
-    }
-
-    private static func resolvedSelectedModelFilename(
-        currentSelection: String?,
-        persistedSelection: String?,
-        availableModels: [RuntimeModelOption]
-    ) -> String? {
-        guard !availableModels.isEmpty else {
-            return nil
-        }
-
-        if let currentSelection,
-           availableModels.contains(where: { $0.filename == currentSelection }) {
-            return currentSelection
-        }
-
-        if let persistedSelection,
-           availableModels.contains(where: { $0.filename == persistedSelection }) {
-            return persistedSelection
-        }
-
-        return availableModels.first?.filename
     }
 }

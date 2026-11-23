@@ -10,7 +10,7 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
         defer { core.shutdown() }
         let prompt = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
         let cold = try core.generate(prompt: prompt, options: options)
-        let warm = try core.generate(prompt: prompt, cachedPrefixBytes: prompt.utf8.count, options: options)
+        let warm = try core.generate(prompt: prompt, options: options)
         XCTAssertFalse(cold.text.isEmpty)
         XCTAssertEqual(warm.text, cold.text, "Discarded suggestions must not change sampler or prompt state")
         XCTAssertEqual(warm.averageLogprob, cold.averageLogprob)
@@ -30,9 +30,7 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
             let cold = try core.generate(prompt: prompt, options: configuration.options)
             XCTAssertFalse(cold.text.isEmpty, configuration.label)
             for repetition in 1...2 {
-                let reused = try core.generate(
-                    prompt: prompt, cachedPrefixBytes: prompt.utf8.count, options: configuration.options
-                )
+                let reused = try core.generate(prompt: prompt, options: configuration.options)
                 XCTAssertEqual(
                     reused.text, cold.text,
                     "\(configuration.label), discarded tail \(repetition): sampler state must restart from the writer's prompt"
@@ -54,10 +52,7 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
             for edited in editedPrompts {
                 core.resetPromptCache()
                 _ = try core.generate(prompt: original, options: configuration.options)
-                let hint = zip(original.utf8, edited.utf8).prefix { $0.0 == $0.1 }.count
-                let reused = try core.generate(
-                    prompt: edited, cachedPrefixBytes: hint, options: configuration.options
-                )
+                let reused = try core.generate(prompt: edited, options: configuration.options)
                 core.resetPromptCache()
                 let fresh = try core.generate(prompt: edited, options: configuration.options)
                 XCTAssertFalse(fresh.text.isEmpty, configuration.label)
@@ -102,8 +97,7 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
 
         for edited in editedPrompts {
             _ = try core.generate(prompt: original, options: options)
-            let hint = zip(original.utf8, edited.utf8).prefix { $0.0 == $0.1 }.count
-            let reused = try core.generate(prompt: edited, cachedPrefixBytes: hint, options: options)
+            let reused = try core.generate(prompt: edited, options: options)
             core.resetPromptCache()
             let fresh = try core.generate(prompt: edited, options: options)
             XCTAssertEqual(reused.text, fresh.text, "Retained tail changed the completion for: \(edited)")
@@ -111,11 +105,10 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
         }
     }
 
-    /// Reuse is decided from the token prefix, not from the caller's byte hint. A request without a
-    /// hint (the tracker had no record, e.g. after a cancelled request) must still keep the shared
-    /// prompt and produce exactly the fresh result. With a sliding-window model this is the case
+    /// Reuse is decided from the token prefix alone. An edited prompt must keep the shared prefix
+    /// and produce exactly the fresh result. With a sliding-window model this is the case
     /// `swa_full` enables: the trim lands inside the window instead of rebuilding.
-    func testHintlessEditReusesPromptAndMatchesFreshRequest() throws {
+    func testEditedPromptReusesSharedPrefixAndMatchesFreshRequest() throws {
         let core = try makeCore()
         defer { core.shutdown() }
         let original = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
@@ -123,11 +116,11 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
             core.resetPromptCache()
             _ = try core.generate(prompt: original, options: options)
             let reused = try core.generate(prompt: edited, options: options)
-            XCTAssertGreaterThan(core.lastReusedPromptTokens, 0, "A shared token prefix must be kept without a hint: \(edited)")
+            XCTAssertGreaterThan(core.lastReusedPromptTokens, 0, "A shared token prefix must be kept: \(edited)")
             core.resetPromptCache()
             let fresh = try core.generate(prompt: edited, options: options)
             XCTAssertEqual(core.lastReusedPromptTokens, 0)
-            XCTAssertEqual(reused.text, fresh.text, "Hintless reuse changed the completion for: \(edited)")
+            XCTAssertEqual(reused.text, fresh.text, "Prefix reuse changed the completion for: \(edited)")
         }
     }
 
@@ -174,7 +167,7 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
             }
         }
         XCTAssertTrue(didCancel)
-        let reused = try core.generate(prompt: prompt, cachedPrefixBytes: prompt.utf8.count, options: options)
+        let reused = try core.generate(prompt: prompt, options: options)
         core.resetPromptCache()
         let fresh = try core.generate(prompt: prompt, options: options)
         XCTAssertEqual(reused.text, fresh.text)
@@ -226,7 +219,6 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
         let core = LlamaRuntimeCore()
         _ = try core.prepare(
             resolvedRuntime: ResolvedLlamaRuntime(
-                runtimeDirectoryURL: modelURL.deletingLastPathComponent(),
                 modelFileURL: modelURL,
                 modelDisplayName: modelURL.lastPathComponent
             ),
