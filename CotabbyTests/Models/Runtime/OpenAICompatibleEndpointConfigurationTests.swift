@@ -34,7 +34,23 @@ final class OpenAICompatibleEndpointConfigurationTests: XCTestCase {
             ("256.1.1.1", .publicInternet),
             ("models.example.com", .publicInternet),
             // A single-label name may resolve publicly, so it is not assumed to be on the LAN.
-            ("internal-llm", .publicInternet)
+            ("internal-llm", .publicInternet),
+            // The IPv6 unique-local and link-local rules apply to parsed addresses only. DNS names
+            // that merely start with the same letters are ordinary public hosts.
+            ("fdic.gov", .publicInternet),
+            ("fd.example.com", .publicInternet),
+            ("fc-models.example.com", .publicInternet),
+            ("fe80.example.com", .publicInternet),
+            ("feb.example.com", .publicInternet),
+            // `fd::1` is 00fd::1, outside fc00::/7, even though its text starts with "fd".
+            ("fd::1", .publicInternet),
+            ("fc00::1", .localNetwork),
+            ("[fd00::1]", .localNetwork),
+            ("febf::1", .localNetwork),
+            ("fec0::1", .publicInternet),
+            ("fe80::1%en0", .localNetwork),
+            ("0:0:0:0:0:0:0:1", .loopback),
+            ("2001:db8::1", .publicInternet)
         ]
 
         for expectation in expectations {
@@ -98,14 +114,26 @@ final class OpenAICompatibleEndpointConfigurationTests: XCTestCase {
             modelName: "m",
             apiMode: .completions
         )
+        let lanHTTPS = try OpenAICompatibleEndpointConfiguration(
+            baseURLString: "https://10.0.0.5:8443/v1",
+            modelName: "m",
+            apiMode: .completions
+        )
         let hosted = try OpenAICompatibleEndpointConfiguration(
             baseURLString: "https://models.example.com/v1",
             modelName: "m",
             apiMode: .completions
         )
 
+        // Plain HTTP is allowed only on the LAN, so that is where the bearer token can travel in
+        // cleartext; the warning has to say so before the user approves the server with Connect.
         XCTAssertEqual(
             lan.privacyWarning,
+            "Cotabby will send typed text, any enabled context, and your API key, if you entered one, " +
+                "to this server on your local network without encryption."
+        )
+        XCTAssertEqual(
+            lanHTTPS.privacyWarning,
             "Cotabby will send typed text and any enabled context to this server on your local network."
         )
         XCTAssertEqual(
@@ -139,14 +167,20 @@ final class OpenAICompatibleEndpointConfigurationTests: XCTestCase {
         let descriptions = [
             OpenAICompatibleEndpointError.invalidBaseURL,
             .insecurePublicHTTP,
-            .emptyModelName
+            .emptyModelName,
+            .unapprovedServer("https://models.example.com/v1")
         ].compactMap(\.errorDescription)
 
-        XCTAssertEqual(descriptions.count, 3)
-        XCTAssertEqual(Set(descriptions).count, 3)
+        XCTAssertEqual(descriptions.count, 4)
+        XCTAssertEqual(Set(descriptions).count, 4)
         XCTAssertEqual(
             OpenAICompatibleEndpointError.insecurePublicHTTP.errorDescription,
             "Public endpoints must use HTTPS. HTTP is limited to this Mac or the local network."
+        )
+        // Names the server so the user can recognize it, or refuse it, before pressing Connect.
+        XCTAssertEqual(
+            OpenAICompatibleEndpointError.unapprovedServer("https://models.example.com/v1").errorDescription,
+            "Press Connect to confirm https://models.example.com/v1 before Cotabby sends it any text."
         )
     }
 }

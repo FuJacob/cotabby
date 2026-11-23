@@ -7,8 +7,8 @@ extension EngineAndModelPaneView {
 // MARK: - OpenAI-compatible endpoint
 
     /// Endpoint controls stay inside the unified engine pane. The connection model owns network
-    /// state, the settings model owns durable non-secret values, and the API key draft only lives
-    /// for this view's lifetime before an explicit Connect saves it to Keychain.
+    /// state, the settings model owns durable non-secret values, and the Server URL and API key
+    /// drafts only live for this view's lifetime until an explicit Connect commits them.
     @ViewBuilder
     var openAICompatibleSections: some View {
         Section("Connection") {
@@ -28,11 +28,11 @@ extension EngineAndModelPaneView {
                     )
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit(refreshEndpointModels)
+                    .onSubmit(connectEndpoint)
 
                     Button(
                         endpointConnectButtonTitle,
-                        action: refreshEndpointModels
+                        action: connectEndpoint
                     )
                     .buttonStyle(.borderedProminent)
                     .disabled(openAICompatibleConnectionModel.state == .connecting)
@@ -46,10 +46,13 @@ extension EngineAndModelPaneView {
                     Button("Use Ollama Default", systemImage: "arrow.counterclockwise") {
                         resetEndpointBaseURL()
                     }
-                    .disabled(
-                        suggestionSettings.openAICompatibleBaseURL
-                            == OpenAICompatibleEndpointConfiguration.defaultBaseURLString
-                    )
+                    .disabled(endpointBaseURLText == OpenAICompatibleEndpointConfiguration.defaultBaseURLString)
+                }
+
+                if endpointHasUncommittedBaseURL {
+                    Text("Press Connect to use this address. Until then Cotabby keeps using the saved one.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .settingsItem(.endpointBaseURL)

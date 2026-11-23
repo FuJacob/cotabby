@@ -21,6 +21,8 @@ extension EngineAndModelPaneView {
             guard case .failed(let detail) = runtimeModel.state else { return nil }
             return SettingsPaneCallout(tone: .warning, message: detail)
         case .openAICompatible:
+            // Reports an unapproved server too, so the pane says why nothing is being sent instead of
+            // failing silently.
             if let configurationError = suggestionSettings.openAICompatibleConfigurationError {
                 return SettingsPaneCallout(tone: .warning, message: configurationError)
             }
@@ -63,18 +65,34 @@ extension EngineAndModelPaneView {
         )
     }
 
+    /// What the Server URL field shows: the uncommitted draft while there is one, else the saved
+    /// address. Keeping the draft in view state means a half-typed or newly pasted address never
+    /// receives a request, and the API key never follows an edit until the user presses Connect.
+    var endpointBaseURLText: String {
+        endpointBaseURLDraft ?? suggestionSettings.openAICompatibleBaseURL
+    }
+
+    var endpointHasUncommittedBaseURL: Bool {
+        endpointBaseURLDraft != nil
+    }
+
     var endpointBaseURLBinding: Binding<String> {
         Binding(
-            get: { suggestionSettings.openAICompatibleBaseURL },
+            get: { endpointBaseURLText },
             set: { value in
-                suggestionSettings.setOpenAICompatibleBaseURL(value)
-                openAICompatibleConnectionModel.invalidate()
+                endpointBaseURLDraft = value == suggestionSettings.openAICompatibleBaseURL ? nil : value
             }
         )
     }
 
+    /// Describes the address in the field, not the saved one, so the disclosure is on screen before
+    /// the user presses Connect to approve that server.
     var endpointPrivacyWarning: String? {
-        (try? suggestionSettings.openAICompatibleConfiguration)?.privacyWarning
+        (try? OpenAICompatibleEndpointConfiguration(
+            baseURLString: endpointBaseURLText,
+            modelName: suggestionSettings.openAICompatibleModelName,
+            apiMode: suggestionSettings.openAICompatibleAPIMode
+        ))?.privacyWarning
     }
 
     /// Compact feedback stays beside the connection action instead of repeating the URL in a second
@@ -104,7 +122,7 @@ extension EngineAndModelPaneView {
     }
 
     var endpointConnectButtonTitle: String {
-        if case .ready = openAICompatibleConnectionModel.state {
+        if !endpointHasUncommittedBaseURL, case .ready = openAICompatibleConnectionModel.state {
             return "Refresh"
         }
         return "Connect"
@@ -165,14 +183,12 @@ extension EngineAndModelPaneView {
         runtimeModel.refreshAvailableModels()
     }
 
-    /// Reset is intentionally local to the address. The selected model and Keychain credential
-    /// remain untouched because they may still be valid for the default Ollama server. Invalidating
-    /// discovery makes the status honest until the user explicitly connects again.
+    /// Reset only fills the field with the default Ollama address. Like any other address it takes
+    /// effect on Connect, which is what approves that server. The selected model and Keychain
+    /// credential stay untouched because they may still be valid for the default Ollama server.
     func resetEndpointBaseURL() {
-        suggestionSettings.setOpenAICompatibleBaseURL(
-            OpenAICompatibleEndpointConfiguration.defaultBaseURLString
-        )
-        openAICompatibleConnectionModel.invalidate()
+        let defaultURL = OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+        endpointBaseURLDraft = suggestionSettings.openAICompatibleBaseURL == defaultURL ? nil : defaultURL
     }
 
     func loadEndpointAPIKey() {
@@ -184,26 +200,52 @@ extension EngineAndModelPaneView {
         }
     }
 
-    func refreshEndpointModels() {
+    /// Connect (button or Return) is the only action that changes which server receives text and
+    /// the API key. It approves the typed address's server in the Keychain, commits the address,
+    /// saves the key draft, and only then sends the first request. Pressing it is the user's
+    /// confirmation, including for a plain-HTTP LAN server whose warning says the key is unencrypted.
+    func connectEndpoint() {
+        let baseURL = endpointBaseURLText
         Task {
             do {
+                let configuration = try suggestionSettings.approveOpenAICompatibleEndpoint(baseURLString: baseURL)
+                endpointBaseURLDraft = nil
                 try suggestionSettings.saveOpenAICompatibleAPIKey(endpointAPIKeyDraft)
                 endpointCredentialError = nil
-                let configuration = try suggestionSettings.openAICompatibleConfiguration
                 await openAICompatibleConnectionModel.refresh(
                     configuration: configuration,
                     apiKey: endpointAPIKeyDraft
                 )
-                if let preferredModel = OpenAICompatibleModelSelectionResolver.preferredSelection(
-                    currentSelection: suggestionSettings.openAICompatibleModelName,
-                    discoveredModels: openAICompatibleConnectionModel.models
-                ), preferredModel != suggestionSettings.openAICompatibleModelName {
-                    suggestionSettings.setOpenAICompatibleModelName(preferredModel)
-                }
+                adoptPreferredEndpointModel()
             } catch {
                 endpointCredentialError = error.localizedDescription
                 openAICompatibleConnectionModel.setFailure(error.localizedDescription)
             }
+        }
+    }
+
+    /// Automatic discovery (the pane appears, or the engine is switched here) only talks to the
+    /// server the user already approved. An unapproved server gets no request; the failure state
+    /// tells the user to press Connect instead.
+    func refreshApprovedEndpointModels() {
+        Task {
+            do {
+                let configuration = try suggestionSettings.openAICompatibleApprovedConfiguration
+                let apiKey = try suggestionSettings.openAICompatibleAPIKey()
+                await openAICompatibleConnectionModel.refresh(configuration: configuration, apiKey: apiKey)
+                adoptPreferredEndpointModel()
+            } catch {
+                openAICompatibleConnectionModel.setFailure(error.localizedDescription)
+            }
+        }
+    }
+
+    func adoptPreferredEndpointModel() {
+        if let preferredModel = OpenAICompatibleModelSelectionResolver.preferredSelection(
+            currentSelection: suggestionSettings.openAICompatibleModelName,
+            discoveredModels: openAICompatibleConnectionModel.models
+        ), preferredModel != suggestionSettings.openAICompatibleModelName {
+            suggestionSettings.setOpenAICompatibleModelName(preferredModel)
         }
     }
 }

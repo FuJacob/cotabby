@@ -17,6 +17,9 @@ struct EngineAndModelPaneView: View {
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
     @State var pendingDeletionModel: RuntimeModelOption?
+    /// The Server URL as typed, nil while it matches the saved address. Typing never changes where
+    /// Cotabby sends text; only Connect commits this draft (see `connectEndpoint()`).
+    @State var endpointBaseURLDraft: String?
     @State var endpointAPIKeyDraft = ""
     @State var endpointCredentialError: String?
     /// The LM Studio models directory if it exists, probed once in `onAppear` so the filesystem
@@ -89,12 +92,12 @@ struct EngineAndModelPaneView: View {
             loadEndpointAPIKey()
             if suggestionSettings.selectedEngine == .openAICompatible,
                openAICompatibleConnectionModel.state == .idle {
-                refreshEndpointModels()
+                refreshApprovedEndpointModels()
             }
         }
         .onChange(of: suggestionSettings.selectedEngine) { _, engine in
             if engine == .openAICompatible, openAICompatibleConnectionModel.state == .idle {
-                refreshEndpointModels()
+                refreshApprovedEndpointModels()
             }
         }
         .alert(
