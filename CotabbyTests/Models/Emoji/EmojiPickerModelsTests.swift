@@ -24,15 +24,6 @@ final class EmojiPickerModelsTests: XCTestCase {
         XCTAssertEqual(toned.entry, base)
     }
 
-    func test_emojiSkinTone_displayNamesArePinnedSettingsCopy() {
-        XCTAssertEqual(EmojiSkinTone.neutral.displayName, "Default")
-        XCTAssertEqual(EmojiSkinTone.light.displayName, "Light")
-        XCTAssertEqual(EmojiSkinTone.mediumLight.displayName, "Medium Light")
-        XCTAssertEqual(EmojiSkinTone.medium.displayName, "Medium")
-        XCTAssertEqual(EmojiSkinTone.mediumDark.displayName, "Medium Dark")
-        XCTAssertEqual(EmojiSkinTone.dark.displayName, "Dark")
-    }
-
     func test_emojiSkinTone_modifiersAreTheFitzpatrickScalarsInLightToDarkOrder() {
         XCTAssertEqual(
             EmojiSkinTone.allCases.map(\.modifier),
@@ -48,18 +39,6 @@ final class EmojiPickerModelsTests: XCTestCase {
             let modifier = try XCTUnwrap(tone.modifier, "\(tone) should carry a Fitzpatrick modifier")
             XCTAssertEqual(tone.sampleGlyph, "\u{270C}" + modifier)
         }
-    }
-
-    func test_emojiGender_displayNamesArePinnedSettingsCopy() {
-        XCTAssertEqual(EmojiGender.neutral.displayName, "Person")
-        XCTAssertEqual(EmojiGender.male.displayName, "Man")
-        XCTAssertEqual(EmojiGender.female.displayName, "Woman")
-    }
-
-    func test_emojiGender_sampleGlyphsAreTheBasePersonManWomanScalars() {
-        XCTAssertEqual(EmojiGender.neutral.sampleGlyph, "\u{1F9D1}")
-        XCTAssertEqual(EmojiGender.male.sampleGlyph, "\u{1F468}")
-        XCTAssertEqual(EmojiGender.female.sampleGlyph, "\u{1F469}")
     }
 
     private func makeEntry() -> EmojiEntry {

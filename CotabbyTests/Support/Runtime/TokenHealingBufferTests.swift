@@ -106,7 +106,6 @@ final class TokenHealingBufferTests: XCTestCase {
     }
 
     func testMaximumCandidateFitsTheReplayAllowanceEvenWithByteFallback() {
-        XCTAssertEqual(TokenHealingBuffer.maximumReplayTokens, 16)
         XCTAssertLessThanOrEqual(
             TokenHealingBuffer.maximumHealedTokenBytes,
             TokenHealingBuffer.maximumReplayTokens

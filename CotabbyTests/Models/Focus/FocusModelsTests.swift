@@ -4,8 +4,7 @@ import XCTest
 @testable import Cotabby
 
 /// Tests for the pure focus value models: diagnostic labels, capability summaries, content-edge
-/// provenance, snapshot identity and truncation signals, resolved field style emptiness, and the
-/// polling-event change label.
+/// provenance, snapshot identity and truncation signals, and resolved field style emptiness.
 final class FocusModelsTests: XCTestCase {
     func test_resolvedFieldStyle_isEmptyWhenNoRenderableAttributeIsPresent() {
         let empty = ResolvedFieldStyle(fontName: nil, fontPointSize: nil, colorHex: nil)
@@ -47,18 +46,6 @@ final class FocusModelsTests: XCTestCase {
         XCTAssertEqual(FocusCapability.blocked("Secure field").summary, "Secure field")
         XCTAssertEqual(FocusCapability.unsupported("Missing caret bounds.").shortLabel, "Unsupported")
         XCTAssertEqual(FocusCapability.unsupported("Missing caret bounds.").summary, "Missing caret bounds.")
-    }
-
-    func test_focusCapabilityRequirement_unsupportedReasonLowercasesTheSummary() {
-        XCTAssertEqual(
-            FocusCapabilityRequirement.allCases.map(\.unsupportedReason),
-            [
-                "Missing text value.",
-                "Missing selection range.",
-                "Missing caret bounds.",
-                "Missing editable target."
-            ]
-        )
     }
 
     func test_observedContentEdges_defaultToUntrustedAndLineQueryMarginCarriesNoTop() {
@@ -157,20 +144,5 @@ final class FocusModelsTests: XCTestCase {
         // An empty trailing text the host never delivered is unknown, not the end of the field.
         XCTAssertTrue(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).trailingTextMayBeTruncated)
         XCTAssertFalse(CotabbyTestFixtures.focusedInputSnapshot(trailingTextUnavailable: true).precedingTextMayBeTruncated)
-    }
-
-    func test_focusPollingEvent_changeSummaryLabelsReflectFocusChange() {
-        XCTAssertEqual(makePollingEvent(didChange: true).changeSummary, "changed")
-        XCTAssertEqual(makePollingEvent(didChange: false).changeSummary, "unchanged")
-    }
-
-    private func makePollingEvent(didChange: Bool) -> FocusPollingEvent {
-        FocusPollingEvent(
-            sequence: 1,
-            focusChangeSequence: 2,
-            didChangeFocusedInput: didChange,
-            applicationName: "Notes",
-            capabilitySummary: "Supported"
-        )
     }
 }

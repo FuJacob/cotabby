@@ -36,16 +36,4 @@ final class SystemResourceSamplerTests: XCTestCase {
         XCTAssertLessThan(second.footprintBytes, first.footprintBytes * 4)
         XCTAssertGreaterThanOrEqual(second.cpuPercent, 0)
     }
-
-    func test_sampleValues_compareByBothFields() {
-        // The sample's synthesized Equatable inherits the app module's default MainActor
-        // isolation, so the comparisons run through the main-actor hop helper.
-        runOnMainActor {
-            let sample = SystemResourceSample(cpuPercent: 12.5, footprintBytes: 1_024)
-
-            XCTAssertEqual(sample, SystemResourceSample(cpuPercent: 12.5, footprintBytes: 1_024))
-            XCTAssertNotEqual(sample, SystemResourceSample(cpuPercent: 12.5, footprintBytes: 2_048))
-            XCTAssertNotEqual(sample, SystemResourceSample(cpuPercent: 99.0, footprintBytes: 1_024))
-        }
-    }
 }

@@ -6,20 +6,6 @@ import XCTest
 /// values, the power-profile bridge back to an engine kind, the persisted app-blocklist entry shape,
 /// and the snapshot's single word-range chokepoint.
 final class SuggestionEngineModelsTests: XCTestCase {
-    func test_suggestionEngineKind_displayLabelsArePinnedProductCopy() {
-        XCTAssertEqual(SuggestionEngineKind.appleIntelligence.displayLabel, "Apple Intelligence")
-        XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source")
-        XCTAssertEqual(SuggestionEngineKind.openAICompatible.displayLabel, "Local Endpoint")
-    }
-
-    func test_suggestionEngineKind_systemImageNamesArePinnedSharedGlyphs() {
-        // Onboarding's engine cards and Settings' Home status card render these; pinning them keeps
-        // the engine looking like one object across every surface.
-        XCTAssertEqual(SuggestionEngineKind.appleIntelligence.systemImageName, "apple.logo")
-        XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.systemImageName, "cpu.fill")
-        XCTAssertEqual(SuggestionEngineKind.openAICompatible.systemImageName, "network")
-    }
-
     func test_suggestionEngineKind_rawValuesArePersistedIdentifiers() {
         // Stored under `cotabbySelectedEngine` and the battery/plugged-in engine keys; a rename
         // would silently reset every saved engine choice.

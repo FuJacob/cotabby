@@ -38,6 +38,22 @@ final class LanguageSupportTests: XCTestCase {
         // instead of being treated as a multi-language set.
         XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: [" german ", "German"]), 1.7)
     }
+    func test_languageCatalog_effectiveTokensPerWord_fallsBackToEnglishForMultiOrUnknown() {
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: []), LanguageCatalog.fallbackTokensPerWord)
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: ["German"]), 1.7)
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: ["english"]), 1.3)
+        // Multi-language users get the safe English ratio so we don't have to guess which one wins.
+        XCTAssertEqual(
+            LanguageCatalog.effectiveTokensPerWord(for: ["German", "Spanish"]),
+            LanguageCatalog.fallbackTokensPerWord
+        )
+        // Free-text languages we don't have factors for also fall back, instead of crashing or zero.
+        XCTAssertEqual(
+            LanguageCatalog.effectiveTokensPerWord(for: ["Klingon"]),
+            LanguageCatalog.fallbackTokensPerWord
+        )
+    }
+
 
     // MARK: - promptInstruction
 
