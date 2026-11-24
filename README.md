@@ -129,8 +129,11 @@ For the full suggestion pipeline, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```sh
 brew tap FuJacob/cotabby
+brew trust --cask fujacob/cotabby/cotabby
 brew install --cask cotabby
 ```
+
+Homebrew 6 requires explicit trust for third-party casks when installing by short name. The trust command above allows only Cotabby's cask, not the entire tap. See [Homebrew Tap Trust](https://docs.brew.sh/Tap-Trust) for details. If your older Homebrew version does not support `brew trust`, skip that line.
 
 Upgrade later with `brew upgrade --cask cotabby`. The tap lives at [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
 
