@@ -71,11 +71,8 @@ those stay on your Mac and are never transmitted.
 
 There are three ways:
 
-- **Homebrew (recommended):**
-  ```sh
-  brew tap FuJacob/cotabby
-  brew install --cask cotabby
-  ```
+- **Homebrew (recommended):** follow the [Homebrew install instructions](README.md#homebrew),
+  including the cask trust step for Homebrew 6.
   Update later with `brew upgrade --cask cotabby`.
 - **Direct download:** get the latest release from
   [cotabby.app](https://cotabby.app) (or the GitHub Releases page) and drag
